@@ -47,51 +47,14 @@ namespace cpp_dbc
         }
     }
 
+#ifdef __cpp_exceptions
+
     std::shared_ptr<DBConnection> DriverManager::getDBConnection(const std::string &url,
                                                                  const std::string &user,
                                                                  const std::string &password,
                                                                  const std::map<std::string, std::string> &options)
     {
-        // std::cout << "Getting connection for URL: " << url << std::endl;
-
-        // Parse the URL to determine which driver to use
-        // URL format: cpp_dbc:driverName://host:port/database
-        size_t prefixPos = url.find("cpp_dbc:");
-        if (prefixPos != 0)
-        {
-            // std::cout << "Invalid URL format: missing cpp_dbc: prefix" << std::endl;
-            throw DBException("1S2T3U4V5W6X", "Invalid URL format. Expected cpp_dbc:driverName://host:port/database", system_utils::captureCallStack());
-        }
-
-        size_t driverEndPos = url.find("://", 7);
-        if (driverEndPos == std::string::npos)
-        {
-            // std::cout << "Invalid URL format: missing :// separator" << std::endl;
-            throw DBException("7Y8Z9A0B1C2D", "Invalid URL format. Expected cpp_dbc:driverName://host:port/database", system_utils::captureCallStack());
-        }
-
-        std::string driverName = url.substr(8, driverEndPos - 8);
-        // std::cout << "Looking for driver: '" << driverName << "'" << std::endl;
-
-        // Print all registered drivers (commented out to reduce noise in tests)
-        // std::cout << "Registered drivers:" << std::endl;
-        // for (const auto &driver : drivers)
-        // {
-        //     std::cout << "  - '" << driver.first << "'" << std::endl;
-        // }
-
-        // Find the driver
-        auto it = drivers.find(driverName);
-        if (it == drivers.end())
-        {
-            // std::cout << "Driver '" << driverName << "' not found!" << std::endl;
-            throw DBException("3E4F5G6H7I8J", "No suitable driver found for " + url, system_utils::captureCallStack());
-        }
-
-        // std::cout << "Driver '" << driverName << "' found, creating connection..." << std::endl;
-
-        // Use the driver to create a connection (nothrow overload — logic lives there)
-        auto result = it->second->connect(std::nothrow, url, user, password, options);
+        auto result = getDBConnection(std::nothrow, url, user, password, options);
         if (!result.has_value())
         {
             throw result.error();
@@ -101,28 +64,89 @@ namespace cpp_dbc
 
     std::shared_ptr<DBConnection> DriverManager::getDBConnection(const config::DatabaseConfig &dbConfig)
     {
-        return getDBConnection(
-            dbConfig.createConnectionString(),
-            dbConfig.getUsername(),
-            dbConfig.getPassword(),
-            dbConfig.getOptions());
+        auto result = getDBConnection(std::nothrow, dbConfig);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::shared_ptr<DBConnection> DriverManager::getDBConnection(const config::DatabaseConfigManager &configManager,
                                                                  const std::string &configName)
     {
-        auto dbConfigOpt = configManager.getDatabaseByName(configName);
-        if (!dbConfigOpt)
+        auto result = getDBConnection(std::nothrow, configManager, configName);
+        if (!result.has_value())
         {
-            throw DBException("9K0L1M2N3O4P", "Database configuration not found: " + configName, system_utils::captureCallStack());
+            throw result.error();
+        }
+        return result.value();
+    }
+
+#endif // __cpp_exceptions
+
+    cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException>
+    DriverManager::getDBConnection(std::nothrow_t,
+                                   const std::string &url,
+                                   const std::string &user,
+                                   const std::string &password,
+                                   const std::map<std::string, std::string> &options) noexcept
+    {
+        // Parse the URL to determine which driver to use
+        // URL format: cpp_dbc:driverName://host:port/database
+        size_t prefixPos = url.find("cpp_dbc:");
+        if (prefixPos != 0)
+        {
+            return cpp_dbc::unexpected(DBException("1S2T3U4V5W6X", "Invalid URL format. Expected cpp_dbc:driverName://host:port/database", system_utils::captureCallStack()));
+        }
+
+        size_t driverEndPos = url.find("://", 7);
+        if (driverEndPos == std::string::npos)
+        {
+            return cpp_dbc::unexpected(DBException("7Y8Z9A0B1C2D", "Invalid URL format. Expected cpp_dbc:driverName://host:port/database", system_utils::captureCallStack()));
+        }
+
+        std::string driverName = url.substr(8, driverEndPos - 8);
+
+        // Find the driver
+        auto it = drivers.find(driverName);
+        if (it == drivers.end())
+        {
+            return cpp_dbc::unexpected(DBException("3E4F5G6H7I8J", "No suitable driver found for " + url, system_utils::captureCallStack()));
+        }
+
+        // Use the driver to create a connection (nothrow overload — logic lives there)
+        return it->second->connect(std::nothrow, url, user, password, options);
+    }
+
+    cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException>
+    DriverManager::getDBConnection(std::nothrow_t,
+                                   const config::DatabaseConfig &dbConfig) noexcept
+    {
+        return getDBConnection(std::nothrow,
+                               dbConfig.createConnectionString(),
+                               dbConfig.getUsername(),
+                               dbConfig.getPassword(),
+                               dbConfig.getOptions());
+    }
+
+    cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException>
+    DriverManager::getDBConnection(std::nothrow_t,
+                                   const config::DatabaseConfigManager &configManager,
+                                   const std::string &configName) noexcept
+    {
+        auto dbConfigOpt = configManager.getDatabaseByName(configName);
+        if (!dbConfigOpt.has_value())
+        {
+            return cpp_dbc::unexpected(DBException("9K0L1M2N3O4P", "Database configuration not found: " + configName, system_utils::captureCallStack()));
         }
 
         const auto &dbConfig = dbConfigOpt->get();
-        return getDBConnection(
-            dbConfig.createConnectionString(),
-            dbConfig.getUsername(),
-            dbConfig.getPassword(),
-            dbConfig.getOptions());
+        return getDBConnection(std::nothrow,
+                               dbConfig.createConnectionString(),
+                               dbConfig.getUsername(),
+                               dbConfig.getPassword(),
+                               dbConfig.getOptions());
     }
 
     std::vector<std::string> DriverManager::getRegisteredDrivers()

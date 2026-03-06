@@ -79,7 +79,7 @@ TEST_CASE("Real ScyllaDB connection pool tests", "[26_141_01_scylladb_real_conne
         poolConfigLocal.setTestOnReturn(false);
 
         // Create a connection pool using factory method
-        auto poolResult = cpp_dbc::ScyllaDB::ScyllaConnectionPool::create(std::nothrow, poolConfigLocal);
+        auto poolResult = cpp_dbc::ScyllaDB::ScyllaDBConnectionPool::create(std::nothrow, poolConfigLocal);
         if (!poolResult.has_value())
         {
             throw poolResult.error();
@@ -169,7 +169,7 @@ TEST_CASE("Real ScyllaDB connection pool tests", "[26_141_01_scylladb_real_conne
         poolConfigLocal.setTestOnReturn(true);
 
         // Create a connection pool
-        auto poolResult2 = cpp_dbc::ScyllaDB::ScyllaConnectionPool::create(std::nothrow, poolConfigLocal);
+        auto poolResult2 = cpp_dbc::ScyllaDB::ScyllaDBConnectionPool::create(std::nothrow, poolConfigLocal);
         if (!poolResult2.has_value())
         {
             throw poolResult2.error();
@@ -235,7 +235,7 @@ TEST_CASE("Real ScyllaDB connection pool tests", "[26_141_01_scylladb_real_conne
             auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::ColumnarPooledDBConnection>(conn);
             REQUIRE(pooledConn != nullptr);
 
-            auto underlyingConn = pooledConn->getUnderlyingColumnarConnection();
+            auto underlyingConn = pooledConn->getUnderlyingConnection(std::nothrow);
             REQUIRE(underlyingConn != nullptr);
 
             // Close the underlying connection directly - this invalidates the pooled connection
@@ -304,7 +304,7 @@ TEST_CASE("Real ScyllaDB connection pool tests", "[26_141_01_scylladb_real_conne
                 auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::ColumnarPooledDBConnection>(conn);
                 REQUIRE(pooledConn != nullptr);
 
-                auto underlyingConn = pooledConn->getUnderlyingColumnarConnection();
+                auto underlyingConn = pooledConn->getUnderlyingConnection(std::nothrow);
                 REQUIRE(underlyingConn != nullptr);
                 underlyingConn->close();
             }

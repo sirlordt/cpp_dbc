@@ -24,8 +24,8 @@
 
 namespace cpp_dbc
 {
-
     // RelationalDBConnectionPool implementation
+
     RelationalDBConnectionPool::RelationalDBConnectionPool(DBConnectionPool::ConstructorTag,
                                                            const std::string &url,
                                                            const std::string &username,
@@ -80,7 +80,7 @@ namespace cpp_dbc
         // Pool initialization will be done in the factory method
     }
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     cpp_dbc::expected<void, DBException> RelationalDBConnectionPool::initializePool(std::nothrow_t) noexcept
     {
         try
@@ -209,28 +209,18 @@ namespace cpp_dbc
     cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>
     RelationalDBConnectionPool::createDBConnection(std::nothrow_t) noexcept
     {
-        try
+        auto dbConnResult = DriverManager::getDBConnection(std::nothrow, m_url, m_username, m_password, m_options);
+        if (!dbConnResult.has_value())
         {
-            auto dbConn = DriverManager::getDBConnection(m_url, m_username, m_password, m_options);
-            auto relationalConn = std::dynamic_pointer_cast<RelationalDBConnection>(dbConn);
-            if (!relationalConn)
-            {
-                return cpp_dbc::unexpected(DBException("B3K9L4M1N2P5", "Connection pool only supports relational database connections", system_utils::captureCallStack()));
-            }
-            return relationalConn;
+            return cpp_dbc::unexpected(dbConnResult.error());
         }
-        catch (const DBException &ex)
+
+        auto relationalConn = std::dynamic_pointer_cast<RelationalDBConnection>(dbConnResult.value());
+        if (!relationalConn)
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(DBException("B3K9L4M1N2P5", "Connection pool only supports relational database connections", system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("AVFFVWG2H5DF", "Failed to create relational database connection: " + std::string(ex.what()), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("9AJ2I6MIR9ME", "Unknown error creating relational database connection", system_utils::captureCallStack()));
-        }
+        return relationalConn;
     }
 
     cpp_dbc::expected<std::shared_ptr<RelationalPooledDBConnection>, DBException>
@@ -263,22 +253,11 @@ namespace cpp_dbc
             CP_DEBUG("RelationalDBConnectionPool::createPooledDBConnection - Pool not managed by shared_ptr: %s", ex.what());
         }
 
-        try
-        {
-            return std::make_shared<RelationalPooledDBConnection>(conn, weakPool, m_poolAlive);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("4B3YXUQCEX9F", std::string("Failed to create pooled relational connection: ") + ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("UTP1C9G6PMH9", "Failed to create pooled relational connection: unknown error", system_utils::captureCallStack()));
-        }
+        return std::make_shared<RelationalPooledDBConnection>(conn, weakPool, m_poolAlive);
     }
 
     cpp_dbc::expected<bool, DBException>
-    RelationalDBConnectionPool::validateConnection(std::nothrow_t, std::shared_ptr<RelationalDBConnection> conn) const noexcept
+    RelationalDBConnectionPool::validateConnection(std::nothrow_t, std::shared_ptr<DBConnection> conn) const noexcept
     {
         if (!conn)
         {
@@ -314,8 +293,8 @@ namespace cpp_dbc
         {
             // Pool is closing — decrement counter so close() doesn't wait forever
             conn->setActive(std::nothrow, false);
-            m_activeConnections--;
-            auto closeResult = conn->getUnderlyingRelationalConnection()->close(std::nothrow);
+            m_activeConnections.fetch_sub(1, std::memory_order_acq_rel);
+            auto closeResult = conn->getUnderlyingConnection(std::nothrow)->close(std::nothrow);
             if (!closeResult.has_value())
             {
                 CP_DEBUG("RelationalDBConnectionPool::returnConnection - close failed during shutdown: %s", closeResult.error().what_s().data());
@@ -326,7 +305,7 @@ namespace cpp_dbc
         // Check if connection is already inactive (already returned to pool)
         if (!conn->isActive(std::nothrow))
         {
-            CP_DEBUG("returnConnection - SKIPPED: connection already inactive");
+            CP_DEBUG("RelationalDBConnectionPool::returnConnection - Connection is not active, SKIPPED");
             return cpp_dbc::unexpected(DBException("76MTOQW6NQVG", "returnConnection called on an already inactive connection (double-return bug)", system_utils::captureCallStack()));
         }
 
@@ -337,8 +316,8 @@ namespace cpp_dbc
             if (it == m_allConnections.end())
             {
                 conn->setActive(std::nothrow, false);
-                m_activeConnections--;
-                CP_DEBUG("returnConnection - ORPHAN: connection not in allConnections, active=%d", m_activeConnections.load(std::memory_order_acquire));
+                m_activeConnections.fetch_sub(1, std::memory_order_acq_rel);
+                CP_DEBUG("RelationalDBConnectionPool::returnConnection - ORPHAN: connection not in allConnections, active=%d", m_activeConnections.load(std::memory_order_acquire));
                 notifyFirstWaiter(std::nothrow);
                 return cpp_dbc::unexpected(DBException("JXXLPNBLFVLI", "returnConnection called with a connection not belonging to this pool (orphan)", system_utils::captureCallStack()));
             }
@@ -352,18 +331,17 @@ namespace cpp_dbc
 
         if (m_testOnReturn)
         {
-            auto validResult = validateConnection(std::nothrow, conn->getUnderlyingRelationalConnection());
-            valid = validResult.value_or(false);
+            valid = validateConnection(std::nothrow, conn->getUnderlyingConnection(std::nothrow)).value_or(false);
         }
 
         if (valid && !conn->m_closed.load(std::memory_order_acquire))
         {
-            auto prepResult = conn->getUnderlyingRelationalConnection()->prepareForPoolReturn(
+            auto prepReturnPoolResult = conn->getUnderlyingConnection(std::nothrow)->prepareForPoolReturn(
                 std::nothrow, m_transactionIsolation);
-            if (!prepResult.has_value())
+            if (!prepReturnPoolResult.has_value())
             {
                 CP_DEBUG("RelationalDBConnectionPool::returnConnection - prepareForPoolReturn failed: %s",
-                         prepResult.error().what_s().data());
+                         prepReturnPoolResult.error().what_s().data());
                 valid = false;
             }
         }
@@ -376,7 +354,7 @@ namespace cpp_dbc
             conn->updateLastUsedTime(std::nothrow); // Mark return time for HikariCP validation skip
             std::scoped_lock lockPool(m_mutexPool);
             conn->setActive(std::nothrow, false);
-            m_activeConnections--;
+            m_activeConnections.fetch_sub(1, std::memory_order_acq_rel);
 
             // Direct handoff: if threads are waiting, give the connection directly
             // to the first waiter instead of pushing to idle. This eliminates the
@@ -389,15 +367,15 @@ namespace cpp_dbc
                 request->conn = conn;
                 request->fulfilled = true;
                 conn->setActive(std::nothrow, true);
-                m_activeConnections++;
-                CP_DEBUG("returnConnection - HANDOFF: direct to waiter, active=%d, waiters=%zu, total=%zu",
+                m_activeConnections.fetch_add(1, std::memory_order_acq_rel);
+                CP_DEBUG("RelationalDBConnectionPool::returnConnection - HANDOFF: direct to waiter, active=%d, waiters=%zu, total=%zu",
                          m_activeConnections.load(std::memory_order_acquire), m_waitQueue.size(), m_allConnections.size());
                 request->cv.notify_one(); // Per-waiter: only the fulfilled waiter is woken
             }
             else
             {
                 m_idleConnections.push(conn);
-                CP_DEBUG("returnConnection - VALID: pushed to idle, active=%d, idle=%zu, total=%zu",
+                CP_DEBUG("RelationalDBConnectionPool::returnConnection - VALID: pushed to idle, active=%d, idle=%zu, total=%zu",
                          m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size());
                 // No notification needed: waitQueue is guaranteed empty here (checked above).
                 // The next borrower will find this idle connection directly in Step 1.
@@ -416,9 +394,9 @@ namespace cpp_dbc
                 // Pitfall #2: Without this, destructor decrements AGAIN → underflow.
                 // Pitfall #5: Without m_closed=true, destructor double-closes.
                 conn->setActive(std::nothrow, false);
-                conn->m_closed.store(true);
-                m_activeConnections--;
-                CP_DEBUG("returnConnection - INVALID: active=%d", m_activeConnections.load(std::memory_order_acquire));
+                conn->m_closed.store(true, std::memory_order_release);
+                m_activeConnections.fetch_sub(1, std::memory_order_acq_rel);
+                CP_DEBUG("RelationalDBConnectionPool::returnConnection - INVALID: active=%d", m_activeConnections.load(std::memory_order_acquire));
 
                 auto it = std::ranges::find(m_allConnections, conn);
                 if (it != m_allConnections.end())
@@ -443,7 +421,7 @@ namespace cpp_dbc
 
             // Step 2: Close invalid connection OUTSIDE locks (I/O)
             {
-                auto closeResult = conn->getUnderlyingRelationalConnection()->close(std::nothrow);
+                auto closeResult = conn->getUnderlyingConnection(std::nothrow)->close(std::nothrow);
                 if (!closeResult.has_value())
                 {
                     CP_DEBUG("RelationalDBConnectionPool::returnConnection - close failed on invalid connection: %s", closeResult.error().what_s().data());
@@ -491,7 +469,8 @@ namespace cpp_dbc
     {
         try
         {
-            auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(m_maxWaitMillis);
+            using namespace std::chrono;
+            auto deadline = steady_clock::now() + milliseconds(m_maxWaitMillis);
 
             while (true) // Retry loop for testOnBorrow validation failures
             {
@@ -516,14 +495,14 @@ namespace cpp_dbc
                     // The returned connection sits in idle unclaimed. Without checking idle
                     // at the top of the loop, the thread goes straight to wait_until and
                     // misses the idle connection → timeout.
-                    while (!result)
+                    while (!result) // NOSONAR(cpp:S924)
                     {
                         // Step 1: Check idle (catches connections from lost notifications)
                         if (!m_idleConnections.empty())
                         {
                             result = m_idleConnections.front();
                             m_idleConnections.pop();
-                            CP_DEBUG("borrow - GOT IDLE: active=%d, idle=%zu, total=%zu",
+                            CP_DEBUG("RelationalDBConnectionPool::getRelationalDBConnection - GOT IDLE: active=%d, idle=%zu, total=%zu",
                                      m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size());
                             break;
                         }
@@ -531,40 +510,40 @@ namespace cpp_dbc
                         // Step 2: Try creating if pool has room
                         if (m_allConnections.size() + m_pendingCreations < m_maxSize)
                         {
-                            CP_DEBUG("borrow - CREATING: total=%zu, pending=%zu, max=%zu",
+                            CP_DEBUG("RelationalDBConnectionPool::getRelationalDBConnection - CREATING: total=%zu, pending=%zu, max=%zu",
                                      m_allConnections.size(), m_pendingCreations, m_maxSize);
                             m_pendingCreations++;
                             lockPool.unlock();
                             {
-                                auto candidateResult = createPooledDBConnection(std::nothrow);
+                                auto newConnResult = createPooledDBConnection(std::nothrow);
                                 // Always restore lock and pendingCreations regardless of outcome
                                 lockPool.lock();
                                 m_pendingCreations--;
 
-                                if (!candidateResult.has_value())
+                                if (!newConnResult.has_value())
                                 {
-                                    CP_DEBUG("borrow - failed creating connection: %s", candidateResult.error().what_s().data());
+                                    CP_DEBUG("RelationalDBConnectionPool::getRelationalDBConnection - Failed to create connection: %s", newConnResult.error().what_s().data());
                                 }
                                 else
                                 {
-                                    auto candidate = candidateResult.value();
+                                    auto newConn = newConnResult.value();
 
                                     // Recheck size under lock (another thread may have filled the pool)
                                     if (m_allConnections.size() < m_maxSize)
                                     {
-                                        m_allConnections.push_back(candidate);
-                                        result = candidate;
+                                        m_allConnections.push_back(newConn);
+                                        result = newConn;
                                     }
                                     else
                                     {
                                         // Pool became full — discard candidate
-                                        CP_DEBUG("borrow - DISCARD candidate: total=%zu >= max=%zu", m_allConnections.size(), m_maxSize);
-                                        candidate->m_closed.store(true); // Prevent destructor returnToPool()
+                                        CP_DEBUG("RelationalDBConnectionPool::getRelationalDBConnection - DISCARD candidate: total=%zu >= max=%zu", m_allConnections.size(), m_maxSize);
+                                        newConn->m_closed.store(true, std::memory_order_release); // Prevent destructor returnToPool()
                                         lockPool.unlock();
-                                        auto closeResult = candidate->getUnderlyingRelationalConnection()->close(std::nothrow);
+                                        auto closeResult = newConn->getUnderlyingConnection(std::nothrow)->close(std::nothrow);
                                         if (!closeResult.has_value())
                                         {
-                                            CP_DEBUG("borrow - close() on discarded candidate failed: %s", closeResult.error().what_s().data());
+                                            CP_DEBUG("RelationalDBConnectionPool::getRelationalDBConnection - close() on discarded candidate failed: %s", closeResult.error().what_s().data());
                                         }
                                         lockPool.lock();
                                     }
@@ -587,7 +566,7 @@ namespace cpp_dbc
                         // causing deadline starvation under Helgrind's serialized execution.
                         ConnectionRequest request;
                         m_waitQueue.push_back(&request);
-                        CP_DEBUG("borrow - WAITING on CV: active=%d, idle=%zu, total=%zu, pending=%zu, waiters=%zu",
+                        CP_DEBUG("RelationalDBConnectionPool::getRelationalDBConnection - WAITING on CV: active=%d, idle=%zu, total=%zu, pending=%zu, waiters=%zu",
                                  m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size(),
                                  m_pendingCreations, m_waitQueue.size());
 
@@ -620,7 +599,7 @@ namespace cpp_dbc
                             {
                                 result = request.conn;
                                 handedOff = true;
-                                CP_DEBUG("borrow - HANDOFF received: active=%d, idle=%zu, total=%zu",
+                                CP_DEBUG("RelationalDBConnectionPool::getRelationalDBConnection - HANDOFF received: active=%d, idle=%zu, total=%zu",
                                          m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size());
                                 break; // Exit inner loop; outer loop also exits (result is set)
                             }
@@ -641,11 +620,11 @@ namespace cpp_dbc
                                 {
                                     result = m_idleConnections.front();
                                     m_idleConnections.pop();
-                                    CP_DEBUG("borrow - GOT IDLE after timeout: active=%d, idle=%zu",
+                                    CP_DEBUG("RelationalDBConnectionPool::getRelationalDBConnection - GOT IDLE after timeout: active=%d, idle=%zu",
                                              m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size());
                                     break; // Exit inner loop with result set
                                 }
-                                CP_DEBUG("borrow - TIMEOUT: active=%d, idle=%zu, total=%zu, pending=%zu",
+                                CP_DEBUG("RelationalDBConnectionPool::getRelationalDBConnection - TIMEOUT: active=%d, idle=%zu, total=%zu, pending=%zu",
                                          m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size(), m_pendingCreations);
                                 return cpp_dbc::unexpected(DBException("JV6LANDTF256", "Timeout waiting for connection from the pool", system_utils::captureCallStack()));
                             }
@@ -657,14 +636,14 @@ namespace cpp_dbc
                                 std::erase(m_waitQueue, &request);
                                 result = m_idleConnections.front();
                                 m_idleConnections.pop();
-                                CP_DEBUG("borrow - GOT IDLE after wakeup: active=%d, idle=%zu",
+                                CP_DEBUG("RelationalDBConnectionPool::getRelationalDBConnection - GOT IDLE after wakeup: active=%d, idle=%zu",
                                          m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size());
                                 break; // Exit inner loop with result set
                             }
 
                             // Nothing available — stay in queue at same FIFO position, re-wait.
                             // DO NOT dequeue and re-enqueue (would cause FIFO starvation).
-                            CP_DEBUG("borrow - CV WAKEUP (re-waiting): idle=%zu, total=%zu",
+                            CP_DEBUG("RelationalDBConnectionPool::getRelationalDBConnection - CV WAKEUP (re-waiting): idle=%zu, total=%zu",
                                      m_idleConnections.size(), m_allConnections.size());
                         } // End inner wait loop
                     }
@@ -674,9 +653,9 @@ namespace cpp_dbc
                     if (!handedOff)
                     {
                         result->setActive(std::nothrow, true);
-                        m_activeConnections++;
+                        m_activeConnections.fetch_add(1, std::memory_order_acq_rel);
                     }
-                    result->m_closed.store(false); // Defensive: always ensure not-closed
+                    result->m_closed.store(false, std::memory_order_release); // Defensive: always ensure not-closed
                 } // lockPool released
 
                 // ========================================
@@ -687,25 +666,25 @@ namespace cpp_dbc
                 // ========================================
                 if (m_testOnBorrow)
                 {
-                    auto timeSinceLastUse = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                                std::chrono::steady_clock::now() - result->getLastUsedTime(std::nothrow))
-                                                .count();
+                    auto lastUsed = result->getLastUsedTime(std::nothrow);
+                    auto now = steady_clock::now();
+                    auto timeSinceLastUse = duration_cast<milliseconds>(now - lastUsed).count();
 
                     if (timeSinceLastUse > m_validationTimeoutMillis)
                     {
-                        CP_DEBUG("borrow - VALIDATING (timeSinceLastUse=%lld ms > %ld ms)", (long long)timeSinceLastUse, m_validationTimeoutMillis);
+                        CP_DEBUG("RelationalDBConnectionPool::getRelationalDBConnection - VALIDATING (timeSinceLastUse=%lld ms > %ld ms)", (long long)timeSinceLastUse, m_validationTimeoutMillis);
                     }
 
                     if (timeSinceLastUse > m_validationTimeoutMillis &&
-                        !validateConnection(std::nothrow, result->getUnderlyingRelationalConnection()).value_or(false))
+                        !validateConnection(std::nothrow, result->getUnderlyingConnection(std::nothrow)).value_or(false))
                     {
-                        CP_DEBUG("borrow - VALIDATION FAILED: removing connection, active=%d", m_activeConnections.load(std::memory_order_acquire));
+                        CP_DEBUG("RelationalDBConnectionPool::getRelationalDBConnection - VALIDATION FAILED: removing connection, active=%d", m_activeConnections.load(std::memory_order_acquire));
                         // Validation failed — undo active marking, remove from pool
                         {
                             std::scoped_lock lockPool(m_mutexPool);
                             result->setActive(std::nothrow, false);
-                            result->m_closed.store(true);
-                            m_activeConnections--;
+                            result->m_closed.store(true, std::memory_order_release);
+                            m_activeConnections.fetch_sub(1, std::memory_order_acq_rel);
 
                             auto it = std::ranges::find(m_allConnections, result);
                             if (it != m_allConnections.end())
@@ -717,14 +696,14 @@ namespace cpp_dbc
                         }
 
                         // Close invalid connection outside lock
-                        auto closeResult = result->getUnderlyingRelationalConnection()->close(std::nothrow);
+                        auto closeResult = result->getUnderlyingConnection(std::nothrow)->close(std::nothrow);
                         if (!closeResult.has_value())
                         {
-                            CP_DEBUG("borrow - close() on invalid connection failed: %s", closeResult.error().what_s().data());
+                            CP_DEBUG("RelationalDBConnectionPool::getRelationalDBConnection - close() on invalid connection failed: %s", closeResult.error().what_s().data());
                         }
 
                         // Check if we still have time to retry
-                        if (std::chrono::steady_clock::now() >= deadline)
+                        if (steady_clock::now() >= deadline)
                         {
                             return cpp_dbc::unexpected(DBException("JV6LANDTF256", "Timeout waiting for connection from the pool", system_utils::captureCallStack()));
                         }
@@ -736,7 +715,7 @@ namespace cpp_dbc
                 // ========================================
                 // Phase 3: prepareForBorrow (outside lock)
                 // ========================================
-                auto borrowResult = result->getUnderlyingRelationalConnection()->prepareForBorrow(std::nothrow);
+                auto borrowResult = result->getUnderlyingConnection(std::nothrow)->prepareForBorrow(std::nothrow);
                 if (!borrowResult.has_value())
                 {
                     CP_DEBUG("RelationalDBConnectionPool::getRelationalDBConnection - prepareForBorrow failed: %s", borrowResult.error().what_s().data());
@@ -753,7 +732,7 @@ namespace cpp_dbc
         catch (const std::exception &ex)
         {
             return cpp_dbc::unexpected(DBException("S61XJXIV5HWP",
-                                                   std::string("Exception in getRelationalDBConnection: ") + ex.what(),
+                                                   "Exception in getRelationalDBConnection: " + std::string(ex.what()),
                                                    system_utils::captureCallStack()));
         }
         catch (...) // NOSONAR
@@ -885,17 +864,17 @@ namespace cpp_dbc
                         auto *req = m_waitQueue.front();
                         m_waitQueue.pop_front();
                         pooledResult.value()->setActive(std::nothrow, true);
-                        m_activeConnections++;
+                        m_activeConnections.fetch_add(1, std::memory_order_acq_rel);
                         req->conn = pooledResult.value();
                         req->fulfilled = true;
-                        CP_DEBUG("maintenanceTask - REPLACEMENT HANDOFF: active=%d, waiters=%zu, total=%zu",
+                        CP_DEBUG("RelationalDBConnectionPool::maintenanceTask - REPLACEMENT HANDOFF: active=%d, waiters=%zu, total=%zu",
                                  m_activeConnections.load(std::memory_order_acquire), m_waitQueue.size(), m_allConnections.size());
                         req->cv.notify_one();
                     }
                     else
                     {
                         m_idleConnections.push(pooledResult.value());
-                        CP_DEBUG("maintenanceTask - REPLACEMENT: pushed to idle, active=%d, idle=%zu, total=%zu",
+                        CP_DEBUG("RelationalDBConnectionPool::maintenanceTask - REPLACEMENT: pushed to idle, active=%d, idle=%zu, total=%zu",
                                  m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size());
                     }
                 }
@@ -935,7 +914,7 @@ namespace cpp_dbc
                         auto *req = m_waitQueue.front();
                         m_waitQueue.pop_front();
                         pooledResult.value()->setActive(std::nothrow, true);
-                        m_activeConnections++;
+                        m_activeConnections.fetch_add(1, std::memory_order_acq_rel);
                         req->conn = pooledResult.value();
                         req->fulfilled = true;
                         req->cv.notify_one();
@@ -1037,7 +1016,7 @@ namespace cpp_dbc
                     CP_DEBUG("RelationalDBConnectionPool::close - Timeout waiting for active connections, forcing close at %lld", (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
                     // Force active connections to be marked as inactive
-                    m_activeConnections.store(0);
+                    m_activeConnections.store(0, std::memory_order_release);
                     break;
                 }
             }
@@ -1078,6 +1057,7 @@ namespace cpp_dbc
 
         // Close each connection outside pool locks (per-connection mutex acquired here)
         cpp_dbc::expected<void, DBException> lastError{};
+
         for (const auto &conn : connectionsToClose)
         {
             if (conn && conn->getUnderlyingConnection(std::nothrow))
@@ -1119,7 +1099,10 @@ namespace cpp_dbc
         return result.value();
     }
 
+#endif // __cpp_exceptions
+
     // RelationalPooledDBConnection implementation
+
     RelationalPooledDBConnection::RelationalPooledDBConnection(
         std::shared_ptr<RelationalDBConnection> connection,
         std::weak_ptr<RelationalDBConnectionPool> connectionPool,
@@ -1138,38 +1121,204 @@ namespace cpp_dbc
     {
         if (!m_closed.load(std::memory_order_acquire) && m_conn)
         {
-            try
+            // CRITICAL: Never call returnToPool() or shared_from_this() from destructor.
+            // When the destructor runs, refcount is already 0, so shared_from_this()
+            // throws bad_weak_ptr. Instead, do direct cleanup:
+            // 1. Decrement active counter if this connection was active
+            // 2. Close the underlying physical connection
+            if (m_active.load(std::memory_order_acquire))
             {
-                // CRITICAL: Never call returnToPool() or shared_from_this() from destructor.
-                // When the destructor runs, refcount is already 0, so shared_from_this()
-                // throws bad_weak_ptr. Instead, do direct cleanup:
-                // 1. Decrement active counter if this connection was active
-                // 2. Close the underlying physical connection
-                if (m_active.load(std::memory_order_acquire))
+                if (auto pool = m_pool.lock())
                 {
-                    if (auto pool = m_pool.lock())
-                    {
-                        pool->m_activeConnections--;
-                    }
-                    m_active.store(false);
+                    pool->m_activeConnections.fetch_sub(1, std::memory_order_acq_rel);
                 }
+                m_active.store(false, std::memory_order_release);
+            }
 
-                auto closeResult = m_conn->close(std::nothrow);
-                if (!closeResult.has_value())
-                {
-                    CP_DEBUG("RelationalPooledDBConnection::~RelationalPooledDBConnection - close failed: %s", closeResult.error().what_s().data());
-                }
-            }
-            catch ([[maybe_unused]] const std::exception &ex)
+            auto closeResult = m_conn->close(std::nothrow);
+            if (!closeResult.has_value())
             {
-                CP_DEBUG("RelationalPooledDBConnection::~RelationalPooledDBConnection - Exception: %s", ex.what());
-            }
-            catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions
-            {
-                CP_DEBUG("RelationalPooledDBConnection::~RelationalPooledDBConnection - Unknown exception");
+                CP_DEBUG("RelationalPooledDBConnection::~RelationalPooledDBConnection - close failed: %s", closeResult.error().what_s().data());
             }
         }
     }
+
+#ifdef __cpp_exceptions
+
+    void RelationalPooledDBConnection::close()
+    {
+        auto result = close(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
+    bool RelationalPooledDBConnection::isClosed() const
+    {
+        auto result = isClosed(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    void RelationalPooledDBConnection::returnToPool()
+    {
+        auto result = returnToPool(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
+    bool RelationalPooledDBConnection::isPooled() const
+    {
+        auto result = isPooled(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    std::string RelationalPooledDBConnection::getURL() const
+    {
+        auto result = getURL(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    void RelationalPooledDBConnection::reset()
+    {
+        auto result = reset(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
+    bool RelationalPooledDBConnection::ping()
+    {
+        auto result = ping(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::shared_ptr<RelationalDBPreparedStatement> RelationalPooledDBConnection::prepareStatement(const std::string &sql)
+    {
+        auto result = prepareStatement(std::nothrow, sql);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    std::shared_ptr<RelationalDBResultSet> RelationalPooledDBConnection::executeQuery(const std::string &sql)
+    {
+        auto result = executeQuery(std::nothrow, sql);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    uint64_t RelationalPooledDBConnection::executeUpdate(const std::string &sql)
+    {
+        auto result = executeUpdate(std::nothrow, sql);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    void RelationalPooledDBConnection::setAutoCommit(bool autoCommit)
+    {
+        auto result = setAutoCommit(std::nothrow, autoCommit);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
+    bool RelationalPooledDBConnection::getAutoCommit()
+    {
+        auto result = getAutoCommit(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    void RelationalPooledDBConnection::commit()
+    {
+        auto result = commit(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
+    void RelationalPooledDBConnection::rollback()
+    {
+        auto result = rollback(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
+    bool RelationalPooledDBConnection::beginTransaction()
+    {
+        auto result = beginTransaction(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    bool RelationalPooledDBConnection::transactionActive()
+    {
+        auto result = transactionActive(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    void RelationalPooledDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
+    {
+        auto result = setTransactionIsolation(std::nothrow, level);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
+    TransactionIsolationLevel RelationalPooledDBConnection::getTransactionIsolation()
+    {
+        auto result = getTransactionIsolation(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+#endif // __cpp_exceptions
 
     cpp_dbc::expected<void, cpp_dbc::DBException> RelationalPooledDBConnection::close(std::nothrow_t) noexcept
     {
@@ -1225,7 +1374,7 @@ namespace cpp_dbc
                         // If returnConnection() fails or throws an exception, the catch blocks below
                         // will close the underlying connection, maintaining correct error handling.
                         // ============================================================================
-                        m_closed.store(false);
+                        m_closed.store(false, std::memory_order_release);
                         auto returnResult = poolShared->returnConnection(std::nothrow, std::static_pointer_cast<RelationalPooledDBConnection>(shared_from_this()));
                         if (!returnResult.has_value())
                         {
@@ -1250,7 +1399,7 @@ namespace cpp_dbc
             catch (const std::bad_weak_ptr &ex)
             {
                 // shared_from_this failed, just close the connection
-                m_closed.store(true);
+                m_closed.store(true, std::memory_order_release);
                 if (m_conn)
                 {
                     auto result = m_conn->close(std::nothrow);
@@ -1259,14 +1408,14 @@ namespace cpp_dbc
                         return result;
                     }
                 }
-                return cpp_dbc::unexpected(cpp_dbc::DBException("54A9H0C3BX8E",
-                                                                std::string("Failed to obtain shared_from_this: ") + ex.what(),
-                                                                cpp_dbc::system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("54A9H0C3BX8E",
+                                                       "Failed to obtain shared_from_this: " + std::string(ex.what()),
+                                                       system_utils::captureCallStack()));
             }
-            catch (const cpp_dbc::DBException &ex)
+            catch (const DBException &ex)
             {
                 // DBException from underlying connection, just return it
-                m_closed.store(true);
+                m_closed.store(true, std::memory_order_release);
                 if (m_conn)
                 {
                     m_conn->close(std::nothrow);
@@ -1276,325 +1425,59 @@ namespace cpp_dbc
             catch (const std::exception &ex)
             {
                 // Any other exception, close the connection and return error
-                m_closed.store(true);
+                m_closed.store(true, std::memory_order_release);
                 if (m_conn)
                 {
                     m_conn->close(std::nothrow);
                 }
-                return cpp_dbc::unexpected(cpp_dbc::DBException("VYPDCT5DIRVF",
-                                                                std::string("Exception in close: ") + ex.what(),
-                                                                cpp_dbc::system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("VYPDCT5DIRVF",
+                                                       "Exception in close: " + std::string(ex.what()),
+                                                       system_utils::captureCallStack()));
             }
             catch (...) // NOSONAR - Catch-all to ensure m_closed is always set correctly on any exception
             {
                 CP_DEBUG("RelationalPooledDBConnection::close - Unknown exception caught");
-                m_closed.store(true);
+                m_closed.store(true, std::memory_order_release);
                 if (m_conn)
                 {
                     m_conn->close(std::nothrow);
                 }
-                return cpp_dbc::unexpected(cpp_dbc::DBException("85ZGPKW5MX8J",
-                                                                "Unknown exception in close",
-                                                                cpp_dbc::system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("85ZGPKW5MX8J",
+                                                       "Unknown exception in close",
+                                                       system_utils::captureCallStack()));
             }
         }
 
         return {};
-    }
-
-    void RelationalPooledDBConnection::close()
-    {
-        auto result = close(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
-    bool RelationalPooledDBConnection::isClosed() const
-    {
-        auto result = isClosed(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> RelationalPooledDBConnection::prepareStatement(std::nothrow_t, const std::string &sql) noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("NGFY9OKTDK8C", "Connection is closed", system_utils::captureCallStack()));
-        }
-        updateLastUsedTime(std::nothrow);
-        return m_conn->prepareStatement(std::nothrow, sql);
-    }
-
-    std::shared_ptr<RelationalDBPreparedStatement> RelationalPooledDBConnection::prepareStatement(const std::string &sql)
-    {
-        auto result = prepareStatement(std::nothrow, sql);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> RelationalPooledDBConnection::executeQuery(std::nothrow_t, const std::string &sql) noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("F9E32F56CFF4", "Connection is closed", system_utils::captureCallStack()));
-        }
-        updateLastUsedTime(std::nothrow);
-        return m_conn->executeQuery(std::nothrow, sql);
-    }
-
-    std::shared_ptr<RelationalDBResultSet> RelationalPooledDBConnection::executeQuery(const std::string &sql)
-    {
-        auto result = executeQuery(std::nothrow, sql);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    cpp_dbc::expected<uint64_t, DBException> RelationalPooledDBConnection::executeUpdate(std::nothrow_t, const std::string &sql) noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("JURJ0DBHVVPS", "Connection is closed", system_utils::captureCallStack()));
-        }
-        updateLastUsedTime(std::nothrow);
-        return m_conn->executeUpdate(std::nothrow, sql);
-    }
-
-    uint64_t RelationalPooledDBConnection::executeUpdate(const std::string &sql)
-    {
-        auto result = executeUpdate(std::nothrow, sql);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::setAutoCommit(std::nothrow_t, bool autoCommit) noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("XNDX9UDCTDQF", "Connection is closed", system_utils::captureCallStack()));
-        }
-        updateLastUsedTime(std::nothrow);
-        return m_conn->setAutoCommit(std::nothrow, autoCommit);
-    }
-
-    void RelationalPooledDBConnection::setAutoCommit(bool autoCommit)
-    {
-        auto result = setAutoCommit(std::nothrow, autoCommit);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
-    cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::getAutoCommit(std::nothrow_t) noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("E3DEAB8A5E6D", "Connection is closed", system_utils::captureCallStack()));
-        }
-        updateLastUsedTime(std::nothrow);
-        return m_conn->getAutoCommit(std::nothrow);
-    }
-
-    bool RelationalPooledDBConnection::getAutoCommit()
-    {
-        auto result = getAutoCommit(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::commit(std::nothrow_t) noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("E32DBBC7316E", "Connection is closed", system_utils::captureCallStack()));
-        }
-        updateLastUsedTime(std::nothrow);
-        return m_conn->commit(std::nothrow);
-    }
-
-    void RelationalPooledDBConnection::commit()
-    {
-        auto result = commit(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
-    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::rollback(std::nothrow_t) noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("C3UAXP7DGDPI", "Connection is closed", system_utils::captureCallStack()));
-        }
-        updateLastUsedTime(std::nothrow);
-        return m_conn->rollback(std::nothrow);
-    }
-
-    void RelationalPooledDBConnection::rollback()
-    {
-        auto result = rollback(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
     }
 
     cpp_dbc::expected<void, cpp_dbc::DBException> RelationalPooledDBConnection::reset(std::nothrow_t) noexcept
     {
         if (!m_conn)
         {
-            return cpp_dbc::unexpected(cpp_dbc::DBException("YNH9PJK5FCZF",
-                                                            "Underlying connection is null",
-                                                            cpp_dbc::system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("YNH9PJK5FCZF",
+                                                    "Underlying connection is null",
+                                                    system_utils::captureCallStack()));
         }
 
         if (m_closed.load(std::memory_order_acquire))
         {
-            return cpp_dbc::unexpected(cpp_dbc::DBException("9U7LGHL2AK0P",
-                                                            "Connection is closed",
-                                                            cpp_dbc::system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("9U7LGHL2AK0P",
+                                                    "Connection is closed",
+                                                    system_utils::captureCallStack()));
         }
 
         updateLastUsedTime(std::nothrow);
         return m_conn->reset(std::nothrow);
     }
 
-    void RelationalPooledDBConnection::reset()
-    {
-        auto result = reset(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
-    cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::beginTransaction(std::nothrow_t) noexcept
+    cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::isClosed(std::nothrow_t) const noexcept
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            return cpp_dbc::unexpected(DBException("B7C8D9E0F1G2", "Connection is closed", system_utils::captureCallStack()));
+            return true;
         }
-        updateLastUsedTime(std::nothrow);
-        return m_conn->beginTransaction(std::nothrow);
-    }
-
-    bool RelationalPooledDBConnection::beginTransaction()
-    {
-        auto result = beginTransaction(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::transactionActive(std::nothrow_t) noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("H3I4J5K6L7M8", "Connection is closed", system_utils::captureCallStack()));
-        }
-        updateLastUsedTime(std::nothrow);
-        return m_conn->transactionActive(std::nothrow);
-    }
-
-    bool RelationalPooledDBConnection::transactionActive()
-    {
-        auto result = transactionActive(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("F7A2B9C3D1E5", "Connection is closed", system_utils::captureCallStack()));
-        }
-        updateLastUsedTime(std::nothrow);
-        return m_conn->setTransactionIsolation(std::nothrow, level);
-    }
-
-    void RelationalPooledDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
-    {
-        auto result = setTransactionIsolation(std::nothrow, level);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
-    cpp_dbc::expected<TransactionIsolationLevel, DBException> RelationalPooledDBConnection::getTransactionIsolation(std::nothrow_t) noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("A4B5C6D7E8F9", "Connection is closed", system_utils::captureCallStack()));
-        }
-        updateLastUsedTime(std::nothrow);
-        return m_conn->getTransactionIsolation(std::nothrow);
-    }
-
-    TransactionIsolationLevel RelationalPooledDBConnection::getTransactionIsolation()
-    {
-        auto result = getTransactionIsolation(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    std::string RelationalPooledDBConnection::getURL() const
-    {
-        auto result = getURL(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    std::chrono::time_point<std::chrono::steady_clock> RelationalPooledDBConnection::getCreationTime(std::nothrow_t) const noexcept
-    {
-        return m_creationTime;
-    }
-
-    std::chrono::time_point<std::chrono::steady_clock> RelationalPooledDBConnection::getLastUsedTime(std::nothrow_t) const noexcept
-    {
-        return std::chrono::steady_clock::time_point{std::chrono::nanoseconds{m_lastUsedTimeNs.load(std::memory_order_relaxed)}};
-    }
-
-    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::setActive(std::nothrow_t, bool isActive) noexcept
-    {
-        m_active.store(isActive, std::memory_order_release);
-        return {};
-    }
-
-    bool RelationalPooledDBConnection::isActive(std::nothrow_t) const noexcept
-    {
-        return m_active.load(std::memory_order_acquire);
+        return m_conn->isClosed(std::nothrow);
     }
 
     cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::returnToPool(std::nothrow_t) noexcept
@@ -1618,7 +1501,7 @@ namespace cpp_dbc
                 {
                     // FIX: Reset m_closed BEFORE returnConnection() to prevent race condition
                     // (see close() method for full explanation of the bug)
-                    m_closed.store(false);
+                    m_closed.store(false, std::memory_order_release);
                     auto returnResult = poolShared->returnConnection(std::nothrow, std::static_pointer_cast<RelationalPooledDBConnection>(this->shared_from_this()));
                     if (!returnResult.has_value())
                     {
@@ -1629,76 +1512,37 @@ namespace cpp_dbc
             }
             return {};
         }
-        catch (const std::bad_weak_ptr &ex)
-        {
-            CP_DEBUG("RelationalPooledDBConnection::returnToPool - bad_weak_ptr: %s", ex.what());
-            m_closed.store(true);
-            return cpp_dbc::unexpected(DBException("KDDVEFIZ5QUR",
-                                                   std::string("Failed to obtain shared_from_this: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (const DBException &ex)
-        {
-            m_closed.store(true);
-            return cpp_dbc::unexpected(ex);
-        }
         catch (const std::exception &ex)
         {
-            m_closed.store(true);
+            // Only shared_from_this() can throw here (std::bad_weak_ptr).
+            // All other inner calls are nothrow. Close the connection and return error.
+            CP_DEBUG("RelationalPooledDBConnection::returnToPool - shared_from_this failed: %s", ex.what());
+            m_closed.store(true, std::memory_order_release);
+            if (m_conn)
+            {
+                m_conn->close(std::nothrow);
+            }
             return cpp_dbc::unexpected(DBException("8BN1W05EH7WK",
-                                                   std::string("Exception in returnToPool: ") + ex.what(),
+                                                   "Exception in returnToPool: " + std::string(ex.what()),
                                                    system_utils::captureCallStack()));
         }
-        catch (...) // NOSONAR
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions
         {
-            m_closed.store(true);
+            CP_DEBUG("RelationalPooledDBConnection::returnToPool - Unknown exception caught");
+            m_closed.store(true, std::memory_order_release);
+            if (m_conn)
+            {
+                m_conn->close(std::nothrow);
+            }
             return cpp_dbc::unexpected(DBException("UF9WYX7K0BXP",
                                                    "Unknown exception in returnToPool",
                                                    system_utils::captureCallStack()));
         }
     }
 
-    void RelationalPooledDBConnection::returnToPool()
-    {
-        auto result = returnToPool(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
-    bool RelationalPooledDBConnection::isPooled() const
-    {
-        auto result = isPooled(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    std::shared_ptr<DBConnection> RelationalPooledDBConnection::getUnderlyingConnection(std::nothrow_t) noexcept
-    {
-        return std::static_pointer_cast<DBConnection>(m_conn);
-    }
-
-    std::shared_ptr<RelationalDBConnection> RelationalPooledDBConnection::getUnderlyingRelationalConnection()
-    {
-        return m_conn;
-    }
-
-    cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::isClosed(std::nothrow_t) const noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return true;
-        }
-        return m_conn->isClosed(std::nothrow);
-    }
-
     cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::isPooled(std::nothrow_t) const noexcept
     {
-        return {!m_active.load(std::memory_order_acquire)};
+        return !m_active.load(std::memory_order_acquire);
     }
 
     cpp_dbc::expected<std::string, DBException> RelationalPooledDBConnection::getURL(std::nothrow_t) const noexcept
@@ -1708,6 +1552,152 @@ namespace cpp_dbc
             return cpp_dbc::unexpected(DBException("A4B7C9D2E5F1", "Connection is closed", system_utils::captureCallStack()));
         }
         return m_conn->getURL(std::nothrow);
+    }
+
+    cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::ping(std::nothrow_t) noexcept
+    {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("7B5ASUOLCER7", "Connection is closed", system_utils::captureCallStack()));
+        }
+        updateLastUsedTime(std::nothrow);
+        return m_conn->ping(std::nothrow);
+    }
+
+    cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> RelationalPooledDBConnection::prepareStatement(std::nothrow_t, const std::string &sql) noexcept
+    {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("NGFY9OKTDK8C", "Connection is closed", system_utils::captureCallStack()));
+        }
+        updateLastUsedTime(std::nothrow);
+        return m_conn->prepareStatement(std::nothrow, sql);
+    }
+
+    cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> RelationalPooledDBConnection::executeQuery(std::nothrow_t, const std::string &sql) noexcept
+    {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("F9E32F56CFF4", "Connection is closed", system_utils::captureCallStack()));
+        }
+        updateLastUsedTime(std::nothrow);
+        return m_conn->executeQuery(std::nothrow, sql);
+    }
+
+    cpp_dbc::expected<uint64_t, DBException> RelationalPooledDBConnection::executeUpdate(std::nothrow_t, const std::string &sql) noexcept
+    {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("JURJ0DBHVVPS", "Connection is closed", system_utils::captureCallStack()));
+        }
+        updateLastUsedTime(std::nothrow);
+        return m_conn->executeUpdate(std::nothrow, sql);
+    }
+
+    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::setAutoCommit(std::nothrow_t, bool autoCommit) noexcept
+    {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("XNDX9UDCTDQF", "Connection is closed", system_utils::captureCallStack()));
+        }
+        updateLastUsedTime(std::nothrow);
+        return m_conn->setAutoCommit(std::nothrow, autoCommit);
+    }
+
+    cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::getAutoCommit(std::nothrow_t) noexcept
+    {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("E3DEAB8A5E6D", "Connection is closed", system_utils::captureCallStack()));
+        }
+        updateLastUsedTime(std::nothrow);
+        return m_conn->getAutoCommit(std::nothrow);
+    }
+
+    cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::beginTransaction(std::nothrow_t) noexcept
+    {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("B7C8D9E0F1G2", "Connection is closed", system_utils::captureCallStack()));
+        }
+        updateLastUsedTime(std::nothrow);
+        return m_conn->beginTransaction(std::nothrow);
+    }
+
+    cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::transactionActive(std::nothrow_t) noexcept
+    {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("H3I4J5K6L7M8", "Connection is closed", system_utils::captureCallStack()));
+        }
+        updateLastUsedTime(std::nothrow);
+        return m_conn->transactionActive(std::nothrow);
+    }
+
+    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::commit(std::nothrow_t) noexcept
+    {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("E32DBBC7316E", "Connection is closed", system_utils::captureCallStack()));
+        }
+        updateLastUsedTime(std::nothrow);
+        return m_conn->commit(std::nothrow);
+    }
+
+    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::rollback(std::nothrow_t) noexcept
+    {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("C3UAXP7DGDPI", "Connection is closed", system_utils::captureCallStack()));
+        }
+        updateLastUsedTime(std::nothrow);
+        return m_conn->rollback(std::nothrow);
+    }
+
+    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
+    {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("F7A2B9C3D1E5", "Connection is closed", system_utils::captureCallStack()));
+        }
+        updateLastUsedTime(std::nothrow);
+        return m_conn->setTransactionIsolation(std::nothrow, level);
+    }
+
+    cpp_dbc::expected<TransactionIsolationLevel, DBException> RelationalPooledDBConnection::getTransactionIsolation(std::nothrow_t) noexcept
+    {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("A4B5C6D7E8F9", "Connection is closed", system_utils::captureCallStack()));
+        }
+        updateLastUsedTime(std::nothrow);
+        return m_conn->getTransactionIsolation(std::nothrow);
+    }
+
+    std::chrono::time_point<std::chrono::steady_clock> RelationalPooledDBConnection::getCreationTime(std::nothrow_t) const noexcept
+    {
+        return m_creationTime;
+    }
+
+    std::chrono::time_point<std::chrono::steady_clock> RelationalPooledDBConnection::getLastUsedTime(std::nothrow_t) const noexcept
+    {
+        return std::chrono::steady_clock::time_point{std::chrono::nanoseconds{m_lastUsedTimeNs.load(std::memory_order_relaxed)}};
+    }
+
+    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::setActive(std::nothrow_t, bool isActive) noexcept
+    {
+        m_active.store(isActive, std::memory_order_release);
+        return {};
+    }
+
+    bool RelationalPooledDBConnection::isActive(std::nothrow_t) const noexcept
+    {
+        return m_active.load(std::memory_order_acquire);
+    }
+
+    std::shared_ptr<DBConnection> RelationalPooledDBConnection::getUnderlyingConnection(std::nothrow_t) noexcept
+    {
+        return std::static_pointer_cast<DBConnection>(m_conn);
     }
 
     cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::prepareForPoolReturn(
@@ -1731,27 +1721,6 @@ namespace cpp_dbc
                                                    system_utils::captureCallStack()));
         }
         return m_conn->prepareForBorrow(std::nothrow);
-    }
-
-    bool RelationalPooledDBConnection::ping()
-    {
-        auto result = ping(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return *result;
-    }
-    #endif // __cpp_exceptions
-
-    cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::ping(std::nothrow_t) noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("7B5ASUOLCER7", "Connection is closed", system_utils::captureCallStack()));
-        }
-        updateLastUsedTime(std::nothrow);
-        return m_conn->ping(std::nothrow);
     }
 
     // MySQL connection pool implementation
@@ -1897,7 +1866,7 @@ namespace cpp_dbc
         {
             // SQLite only supports SERIALIZABLE isolation level
             // Override the isolation level from the constructor
-            SQLiteConnectionPool::setPoolTransactionIsolation(TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
+            SQLiteConnectionPool::setPoolTransactionIsolation(std::nothrow, TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
         }
 
         SQLiteConnectionPool::SQLiteConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config)
@@ -1905,7 +1874,7 @@ namespace cpp_dbc
         {
             // SQLite only supports SERIALIZABLE isolation level
             // Override the isolation level from the config
-            SQLiteConnectionPool::setPoolTransactionIsolation(TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
+            SQLiteConnectionPool::setPoolTransactionIsolation(std::nothrow, TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
         }
 
         cpp_dbc::expected<std::shared_ptr<SQLiteConnectionPool>, DBException> SQLiteConnectionPool::create(std::nothrow_t,

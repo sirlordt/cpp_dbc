@@ -200,7 +200,7 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
             auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::KVPooledDBConnection>(conn);
             REQUIRE(pooledConn != nullptr);
 
-            auto underlyingConn = pooledConn->getUnderlyingKVConnection();
+            auto underlyingConn = pooledConn->getUnderlyingConnection(std::nothrow);
             REQUIRE(underlyingConn != nullptr);
 
             // Close the underlying connection directly - this invalidates the pooled connection
@@ -267,7 +267,7 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
                 auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::KVPooledDBConnection>(conn);
                 REQUIRE(pooledConn != nullptr);
 
-                auto underlyingConn = pooledConn->getUnderlyingKVConnection();
+                auto underlyingConn = pooledConn->getUnderlyingConnection(std::nothrow);
                 REQUIRE(underlyingConn != nullptr);
                 underlyingConn->close();
             }

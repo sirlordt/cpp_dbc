@@ -82,8 +82,8 @@ namespace cpp_dbc
         std::condition_variable m_maintenanceCondition; // Wakes maintenance thread on close() or replenish needed
         std::atomic<bool> m_running{true};
         std::atomic<int> m_activeConnections{0};
-        size_t m_pendingCreations{0};  // Connections being created outside lock (guarded by m_mutexPool)
-        size_t m_replenishNeeded{0};   // Replacement connections requested by returnConnection() (guarded by m_mutexPool)
+        size_t m_pendingCreations{0}; // Connections being created outside lock (guarded by m_mutexPool)
+        size_t m_replenishNeeded{0};  // Replacement connections requested by returnConnection() (guarded by m_mutexPool)
         std::jthread m_maintenanceThread;
 
         // Direct handoff mechanism: eliminates "stolen wakeup" race condition.
@@ -96,7 +96,7 @@ namespace cpp_dbc
         {
             std::shared_ptr<RelationalPooledDBConnection> conn; // Filled by returner
             bool fulfilled{false};                              // Set true by returner under m_mutexPool
-            std::condition_variable cv; // Per-waiter: only this waiter is woken on handoff
+            std::condition_variable cv;                         // Per-waiter: only this waiter is woken on handoff
         };
         std::deque<ConnectionRequest *> m_waitQueue; // Stack-local requests from waiting borrowers
 
@@ -111,7 +111,7 @@ namespace cpp_dbc
         cpp_dbc::expected<std::shared_ptr<RelationalPooledDBConnection>, DBException> createPooledDBConnection(std::nothrow_t) noexcept;
 
         // Validates a connection
-        cpp_dbc::expected<bool, DBException> validateConnection(std::nothrow_t, std::shared_ptr<RelationalDBConnection> conn) const noexcept;
+        cpp_dbc::expected<bool, DBException> validateConnection(std::nothrow_t, std::shared_ptr<DBConnection> conn) const noexcept;
 
         // Returns a connection to the pool
         cpp_dbc::expected<void, DBException> returnConnection(std::nothrow_t, std::shared_ptr<RelationalPooledDBConnection> conn) noexcept;
@@ -121,7 +121,7 @@ namespace cpp_dbc
 
     protected:
         // Sets the transaction isolation level for the pool
-        void setPoolTransactionIsolation(TransactionIsolationLevel level) noexcept override
+        void setPoolTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override
         {
             m_transactionIsolation = level;
         }
@@ -154,26 +154,26 @@ namespace cpp_dbc
 
         // Static factory methods - use these to create pools
         static cpp_dbc::expected<std::shared_ptr<RelationalDBConnectionPool>, DBException> create(std::nothrow_t,
-                                                                  const std::string &url,
-                                                                  const std::string &username,
-                                                                  const std::string &password,
-                                                                  const std::map<std::string, std::string> &options = std::map<std::string, std::string>(),
-                                                                  int initialSize = 5,
-                                                                  int maxSize = 20,
-                                                                  int minIdle = 3,
-                                                                  long maxWaitMillis = 5000,
-                                                                  long validationTimeoutMillis = 5000,
-                                                                  long idleTimeoutMillis = 300000,
-                                                                  long maxLifetimeMillis = 1800000,
-                                                                  bool testOnBorrow = true,
-                                                                  bool testOnReturn = false,
-                                                                  TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) noexcept;
+                                                                                                  const std::string &url,
+                                                                                                  const std::string &username,
+                                                                                                  const std::string &password,
+                                                                                                  const std::map<std::string, std::string> &options = std::map<std::string, std::string>(),
+                                                                                                  int initialSize = 5,
+                                                                                                  int maxSize = 20,
+                                                                                                  int minIdle = 3,
+                                                                                                  long maxWaitMillis = 5000,
+                                                                                                  long validationTimeoutMillis = 5000,
+                                                                                                  long idleTimeoutMillis = 300000,
+                                                                                                  long maxLifetimeMillis = 1800000,
+                                                                                                  bool testOnBorrow = true,
+                                                                                                  bool testOnReturn = false,
+                                                                                                  TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) noexcept;
 
         static cpp_dbc::expected<std::shared_ptr<RelationalDBConnectionPool>, DBException> create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept;
 
         ~RelationalDBConnectionPool() override;
 
-        #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
         // DBConnectionPool interface implementation
         std::shared_ptr<DBConnection> getDBConnection() override;
 
@@ -191,10 +191,10 @@ namespace cpp_dbc
         // Check if pool is running
         bool isRunning() const override;
 
-        #endif // __cpp_exceptions
-        // ====================================================================
-        // NOTHROW VERSIONS - Exception-free API
-        // ====================================================================
+#endif // __cpp_exceptions
+       // ====================================================================
+       // NOTHROW VERSIONS - Exception-free API
+       // ====================================================================
 
         cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> getDBConnection(std::nothrow_t) noexcept override;
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> getRelationalDBConnection(std::nothrow_t) noexcept;
@@ -238,16 +238,17 @@ namespace cpp_dbc
     protected:
         // Pool lifecycle overrides - only callable by RelationalDBConnectionPool (declared as friend).
         cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
-            TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
+                                                                  TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
         cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
 
     public:
-        RelationalPooledDBConnection(std::shared_ptr<RelationalDBConnection> conn,
-                                     std::weak_ptr<RelationalDBConnectionPool> pool,
-                                     std::shared_ptr<std::atomic<bool>> poolAlive);
+        RelationalPooledDBConnection(
+            std::shared_ptr<RelationalDBConnection> connection,
+            std::weak_ptr<RelationalDBConnectionPool> connectionPool,
+            std::shared_ptr<std::atomic<bool>> poolAlive);
         ~RelationalPooledDBConnection() override;
 
-        #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
         // DBConnection interface methods
         void close() override;
         bool isClosed() const override;
@@ -274,7 +275,8 @@ namespace cpp_dbc
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
 
-        #endif // __cpp_exceptions
+#endif // __cpp_exceptions
+
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -309,11 +311,6 @@ namespace cpp_dbc
 
         // Implementation of DBConnectionPooled interface
         std::shared_ptr<DBConnection> getUnderlyingConnection(std::nothrow_t) noexcept override;
-
-        #ifdef __cpp_exceptions
-        // RelationalPooledDBConnection specific method
-        std::shared_ptr<RelationalDBConnection> getUnderlyingRelationalConnection();
-        #endif // __cpp_exceptions
     };
 
     // Specialized connection pools for MySQL, PostgreSQL, SQLite, and Firebird
@@ -331,9 +328,9 @@ namespace cpp_dbc
             explicit MySQLConnectionPool(ConstructorTag, const config::DBConnectionPoolConfig &config);
 
             static cpp_dbc::expected<std::shared_ptr<MySQLConnectionPool>, DBException> create(std::nothrow_t,
-                                                               const std::string &url,
-                                                               const std::string &username,
-                                                               const std::string &password) noexcept;
+                                                                                               const std::string &url,
+                                                                                               const std::string &username,
+                                                                                               const std::string &password) noexcept;
 
             static cpp_dbc::expected<std::shared_ptr<MySQLConnectionPool>, DBException> create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept;
         };
@@ -353,9 +350,9 @@ namespace cpp_dbc
             explicit PostgreSQLConnectionPool(ConstructorTag, const config::DBConnectionPoolConfig &config);
 
             static cpp_dbc::expected<std::shared_ptr<PostgreSQLConnectionPool>, DBException> create(std::nothrow_t,
-                                                                    const std::string &url,
-                                                                    const std::string &username,
-                                                                    const std::string &password) noexcept;
+                                                                                                    const std::string &url,
+                                                                                                    const std::string &username,
+                                                                                                    const std::string &password) noexcept;
 
             static cpp_dbc::expected<std::shared_ptr<PostgreSQLConnectionPool>, DBException> create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept;
         };
@@ -375,9 +372,9 @@ namespace cpp_dbc
             explicit SQLiteConnectionPool(ConstructorTag, const config::DBConnectionPoolConfig &config);
 
             static cpp_dbc::expected<std::shared_ptr<SQLiteConnectionPool>, DBException> create(std::nothrow_t,
-                                                                const std::string &url,
-                                                                const std::string &username,
-                                                                const std::string &password) noexcept;
+                                                                                                const std::string &url,
+                                                                                                const std::string &username,
+                                                                                                const std::string &password) noexcept;
 
             static cpp_dbc::expected<std::shared_ptr<SQLiteConnectionPool>, DBException> create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept;
         };
@@ -397,9 +394,9 @@ namespace cpp_dbc
             explicit FirebirdConnectionPool(ConstructorTag, const config::DBConnectionPoolConfig &config);
 
             static cpp_dbc::expected<std::shared_ptr<FirebirdConnectionPool>, DBException> create(std::nothrow_t,
-                                                                  const std::string &url,
-                                                                  const std::string &username,
-                                                                  const std::string &password) noexcept;
+                                                                                                  const std::string &url,
+                                                                                                  const std::string &username,
+                                                                                                  const std::string &password) noexcept;
 
             static cpp_dbc::expected<std::shared_ptr<FirebirdConnectionPool>, DBException> create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept;
         };

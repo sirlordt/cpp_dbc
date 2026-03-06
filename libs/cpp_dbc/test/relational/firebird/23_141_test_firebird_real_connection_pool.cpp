@@ -289,7 +289,7 @@ TEST_CASE("Real Firebird connection pool tests", "[23_141_01_firebird_real_conne
             auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::RelationalPooledDBConnection>(conn);
             REQUIRE(pooledConn != nullptr);
 
-            auto underlyingConn = pooledConn->getUnderlyingRelationalConnection();
+            auto underlyingConn = pooledConn->getUnderlyingConnection(std::nothrow);
             REQUIRE(underlyingConn != nullptr);
 
             // Close the underlying connection directly - this invalidates the pooled connection
@@ -353,7 +353,7 @@ TEST_CASE("Real Firebird connection pool tests", "[23_141_01_firebird_real_conne
             {
                 auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::RelationalPooledDBConnection>(conn);
                 REQUIRE(pooledConn != nullptr);
-                auto underlyingConn = pooledConn->getUnderlyingRelationalConnection();
+                auto underlyingConn = pooledConn->getUnderlyingConnection(std::nothrow);
                 REQUIRE(underlyingConn != nullptr);
                 underlyingConn->close();
             }

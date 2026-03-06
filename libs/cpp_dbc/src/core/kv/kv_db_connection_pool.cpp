@@ -80,7 +80,7 @@ namespace cpp_dbc
         // Pool initialization will be done in the factory method
     }
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     cpp_dbc::expected<void, DBException> KVDBConnectionPool::initializePool(std::nothrow_t) noexcept
     {
         try
@@ -143,9 +143,8 @@ namespace cpp_dbc
         {
             auto pool = std::make_shared<KVDBConnectionPool>(
                 DBConnectionPool::ConstructorTag{}, url, username, password, options, initialSize, maxSize, minIdle,
-                maxWaitMillis, validationTimeoutMillis, idleTimeoutMillis,
-                maxLifetimeMillis, testOnBorrow, testOnReturn,
-                transactionIsolation);
+                maxWaitMillis, validationTimeoutMillis, idleTimeoutMillis, maxLifetimeMillis,
+                testOnBorrow, testOnReturn, transactionIsolation);
 
             // Initialize the pool after construction (creates connections and starts maintenance thread)
             auto initResult = pool->initializePool(std::nothrow);
@@ -210,28 +209,18 @@ namespace cpp_dbc
     cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException>
     KVDBConnectionPool::createDBConnection(std::nothrow_t) noexcept
     {
-        try
+        auto dbConnResult = DriverManager::getDBConnection(std::nothrow, m_url, m_username, m_password, m_options);
+        if (!dbConnResult.has_value())
         {
-            auto dbConn = DriverManager::getDBConnection(m_url, m_username, m_password, m_options);
-            auto kvConn = std::dynamic_pointer_cast<KVDBConnection>(dbConn);
-            if (!kvConn)
-            {
-                return cpp_dbc::unexpected(DBException("96CAD6FDCDD9", "Connection pool only supports key-value database connections", system_utils::captureCallStack()));
-            }
-            return kvConn;
+            return cpp_dbc::unexpected(dbConnResult.error());
         }
-        catch (const DBException &ex)
+
+        auto kvConn = std::dynamic_pointer_cast<KVDBConnection>(dbConnResult.value());
+        if (!kvConn)
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(DBException("96CAD6FDCDD9", "Connection pool only supports key-value database connections", system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("RH8LS3L4UIUR", "Failed to create KV database connection: " + std::string(ex.what()), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("0JELIYLCHS3R", "Unknown error creating KV database connection", system_utils::captureCallStack()));
-        }
+        return kvConn;
     }
 
     cpp_dbc::expected<std::shared_ptr<KVPooledDBConnection>, DBException>
@@ -243,6 +232,13 @@ namespace cpp_dbc
             return cpp_dbc::unexpected(connResult.error());
         }
         auto conn = connResult.value();
+
+        // Set transaction isolation level on the new connection
+        auto isoResult = conn->setTransactionIsolation(std::nothrow, m_transactionIsolation);
+        if (!isoResult.has_value())
+        {
+            return cpp_dbc::unexpected(isoResult.error());
+        }
 
         // shared_from_this() may throw std::bad_weak_ptr if the pool is stack-allocated;
         // in that case weakPool remains empty and the pooled connection holds no back-reference.
@@ -256,22 +252,11 @@ namespace cpp_dbc
             CP_DEBUG("KVDBConnectionPool::createPooledDBConnection - Pool not managed by shared_ptr: %s", ex.what());
         }
 
-        try
-        {
-            return std::make_shared<KVPooledDBConnection>(conn, weakPool, m_poolAlive);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("UP2CDP5TQULK", std::string("Failed to create pooled KV connection: ") + ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("JHW4W2BEIYOI", "Failed to create pooled KV connection: unknown error", system_utils::captureCallStack()));
-        }
+        return std::make_shared<KVPooledDBConnection>(conn, weakPool, m_poolAlive);
     }
 
     cpp_dbc::expected<bool, DBException>
-    KVDBConnectionPool::validateConnection(std::nothrow_t, std::shared_ptr<KVDBConnection> conn) const noexcept
+    KVDBConnectionPool::validateConnection(std::nothrow_t, std::shared_ptr<DBConnection> conn) const noexcept
     {
         if (!conn)
         {
@@ -307,8 +292,8 @@ namespace cpp_dbc
         {
             // Pool is closing — decrement counter so close() doesn't wait forever
             conn->setActive(std::nothrow, false);
-            m_activeConnections--;
-            auto closeResult = conn->getUnderlyingKVConnection()->close(std::nothrow);
+            m_activeConnections.fetch_sub(1, std::memory_order_acq_rel);
+            auto closeResult = conn->getUnderlyingConnection(std::nothrow)->close(std::nothrow);
             if (!closeResult.has_value())
             {
                 CP_DEBUG("KVDBConnectionPool::returnConnection - close failed during shutdown: %s", closeResult.error().what_s().data());
@@ -319,7 +304,7 @@ namespace cpp_dbc
         // Check if connection is already inactive (already returned to pool)
         if (!conn->isActive(std::nothrow))
         {
-            CP_DEBUG("returnConnection - SKIPPED: connection already inactive");
+            CP_DEBUG("KVDBConnectionPool::returnConnection - Connection is not active, SKIPPED");
             return cpp_dbc::unexpected(DBException("0MCZUBO3OVHG", "returnConnection called on an already inactive connection (double-return bug)", system_utils::captureCallStack()));
         }
 
@@ -330,8 +315,8 @@ namespace cpp_dbc
             if (it == m_allConnections.end())
             {
                 conn->setActive(std::nothrow, false);
-                m_activeConnections--;
-                CP_DEBUG("returnConnection - ORPHAN: connection not in allConnections, active=%d", m_activeConnections.load(std::memory_order_acquire));
+                m_activeConnections.fetch_sub(1, std::memory_order_acq_rel);
+                CP_DEBUG("KVDBConnectionPool::returnConnection - ORPHAN: connection not in allConnections, active=%d", m_activeConnections.load(std::memory_order_acquire));
                 notifyFirstWaiter(std::nothrow);
                 return cpp_dbc::unexpected(DBException("FRETYZRRNK23", "returnConnection called with a connection not belonging to this pool (orphan)", system_utils::captureCallStack()));
             }
@@ -345,17 +330,16 @@ namespace cpp_dbc
 
         if (m_testOnReturn)
         {
-            auto validResult = validateConnection(std::nothrow, conn->getUnderlyingKVConnection());
-            valid = validResult.value_or(false);
+            valid = validateConnection(std::nothrow, conn->getUnderlyingConnection(std::nothrow)).value_or(false);
         }
 
         if (valid && !conn->m_closed.load(std::memory_order_acquire))
         {
-            auto resetResult = conn->getUnderlyingKVConnection()->prepareForPoolReturn(
+            auto prepReturnPoolResult = conn->getUnderlyingConnection(std::nothrow)->prepareForPoolReturn(
                 std::nothrow, m_transactionIsolation);
-            if (!resetResult.has_value())
+            if (!prepReturnPoolResult.has_value())
             {
-                CP_DEBUG("KVDBConnectionPool::returnConnection - prepareForPoolReturn failed: %s", resetResult.error().what_s().data());
+                CP_DEBUG("KVDBConnectionPool::returnConnection - prepareForPoolReturn failed: %s", prepReturnPoolResult.error().what_s().data());
                 valid = false;
             }
         }
@@ -368,7 +352,7 @@ namespace cpp_dbc
             conn->updateLastUsedTime(std::nothrow); // Mark return time for validation skip
             std::scoped_lock lockPool(m_mutexPool);
             conn->setActive(std::nothrow, false);
-            m_activeConnections--;
+            m_activeConnections.fetch_sub(1, std::memory_order_acq_rel);
 
             // Direct handoff: if threads are waiting, give the connection directly
             // to the first waiter instead of pushing to idle.
@@ -379,15 +363,15 @@ namespace cpp_dbc
                 request->conn = conn;
                 request->fulfilled = true;
                 conn->setActive(std::nothrow, true);
-                m_activeConnections++;
-                CP_DEBUG("returnConnection - HANDOFF: direct to waiter, active=%d, waiters=%zu, total=%zu",
+                m_activeConnections.fetch_add(1, std::memory_order_acq_rel);
+                CP_DEBUG("KVDBConnectionPool::returnConnection - HANDOFF: direct to waiter, active=%d, waiters=%zu, total=%zu",
                          m_activeConnections.load(std::memory_order_acquire), m_waitQueue.size(), m_allConnections.size());
                 request->cv.notify_one(); // Per-waiter: only the fulfilled waiter is woken
             }
             else
             {
                 m_idleConnections.push(conn);
-                CP_DEBUG("returnConnection - VALID: pushed to idle, active=%d, idle=%zu, total=%zu",
+                CP_DEBUG("KVDBConnectionPool::returnConnection - VALID: pushed to idle, active=%d, idle=%zu, total=%zu",
                          m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size());
                 // No notification needed: waitQueue is guaranteed empty here (checked above).
                 // The next borrower will find this idle connection directly in Step 1.
@@ -404,9 +388,9 @@ namespace cpp_dbc
 
                 // CRITICAL: Mark inactive + closed BEFORE decrementing counter.
                 conn->setActive(std::nothrow, false);
-                conn->m_closed.store(true);
-                m_activeConnections--;
-                CP_DEBUG("returnConnection - INVALID: active=%d", m_activeConnections.load(std::memory_order_acquire));
+                conn->m_closed.store(true, std::memory_order_release);
+                m_activeConnections.fetch_sub(1, std::memory_order_acq_rel);
+                CP_DEBUG("KVDBConnectionPool::returnConnection - INVALID: active=%d", m_activeConnections.load(std::memory_order_acquire));
 
                 auto it = std::ranges::find(m_allConnections, conn);
                 if (it != m_allConnections.end())
@@ -431,7 +415,7 @@ namespace cpp_dbc
 
             // Step 2: Close invalid connection OUTSIDE locks (I/O)
             {
-                auto closeResult = conn->getUnderlyingKVConnection()->close(std::nothrow);
+                auto closeResult = conn->getUnderlyingConnection(std::nothrow)->close(std::nothrow);
                 if (!closeResult.has_value())
                 {
                     CP_DEBUG("KVDBConnectionPool::returnConnection - close failed on invalid connection: %s", closeResult.error().what_s().data());
@@ -453,6 +437,291 @@ namespace cpp_dbc
         }
 
         return {};
+    }
+
+    cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> KVDBConnectionPool::getDBConnection(std::nothrow_t) noexcept
+    {
+        auto result = getKVDBConnection(std::nothrow);
+        if (!result.has_value())
+        {
+            return cpp_dbc::unexpected(result.error());
+        }
+        return std::static_pointer_cast<DBConnection>(result.value());
+    }
+
+    std::shared_ptr<DBConnection> KVDBConnectionPool::getDBConnection()
+    {
+        auto result = getDBConnection(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> KVDBConnectionPool::getKVDBConnection(std::nothrow_t) noexcept
+    {
+        try
+        {
+            using namespace std::chrono;
+            auto deadline = steady_clock::now() + milliseconds(m_maxWaitMillis);
+
+            while (true) // Retry loop for testOnBorrow validation failures
+            {
+                std::shared_ptr<KVPooledDBConnection> result;
+                bool handedOff = false;
+
+                // ========================================
+                // Phase 1: Acquire candidate under m_mutexPool (NO I/O)
+                // ========================================
+                {
+                    std::unique_lock lockPool(m_mutexPool);
+
+                    if (!m_running.load(std::memory_order_acquire))
+                    {
+                        return cpp_dbc::unexpected(DBException("BAB0896A213B", "Connection pool is closed", system_utils::captureCallStack()));
+                    }
+
+                    // Unified acquire loop: idle check → create → wait (with direct handoff)
+                    while (!result) // NOSONAR(cpp:S924)
+                    {
+                        // Step 1: Check idle (catches connections from lost notifications)
+                        if (!m_idleConnections.empty())
+                        {
+                            result = m_idleConnections.front();
+                            m_idleConnections.pop();
+                            CP_DEBUG("KVDBConnectionPool::getKVDBConnection - GOT IDLE: active=%d, idle=%zu, total=%zu",
+                                     m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size());
+                            break;
+                        }
+
+                        // Step 2: Try creating if pool has room
+                        if (m_allConnections.size() + m_pendingCreations < m_maxSize)
+                        {
+                            CP_DEBUG("KVDBConnectionPool::getKVDBConnection - CREATING: total=%zu, pending=%zu, max=%zu",
+                                     m_allConnections.size(), m_pendingCreations, m_maxSize);
+                            m_pendingCreations++;
+                            lockPool.unlock();
+
+                            // createPooledDBConnection() must be called outside locks (I/O).
+                            // Lock and pendingCreations are always restored regardless of outcome.
+                            {
+                                auto newConnResult = createPooledDBConnection(std::nothrow);
+                                lockPool.lock();
+                                m_pendingCreations--;
+
+                                if (!newConnResult.has_value())
+                                {
+                                    CP_DEBUG("KVDBConnectionPool::getKVDBConnection - Failed to create connection: %s", newConnResult.error().what_s().data());
+                                }
+                                else
+                                {
+                                    auto newConn = newConnResult.value();
+                                    // Recheck size under lock (another thread may have filled the pool)
+                                    if (m_allConnections.size() < m_maxSize)
+                                    {
+                                        m_allConnections.push_back(newConn);
+                                        result = newConn;
+                                    }
+                                    else
+                                    {
+                                        // Pool became full — discard candidate
+                                        CP_DEBUG("KVDBConnectionPool::getKVDBConnection - DISCARD candidate: total=%zu >= max=%zu", m_allConnections.size(), m_maxSize);
+                                        newConn->m_closed.store(true, std::memory_order_release); // Prevent destructor returnToPool()
+                                        lockPool.unlock();
+                                        auto closeResult = newConn->getUnderlyingConnection(std::nothrow)->close(std::nothrow);
+                                        if (!closeResult.has_value())
+                                        {
+                                            CP_DEBUG("KVDBConnectionPool::getKVDBConnection - close() on discarded candidate failed: %s", closeResult.error().what_s().data());
+                                        }
+                                        lockPool.lock();
+                                    }
+                                }
+                            }
+                            continue; // ALWAYS re-check idle after any unlock/lock cycle
+                        }
+
+                        // Step 3: Nothing available — wait on CV with direct handoff request.
+                        ConnectionRequest request;
+                        m_waitQueue.push_back(&request);
+                        CP_DEBUG("KVDBConnectionPool::getKVDBConnection - WAITING on CV: active=%d, idle=%zu, total=%zu, pending=%zu, waiters=%zu",
+                                 m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size(),
+                                 m_pendingCreations, m_waitQueue.size());
+
+                        // Multiple break statements required for mutually exclusive CV exit conditions
+                        // (handoff, idle-after-timeout, idle-after-wakeup). Refactoring would break
+                        // FIFO queue correctness under sanitizer-serialized execution.
+                        while (true) // NOSONAR(cpp:S924) — Inner wait loop, request stays in queue at FIFO position
+                        {
+                            std::cv_status status;
+                            try
+                            {
+                                status = request.cv.wait_until(lockPool, deadline);
+                            }
+                            catch (const std::exception &ex)
+                            {
+                                // Safety: remove from queue if wait_until throws (extremely rare), then propagate
+                                CP_DEBUG("KVDBConnectionPool::getConnection - wait_until threw: %s", ex.what());
+                                std::erase(m_waitQueue, &request);
+                                throw;
+                            }
+                            catch (...) // NOSONAR — non-std exceptions: remove from queue then propagate
+                            {
+                                CP_DEBUG("KVDBConnectionPool::getConnection - wait_until threw unknown exception");
+                                std::erase(m_waitQueue, &request);
+                                throw;
+                            }
+
+                            // Check if we received a direct handoff
+                            if (request.fulfilled)
+                            {
+                                result = request.conn;
+                                handedOff = true;
+                                CP_DEBUG("KVDBConnectionPool::getKVDBConnection - HANDOFF received: active=%d, idle=%zu, total=%zu",
+                                         m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size());
+                                break; // Exit inner loop; outer loop also exits (result is set)
+                            }
+
+                            // Not fulfilled — check termination conditions (stay in queue)
+                            if (!m_running.load(std::memory_order_acquire))
+                            {
+                                std::erase(m_waitQueue, &request);
+                                return cpp_dbc::unexpected(DBException("9C4A03BF221C", "Connection pool is closed", system_utils::captureCallStack()));
+                            }
+
+                            if (status == std::cv_status::timeout)
+                            {
+                                std::erase(m_waitQueue, &request);
+                                // One last idle check before returning error
+                                if (!m_idleConnections.empty())
+                                {
+                                    result = m_idleConnections.front();
+                                    m_idleConnections.pop();
+                                    CP_DEBUG("KVDBConnectionPool::getKVDBConnection - GOT IDLE after timeout: active=%d, idle=%zu",
+                                             m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size());
+                                    break;
+                                }
+                                CP_DEBUG("KVDBConnectionPool::getKVDBConnection - TIMEOUT: active=%d, idle=%zu, total=%zu, pending=%zu",
+                                         m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size(), m_pendingCreations);
+                                return cpp_dbc::unexpected(DBException("8B0E04F03A6D", "Timeout waiting for connection from the pool", system_utils::captureCallStack()));
+                            }
+
+                            // Spurious/non-fulfilled wakeup — check if idle connection appeared
+                            if (!m_idleConnections.empty())
+                            {
+                                std::erase(m_waitQueue, &request);
+                                result = m_idleConnections.front();
+                                m_idleConnections.pop();
+                                CP_DEBUG("KVDBConnectionPool::getKVDBConnection - GOT IDLE after wakeup: active=%d, idle=%zu",
+                                         m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size());
+                                break;
+                            }
+
+                            // Nothing available — stay in queue at same FIFO position, re-wait.
+                            CP_DEBUG("KVDBConnectionPool::getKVDBConnection - CV WAKEUP (re-waiting): idle=%zu, total=%zu",
+                                     m_idleConnections.size(), m_allConnections.size());
+                        } // End inner wait loop
+                    }
+
+                    // Mark active UNDER lock (prevents maintenance from stealing)
+                    // Skip for handoff — returner already set active + incremented counter
+                    if (!handedOff)
+                    {
+                        result->setActive(std::nothrow, true);
+                        m_activeConnections.fetch_add(1, std::memory_order_acq_rel);
+                    }
+                    result->m_closed.store(false, std::memory_order_release); // Defensive: always ensure not-closed
+                } // lockPool released
+
+                // ========================================
+                // Phase 2: Validate OUTSIDE lock (I/O)
+                // HikariCP pattern: skip validation for recently-used connections.
+                // ========================================
+                if (m_testOnBorrow)
+                {
+                    auto lastUsed = result->getLastUsedTime(std::nothrow);
+                    auto now = steady_clock::now();
+                    auto timeSinceLastUse = duration_cast<milliseconds>(now - lastUsed).count();
+
+                    if (timeSinceLastUse > m_validationTimeoutMillis)
+                    {
+                        CP_DEBUG("KVDBConnectionPool::getKVDBConnection - VALIDATING (timeSinceLastUse=%lld ms > %ld ms)", (long long)timeSinceLastUse, m_validationTimeoutMillis);
+                    }
+
+                    if (timeSinceLastUse > m_validationTimeoutMillis &&
+                        !validateConnection(std::nothrow, result->getUnderlyingConnection(std::nothrow)).value_or(false))
+                    {
+                        CP_DEBUG("KVDBConnectionPool::getKVDBConnection - VALIDATION FAILED: removing connection, active=%d", m_activeConnections.load(std::memory_order_acquire));
+                        // Validation failed — undo active marking, remove from pool
+                        {
+                            std::scoped_lock lockPool(m_mutexPool);
+                            result->setActive(std::nothrow, false);
+                            result->m_closed.store(true, std::memory_order_release);
+                            m_activeConnections.fetch_sub(1, std::memory_order_acq_rel);
+
+                            auto it = std::ranges::find(m_allConnections, result);
+                            if (it != m_allConnections.end())
+                            {
+                                m_allConnections.erase(it);
+                            }
+                            // Notify first waiter: freed slot allows re-check of deadline or idle
+                            notifyFirstWaiter(std::nothrow);
+                        }
+
+                        // Close invalid connection outside lock
+                        auto closeResult = result->getUnderlyingConnection(std::nothrow)->close(std::nothrow);
+                        if (!closeResult.has_value())
+                        {
+                            CP_DEBUG("KVDBConnectionPool::getKVDBConnection - close() on invalid connection failed: %s", closeResult.error().what_s().data());
+                        }
+
+                        // Check if we still have time to retry
+                        if (steady_clock::now() >= deadline)
+                        {
+                            return cpp_dbc::unexpected(DBException("8B0E04F03A6D", "Timeout waiting for connection from the pool", system_utils::captureCallStack()));
+                        }
+
+                        continue; // Retry with new candidate
+                    }
+                }
+
+                // Phase 3: prepareForBorrow (outside lock)
+                auto borrowResult = result->getUnderlyingConnection(std::nothrow)->prepareForBorrow(std::nothrow);
+                if (!borrowResult.has_value())
+                {
+                    CP_DEBUG("KVDBConnectionPool::getKVDBConnection - prepareForBorrow failed: %s", borrowResult.error().what_s().data());
+                }
+
+                return cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException>{
+                    std::static_pointer_cast<KVDBConnection>(result)};
+            }
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("IR1KBH287UXF",
+                                                   "Exception in getKVDBConnection: " + std::string(ex.what()),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...) // NOSONAR
+        {
+            return cpp_dbc::unexpected(DBException("0H1V112W40SO",
+                                                   "Unknown exception in getKVDBConnection",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
+    std::shared_ptr<KVDBConnection> KVDBConnectionPool::getKVDBConnection()
+    {
+        auto result = getKVDBConnection(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     void KVDBConnectionPool::maintenanceTask()
@@ -566,17 +835,17 @@ namespace cpp_dbc
                         auto *req = m_waitQueue.front();
                         m_waitQueue.pop_front();
                         pooledResult.value()->setActive(std::nothrow, true);
-                        m_activeConnections++;
+                        m_activeConnections.fetch_add(1, std::memory_order_acq_rel);
                         req->conn = pooledResult.value();
                         req->fulfilled = true;
-                        CP_DEBUG("maintenanceTask - REPLACEMENT HANDOFF: active=%d, waiters=%zu, total=%zu",
+                        CP_DEBUG("KVDBConnectionPool::maintenanceTask - REPLACEMENT HANDOFF: active=%d, waiters=%zu, total=%zu",
                                  m_activeConnections.load(std::memory_order_acquire), m_waitQueue.size(), m_allConnections.size());
                         req->cv.notify_one();
                     }
                     else
                     {
                         m_idleConnections.push(pooledResult.value());
-                        CP_DEBUG("maintenanceTask - REPLACEMENT: pushed to idle, active=%d, idle=%zu, total=%zu",
+                        CP_DEBUG("KVDBConnectionPool::maintenanceTask - REPLACEMENT: pushed to idle, active=%d, idle=%zu, total=%zu",
                                  m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size());
                     }
                 }
@@ -616,7 +885,7 @@ namespace cpp_dbc
                         auto *req = m_waitQueue.front();
                         m_waitQueue.pop_front();
                         pooledResult.value()->setActive(std::nothrow, true);
-                        m_activeConnections++;
+                        m_activeConnections.fetch_add(1, std::memory_order_acq_rel);
                         req->conn = pooledResult.value();
                         req->fulfilled = true;
                         req->cv.notify_one();
@@ -628,290 +897,6 @@ namespace cpp_dbc
                 }
             }
         } while (m_running.load(std::memory_order_acquire));
-    }
-
-    cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> KVDBConnectionPool::getDBConnection(std::nothrow_t) noexcept
-    {
-        auto result = getKVDBConnection(std::nothrow);
-        if (!result.has_value())
-        {
-            return cpp_dbc::unexpected(result.error());
-        }
-        return std::static_pointer_cast<DBConnection>(result.value());
-    }
-
-    std::shared_ptr<DBConnection> KVDBConnectionPool::getDBConnection()
-    {
-        auto result = getDBConnection(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> KVDBConnectionPool::getKVDBConnection(std::nothrow_t) noexcept
-    {
-        try
-        {
-            auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(m_maxWaitMillis);
-
-            while (true) // Retry loop for testOnBorrow validation failures
-            {
-                std::shared_ptr<KVPooledDBConnection> result;
-                bool handedOff = false;
-
-                // ========================================
-                // Phase 1: Acquire candidate under m_mutexPool (NO I/O)
-                // ========================================
-                {
-                    std::unique_lock lockPool(m_mutexPool);
-
-                    if (!m_running.load(std::memory_order_acquire))
-                    {
-                        return cpp_dbc::unexpected(DBException("BAB0896A213B", "Connection pool is closed", system_utils::captureCallStack()));
-                    }
-
-                    // Unified acquire loop: idle check → create → wait (with direct handoff)
-                    while (!result)
-                    {
-                        // Step 1: Check idle (catches connections from lost notifications)
-                        if (!m_idleConnections.empty())
-                        {
-                            result = m_idleConnections.front();
-                            m_idleConnections.pop();
-                            CP_DEBUG("borrow - GOT IDLE: active=%d, idle=%zu, total=%zu",
-                                     m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size());
-                            break;
-                        }
-
-                        // Step 2: Try creating if pool has room
-                        if (m_allConnections.size() + m_pendingCreations < m_maxSize)
-                        {
-                            CP_DEBUG("borrow - CREATING: total=%zu, pending=%zu, max=%zu",
-                                     m_allConnections.size(), m_pendingCreations, m_maxSize);
-                            m_pendingCreations++;
-                            lockPool.unlock();
-
-                            // createPooledDBConnection() must be called outside locks (I/O).
-                            // Lock and pendingCreations are always restored regardless of outcome.
-                            {
-                                auto candidateResult = createPooledDBConnection(std::nothrow);
-                                lockPool.lock();
-                                m_pendingCreations--;
-
-                                if (!candidateResult.has_value())
-                                {
-                                    CP_DEBUG("borrow - Failed to create connection: %s", candidateResult.error().what_s().data());
-                                }
-                                else
-                                {
-                                    auto candidate = candidateResult.value();
-                                    // Recheck size under lock (another thread may have filled the pool)
-                                    if (m_allConnections.size() < m_maxSize)
-                                    {
-                                        m_allConnections.push_back(candidate);
-                                        result = candidate;
-                                    }
-                                    else
-                                    {
-                                        // Pool became full — discard candidate
-                                        CP_DEBUG("borrow - DISCARD candidate: total=%zu >= max=%zu", m_allConnections.size(), m_maxSize);
-                                        candidate->m_closed.store(true); // Prevent destructor returnToPool()
-                                        lockPool.unlock();
-                                        auto closeResult = candidate->getUnderlyingKVConnection()->close(std::nothrow);
-                                        if (!closeResult.has_value())
-                                        {
-                                            CP_DEBUG("borrow - close() on discarded candidate failed: %s", closeResult.error().what_s().data());
-                                        }
-                                        lockPool.lock();
-                                    }
-                                }
-                            }
-                            continue; // ALWAYS re-check idle after any unlock/lock cycle
-                        }
-
-                        // Step 3: Nothing available — wait on CV with direct handoff request.
-                        ConnectionRequest request;
-                        m_waitQueue.push_back(&request);
-                        CP_DEBUG("borrow - WAITING on CV: active=%d, idle=%zu, total=%zu, pending=%zu, waiters=%zu",
-                                 m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size(),
-                                 m_pendingCreations, m_waitQueue.size());
-
-                        // Multiple break statements required for mutually exclusive CV exit conditions
-                        // (handoff, idle-after-timeout, idle-after-wakeup). Refactoring would break
-                        // FIFO queue correctness under sanitizer-serialized execution.
-                        while (true) // NOSONAR(cpp:S924) — Inner wait loop, request stays in queue at FIFO position
-                        {
-                            std::cv_status status;
-                            try
-                            {
-                                status = request.cv.wait_until(lockPool, deadline);
-                            }
-                            catch (const std::exception &ex)
-                            {
-                                // Safety: remove from queue if wait_until throws (extremely rare), then propagate
-                                CP_DEBUG("KVDBConnectionPool::getConnection - wait_until threw: %s", ex.what());
-                                std::erase(m_waitQueue, &request);
-                                throw;
-                            }
-                            catch (...) // NOSONAR — non-std exceptions: remove from queue then propagate
-                            {
-                                CP_DEBUG("KVDBConnectionPool::getConnection - wait_until threw unknown exception");
-                                std::erase(m_waitQueue, &request);
-                                throw;
-                            }
-
-                            // Check if we received a direct handoff
-                            if (request.fulfilled)
-                            {
-                                result = request.conn;
-                                handedOff = true;
-                                CP_DEBUG("borrow - HANDOFF received: active=%d, idle=%zu, total=%zu",
-                                         m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size());
-                                break; // Exit inner loop; outer loop also exits (result is set)
-                            }
-
-                            // Not fulfilled — check termination conditions (stay in queue)
-                            if (!m_running.load(std::memory_order_acquire))
-                            {
-                                std::erase(m_waitQueue, &request);
-                                return cpp_dbc::unexpected(DBException("9C4A03BF221C", "Connection pool is closed", system_utils::captureCallStack()));
-                            }
-
-                            if (status == std::cv_status::timeout)
-                            {
-                                std::erase(m_waitQueue, &request);
-                                // One last idle check before returning error
-                                if (!m_idleConnections.empty())
-                                {
-                                    result = m_idleConnections.front();
-                                    m_idleConnections.pop();
-                                    CP_DEBUG("borrow - GOT IDLE after timeout: active=%d, idle=%zu",
-                                             m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size());
-                                    break;
-                                }
-                                CP_DEBUG("borrow - TIMEOUT: active=%d, idle=%zu, total=%zu, pending=%zu",
-                                         m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size(), m_pendingCreations);
-                                return cpp_dbc::unexpected(DBException("8B0E04F03A6D", "Timeout waiting for connection from the pool", system_utils::captureCallStack()));
-                            }
-
-                            // Spurious/non-fulfilled wakeup — check if idle connection appeared
-                            if (!m_idleConnections.empty())
-                            {
-                                std::erase(m_waitQueue, &request);
-                                result = m_idleConnections.front();
-                                m_idleConnections.pop();
-                                CP_DEBUG("borrow - GOT IDLE after wakeup: active=%d, idle=%zu",
-                                         m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size());
-                                break;
-                            }
-
-                            // Nothing available — stay in queue at same FIFO position, re-wait.
-                            CP_DEBUG("borrow - CV WAKEUP (re-waiting): idle=%zu, total=%zu",
-                                     m_idleConnections.size(), m_allConnections.size());
-                        } // End inner wait loop
-                    }
-
-                    // Mark active UNDER lock (prevents maintenance from stealing)
-                    // Skip for handoff — returner already set active + incremented counter
-                    if (!handedOff)
-                    {
-                        result->setActive(std::nothrow, true);
-                        m_activeConnections++;
-                    }
-                    result->m_closed.store(false); // Defensive: always ensure not-closed
-                } // lockPool released
-
-                // ========================================
-                // Phase 2: Validate OUTSIDE lock (I/O)
-                // HikariCP pattern: skip validation for recently-used connections.
-                // ========================================
-                if (m_testOnBorrow)
-                {
-                    auto timeSinceLastUse = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                                std::chrono::steady_clock::now() - result->getLastUsedTime(std::nothrow))
-                                                .count();
-
-                    if (timeSinceLastUse > m_validationTimeoutMillis)
-                    {
-                        CP_DEBUG("borrow - VALIDATING (timeSinceLastUse=%lld ms > %ld ms)", (long long)timeSinceLastUse, m_validationTimeoutMillis);
-                    }
-
-                    if (timeSinceLastUse > m_validationTimeoutMillis &&
-                        !validateConnection(std::nothrow, result->getUnderlyingKVConnection()).value_or(false))
-                    {
-                        CP_DEBUG("borrow - VALIDATION FAILED: removing connection, active=%d", m_activeConnections.load(std::memory_order_acquire));
-                        // Validation failed — undo active marking, remove from pool
-                        {
-                            std::scoped_lock lockPool(m_mutexPool);
-                            result->setActive(std::nothrow, false);
-                            result->m_closed.store(true);
-                            m_activeConnections--;
-
-                            auto it = std::ranges::find(m_allConnections, result);
-                            if (it != m_allConnections.end())
-                            {
-                                m_allConnections.erase(it);
-                            }
-                            // Notify first waiter: freed slot allows re-check of deadline or idle
-                            notifyFirstWaiter(std::nothrow);
-                        }
-
-                        // Close invalid connection outside lock
-                        auto closeResult = result->getUnderlyingKVConnection()->close(std::nothrow);
-                        if (!closeResult.has_value())
-                        {
-                            CP_DEBUG("borrow - close() on invalid connection failed: %s", closeResult.error().what_s().data());
-                        }
-
-                        // Check if we still have time to retry
-                        if (std::chrono::steady_clock::now() >= deadline)
-                        {
-                            return cpp_dbc::unexpected(DBException("8B0E04F03A6D", "Timeout waiting for connection from the pool", system_utils::captureCallStack()));
-                        }
-
-                        continue; // Retry with new candidate
-                    }
-                }
-
-                // Phase 3: prepareForBorrow (outside lock)
-                auto borrowResult = result->getUnderlyingKVConnection()->prepareForBorrow(std::nothrow);
-                if (!borrowResult.has_value())
-                {
-                    CP_DEBUG("KVDBConnectionPool::getKVDBConnection - prepareForBorrow failed: %s", borrowResult.error().what_s().data());
-                }
-
-                return cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException>{
-                    std::static_pointer_cast<KVDBConnection>(result)};
-            }
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("IR1KBH287UXF",
-                                                   std::string("Exception in getKVDBConnection: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...) // NOSONAR
-        {
-            return cpp_dbc::unexpected(DBException("0H1V112W40SO",
-                                                   "Unknown exception in getKVDBConnection",
-                                                   system_utils::captureCallStack()));
-        }
-    }
-
-    std::shared_ptr<KVDBConnection> KVDBConnectionPool::getKVDBConnection()
-    {
-        auto result = getKVDBConnection(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
     }
 
     cpp_dbc::expected<size_t, DBException> KVDBConnectionPool::getActiveDBConnectionCount(std::nothrow_t) const noexcept
@@ -1002,7 +987,7 @@ namespace cpp_dbc
                 {
                     CP_DEBUG("KVDBConnectionPool::close - Timeout waiting for active connections, forcing close at %lld",
                              (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
-                    m_activeConnections.store(0);
+                    m_activeConnections.store(0, std::memory_order_release);
                     break;
                 }
             }
@@ -1037,6 +1022,7 @@ namespace cpp_dbc
         }
 
         cpp_dbc::expected<void, DBException> lastError{};
+
         for (const auto &conn : connectionsToClose)
         {
             if (conn && conn->getUnderlyingConnection(std::nothrow))
@@ -1080,56 +1066,44 @@ namespace cpp_dbc
 
     // KVPooledDBConnection implementation
 
-    KVPooledDBConnection::KVPooledDBConnection(std::shared_ptr<KVDBConnection> conn,
-                                               std::weak_ptr<KVDBConnectionPool> pool,
-                                               std::shared_ptr<std::atomic<bool>> poolAlive)
-        : m_conn(conn),
-          m_pool(pool),
-          m_poolAlive(poolAlive)
+    KVPooledDBConnection::KVPooledDBConnection(
+        std::shared_ptr<KVDBConnection> connection,
+        std::weak_ptr<KVDBConnectionPool> connectionPool,
+        std::shared_ptr<std::atomic<bool>> poolAlive)
+        : m_conn(connection), m_pool(connectionPool), m_poolAlive(poolAlive)
     {
         // m_creationTime, m_lastUsedTimeNs, m_active, m_closed use in-class initializers
+    }
+
+    bool KVPooledDBConnection::isPoolValid(std::nothrow_t) const noexcept
+    {
+        return m_poolAlive && m_poolAlive->load(std::memory_order_acquire) && !m_pool.expired();
     }
 
     KVPooledDBConnection::~KVPooledDBConnection()
     {
         if (!m_closed.load(std::memory_order_acquire) && m_conn)
         {
-            try
+            // CRITICAL: Never call returnToPool() or shared_from_this() from destructor.
+            // When the destructor runs, refcount is already 0, so shared_from_this()
+            // throws bad_weak_ptr. Instead, do direct cleanup:
+            // 1. Decrement active counter if this connection was active
+            // 2. Close the underlying physical connection
+            if (m_active.load(std::memory_order_acquire))
             {
-                // CRITICAL: Never call returnToPool() or shared_from_this() from destructor.
-                // When the destructor runs, refcount is already 0, so shared_from_this()
-                // throws bad_weak_ptr. Instead, do direct cleanup:
-                // 1. Decrement active counter if this connection was active
-                // 2. Close the underlying physical connection
-                if (m_active.load(std::memory_order_acquire))
+                if (auto pool = m_pool.lock())
                 {
-                    if (auto pool = m_pool.lock())
-                    {
-                        pool->m_activeConnections--;
-                    }
-                    m_active.store(false);
+                    pool->m_activeConnections.fetch_sub(1, std::memory_order_acq_rel);
                 }
+                m_active.store(false, std::memory_order_release);
+            }
 
-                auto closeResult = m_conn->close(std::nothrow);
-                if (!closeResult.has_value())
-                {
-                    CP_DEBUG("KVPooledDBConnection::~KVPooledDBConnection - close failed: %s", closeResult.error().what_s().data());
-                }
-            }
-            catch ([[maybe_unused]] const std::exception &ex)
+            auto closeResult = m_conn->close(std::nothrow);
+            if (!closeResult.has_value())
             {
-                CP_DEBUG("KVPooledDBConnection::~KVPooledDBConnection - Exception: %s", ex.what());
-            }
-            catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions
-            {
-                CP_DEBUG("KVPooledDBConnection::~KVPooledDBConnection - Unknown exception");
+                CP_DEBUG("KVPooledDBConnection::~KVPooledDBConnection - close failed: %s", closeResult.error().what_s().data());
             }
         }
-    }
-
-    bool KVPooledDBConnection::isPoolValid(std::nothrow_t) const noexcept
-    {
-        return m_poolAlive && m_poolAlive->load(std::memory_order_acquire) && !m_pool.expired();
     }
 
     cpp_dbc::expected<void, DBException> KVPooledDBConnection::close(std::nothrow_t) noexcept
@@ -1186,7 +1160,7 @@ namespace cpp_dbc
                         // If returnConnection() fails or throws an exception, the catch blocks below
                         // will close the underlying connection, maintaining correct error handling.
                         // ============================================================================
-                        m_closed.store(false);
+                        m_closed.store(false, std::memory_order_release);
                         auto returnResult = poolShared->returnConnection(std::nothrow, std::static_pointer_cast<KVPooledDBConnection>(shared_from_this()));
                         if (!returnResult.has_value())
                         {
@@ -1205,11 +1179,13 @@ namespace cpp_dbc
                         return result;
                     }
                 }
+
+                return {};
             }
             catch (const std::bad_weak_ptr &ex)
             {
                 // shared_from_this failed, just close the connection
-                m_closed.store(true);
+                m_closed.store(true, std::memory_order_release);
                 if (m_conn)
                 {
                     auto result = m_conn->close(std::nothrow);
@@ -1219,13 +1195,13 @@ namespace cpp_dbc
                     }
                 }
                 return cpp_dbc::unexpected(DBException("UAT5CCJP43TT",
-                                                        std::string("Failed to obtain shared_from_this: ") + ex.what(),
-                                                        system_utils::captureCallStack()));
+                                                       "Failed to obtain shared_from_this: " + std::string(ex.what()),
+                                                       system_utils::captureCallStack()));
             }
             catch (const DBException &ex)
             {
                 // DBException from underlying connection, just return it
-                m_closed.store(true);
+                m_closed.store(true, std::memory_order_release);
                 if (m_conn)
                 {
                     m_conn->close(std::nothrow);
@@ -1235,26 +1211,26 @@ namespace cpp_dbc
             catch (const std::exception &ex)
             {
                 // Any other exception, close the connection and return error
-                m_closed.store(true);
+                m_closed.store(true, std::memory_order_release);
                 if (m_conn)
                 {
                     m_conn->close(std::nothrow);
                 }
                 return cpp_dbc::unexpected(DBException("YTAQIZFLMMUA",
-                                                        std::string("Exception in close: ") + ex.what(),
-                                                        system_utils::captureCallStack()));
+                                                       "Exception in close: " + std::string(ex.what()),
+                                                       system_utils::captureCallStack()));
             }
             catch (...) // NOSONAR - Catch-all to ensure m_closed is always set correctly on any exception
             {
                 CP_DEBUG("KVPooledDBConnection::close - Unknown exception caught");
-                m_closed.store(true);
+                m_closed.store(true, std::memory_order_release);
                 if (m_conn)
                 {
                     m_conn->close(std::nothrow);
                 }
                 return cpp_dbc::unexpected(DBException("3M08ISR1QG57",
-                                                        "Unknown exception in close",
-                                                        system_utils::captureCallStack()));
+                                                       "Unknown exception in close",
+                                                       system_utils::captureCallStack()));
             }
         }
 
@@ -1286,16 +1262,28 @@ namespace cpp_dbc
         {
             return true;
         }
-        if (!m_conn)
-        {
-            return false;
-        }
-        auto result = m_conn->isClosed(std::nothrow);
-        if (!result.has_value())
-        {
-            return result;
-        }
-        return result.value();
+        return m_conn->isClosed(std::nothrow);
+    }
+
+    std::chrono::time_point<std::chrono::steady_clock> KVPooledDBConnection::getCreationTime(std::nothrow_t) const noexcept
+    {
+        return m_creationTime;
+    }
+
+    std::chrono::time_point<std::chrono::steady_clock> KVPooledDBConnection::getLastUsedTime(std::nothrow_t) const noexcept
+    {
+        return std::chrono::steady_clock::time_point{std::chrono::nanoseconds{m_lastUsedTimeNs.load(std::memory_order_relaxed)}};
+    }
+
+    cpp_dbc::expected<void, DBException> KVPooledDBConnection::setActive(std::nothrow_t, bool isActive) noexcept
+    {
+        m_active.store(isActive, std::memory_order_release);
+        return {};
+    }
+
+    bool KVPooledDBConnection::isActive(std::nothrow_t) const noexcept
+    {
+        return m_active.load(std::memory_order_acquire);
     }
 
     cpp_dbc::expected<void, DBException> KVPooledDBConnection::returnToPool(std::nothrow_t) noexcept
@@ -1313,14 +1301,15 @@ namespace cpp_dbc
             updateLastUsedTime(std::nothrow);
 
             // Check if pool is still alive using the shared atomic flag
-            if (isPoolValid(std::nothrow))
+            // Use qualified call to avoid virtual dispatch issues when called from destructor
+            if (KVPooledDBConnection::isPoolValid(std::nothrow))
             {
                 // Try to obtain a shared_ptr from the weak_ptr
                 if (auto poolShared = m_pool.lock())
                 {
                     // FIX: Reset m_closed BEFORE returnConnection() to prevent race condition
                     // (see close(nothrow) method for full explanation of the bug)
-                    m_closed.store(false);
+                    m_closed.store(false, std::memory_order_release);
                     auto returnResult = poolShared->returnConnection(std::nothrow, std::static_pointer_cast<KVPooledDBConnection>(this->shared_from_this()));
                     if (!returnResult.has_value())
                     {
@@ -1329,23 +1318,34 @@ namespace cpp_dbc
                     }
                 }
             }
-        }
-        catch (const std::bad_weak_ptr &ex)
-        {
-            CP_DEBUG("KVPooledDBConnection::returnToPool - shared_from_this failed: %s", ex.what());
-            m_closed.store(true);
+            return {};
         }
         catch (const std::exception &ex)
         {
-            CP_DEBUG("KVPooledDBConnection::returnToPool - Exception: %s", ex.what());
-            m_closed.store(true);
+            // Only shared_from_this() can throw here (std::bad_weak_ptr).
+            // All other inner calls are nothrow. Close the connection and return error.
+            CP_DEBUG("KVPooledDBConnection::returnToPool - shared_from_this failed: %s", ex.what());
+            m_closed.store(true, std::memory_order_release);
+            if (m_conn)
+            {
+                m_conn->close(std::nothrow);
+            }
+            return cpp_dbc::unexpected(DBException("6JNF0M82POI3",
+                                                   "Exception in returnToPool: " + std::string(ex.what()),
+                                                   system_utils::captureCallStack()));
         }
-        catch (...) // NOSONAR - Catch-all to ensure m_closed is always set correctly on any exception
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions
         {
             CP_DEBUG("KVPooledDBConnection::returnToPool - Unknown exception caught");
-            m_closed.store(true);
+            m_closed.store(true, std::memory_order_release);
+            if (m_conn)
+            {
+                m_conn->close(std::nothrow);
+            }
+            return cpp_dbc::unexpected(DBException("COMQDQ0I0RYA",
+                                                   "Unknown exception in returnToPool",
+                                                   system_utils::captureCallStack()));
         }
-        return {};
     }
 
     void KVPooledDBConnection::returnToPool()
@@ -1359,21 +1359,27 @@ namespace cpp_dbc
 
     bool KVPooledDBConnection::isPooled() const
     {
-        return true;
+        auto result = isPooled(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     cpp_dbc::expected<bool, DBException> KVPooledDBConnection::isPooled(std::nothrow_t) const noexcept
     {
-        return true;
+        return !m_active.load(std::memory_order_acquire);
     }
 
     std::string KVPooledDBConnection::getURL() const
     {
-        if (m_conn)
+        auto result = getURL(std::nothrow);
+        if (!result.has_value())
         {
-            return m_conn->getURL();
+            throw result.error();
         }
-        return "";
+        return result.value();
     }
 
     cpp_dbc::expected<std::string, DBException> KVPooledDBConnection::getURL(std::nothrow_t) const noexcept
@@ -1396,7 +1402,22 @@ namespace cpp_dbc
 
     cpp_dbc::expected<void, DBException> KVPooledDBConnection::reset(std::nothrow_t) noexcept
     {
-        return prepareForPoolReturn(std::nothrow);
+        if (!m_conn)
+        {
+            return cpp_dbc::unexpected(DBException("V7KTKPSZ9P38",
+                                                   "Underlying connection is null",
+                                                   system_utils::captureCallStack()));
+        }
+
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("Z4A54D26J5G0",
+                                                   "Connection is closed",
+                                                   system_utils::captureCallStack()));
+        }
+
+        updateLastUsedTime(std::nothrow);
+        return m_conn->reset(std::nothrow);
     }
 
     void KVPooledDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
@@ -1417,23 +1438,39 @@ namespace cpp_dbc
         }
         return result.value();
     }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
     cpp_dbc::expected<void, DBException>
     KVPooledDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
     {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("XYRS4F9L0GJN", "Connection is closed", system_utils::captureCallStack()));
+        }
+        updateLastUsedTime(std::nothrow);
         return m_conn->setTransactionIsolation(std::nothrow, level);
     }
 
     cpp_dbc::expected<TransactionIsolationLevel, DBException>
     KVPooledDBConnection::getTransactionIsolation(std::nothrow_t) noexcept
     {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("YX9CAJLI0F0N", "Connection is closed", system_utils::captureCallStack()));
+        }
+        updateLastUsedTime(std::nothrow);
         return m_conn->getTransactionIsolation(std::nothrow);
     }
 
     cpp_dbc::expected<void, DBException>
     KVPooledDBConnection::prepareForPoolReturn(std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept
     {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("T9L6PF5ZIEZ9",
+                                                   "Connection is closed",
+                                                   system_utils::captureCallStack()));
+        }
         return m_conn->prepareForPoolReturn(std::nothrow, isolationLevel);
     }
 
@@ -1448,6 +1485,7 @@ namespace cpp_dbc
         return m_conn->prepareForBorrow(std::nothrow);
     }
 
+#ifdef __cpp_exceptions
     // Forward all KVDBConnection methods to underlying connection
 
     bool KVPooledDBConnection::setString(const std::string &key, const std::string &value,
@@ -1657,8 +1695,12 @@ namespace cpp_dbc
 
     bool KVPooledDBConnection::ping()
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->ping();
+        auto result = ping(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::map<std::string, std::string> KVPooledDBConnection::getServerInfo()
@@ -1666,36 +1708,11 @@ namespace cpp_dbc
         updateLastUsedTime(std::nothrow);
         return m_conn->getServerInfo();
     }
-
-    std::chrono::time_point<std::chrono::steady_clock> KVPooledDBConnection::getCreationTime(std::nothrow_t) const noexcept
-    {
-        return m_creationTime;
-    }
-
-    std::chrono::time_point<std::chrono::steady_clock> KVPooledDBConnection::getLastUsedTime(std::nothrow_t) const noexcept
-    {
-        return std::chrono::steady_clock::time_point{std::chrono::nanoseconds{m_lastUsedTimeNs.load(std::memory_order_relaxed)}};
-    }
-
-    cpp_dbc::expected<void, DBException> KVPooledDBConnection::setActive(std::nothrow_t, bool active) noexcept
-    {
-        m_active.store(active, std::memory_order_release);
-        return {};
-    }
-
-    bool KVPooledDBConnection::isActive(std::nothrow_t) const noexcept
-    {
-        return m_active.load(std::memory_order_acquire);
-    }
+#endif // __cpp_exceptions
 
     std::shared_ptr<DBConnection> KVPooledDBConnection::getUnderlyingConnection(std::nothrow_t) noexcept
     {
-        return m_conn;
-    }
-
-    std::shared_ptr<KVDBConnection> KVPooledDBConnection::getUnderlyingKVConnection()
-    {
-        return m_conn;
+        return std::static_pointer_cast<DBConnection>(m_conn);
     }
 
     // ============================================================================
@@ -1966,9 +1983,9 @@ namespace cpp_dbc
     namespace Redis
     {
         RedisDBConnectionPool::RedisDBConnectionPool(DBConnectionPool::ConstructorTag,
-                                                 const std::string &url,
-                                                 const std::string &username,
-                                                 const std::string &password)
+                                                     const std::string &url,
+                                                     const std::string &username,
+                                                     const std::string &password)
             : KVDBConnectionPool(DBConnectionPool::ConstructorTag{}, url, username, password, {}, 5, 20, 3, 5000, 5000, 300000, 1800000, true, false)
         {
         }
@@ -1994,9 +2011,9 @@ namespace cpp_dbc
         }
 
         cpp_dbc::expected<std::shared_ptr<RedisDBConnectionPool>, DBException> RedisDBConnectionPool::create(std::nothrow_t,
-                                                                                                         const std::string &url,
-                                                                                                         const std::string &username,
-                                                                                                         const std::string &password) noexcept
+                                                                                                             const std::string &url,
+                                                                                                             const std::string &username,
+                                                                                                             const std::string &password) noexcept
         {
             try
             {

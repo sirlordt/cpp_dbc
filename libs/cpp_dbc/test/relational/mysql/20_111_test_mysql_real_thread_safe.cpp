@@ -188,8 +188,8 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
         cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
         cleanupConn->close();
 
-        // We expect most operations to succeed
-        REQUIRE(successCount > 0);
+        // We expect at least 95% of operations to succeed
+        REQUIRE(successCount.load() >= (numThreads * opsPerThread * 0.95));
     }
 
     /* SECTION("Connection pool concurrent access") - moved to 20_141_test_mysql_real_connection_pool.cpp

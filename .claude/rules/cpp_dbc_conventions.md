@@ -197,6 +197,10 @@ The only exception is `std::atomic::store()`, `exchange()`, and `compare_exchang
 - Prefer `std::scoped_lock` over other lock guard types (`lock_guard`, `unique_lock`) wherever it makes sense, as it avoids deadlocks and is safer by default
 - Prefer `std::recursive_mutex` over other mutex types (`mutex`, `timed_mutex`) wherever it makes sense, to allow re-entrant locking within the same thread without deadlock
 
+### Exception: Connection Pool Mutex
+
+Connection pool classes (`*DBConnectionPool`) **must** use `std::mutex` (not `std::recursive_mutex`) for their pool-level mutex (`m_mutexPool`). This is required because `std::condition_variable` only works with `std::mutex` via `std::unique_lock<std::mutex>` — it does not support `std::recursive_mutex`. Since the pool's wait/notify mechanism (`m_maintenanceCondition`, per-waiter `ConnectionRequest::cv`) depends on `std::condition_variable`, `std::mutex` is the correct and only valid choice here.
+
 ## Input Validation
 
 - Validate database identifiers (keyspace, database names) against injection
@@ -249,6 +253,35 @@ if (!result.has_value())
 private:
     ConnectionPtr createConnectionInternal();  // may throw, hidden from caller
 ```
+
+#### Exception: Infallible Private/Protected Helpers
+
+Private or protected methods that are **provably infallible** — composed entirely of `noexcept` operations with no possible error path — may return their natural type (`void`, `bool`, etc.) instead of `std::expected`. They must still take `std::nothrow_t` as the first parameter and be declared `noexcept`.
+
+A method qualifies as infallible when **every** operation in its body is guaranteed `noexcept` by the C++ standard:
+
+| Pattern | Why infallible |
+|---------|---------------|
+| `cv.notify_one()` / `cv.notify_all()` | `noexcept` by standard |
+| `std::atomic<T>::load()` / `store()` | `noexcept` by standard |
+| `std::weak_ptr::expired()` | `noexcept` by standard |
+| Thread entry point (no caller to check return) | Return value is discarded |
+
+```cpp
+// Correct — infallible helper, returns void directly
+void notifyFirstWaiter(std::nothrow_t) noexcept;
+void updateLastUsedTime(std::nothrow_t) noexcept;
+bool isPoolValid(std::nothrow_t) const noexcept;
+bool isActive(std::nothrow_t) const noexcept;
+
+// Correct — thread entry point, no caller checks return
+void maintenanceTask(std::nothrow_t) noexcept;
+
+// Incorrect — method CAN fail (I/O, external call), must return expected
+void connectInternal(std::nothrow_t) noexcept;  // wrong: should return expected
+```
+
+**Rule of thumb**: if adding `std::expected` would force the caller to write `.has_value()` on something that can **never** return an error, the wrapping is dead code and should be omitted.
 
 If the method wraps an external library call that can throw, catch at the boundary and convert to `std::unexpected`. The `noexcept` on the wrapper remains valid because no exception escapes it:
 
@@ -606,6 +639,99 @@ public:
 ```
 
 The `protected` section follows the same internal pattern as `private`: **members first, then nothrow methods**. There is no throwing API in `protected` — protected methods are internal implementation helpers and must be `noexcept`, returning `std::expected<T, DBException>` with `std::nothrow_t` as their first parameter, identical to private helpers.
+
+### ConstructorTag Variant — `std::make_shared` + `enable_shared_from_this`
+
+When a class uses `std::enable_shared_from_this`, the constructor **must** be accessible to `std::make_shared`. A private constructor prevents this. The **ConstructorTag** pattern solves the problem: the constructor is public, but requires a tag type that only the class (or its factory) can create — preventing accidental direct construction.
+
+**When to use this variant instead of the private `std::nothrow_t` constructor**:
+- The class inherits from `std::enable_shared_from_this`
+- The nothrow factory uses `std::make_shared<MyClass>(...)` (which requires a public or friend-accessible constructor)
+
+**Key differences from the standard pattern**:
+1. The constructor is **public**, not private
+2. The first parameter is `ConstructorTag` (a private tag type from the base class or the class itself), **not** `std::nothrow_t` — `ConstructorTag` already signals "do not call directly"
+3. The constructor is still `noexcept` — no fallible work happens in it
+
+**Header layout with ConstructorTag** — the access specifier order remains **`private` → `protected` → `public`**, but the public section gains a new item (ConstructorTag constructors) that comes **before** the destructor:
+
+```cpp
+class MyPool : public DBConnectionPool, public std::enable_shared_from_this<MyPool>
+{
+    // ── private ────────────────────────────────────────────────────────────────
+    // 1. Member variables
+    std::string m_url;
+    int         m_maxSize{0};
+
+    // 2. Private helper functions (noexcept, return std::expected)
+    std::expected<std::shared_ptr<PooledConn>, DBException> createPooledDBConnection(std::nothrow_t) noexcept;
+    std::expected<void, DBException> returnConnection(std::nothrow_t, std::shared_ptr<PooledConn> conn) noexcept;
+
+protected:
+    // ── protected (optional) ──────────────────────────────────────────────────
+    // 3. Protected nothrow helper methods
+    std::expected<void, DBException> initializePool(std::nothrow_t) noexcept;
+
+public:
+    // ── public ─────────────────────────────────────────────────────────────────
+    // 4. ConstructorTag constructors (public, but uncallable without the tag)
+    //    No std::nothrow_t needed — ConstructorTag already prevents misuse.
+    MyPool(DBConnectionPool::ConstructorTag,
+           const std::string &url, int maxSize) noexcept;
+    explicit MyPool(DBConnectionPool::ConstructorTag,
+                    const config::DBConnectionPoolConfig &config) noexcept;
+
+    // 5. Destructor
+    ~MyPool() override;
+
+    // 6. Deleted copy/move operators
+    MyPool(const MyPool &)            = delete;
+    MyPool &operator=(const MyPool &) = delete;
+
+#ifdef __cpp_exceptions
+    // 7. Throwing static factory
+    static std::shared_ptr<MyPool> create(const std::string &url, int maxSize);
+
+    // 8. Throwing public methods
+    std::shared_ptr<DBConnection> getDBConnection() override;
+    void close() final;
+#endif
+
+    // 9. Nothrow static factory
+    static std::expected<std::shared_ptr<MyPool>, DBException>
+    create(std::nothrow_t, const std::string &url, int maxSize) noexcept;
+
+    // 10. Nothrow public methods
+    std::expected<std::shared_ptr<DBConnection>, DBException> getDBConnection(std::nothrow_t) noexcept override;
+    std::expected<void, DBException> close(std::nothrow_t) noexcept override;
+};
+```
+
+**Why ConstructorTag constructors come before the destructor**: they are the primary construction interface — the factory calls them directly. Placing them first makes the construction path immediately visible when reading the class.
+
+**ConstructorTag source** — `ConstructorTag` is typically defined as a private struct in the base class (e.g. `DBConnectionPool::ConstructorTag`). The factory method creates an instance of the tag inline:
+
+```cpp
+// In the nothrow factory:
+auto pool = std::make_shared<MyPool>(DBConnectionPool::ConstructorTag{}, url, maxSize);
+auto initResult = pool->initializePool(std::nothrow);
+if (!initResult.has_value())
+{
+    return std::unexpected(initResult.error());
+}
+return pool;
+```
+
+**Choosing between patterns**:
+
+| Criterion | Private `std::nothrow_t` constructor | Public `ConstructorTag` constructor |
+|-----------|--------------------------------------|-------------------------------------|
+| `enable_shared_from_this` | Not compatible with `make_shared` | Compatible — constructor is public |
+| Protection against misuse | Private access | Tag type is private in base class |
+| `std::nothrow_t` first param | Required | Not needed — `ConstructorTag` serves the same role |
+| Fallible initialization | `initialize(std::nothrow)` called by factory | `initializePool(std::nothrow)` called by factory |
+
+**Classes that use this variant**: all connection pool classes (`*DBConnectionPool`) and their pooled connection wrappers (`*PooledDBConnection`).
 
 ### Source File Distribution
 

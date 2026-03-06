@@ -171,8 +171,8 @@ TEST_CASE("Firebird Thread-Safety Tests", "[23_111_01_firebird_real_thread_safe]
         }
         cleanupConn->close();
 
-        // We expect most operations to succeed
-        REQUIRE(successCount > 0);
+        // We expect at least 95% of operations to succeed
+        REQUIRE(successCount.load() >= (numThreads * opsPerThread * 0.95));
     }
 
     // Pool-based concurrent access, concurrent reads, and high-concurrency stress tests

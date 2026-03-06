@@ -228,7 +228,7 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
             auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::DocumentPooledDBConnection>(conn);
             REQUIRE(pooledConn != nullptr);
 
-            auto underlyingConn = pooledConn->getUnderlyingDocumentConnection();
+            auto underlyingConn = pooledConn->getUnderlyingConnection(std::nothrow);
             REQUIRE(underlyingConn != nullptr);
 
             // Close the underlying connection directly - this invalidates the pooled connection
@@ -295,7 +295,7 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
                 auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::DocumentPooledDBConnection>(conn);
                 REQUIRE(pooledConn != nullptr);
 
-                auto underlyingConn = pooledConn->getUnderlyingDocumentConnection();
+                auto underlyingConn = pooledConn->getUnderlyingConnection(std::nothrow);
                 REQUIRE(underlyingConn != nullptr);
                 underlyingConn->close();
             }

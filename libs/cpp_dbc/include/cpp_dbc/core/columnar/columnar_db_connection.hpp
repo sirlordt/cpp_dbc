@@ -195,9 +195,9 @@ namespace cpp_dbc
          *        TRANSACTION_NONE (default) means "do not restore isolation level".
          * @return expected containing void on success, or DBException on failure
          */
-        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
+        [[nodiscard]] cpp_dbc::expected<void, DBException>
             prepareForPoolReturn(std::nothrow_t,
-                TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept = 0;
+                TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override = 0;
 
         /**
          * @brief Prepare the connection for borrowing from pool
@@ -208,8 +208,8 @@ namespace cpp_dbc
          * @param nothrow std::nothrow tag to indicate exception-free operation
          * @return expected containing void on success, or DBException on failure
          */
-        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
-            prepareForBorrow(std::nothrow_t) noexcept = 0;
+        [[nodiscard]] cpp_dbc::expected<void, DBException>
+            prepareForBorrow(std::nothrow_t) noexcept override = 0;
     };
 
 } // namespace cpp_dbc

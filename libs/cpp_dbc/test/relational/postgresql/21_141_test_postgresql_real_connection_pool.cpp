@@ -222,7 +222,7 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[21_141_01_postgresql_real_c
             auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::RelationalPooledDBConnection>(conn);
             REQUIRE(pooledConn != nullptr);
 
-            auto underlyingConn = pooledConn->getUnderlyingRelationalConnection();
+            auto underlyingConn = pooledConn->getUnderlyingConnection(std::nothrow);
             REQUIRE(underlyingConn != nullptr);
 
             // Close the underlying connection directly - this invalidates the pooled connection
@@ -289,7 +289,7 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[21_141_01_postgresql_real_c
             {
                 auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::RelationalPooledDBConnection>(conn);
                 REQUIRE(pooledConn != nullptr);
-                auto underlyingConn = pooledConn->getUnderlyingRelationalConnection();
+                auto underlyingConn = pooledConn->getUnderlyingConnection(std::nothrow);
                 underlyingConn->close();
             }
 

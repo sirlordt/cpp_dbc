@@ -96,8 +96,8 @@ namespace cpp_dbc
         std::condition_variable m_maintenanceCondition; // Wakes maintenance thread on close() or replenish needed
         std::atomic<bool> m_running{true};
         std::atomic<int> m_activeConnections{0};
-        size_t m_pendingCreations{0};  // Connections being created outside lock (guarded by m_mutexPool)
-        size_t m_replenishNeeded{0};   // Replacement connections requested by returnConnection() (guarded by m_mutexPool)
+        size_t m_pendingCreations{0}; // Connections being created outside lock (guarded by m_mutexPool)
+        size_t m_replenishNeeded{0};  // Replacement connections requested by returnConnection() (guarded by m_mutexPool)
         std::jthread m_maintenanceThread;
 
         // Direct handoff mechanism: eliminates "stolen wakeup" race condition.
@@ -125,7 +125,7 @@ namespace cpp_dbc
         cpp_dbc::expected<std::shared_ptr<KVPooledDBConnection>, DBException> createPooledDBConnection(std::nothrow_t) noexcept;
 
         // Validates a connection
-        cpp_dbc::expected<bool, DBException> validateConnection(std::nothrow_t, std::shared_ptr<KVDBConnection> conn) const noexcept;
+        cpp_dbc::expected<bool, DBException> validateConnection(std::nothrow_t, std::shared_ptr<DBConnection> conn) const noexcept;
 
         // Returns a connection to the pool
         cpp_dbc::expected<void, DBException> returnConnection(std::nothrow_t, std::shared_ptr<KVPooledDBConnection> conn) noexcept;
@@ -135,7 +135,7 @@ namespace cpp_dbc
 
     protected:
         // Sets the transaction isolation level for the pool
-        void setPoolTransactionIsolation(TransactionIsolationLevel level) noexcept override
+        void setPoolTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override
         {
             m_transactionIsolation = level;
         }
@@ -185,7 +185,7 @@ namespace cpp_dbc
 
         ~KVDBConnectionPool() override;
 
-        #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
         // DBConnectionPool interface implementation
         std::shared_ptr<DBConnection> getDBConnection() override;
 
@@ -203,7 +203,7 @@ namespace cpp_dbc
         // Check if pool is running
         bool isRunning() const override;
 
-        #endif // __cpp_exceptions
+#endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -251,13 +251,20 @@ namespace cpp_dbc
             m_lastUsedTimeNs.store(std::chrono::steady_clock::now().time_since_epoch().count(), std::memory_order_relaxed);
         }
 
+    protected:
+        // Pool lifecycle overrides - only callable by KVDBConnectionPool (declared as friend).
+        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
+                                                                  TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
+        cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
+
     public:
-        KVPooledDBConnection(std::shared_ptr<KVDBConnection> conn,
-                             std::weak_ptr<KVDBConnectionPool> pool,
-                             std::shared_ptr<std::atomic<bool>> poolAlive);
+        KVPooledDBConnection(
+            std::shared_ptr<KVDBConnection> connection,
+            std::weak_ptr<KVDBConnectionPool> connectionPool,
+            std::shared_ptr<std::atomic<bool>> poolAlive);
         ~KVPooledDBConnection() override;
 
-        #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
         // Overridden DBConnection interface methods
         void close() override;
         bool isClosed() const override;
@@ -307,23 +314,22 @@ namespace cpp_dbc
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
 
-        // KVPooledDBConnection specific method
-        std::shared_ptr<KVDBConnection> getUnderlyingKVConnection();
+#endif // __cpp_exceptions
 
-        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API (delegated to underlying connection)
         // ====================================================================
 
-        // DBConnectionPooled interface methods
-        std::chrono::time_point<std::chrono::steady_clock> getCreationTime(std::nothrow_t) const noexcept override;
-        std::chrono::time_point<std::chrono::steady_clock> getLastUsedTime(std::nothrow_t) const noexcept override;
-        cpp_dbc::expected<void, DBException> setActive(std::nothrow_t, bool active) noexcept override;
-        bool isActive(std::nothrow_t) const noexcept override;
+        // DBConnection nothrow interface
+        cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> reset(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
 
-        // Implementation of DBConnectionPooled interface
-        std::shared_ptr<DBConnection> getUnderlyingConnection(std::nothrow_t) noexcept override;
-
+        // KVDBConnection nothrow interface
         cpp_dbc::expected<bool, DBException> setString(
             std::nothrow_t,
             const std::string &key,
@@ -434,28 +440,21 @@ namespace cpp_dbc
         cpp_dbc::expected<bool, DBException> flushDB(
             std::nothrow_t, bool async = false) noexcept override;
 
-        cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
-
         cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(
             std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException>
-            setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
+        setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
         cpp_dbc::expected<TransactionIsolationLevel, DBException>
             getTransactionIsolation(std::nothrow_t) noexcept override;
 
-        // DBConnection nothrow interface
-        cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<void, DBException> reset(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
-        cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
-        cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        // DBConnectionPooled interface methods
+        std::chrono::time_point<std::chrono::steady_clock> getCreationTime(std::nothrow_t) const noexcept override;
+        std::chrono::time_point<std::chrono::steady_clock> getLastUsedTime(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<void, DBException> setActive(std::nothrow_t, bool isActive) noexcept override;
+        bool isActive(std::nothrow_t) const noexcept override;
 
-    protected:
-        // Pool lifecycle overrides - only callable by KVDBConnectionPool (declared as friend).
-        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
-            TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
-        cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
+        // Implementation of DBConnectionPooled interface
+        std::shared_ptr<DBConnection> getUnderlyingConnection(std::nothrow_t) noexcept override;
     };
 
     // Specialized connection pool for Redis
@@ -472,16 +471,16 @@ namespace cpp_dbc
         public:
             // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
             RedisDBConnectionPool(DBConnectionPool::ConstructorTag,
-                                const std::string &url,
-                                const std::string &username,
-                                const std::string &password);
+                                  const std::string &url,
+                                  const std::string &username,
+                                  const std::string &password);
 
             explicit RedisDBConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config);
 
             static cpp_dbc::expected<std::shared_ptr<RedisDBConnectionPool>, DBException> create(std::nothrow_t,
-                                                                                               const std::string &url,
-                                                                                               const std::string &username,
-                                                                                               const std::string &password) noexcept;
+                                                                                                 const std::string &url,
+                                                                                                 const std::string &username,
+                                                                                                 const std::string &password) noexcept;
 
             static cpp_dbc::expected<std::shared_ptr<RedisDBConnectionPool>, DBException> create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept;
         };

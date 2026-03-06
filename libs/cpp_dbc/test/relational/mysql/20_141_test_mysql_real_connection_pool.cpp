@@ -240,7 +240,7 @@ TEST_CASE("Real MySQL connection pool tests", "[20_141_01_mysql_real_connection_
             auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::RelationalPooledDBConnection>(conn);
             REQUIRE(pooledConn != nullptr);
 
-            auto underlyingConn = pooledConn->getUnderlyingRelationalConnection();
+            auto underlyingConn = pooledConn->getUnderlyingConnection(std::nothrow);
             REQUIRE(underlyingConn != nullptr);
 
             // Close the underlying connection directly - this invalidates the pooled connection
@@ -315,7 +315,7 @@ TEST_CASE("Real MySQL connection pool tests", "[20_141_01_mysql_real_connection_
                 auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::RelationalPooledDBConnection>(conn);
                 REQUIRE(pooledConn != nullptr);
 
-                auto underlyingConn = pooledConn->getUnderlyingRelationalConnection();
+                auto underlyingConn = pooledConn->getUnderlyingConnection(std::nothrow);
                 REQUIRE(underlyingConn != nullptr);
                 underlyingConn->close();
             }

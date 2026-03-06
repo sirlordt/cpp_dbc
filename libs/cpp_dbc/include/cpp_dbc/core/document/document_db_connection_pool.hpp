@@ -93,12 +93,15 @@ namespace cpp_dbc
         TransactionIsolationLevel m_transactionIsolation; // Transaction isolation level for connections
         std::vector<std::shared_ptr<DocumentPooledDBConnection>> m_allConnections;
         std::queue<std::shared_ptr<DocumentPooledDBConnection>> m_idleConnections;
+        // std::mutex (not std::recursive_mutex) is required here because std::condition_variable
+        // only works with std::unique_lock<std::mutex>. Using std::recursive_mutex would require
+        // std::condition_variable_any, which causes Helgrind false positives (see MEMORY.md).
         mutable std::mutex m_mutexPool;                 // Protects m_allConnections + m_idleConnections + m_waitQueue + m_pendingCreations + m_replenishNeeded
         std::condition_variable m_maintenanceCondition; // Wakes maintenance thread on close() or replenish needed
         std::atomic<bool> m_running{true};
         std::atomic<int> m_activeConnections{0};
-        size_t m_pendingCreations{0};  // Connections being created outside lock (guarded by m_mutexPool)
-        size_t m_replenishNeeded{0};   // Replacement connections requested by returnConnection() (guarded by m_mutexPool)
+        size_t m_pendingCreations{0}; // Connections being created outside lock (guarded by m_mutexPool)
+        size_t m_replenishNeeded{0};  // Replacement connections requested by returnConnection() (guarded by m_mutexPool)
         std::jthread m_maintenanceThread;
 
         // Direct handoff mechanism: eliminates "stolen wakeup" race condition.
@@ -126,7 +129,7 @@ namespace cpp_dbc
         cpp_dbc::expected<std::shared_ptr<DocumentPooledDBConnection>, DBException> createPooledDBConnection(std::nothrow_t) noexcept;
 
         // Validates a connection
-        cpp_dbc::expected<bool, DBException> validateConnection(std::nothrow_t, std::shared_ptr<DocumentDBConnection> conn) const noexcept;
+        cpp_dbc::expected<bool, DBException> validateConnection(std::nothrow_t, std::shared_ptr<DBConnection> conn) const noexcept;
 
         // Returns a connection to the pool
         cpp_dbc::expected<void, DBException> returnConnection(std::nothrow_t, std::shared_ptr<DocumentPooledDBConnection> conn) noexcept;
@@ -136,7 +139,7 @@ namespace cpp_dbc
 
     protected:
         // Sets the transaction isolation level for the pool
-        void setPoolTransactionIsolation(TransactionIsolationLevel level) noexcept override
+        void setPoolTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override
         {
             m_transactionIsolation = level;
         }
@@ -188,7 +191,7 @@ namespace cpp_dbc
 
         ~DocumentDBConnectionPool() override;
 
-        #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
         // DBConnectionPool interface implementation
         std::shared_ptr<DBConnection> getDBConnection() override;
 
@@ -206,7 +209,7 @@ namespace cpp_dbc
         // Check if pool is running
         bool isRunning() const override;
 
-        #endif // __cpp_exceptions
+#endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -254,13 +257,20 @@ namespace cpp_dbc
             m_lastUsedTimeNs.store(std::chrono::steady_clock::now().time_since_epoch().count(), std::memory_order_relaxed);
         }
 
+    protected:
+        // Pool lifecycle overrides - only callable by DocumentDBConnectionPool (declared as friend).
+        expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
+                                                         TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
+        expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
+
     public:
-        DocumentPooledDBConnection(std::shared_ptr<DocumentDBConnection> conn,
-                                   std::weak_ptr<DocumentDBConnectionPool> pool,
-                                   std::shared_ptr<std::atomic<bool>> poolAlive);
+        DocumentPooledDBConnection(
+            std::shared_ptr<DocumentDBConnection> connection,
+            std::weak_ptr<DocumentDBConnectionPool> connectionPool,
+            std::shared_ptr<std::atomic<bool>> poolAlive);
         ~DocumentPooledDBConnection() override;
 
-        #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
         // Overridden DBConnection interface methods
         void close() override;
         bool isClosed() const override;
@@ -298,7 +308,7 @@ namespace cpp_dbc
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
 
-        #endif // __cpp_exceptions
+#endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -310,6 +320,7 @@ namespace cpp_dbc
         expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
         expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
         expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        expected<bool, DBException> ping(std::nothrow_t) noexcept override;
 
         // DocumentDBConnection nothrow interface - delegate to underlying connection
         expected<std::string, DBException> getDatabaseName(std::nothrow_t) const noexcept override;
@@ -335,7 +346,6 @@ namespace cpp_dbc
         expected<bool, DBException> collectionExists(std::nothrow_t, const std::string &collectionName) noexcept override;
         expected<std::shared_ptr<DocumentDBData>, DBException> getServerInfo(std::nothrow_t) noexcept override;
         expected<std::shared_ptr<DocumentDBData>, DBException> getServerStatus(std::nothrow_t) noexcept override;
-        expected<bool, DBException> ping(std::nothrow_t) noexcept override;
         expected<std::string, DBException> startSession(std::nothrow_t) noexcept override;
         expected<void, DBException> endSession(std::nothrow_t, const std::string &sessionId) noexcept override;
         expected<void, DBException> startTransaction(std::nothrow_t, const std::string &sessionId) noexcept override;
@@ -343,7 +353,7 @@ namespace cpp_dbc
         expected<void, DBException> abortTransaction(std::nothrow_t, const std::string &sessionId) noexcept override;
         expected<bool, DBException> supportsTransactions(std::nothrow_t) noexcept override;
         expected<void, DBException>
-            setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
+        setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
         expected<TransactionIsolationLevel, DBException>
             getTransactionIsolation(std::nothrow_t) noexcept override;
 
@@ -355,17 +365,6 @@ namespace cpp_dbc
 
         // Implementation of DBConnectionPooled interface
         std::shared_ptr<DBConnection> getUnderlyingConnection(std::nothrow_t) noexcept override;
-
-        #ifdef __cpp_exceptions
-        // DocumentPooledDBConnection specific method
-        std::shared_ptr<DocumentDBConnection> getUnderlyingDocumentConnection();
-        #endif // __cpp_exceptions
-
-    protected:
-        // Pool lifecycle overrides - only callable by DocumentDBConnectionPool (declared as friend).
-        expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
-            TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
-        expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
     };
 
     // Specialized connection pool for MongoDB
