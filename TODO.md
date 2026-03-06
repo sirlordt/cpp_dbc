@@ -12,6 +12,14 @@
 
 ## Completed Tasks
 
+- Unified Connection Pool Base Class (`DBConnectionPoolBase`) — Extracted Common Pool Logic into `pool/` Directory (2026-03-06):
+  - New `DBConnectionPoolBase` class in `include/cpp_dbc/pool/connection_pool.hpp` + `src/pool/connection_pool.cpp` (955 lines) — contains all pool infrastructure (connection lifecycle, maintenance thread, direct handoff, HikariCP validation skip, phase-based lock protocol)
+  - All four family pools (`RelationalDBConnectionPool`, `DocumentDBConnectionPool`, `ColumnarDBConnectionPool`, `KVDBConnectionPool`) now inherit from `DBConnectionPoolBase` as thin derived classes
+  - Directory restructure: all pool headers/sources moved from `core/` to `pool/` directory
+  - `DBConnectionPooled` interface extended with pool-internal lifecycle methods (`updateLastUsedTime`, `isPoolClosed`, `getClosedFlag`)
+  - All examples, tests, and internal sources updated for new include paths
+  - 77 files changed, +6020/-8459 lines (net reduction of ~2400 lines of duplicated pool logic)
+
 - MongoDB Driver — Full Nothrow-First Refactor, Static Factory Pattern, `-fno-exceptions` Compatibility, and Dead try/catch Elimination (2026-03-04):
   - All 5 document abstract interfaces (`DocumentDBCollection`, `DocumentDBConnection`, `DocumentDBCursor`, `DocumentDBData`, `DocumentDBDriver`) now guard throwing methods with `#ifdef __cpp_exceptions`; nothrow methods always compile under `-fno-exceptions`
   - New nothrow pure-virtuals: `DocumentDBCursor` (+9 methods), `DocumentDBData` (+17 methods), `DocumentDBCollection` (+4 methods)

@@ -30,7 +30,7 @@
  */
 
 #include "../../common/example_common.hpp"
-#include "cpp_dbc/core/relational/relational_db_connection_pool.hpp"
+#include "cpp_dbc/pool/relational/relational_db_connection_pool.hpp"
 #include "cpp_dbc/transaction_manager.hpp"
 #include <thread>
 #include <mutex>

@@ -13,27 +13,32 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file document_db_connection_pool.hpp
- * @brief Connection pool implementation for document databases
+ * @brief Connection pool for document databases — thin wrapper around DBConnectionPoolBase
+ *
+ * All pool infrastructure (connection lifecycle, maintenance thread, direct handoff,
+ * HikariCP validation skip, phase-based lock protocol) is inherited from
+ * DBConnectionPoolBase. This class only provides:
+ * - createPooledDBConnection() override (creates DocumentPooledDBConnection wrappers)
+ * - getDocumentDBConnection() typed getter
+ * - Factory methods
  */
 
 #ifndef CPP_DBC_DOCUMENT_DB_CONNECTION_POOL_HPP
 #define CPP_DBC_DOCUMENT_DB_CONNECTION_POOL_HPP
 
 #include "../../cpp_dbc.hpp"
-#include "cpp_dbc/core/db_connection_pool.hpp"
-#include "cpp_dbc/core/db_connection_pooled.hpp"
+#include "cpp_dbc/pool/connection_pool.hpp"
 #include "cpp_dbc/core/document/document_db_connection.hpp"
 
-#include <queue>
-#include <deque>
-#include <vector>
-#include <mutex>
-#include <condition_variable>
-#include <thread>
-#include <atomic>
 #include <chrono>
-#include <functional>
-#include <unordered_set>
+#include <atomic>
+
+// Forward declaration of configuration classes
+namespace cpp_dbc::config
+{
+    class DatabaseConfig;
+    class DBConnectionPoolConfig;
+} // namespace cpp_dbc::config
 
 namespace cpp_dbc
 {
@@ -41,117 +46,33 @@ namespace cpp_dbc
     // Forward declaration
     class DocumentPooledDBConnection;
 
-    // Forward declaration of configuration classes
-    namespace config
-    {
-        class DatabaseConfig;
-        class DBConnectionPoolConfig;
-    }
-
     /**
-     * @brief Connection pool implementation for document databases
+     * @brief Connection pool for document databases
      *
-     * Manages a pool of document database connections with configurable size,
-     * validation, and lifecycle management. Create pools via the static
-     * `create()` factory method.
+     * Thin derived class that overrides only createPooledDBConnection() to produce
+     * DocumentPooledDBConnection wrappers, and adds the typed getter
+     * getDocumentDBConnection().
      *
-     * ```cpp
-     * auto pool = cpp_dbc::MongoDB::MongoDBConnectionPool::create(
-     *     "mongodb://localhost:27017/mydb", "user", "pass");
-     * auto conn = std::dynamic_pointer_cast<cpp_dbc::DocumentDBConnection>(
-     *     pool->getDBConnection());
-     * auto coll = conn->getCollection("users");
-     * // ... use connection ...
-     * conn->returnToPool();
-     * pool->close();
-     * ```
+     * All pool infrastructure (acquisition, validation, maintenance, direct handoff)
+     * is inherited from DBConnectionPoolBase.
      *
-     * @see DocumentDBConnection, DBConnectionPool
+     * @see DBConnectionPoolBase, DocumentPooledDBConnection
      */
-    class DocumentDBConnectionPool : public DBConnectionPool, public std::enable_shared_from_this<DocumentDBConnectionPool>
+    class DocumentDBConnectionPool : public DBConnectionPoolBase
     {
     private:
         friend class DocumentPooledDBConnection;
 
-        // Shared flag to indicate if the pool is still alive (shared with all pooled connections)
-        std::shared_ptr<std::atomic<bool>> m_poolAlive;
-
-        // Connection parameters
-        std::string m_url;
-        std::string m_username;
-        std::string m_password;
-        std::map<std::string, std::string> m_options;     // Connection options
-        int m_initialSize{0};                             // Initial number of connections
-        size_t m_maxSize{0};                              // Maximum number of connections
-        size_t m_minIdle{0};                              // Minimum number of idle connections
-        long m_maxWaitMillis{0};                          // Maximum wait time for a connection in milliseconds
-        long m_validationTimeoutMillis{0};                // Timeout for connection validation
-        long m_idleTimeoutMillis{0};                      // Maximum time a connection can be idle before being closed
-        long m_maxLifetimeMillis{0};                      // Maximum lifetime of a connection
-        bool m_testOnBorrow{false};                       // Test connection before borrowing
-        bool m_testOnReturn{false};                       // Test connection when returning to pool
-        TransactionIsolationLevel m_transactionIsolation; // Transaction isolation level for connections
-        std::vector<std::shared_ptr<DocumentPooledDBConnection>> m_allConnections;
-        std::queue<std::shared_ptr<DocumentPooledDBConnection>> m_idleConnections;
-        // std::mutex (not std::recursive_mutex) is required here because std::condition_variable
-        // only works with std::unique_lock<std::mutex>. Using std::recursive_mutex would require
-        // std::condition_variable_any, which causes Helgrind false positives (see MEMORY.md).
-        mutable std::mutex m_mutexPool;                 // Protects m_allConnections + m_idleConnections + m_waitQueue + m_pendingCreations + m_replenishNeeded
-        std::condition_variable m_maintenanceCondition; // Wakes maintenance thread on close() or replenish needed
-        std::atomic<bool> m_running{true};
-        std::atomic<int> m_activeConnections{0};
-        size_t m_pendingCreations{0}; // Connections being created outside lock (guarded by m_mutexPool)
-        size_t m_replenishNeeded{0};  // Replacement connections requested by returnConnection() (guarded by m_mutexPool)
-        std::jthread m_maintenanceThread;
-
-        // Direct handoff mechanism: eliminates "stolen wakeup" race condition.
-        // Each waiter has its own condition_variable so that handoffs wake only the
-        // targeted waiter — not every sleeping thread (eliminates thundering herd).
-        // Multiple std::condition_variable instances sharing the same std::mutex is
-        // explicitly safe per the C++ standard; the CV-mutex association exists only
-        // for the duration of a single wait() call.
-        struct ConnectionRequest
-        {
-            std::shared_ptr<DocumentPooledDBConnection> conn;
-            bool fulfilled{false};
-            std::condition_variable cv; // Per-waiter: only this waiter is woken on handoff
-        };
-        std::deque<ConnectionRequest *> m_waitQueue;
-
-        // Notifies the first waiter in the queue, or no-op if the queue is empty.
-        // PRECONDITION: m_mutexPool must be held by the caller.
-        void notifyFirstWaiter(std::nothrow_t) noexcept;
-
-        // Creates a new physical connection
+        // Creates a physical document connection via DriverManager
         cpp_dbc::expected<std::shared_ptr<DocumentDBConnection>, DBException> createDBConnection(std::nothrow_t) noexcept;
 
-        // Creates a new pooled connection wrapper
-        cpp_dbc::expected<std::shared_ptr<DocumentPooledDBConnection>, DBException> createPooledDBConnection(std::nothrow_t) noexcept;
-
-        // Validates a connection
-        cpp_dbc::expected<bool, DBException> validateConnection(std::nothrow_t, std::shared_ptr<DBConnection> conn) const noexcept;
-
-        // Returns a connection to the pool
-        cpp_dbc::expected<void, DBException> returnConnection(std::nothrow_t, std::shared_ptr<DocumentPooledDBConnection> conn) noexcept;
-
-        // Maintenance thread function
-        void maintenanceTask();
-
-    protected:
-        // Sets the transaction isolation level for the pool
-        void setPoolTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override
-        {
-            m_transactionIsolation = level;
-        }
-
-        // Initialize the pool after construction (creates initial connections and starts maintenance thread)
-        // This must be called after the pool is managed by a shared_ptr
-        cpp_dbc::expected<void, DBException> initializePool(std::nothrow_t) noexcept;
+        // Override from DBConnectionPoolBase — creates the document-specific pooled wrapper
+        cpp_dbc::expected<std::shared_ptr<DBConnectionPooled>, DBException>
+            createPooledDBConnection(std::nothrow_t) noexcept override;
 
     public:
         // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
-        // Constructor that takes individual parameters
-        DocumentDBConnectionPool(ConstructorTag,
+        DocumentDBConnectionPool(DBConnectionPool::ConstructorTag,
                                  const std::string &url,
                                  const std::string &username,
                                  const std::string &password,
@@ -165,12 +86,18 @@ namespace cpp_dbc
                                  long maxLifetimeMillis = 1800000,
                                  bool testOnBorrow = true,
                                  bool testOnReturn = false,
-                                 TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
+                                 TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) noexcept;
 
-        // Constructor that accepts a configuration object
-        explicit DocumentDBConnectionPool(ConstructorTag, const config::DBConnectionPoolConfig &config);
+        explicit DocumentDBConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config) noexcept;
 
-        // Static factory methods - use these to create pools
+        ~DocumentDBConnectionPool() override;
+
+        DocumentDBConnectionPool(const DocumentDBConnectionPool &) = delete;
+        DocumentDBConnectionPool &operator=(const DocumentDBConnectionPool &) = delete;
+        DocumentDBConnectionPool(DocumentDBConnectionPool &&) = delete;
+        DocumentDBConnectionPool &operator=(DocumentDBConnectionPool &&) = delete;
+
+        // Static factory methods
         static cpp_dbc::expected<std::shared_ptr<DocumentDBConnectionPool>, DBException> create(std::nothrow_t,
                                                                                                 const std::string &url,
                                                                                                 const std::string &username,
@@ -189,38 +116,13 @@ namespace cpp_dbc
 
         static cpp_dbc::expected<std::shared_ptr<DocumentDBConnectionPool>, DBException> create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept;
 
-        ~DocumentDBConnectionPool() override;
-
 #ifdef __cpp_exceptions
-        // DBConnectionPool interface implementation
-        std::shared_ptr<DBConnection> getDBConnection() override;
-
-        // Specialized method for document databases
+        // Family-specific typed getter (throwing)
         virtual std::shared_ptr<DocumentDBConnection> getDocumentDBConnection();
+#endif
 
-        // Gets current pool statistics
-        size_t getActiveDBConnectionCount() const override;
-        size_t getIdleDBConnectionCount() const override;
-        size_t getTotalDBConnectionCount() const override;
-
-        // Closes the pool and all connections
-        void close() override;
-
-        // Check if pool is running
-        bool isRunning() const override;
-
-#endif // __cpp_exceptions
-        // ====================================================================
-        // NOTHROW VERSIONS - Exception-free API
-        // ====================================================================
-
-        cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> getDBConnection(std::nothrow_t) noexcept override;
+        // Family-specific typed getter (nothrow)
         cpp_dbc::expected<std::shared_ptr<DocumentDBConnection>, DBException> getDocumentDBConnection(std::nothrow_t) noexcept;
-        cpp_dbc::expected<size_t, DBException> getActiveDBConnectionCount(std::nothrow_t) const noexcept override;
-        cpp_dbc::expected<size_t, DBException> getIdleDBConnectionCount(std::nothrow_t) const noexcept override;
-        cpp_dbc::expected<size_t, DBException> getTotalDBConnectionCount(std::nothrow_t) const noexcept override;
-        cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<bool, DBException> isRunning(std::nothrow_t) const noexcept override;
     };
 
     /**
@@ -251,12 +153,6 @@ namespace cpp_dbc
         // Helper method to check if pool is still valid
         bool isPoolValid(std::nothrow_t) const noexcept override;
 
-        // Helper method to safely update last used time
-        inline void updateLastUsedTime(std::nothrow_t) noexcept
-        {
-            m_lastUsedTimeNs.store(std::chrono::steady_clock::now().time_since_epoch().count(), std::memory_order_relaxed);
-        }
-
     protected:
         // Pool lifecycle overrides - only callable by DocumentDBConnectionPool (declared as friend).
         expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
@@ -267,8 +163,13 @@ namespace cpp_dbc
         DocumentPooledDBConnection(
             std::shared_ptr<DocumentDBConnection> connection,
             std::weak_ptr<DocumentDBConnectionPool> connectionPool,
-            std::shared_ptr<std::atomic<bool>> poolAlive);
+            std::shared_ptr<std::atomic<bool>> poolAlive) noexcept;
         ~DocumentPooledDBConnection() override;
+
+        DocumentPooledDBConnection(const DocumentPooledDBConnection &) = delete;
+        DocumentPooledDBConnection &operator=(const DocumentPooledDBConnection &) = delete;
+        DocumentPooledDBConnection(DocumentPooledDBConnection &&) = delete;
+        DocumentPooledDBConnection &operator=(DocumentPooledDBConnection &&) = delete;
 
 #ifdef __cpp_exceptions
         // Overridden DBConnection interface methods
@@ -365,37 +266,54 @@ namespace cpp_dbc
 
         // Implementation of DBConnectionPooled interface
         std::shared_ptr<DBConnection> getUnderlyingConnection(std::nothrow_t) noexcept override;
+        void markPoolClosed(std::nothrow_t, bool closed) noexcept override;
+        bool isPoolClosed(std::nothrow_t) const noexcept override;
+        void updateLastUsedTime(std::nothrow_t) noexcept override;
     };
 
-    // Specialized connection pool for MongoDB
-    namespace MongoDB
-    {
-        /**
-         * @brief MongoDB-specific connection pool implementation
-         *
-         * This class extends the generic DocumentDBConnectionPool with MongoDB-specific
-         * configuration and behaviors.
-         */
-        class MongoDBConnectionPool : public DocumentDBConnectionPool
-        {
-        public:
-            // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
-            MongoDBConnectionPool(ConstructorTag,
-                                  const std::string &url,
-                                  const std::string &username,
-                                  const std::string &password);
-
-            explicit MongoDBConnectionPool(ConstructorTag, const config::DBConnectionPoolConfig &config);
-
-            static cpp_dbc::expected<std::shared_ptr<MongoDBConnectionPool>, DBException> create(std::nothrow_t,
-                                                                                                 const std::string &url,
-                                                                                                 const std::string &username,
-                                                                                                 const std::string &password) noexcept;
-
-            static cpp_dbc::expected<std::shared_ptr<MongoDBConnectionPool>, DBException> create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept;
-        };
-    }
-
 } // namespace cpp_dbc
+
+// Specialized connection pool for MongoDB
+namespace cpp_dbc::MongoDB
+{
+    /**
+     * @brief MongoDB-specific connection pool implementation
+     */
+    class MongoDBConnectionPool final : public DocumentDBConnectionPool
+    {
+    public:
+        // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
+        MongoDBConnectionPool(DBConnectionPool::ConstructorTag,
+                              const std::string &url,
+                              const std::string &username,
+                              const std::string &password) noexcept;
+
+        explicit MongoDBConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config) noexcept;
+
+        ~MongoDBConnectionPool() override = default;
+
+        MongoDBConnectionPool(const MongoDBConnectionPool &) = delete;
+        MongoDBConnectionPool &operator=(const MongoDBConnectionPool &) = delete;
+        MongoDBConnectionPool(MongoDBConnectionPool &&) = delete;
+        MongoDBConnectionPool &operator=(MongoDBConnectionPool &&) = delete;
+
+#ifdef __cpp_exceptions
+        // Throwing static factory methods
+        static std::shared_ptr<MongoDBConnectionPool> create(const std::string &url,
+                                                              const std::string &username,
+                                                              const std::string &password);
+
+        static std::shared_ptr<MongoDBConnectionPool> create(const config::DBConnectionPoolConfig &config);
+#endif // __cpp_exceptions
+
+        // Nothrow static factory methods
+        static cpp_dbc::expected<std::shared_ptr<MongoDBConnectionPool>, DBException> create(std::nothrow_t,
+                                                                                              const std::string &url,
+                                                                                              const std::string &username,
+                                                                                              const std::string &password) noexcept;
+
+        static cpp_dbc::expected<std::shared_ptr<MongoDBConnectionPool>, DBException> create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept;
+    };
+} // namespace cpp_dbc::MongoDB
 
 #endif // CPP_DBC_DOCUMENT_DB_CONNECTION_POOL_HPP

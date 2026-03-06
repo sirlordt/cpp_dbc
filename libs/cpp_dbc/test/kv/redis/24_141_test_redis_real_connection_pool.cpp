@@ -30,7 +30,7 @@
 
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <cpp_dbc/common/system_utils.hpp>
-#include <cpp_dbc/core/kv/kv_db_connection_pool.hpp>
+#include <cpp_dbc/pool/kv/kv_db_connection_pool.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 
 #if USE_REDIS

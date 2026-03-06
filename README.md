@@ -77,9 +77,13 @@ Each database driver can be enabled or disabled at compile time to reduce depend
 
 - **Core Components**:
   - `include/cpp_dbc/cpp_dbc.hpp`: Core interfaces and types
-  - `include/cpp_dbc/core/db_connection_pool.hpp`: Generic connection pool interface for all database types
-  - `include/cpp_dbc/core/pooled_db_connection.hpp`: Generic pooled connection interface
-  - `include/cpp_dbc/core/relational/relational_db_connection_pool.hpp` & `src/core/relational/relational_db_connection_pool.cpp`: Relational database connection pooling implementation
+  - `include/cpp_dbc/pool/db_connection_pool.hpp`: Generic connection pool interface for all database types
+  - `include/cpp_dbc/pool/db_connection_pooled.hpp`: Generic pooled connection interface
+  - `include/cpp_dbc/pool/connection_pool.hpp` & `src/pool/connection_pool.cpp`: Unified connection pool base class (`DBConnectionPoolBase`) — all pool infrastructure (connection lifecycle, maintenance thread, direct handoff, HikariCP validation skip, phase-based lock protocol)
+  - `include/cpp_dbc/pool/relational/relational_db_connection_pool.hpp` & `src/pool/relational/relational_db_connection_pool.cpp`: Relational database connection pooling (thin wrapper around `DBConnectionPoolBase`)
+  - `include/cpp_dbc/pool/document/document_db_connection_pool.hpp` & `src/pool/document/document_db_connection_pool.cpp`: Document database connection pooling
+  - `include/cpp_dbc/pool/columnar/columnar_db_connection_pool.hpp` & `src/pool/columnar/columnar_db_connection_pool.cpp`: Columnar database connection pooling
+  - `include/cpp_dbc/pool/kv/kv_db_connection_pool.hpp` & `src/pool/kv/kv_db_connection_pool.cpp`: Key-value database connection pooling
   - `include/cpp_dbc/transaction_manager.hpp` & `src/transaction_manager.cpp`: Transaction management implementation
   - `src/driver_manager.cpp`: Driver management implementation
   - `include/cpp_dbc/config/database_config.hpp`: Database configuration classes
@@ -114,8 +118,9 @@ Each database driver can be enabled or disabled at compile time to reduce depend
   - `include/cpp_dbc/core/columnar/`: Columnar database interfaces (ScyllaDB connection, driver, prepared statement, result set)
   - `include/cpp_dbc/core/document/`: Document database interfaces (MongoDB connection, collection, cursor, data)
   - `include/cpp_dbc/core/graph/`: Graph database interfaces (placeholder)
-  - `include/cpp_dbc/core/kv/`: Key-Value database interfaces (Redis connection, driver, connection pool)
+  - `include/cpp_dbc/core/kv/`: Key-Value database interfaces (Redis connection, driver)
   - `include/cpp_dbc/core/timeseries/`: Time-series database interfaces (placeholder)
+  - `include/cpp_dbc/pool/`: Connection pool infrastructure (`DBConnectionPoolBase`, `DBConnectionPool`, `DBConnectionPooled`) and family-specific pool wrappers
 
 - **Examples**:
   - Examples are organized by database family with a numeric naming convention: `XX_YZZ_example_<db>_<feature>.cpp`

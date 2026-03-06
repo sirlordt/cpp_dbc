@@ -85,6 +85,41 @@ namespace cpp_dbc
          * @return A shared pointer to the unwrapped connection
          */
         virtual std::shared_ptr<DBConnection> getUnderlyingConnection(std::nothrow_t) noexcept = 0;
+
+        // ====================================================================
+        // POOL-INTERNAL LIFECYCLE - Used by DBConnectionPoolBase to manage
+        // pooled connections. These expose the internal m_closed atomic flag
+        // and timestamp operations that the pool algorithm requires.
+        // ====================================================================
+
+        /**
+         * @brief Set the pool-level closed flag directly
+         *
+         * Unlike close()/returnToPool(), this does NOT trigger pool return logic.
+         * Used by DBConnectionPoolBase for fine-grained state management during
+         * validation failures, handoffs, and pool shutdown.
+         *
+         * @param closed true to mark as closed, false to reopen
+         */
+        virtual void markPoolClosed(std::nothrow_t, bool closed) noexcept = 0;
+
+        /**
+         * @brief Read the pool-level closed flag
+         *
+         * Returns only the local m_closed atomic flag, NOT the underlying
+         * connection's isClosed() state. Used by DBConnectionPoolBase to check
+         * connection state without the overhead of querying the physical connection.
+         *
+         * @return true if the pool-level closed flag is set
+         */
+        virtual bool isPoolClosed(std::nothrow_t) const noexcept = 0;
+
+        /**
+         * @brief Update the last-used timestamp to the current time
+         *
+         * Called by DBConnectionPoolBase on borrow, return, and validation.
+         */
+        virtual void updateLastUsedTime(std::nothrow_t) noexcept = 0;
     };
 
 } // namespace cpp_dbc

@@ -30,7 +30,7 @@
  */
 
 #include "../../common/example_common.hpp"
-#include <cpp_dbc/core/document/document_db_connection_pool.hpp>
+#include <cpp_dbc/pool/document/document_db_connection_pool.hpp>
 #include <thread>
 #include <vector>
 #include <future>

@@ -7,10 +7,11 @@ CPP_DBC follows a layered architecture with clear separation of concerns:
 1. **Core Interface Layer**: Abstract base classes defining the API in the `include/cpp_dbc/core/` directory
    - `core/relational/`: Relational database interfaces (`RelationalDBConnection`, `RelationalDBPreparedStatement`, `RelationalDBResultSet`, etc.)
    - `core/document/`: Document database interfaces (`DocumentDBConnection`, `DocumentDBDriver`, `DocumentDBCollection`, `DocumentDBCursor`, `DocumentDBData`)
-   - `core/columnar/`: Columnar database interfaces (`ColumnarDBConnection`, `ColumnarDBDriver`, `ColumnarDBConnectionPool`)
+   - `core/columnar/`: Columnar database interfaces (`ColumnarDBConnection`, `ColumnarDBDriver`)
    - `core/graph/`: Graph database interfaces (placeholder for future)
-   - `core/kv/`: Key-Value database interfaces (`KVDBConnection`, `KVDBDriver`, `KVDBConnectionPool`)
+   - `core/kv/`: Key-Value database interfaces (`KVDBConnection`, `KVDBDriver`)
    - `core/timeseries/`: Time-series database interfaces (placeholder for future)
+   - `pool/`: Connection pool infrastructure (`DBConnectionPoolBase`, `DBConnectionPool`, `DBConnectionPooled`) and family-specific thin pool wrappers
 2. **Driver Layer**: Database-specific implementations in the `src/drivers/` and `include/cpp_dbc/drivers/` directories
    - `drivers/relational/`: Relational database drivers (MySQL, PostgreSQL, SQLite, Firebird)
    - `drivers/document/`: Document database drivers (MongoDB)
@@ -237,13 +238,19 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
   - Rule: `close()` logic that must run in destructor should either be inlined or called with the fully qualified class name
 
 ### Connection Pooling (continued)
-- Connection pool implementations for different database types:
-  - `RelationalDBConnectionPool` for relational databases with factory pattern
-  - `DocumentDBConnectionPool` for document databases with factory pattern
-  - `ColumnarDBConnectionPool` for columnar databases with factory pattern
-  - `KVDBConnectionPool` for key-value databases with factory pattern
+- **Unified Pool Base Class (`DBConnectionPoolBase`, 2026-03-06):**
+  - All pool infrastructure extracted into `pool/connection_pool.hpp` + `pool/connection_pool.cpp` (955 lines)
+  - Contains: connection lifecycle, maintenance thread, direct handoff, HikariCP validation skip, phase-based lock protocol
+  - Pure virtual `createPooledDBConnection(std::nothrow_t)` — derived classes override to create family-specific pooled wrappers
+  - Protected `acquireConnection()` — core borrow logic; `initializePool()` — called by factory after `make_shared`
+  - Pool headers/sources moved from `core/` to `pool/` directory
+- Connection pool implementations — thin derived classes inheriting from `DBConnectionPoolBase`:
+  - `RelationalDBConnectionPool` for relational databases
+  - `DocumentDBConnectionPool` for document databases
+  - `ColumnarDBConnectionPool` for columnar databases
+  - `KVDBConnectionPool` for key-value databases
 - Each connection pool implementation follows the same architecture:
-  - Abstract base class defining the pool interface
+  - Inherits from `DBConnectionPoolBase` (all pool logic) — only overrides `createPooledDBConnection()` and adds typed getter
   - Concrete implementations for specific database types (PostgreSQLConnectionPool, MongoDBConnectionPool, ScyllaConnectionPool, RedisDBConnectionPool, etc.)
   - Factory methods (`create`) return `expected<shared_ptr<Pool>, DBException>` with `std::nothrow_t` — exception-free pool creation
   - ConstructorTag pattern (PassKey idiom) to enable `std::make_shared` while enforcing factory pattern:

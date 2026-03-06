@@ -28,7 +28,7 @@
 
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <cpp_dbc/core/columnar/columnar_db_connection.hpp>
-#include <cpp_dbc/core/columnar/columnar_db_connection_pool.hpp>
+#include <cpp_dbc/pool/columnar/columnar_db_connection_pool.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 #include <cpp_dbc/common/system_utils.hpp>
 

@@ -87,8 +87,9 @@ These are the fundamental classes that all drivers inherit from:
 | `core/db_exception.hpp` | `DBException` | Exception class with 12-char error codes and call stack capture |
 | `core/db_types.hpp` | `DBType`, `Types`, `TransactionIsolationLevel` | Core enums for database types, SQL types, and isolation levels |
 | `core/db_expected.hpp` | `expected<T,E>` | Error handling type for nothrow API pattern |
-| `core/db_connection_pool.hpp` | `DBConnectionPool` | Base class for connection pools |
-| `core/db_connection_pooled.hpp` | `DBConnectionPooled` | Wrapper for pooled connections |
+| `pool/db_connection_pool.hpp` | `DBConnectionPool` | Base class for connection pools |
+| `pool/db_connection_pooled.hpp` | `DBConnectionPooled` | Wrapper for pooled connections |
+| `pool/connection_pool.hpp` | `DBConnectionPoolBase` | Unified pool base class (all pool infrastructure) |
 | `core/streams.hpp` | `InputStream` | Stream interface for BLOB data |
 
 ### Family-Specific Interfaces

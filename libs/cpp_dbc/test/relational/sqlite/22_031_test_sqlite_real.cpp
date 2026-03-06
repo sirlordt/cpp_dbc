@@ -31,7 +31,7 @@
 #include <catch2/catch_approx.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
+#include <cpp_dbc/pool/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/common/system_utils.hpp>
 
 #include "22_001_test_sqlite_real_common.hpp"

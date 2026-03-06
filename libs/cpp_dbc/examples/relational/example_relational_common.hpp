@@ -31,7 +31,7 @@
 #define CPP_DBC_EXAMPLE_RELATIONAL_COMMON_HPP
 
 #include "../common/example_common.hpp"
-#include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
+#include <cpp_dbc/pool/relational/relational_db_connection_pool.hpp>
 #include <iomanip>
 #include <sstream>
 

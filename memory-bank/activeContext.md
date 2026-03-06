@@ -37,7 +37,15 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **MongoDB Driver — Full Nothrow-First Refactor, Static Factory Pattern, `-fno-exceptions` Compatibility** (2026-03-04 14:29 PST):
+1. **Unified Connection Pool Base Class (`DBConnectionPoolBase`) — Extracted Common Pool Logic into `pool/` Directory** (2026-03-06 01:59 PST):
+   - **New `DBConnectionPoolBase`:** Single base class in `pool/connection_pool.hpp` + `pool/connection_pool.cpp` (955 lines) containing all pool infrastructure: connection acquisition with direct handoff, HikariCP validation skip, phase-based lock protocol, maintenance thread, `returnConnection()` with orphan detection
+   - **`DBConnectionPooled` extended:** Added pool-internal lifecycle methods (`updateLastUsedTime`, `isPoolClosed`, `getClosedFlag`)
+   - **Directory restructure:** All pool headers/sources moved from `core/` to `pool/` directory; new placeholder dirs for `pool/graph/`, `pool/timeseries/`
+   - **Family pools now thin derived classes:** `RelationalDBConnectionPool`, `DocumentDBConnectionPool`, `ColumnarDBConnectionPool`, `KVDBConnectionPool` inherit from `DBConnectionPoolBase`, only override `createPooledDBConnection()` + typed getter
+   - **Include path updates:** All examples (16), tests (30+), internal sources updated from `core/` to `pool/` paths
+   - 77 files changed, +6020/-8459 lines (net reduction of ~2400 lines of duplicated pool logic)
+
+2. **MongoDB Driver — Full Nothrow-First Refactor, Static Factory Pattern, `-fno-exceptions` Compatibility** (2026-03-04 14:29 PST):
    - **Core Abstract Interfaces — `#ifdef __cpp_exceptions` Guard Separation:**
      - All 5 document interfaces guard throwing methods with `#ifdef __cpp_exceptions`; nothrow methods always compile under `-fno-exceptions`
      - `DocumentDBCursor`: +9 new nothrow pure-virtuals (`next`, `hasNext`, `count`, `getPosition`, `skip`, `limit`, `sort`, `isExhausted`, `rewind`)

@@ -2,7 +2,33 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. MongoDB was the last driver to adopt this architecture (2026-03-04). `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). All four connection pool families share a unified single-mutex + direct-handoff architecture with a complete nothrow API.
+The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. MongoDB was the last driver to adopt this architecture (2026-03-04). `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). All four connection pool families now inherit from a unified `DBConnectionPoolBase` class that contains all pool infrastructure (connection lifecycle, maintenance thread, direct handoff, HikariCP validation skip, phase-based lock protocol). Pool headers/sources moved from `core/` to `pool/` directory (2026-03-06).
+
+### Recent Improvements (2026-03-06 01:59 PST)
+
+**Unified Connection Pool Base Class (`DBConnectionPoolBase`) — Extracted Common Pool Logic into `pool/` Directory:**
+
+1. **New `DBConnectionPoolBase` — Unified Pool Algorithm:**
+   - `pool/connection_pool.hpp` + `pool/connection_pool.cpp` (955 lines) — single base class for all pools
+   - Contains: connection acquisition with direct handoff, HikariCP validation skip (500ms), phase-based lock protocol, maintenance thread (30s), `returnConnection()` with orphan detection, `decrementActiveCount()` for destructor safety
+   - Pure virtual `createPooledDBConnection(std::nothrow_t)` — derived classes override for family-specific wrappers
+   - Protected `acquireConnection()`, `initializePool()`, accessors (`getUrl()`, `getPoolWeakPtr()`, etc.)
+
+2. **`DBConnectionPooled` Interface Extension:**
+   - Added pool-internal lifecycle methods: `updateLastUsedTime()`, `isPoolClosed()`, `getClosedFlag()`
+
+3. **Directory Restructure: `core/` → `pool/`:**
+   - All pool headers moved: `core/db_connection_pool.hpp` → `pool/db_connection_pool.hpp`, etc.
+   - All pool sources moved: `src/core/*/` → `src/pool/*/`
+   - New placeholder directories: `pool/graph/`, `pool/timeseries/`
+
+4. **Family Pools — Thin Derived Classes:**
+   - `RelationalDBConnectionPool`, `DocumentDBConnectionPool`, `ColumnarDBConnectionPool`, `KVDBConnectionPool` now inherit from `DBConnectionPoolBase`
+   - Each only overrides `createPooledDBConnection()` and adds typed getter
+
+5. **Include Path Updates:** All examples (16), tests (30+), internal sources updated from `core/` to `pool/` paths
+
+6. **Impact:** 77 files changed, +6020/-8459 lines (net reduction of ~2400 lines of duplicated pool logic)
 
 ### Recent Improvements (2026-03-04 14:29 PST)
 

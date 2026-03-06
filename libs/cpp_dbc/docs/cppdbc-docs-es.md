@@ -746,7 +746,7 @@ conn->close();
 ---
 
 ## Pool de Conexiones
-*Componentes definidos en core/db_connection_pool.hpp, core/pooled_db_connection.hpp, core/relational/relational_db_connection_pool.hpp y src/core/relational/relational_db_connection_pool.cpp*
+*Componentes definidos en pool/db_connection_pool.hpp, pool/db_connection_pooled.hpp, pool/connection_pool.hpp, pool/relational/relational_db_connection_pool.hpp y src/pool/relational/relational_db_connection_pool.cpp*
 
 ### DBConnectionPool
 Clase abstracta que define la interfaz común para todos los pools de conexiones, independientemente del tipo específico de base de datos.
