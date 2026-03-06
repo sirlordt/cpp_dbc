@@ -118,6 +118,7 @@ namespace cpp_dbc::Redis
     cpp_dbc::expected<void, DBException>
     RedisDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
     {
+        REDIS_LOCK_GUARD(m_mutex);
         m_transactionIsolation = level;
         return {};
     }
@@ -125,12 +126,14 @@ namespace cpp_dbc::Redis
     cpp_dbc::expected<TransactionIsolationLevel, DBException>
     RedisDBConnection::getTransactionIsolation(std::nothrow_t) noexcept
     {
+        REDIS_LOCK_GUARD(m_mutex);
         return m_transactionIsolation;
     }
 
     cpp_dbc::expected<void, DBException>
     RedisDBConnection::prepareForPoolReturn(std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept
     {
+        REDIS_LOCK_GUARD(m_mutex);
         // Redis has no transaction state or open cursors to clean up.
         // Restore isolation level if requested (store-only, no DB command).
         if (isolationLevel != TransactionIsolationLevel::TRANSACTION_NONE)

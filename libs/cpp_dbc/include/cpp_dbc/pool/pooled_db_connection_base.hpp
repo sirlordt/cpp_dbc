@@ -52,20 +52,24 @@ namespace cpp_dbc
     template <typename Derived, typename ConnType, typename PoolType>
     class PooledDBConnectionBase : public DBConnectionPooled
     {
-    protected:
-        std::shared_ptr<ConnType> m_conn;                                           // NOSONAR(cpp:S3656) — CRTP base: derived classes access directly
-        std::weak_ptr<PoolType> m_pool;                                             // NOSONAR(cpp:S3656)
-        std::shared_ptr<std::atomic<bool>> m_poolAlive;                             // NOSONAR(cpp:S3656)
-        std::chrono::time_point<std::chrono::steady_clock> m_creationTime{std::chrono::steady_clock::now()}; // NOSONAR(cpp:S3656)
+        std::shared_ptr<ConnType> m_conn;
+        std::weak_ptr<PoolType> m_pool;
+        std::shared_ptr<std::atomic<bool>> m_poolAlive;
+        std::chrono::time_point<std::chrono::steady_clock> m_creationTime{std::chrono::steady_clock::now()};
         // Store last-used time as nanoseconds since epoch in an atomic int64_t.
         // std::atomic<int64_t> is lock-free on every supported 64-bit platform,
         // unlike std::atomic<time_point> which is not portable to ARM32/MIPS.
         // See: libs/cpp_dbc/docs/bugs/firebird_helgrind_analysis.md (Context 1)
         static_assert(std::atomic<int64_t>::is_always_lock_free,
                       "int64_t atomic must be lock-free on this platform");
-        std::atomic<int64_t> m_lastUsedTimeNs{m_creationTime.time_since_epoch().count()}; // NOSONAR(cpp:S3656)
-        std::atomic<bool> m_active{false};                                          // NOSONAR(cpp:S3656)
-        std::atomic<bool> m_closed{false};                                          // NOSONAR(cpp:S3656)
+        std::atomic<int64_t> m_lastUsedTimeNs{m_creationTime.time_since_epoch().count()};
+        std::atomic<bool> m_active{false};
+        std::atomic<bool> m_closed{false};
+
+    protected:
+        // ── Protected accessors for derived classes ──────────────────────────────
+        const std::shared_ptr<ConnType> &getConn(std::nothrow_t) const noexcept { return m_conn; }
+        bool isLocalClosed(std::nothrow_t) const noexcept { return m_closed.load(std::memory_order_acquire); }
 
         // Protected constructor — only callable from derived classes
         PooledDBConnectionBase(

@@ -11,7 +11,6 @@ CPP_DBC follows a layered architecture with clear separation of concerns:
    - `core/graph/`: Graph database interfaces (placeholder for future)
    - `core/kv/`: Key-Value database interfaces (`KVDBConnection`, `KVDBDriver`)
    - `core/timeseries/`: Time-series database interfaces (placeholder for future)
-   - `pool/`: Connection pool infrastructure (`DBConnectionPoolBase`, `DBConnectionPool`, `DBConnectionPooled`) and family-specific thin pool wrappers
 2. **Driver Layer**: Database-specific implementations in the `src/drivers/` and `include/cpp_dbc/drivers/` directories
    - `drivers/relational/`: Relational database drivers (MySQL, PostgreSQL, SQLite, Firebird)
    - `drivers/document/`: Document database drivers (MongoDB)
@@ -37,7 +36,8 @@ CPP_DBC follows a layered architecture with clear separation of concerns:
      3. `getDate`, `getTimestamp`, `getTime` (index/name pairs)
      4. `getColumnNames`, `getColumnCount`
      5. Blob/binary methods in a separate dedicated file
-3. **Connection Management Layer**: Connection pooling and transaction management in the `src/` directory
+3. **Connection Management Layer**: Connection pooling in `include/cpp_dbc/pool/` and `src/pool/`
+   - `pool/`: Pool infrastructure (`DBConnectionPoolBase`, `DBConnectionPool`, `DBConnectionPooled`, `PooledDBConnectionBase` CRTP template) and family-specific thin pool wrappers (`relational/`, `document/`, `columnar/`, `kv/`)
 4. **BLOB Layer**: Binary Large Object handling in the `include/cpp_dbc/blob.hpp` (base classes) and database-specific implementations in the driver subfolders (e.g., `drivers/relational/mysql/blob.hpp`)
 5. **Key-Value Layer**: Key-Value operations support in `drivers/kv/` directory
 6. **JSON Layer**: JSON data type support in database-specific implementations in the `drivers/relational/` directory

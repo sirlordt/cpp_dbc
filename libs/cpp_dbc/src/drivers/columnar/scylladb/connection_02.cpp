@@ -197,6 +197,7 @@ namespace cpp_dbc::ScyllaDB
     cpp_dbc::expected<void, DBException>
     ScyllaDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
     {
+        DB_DRIVER_LOCK_GUARD(m_connMutex);
         m_transactionIsolation = level;
         return {};
     }
@@ -204,12 +205,14 @@ namespace cpp_dbc::ScyllaDB
     cpp_dbc::expected<TransactionIsolationLevel, DBException>
     ScyllaDBConnection::getTransactionIsolation(std::nothrow_t) noexcept
     {
+        DB_DRIVER_LOCK_GUARD(m_connMutex);
         return m_transactionIsolation;
     }
 
     cpp_dbc::expected<void, DBException>
     ScyllaDBConnection::prepareForPoolReturn(std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept
     {
+        DB_DRIVER_LOCK_GUARD(m_connMutex);
         SCYLLADB_DEBUG("ScyllaDBConnection::prepareForPoolReturn(nothrow) - Rolling back any active transaction");
         // ScyllaDB/Cassandra has no ACID transactions; cleanup is a no-op.
         // Restore isolation level if requested (store-only, no DB command).

@@ -75,13 +75,13 @@ namespace cpp_dbc
                                    const std::string &username,
                                    const std::string &password,
                                    const std::map<std::string, std::string> &options = std::map<std::string, std::string>(),
-                                   int initialSize = 5,
-                                   int maxSize = 20,
-                                   int minIdle = 3,
-                                   long maxWaitMillis = 5000,
-                                   long validationTimeoutMillis = 5000,
-                                   long idleTimeoutMillis = 300000,
-                                   long maxLifetimeMillis = 1800000,
+                                   size_t initialSize = 5,
+                                   size_t maxSize = 20,
+                                   size_t minIdle = 3,
+                                   size_t maxWaitMillis = 5000,
+                                   size_t validationTimeoutMillis = 5000,
+                                   size_t idleTimeoutMillis = 300000,
+                                   size_t maxLifetimeMillis = 1800000,
                                    bool testOnBorrow = true,
                                    bool testOnReturn = false,
                                    TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) noexcept;
@@ -101,13 +101,13 @@ namespace cpp_dbc
                                                                                                   const std::string &username,
                                                                                                   const std::string &password,
                                                                                                   const std::map<std::string, std::string> &options = std::map<std::string, std::string>(),
-                                                                                                  int initialSize = 5,
-                                                                                                  int maxSize = 20,
-                                                                                                  int minIdle = 3,
-                                                                                                  long maxWaitMillis = 5000,
-                                                                                                  long validationTimeoutMillis = 5000,
-                                                                                                  long idleTimeoutMillis = 300000,
-                                                                                                  long maxLifetimeMillis = 1800000,
+                                                                                                  size_t initialSize = 5,
+                                                                                                  size_t maxSize = 20,
+                                                                                                  size_t minIdle = 3,
+                                                                                                  size_t maxWaitMillis = 5000,
+                                                                                                  size_t validationTimeoutMillis = 5000,
+                                                                                                  size_t idleTimeoutMillis = 300000,
+                                                                                                  size_t maxLifetimeMillis = 1800000,
                                                                                                   bool testOnBorrow = true,
                                                                                                   bool testOnReturn = false,
                                                                                                   TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) noexcept;
@@ -222,6 +222,16 @@ namespace cpp_dbc
 
             explicit MySQLConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config);
 
+#ifdef __cpp_exceptions
+            // Throwing static factory methods
+            static std::shared_ptr<MySQLConnectionPool> create(const std::string &url,
+                                                               const std::string &username,
+                                                               const std::string &password);
+
+            static std::shared_ptr<MySQLConnectionPool> create(const config::DBConnectionPoolConfig &config);
+#endif // __cpp_exceptions
+
+            // Nothrow static factory methods
             static cpp_dbc::expected<std::shared_ptr<MySQLConnectionPool>, DBException> create(std::nothrow_t,
                                                                                                const std::string &url,
                                                                                                const std::string &username,
@@ -244,6 +254,16 @@ namespace cpp_dbc
 
             explicit PostgreSQLConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config);
 
+#ifdef __cpp_exceptions
+            // Throwing static factory methods
+            static std::shared_ptr<PostgreSQLConnectionPool> create(const std::string &url,
+                                                                    const std::string &username,
+                                                                    const std::string &password);
+
+            static std::shared_ptr<PostgreSQLConnectionPool> create(const config::DBConnectionPoolConfig &config);
+#endif // __cpp_exceptions
+
+            // Nothrow static factory methods
             static cpp_dbc::expected<std::shared_ptr<PostgreSQLConnectionPool>, DBException> create(std::nothrow_t,
                                                                                                     const std::string &url,
                                                                                                     const std::string &username,
@@ -266,6 +286,16 @@ namespace cpp_dbc
 
             explicit SQLiteConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config);
 
+#ifdef __cpp_exceptions
+            // Throwing static factory methods
+            static std::shared_ptr<SQLiteConnectionPool> create(const std::string &url,
+                                                                const std::string &username,
+                                                                const std::string &password);
+
+            static std::shared_ptr<SQLiteConnectionPool> create(const config::DBConnectionPoolConfig &config);
+#endif // __cpp_exceptions
+
+            // Nothrow static factory methods
             static cpp_dbc::expected<std::shared_ptr<SQLiteConnectionPool>, DBException> create(std::nothrow_t,
                                                                                                 const std::string &url,
                                                                                                 const std::string &username,
@@ -288,6 +318,16 @@ namespace cpp_dbc
 
             explicit FirebirdConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config);
 
+#ifdef __cpp_exceptions
+            // Throwing static factory methods
+            static std::shared_ptr<FirebirdConnectionPool> create(const std::string &url,
+                                                                  const std::string &username,
+                                                                  const std::string &password);
+
+            static std::shared_ptr<FirebirdConnectionPool> create(const config::DBConnectionPoolConfig &config);
+#endif // __cpp_exceptions
+
+            // Nothrow static factory methods
             static cpp_dbc::expected<std::shared_ptr<FirebirdConnectionPool>, DBException> create(std::nothrow_t,
                                                                                                   const std::string &url,
                                                                                                   const std::string &username,

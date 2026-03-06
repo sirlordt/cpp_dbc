@@ -355,7 +355,7 @@ Every driver must be visible to the connection pool system. The required work de
 
 The pool system has three layers:
 
-```
+```text
 DBConnectionPoolBase (connection_pool.hpp / connection_pool.cpp)
   └── <Family>DBConnectionPool (pool/<family>/<family>_db_connection_pool.hpp/.cpp)
         └── <Driver>ConnectionPool (same file, e.g. ScyllaDBConnectionPool)

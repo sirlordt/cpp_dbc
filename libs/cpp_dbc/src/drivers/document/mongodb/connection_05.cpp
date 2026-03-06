@@ -507,6 +507,7 @@ namespace cpp_dbc::MongoDB
     expected<void, DBException>
     MongoDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
     {
+        MONGODB_LOCK_GUARD(*m_connMutex);
         m_transactionIsolation = level;
         return {};
     }
@@ -514,6 +515,7 @@ namespace cpp_dbc::MongoDB
     expected<TransactionIsolationLevel, DBException>
     MongoDBConnection::getTransactionIsolation(std::nothrow_t) noexcept
     {
+        MONGODB_LOCK_GUARD(*m_connMutex);
         return m_transactionIsolation;
     }
 

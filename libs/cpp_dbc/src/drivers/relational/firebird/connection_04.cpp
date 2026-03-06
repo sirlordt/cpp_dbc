@@ -135,14 +135,16 @@ namespace cpp_dbc::Firebird
             {
                 FIREBIRD_DEBUG("prepareForPoolReturn(nothrow): Failed to get isolation: %s",
                                isoResult.error().what_s().data());
+                return cpp_dbc::unexpected(isoResult.error());
             }
-            else if (isoResult.value() != isolationLevel)
+            if (isoResult.value() != isolationLevel)
             {
                 auto setIsoResult = setTransactionIsolation(std::nothrow, isolationLevel);
                 if (!setIsoResult.has_value())
                 {
                     FIREBIRD_DEBUG("prepareForPoolReturn(nothrow): Failed to restore isolation: %s",
                                    setIsoResult.error().what_s().data());
+                    return setIsoResult;
                 }
             }
         }

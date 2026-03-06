@@ -834,7 +834,7 @@ Cada familia de base de datos tiene un pool y un envoltorio de conexión agrupad
 
 - **Relacional:** `RelationalDBConnectionPool` + `RelationalPooledDBConnection` — pools específicos: `MySQLConnectionPool`, `PostgreSQLConnectionPool`, `SQLiteConnectionPool`, `FirebirdConnectionPool`
 - **Documento:** `DocumentDBConnectionPool` + `DocumentPooledDBConnection` — pool específico: `MongoDBConnectionPool`
-- **Columnar:** `ColumnarDBConnectionPool` + `ColumnarPooledDBConnection` — pool específico: `ScyllaConnectionPool`
+- **Columnar:** `ColumnarDBConnectionPool` + `ColumnarPooledDBConnection` — pool específico: `ScyllaDBConnectionPool`
 - **Clave-Valor:** `KVDBConnectionPool` + `KVPooledDBConnection` — pool específico: `RedisDBConnectionPool`
 
 ---

@@ -155,46 +155,46 @@ namespace cpp_dbc
                 // Return to pool instead of actually closing
                 updateLastUsedTime(std::nothrow);
 
-                // Check if pool is still alive using the shared atomic flag
-                if (isPoolValid(std::nothrow))
-                {
-                    // Try to obtain a shared_ptr from the weak_ptr
-                    if (auto poolShared = m_pool.lock())
-                    {
-                        // ============================================================================
-                        // CRITICAL FIX: Race Condition in Connection Pool Return Flow
-                        // ============================================================================
-                        //
-                        // BUG DESCRIPTION:
-                        // ----------------
-                        // A race condition existed where m_closed was reset to false AFTER
-                        // returnConnection() completed. This created a window where another thread
-                        // could obtain the connection from the idle queue while m_closed was still
-                        // true, causing spurious "Connection is closed" errors.
-                        //
-                        // FIX:
-                        // ----
-                        // Reset m_closed to false BEFORE calling returnConnection(). This ensures
-                        // that when the connection becomes available in the idle queue, m_closed
-                        // is already false and any thread that obtains it will see the correct state.
-                        //
-                        // If returnConnection() fails or throws an exception, the catch blocks below
-                        // will close the underlying connection, maintaining correct error handling.
-                        // ============================================================================
-                        m_closed.store(false, std::memory_order_release);
+                // Check if pool is still alive using the shared atomic flag,
+                // then try to obtain a shared_ptr from the weak_ptr
+                auto poolShared = isPoolValid(std::nothrow) ? m_pool.lock() : nullptr;
 
-                        auto self = static_cast<Derived *>(this)->shared_from_this();
-                        auto returnResult = poolShared->returnConnection(std::nothrow, self);
-                        if (!returnResult.has_value())
-                        {
-                            CP_DEBUG("PooledDBConnectionBase::closeImpl - returnConnection failed: %s", returnResult.error().what_s().data());
-                            return returnResult;
-                        }
+                if (poolShared)
+                {
+                    // ============================================================================
+                    // CRITICAL FIX: Race Condition in Connection Pool Return Flow
+                    // ============================================================================
+                    //
+                    // BUG DESCRIPTION:
+                    // ----------------
+                    // A race condition existed where m_closed was reset to false AFTER
+                    // returnConnection() completed. This created a window where another thread
+                    // could obtain the connection from the idle queue while m_closed was still
+                    // true, causing spurious "Connection is closed" errors.
+                    //
+                    // FIX:
+                    // ----
+                    // Reset m_closed to false BEFORE calling returnConnection(). This ensures
+                    // that when the connection becomes available in the idle queue, m_closed
+                    // is already false and any thread that obtains it will see the correct state.
+                    //
+                    // If returnConnection() fails or throws an exception, the catch blocks below
+                    // will close the underlying connection, maintaining correct error handling.
+                    // ============================================================================
+                    m_closed.store(false, std::memory_order_release);
+
+                    auto self = static_cast<Derived *>(this)->shared_from_this();
+                    auto returnResult = poolShared->returnConnection(std::nothrow, self);
+                    if (!returnResult.has_value())
+                    {
+                        CP_DEBUG("PooledDBConnectionBase::closeImpl - returnConnection failed: %s", returnResult.error().what_s().data());
+                        return returnResult;
                     }
                 }
                 else if (m_conn)
                 {
-                    // If pool is invalid, actually close the connection
+                    // Pool is invalid or was destroyed between isPoolValid() and lock() —
+                    // actually close the underlying connection to prevent resource leak
                     auto result = m_conn->close(std::nothrow);
                     if (!result.has_value())
                     {
@@ -251,24 +251,34 @@ namespace cpp_dbc
             // Return to pool instead of actually closing
             updateLastUsedTime(std::nothrow);
 
-            // Check if pool is still alive using the shared atomic flag
-            // Use qualified call to avoid virtual dispatch issues when called from destructor
-            if (PooledDBConnectionBase::isPoolValid(std::nothrow))
-            {
-                // Try to obtain a shared_ptr from the weak_ptr
-                if (auto poolShared = m_pool.lock())
-                {
-                    // FIX: Reset m_closed BEFORE returnConnection() to prevent race condition
-                    // (see closeImpl() method for full explanation of the bug)
-                    m_closed.store(false, std::memory_order_release);
+            // Check if pool is still alive using the shared atomic flag,
+            // then try to obtain a shared_ptr from the weak_ptr.
+            // Use qualified call to avoid virtual dispatch issues when called from destructor.
+            auto poolShared = PooledDBConnectionBase::isPoolValid(std::nothrow) ? m_pool.lock() : nullptr;
 
-                    auto self = static_cast<Derived *>(this)->shared_from_this();
-                    auto returnResult = poolShared->returnConnection(std::nothrow, self);
-                    if (!returnResult.has_value())
-                    {
-                        CP_DEBUG("PooledDBConnectionBase::returnToPoolImpl - returnConnection failed: %s", returnResult.error().what_s().data());
-                        return returnResult;
-                    }
+            if (poolShared)
+            {
+                // FIX: Reset m_closed BEFORE returnConnection() to prevent race condition
+                // (see closeImpl() method for full explanation of the bug)
+                m_closed.store(false, std::memory_order_release);
+
+                auto self = static_cast<Derived *>(this)->shared_from_this();
+                auto returnResult = poolShared->returnConnection(std::nothrow, self);
+                if (!returnResult.has_value())
+                {
+                    CP_DEBUG("PooledDBConnectionBase::returnToPoolImpl - returnConnection failed: %s", returnResult.error().what_s().data());
+                    return returnResult;
+                }
+            }
+            else if (m_conn)
+            {
+                // Pool was destroyed between isPoolValid() and lock() — close the
+                // underlying connection since no pool exists to manage it anymore
+                auto result = m_conn->close(std::nothrow);
+                if (!result.has_value())
+                {
+                    CP_DEBUG("PooledDBConnectionBase::returnToPoolImpl - Failed to close orphaned connection: %s", result.error().what_s().data());
+                    return result;
                 }
             }
             return {};
@@ -477,9 +487,9 @@ namespace cpp_dbc
 
     // ── Explicit instantiations ───────────────────────────────────────────────
 
-    template class PooledDBConnectionBase<RelationalPooledDBConnection, RelationalDBConnection, RelationalDBConnectionPool>; // NOSONAR(cpp:S3656) — CRTP base: protected members required for derived class access
-    template class PooledDBConnectionBase<KVPooledDBConnection, KVDBConnection, KVDBConnectionPool>; // NOSONAR(cpp:S3656)
-    template class PooledDBConnectionBase<DocumentPooledDBConnection, DocumentDBConnection, DocumentDBConnectionPool>; // NOSONAR(cpp:S3656)
-    template class PooledDBConnectionBase<ColumnarPooledDBConnection, ColumnarDBConnection, ColumnarDBConnectionPool>; // NOSONAR(cpp:S3656)
+    template class PooledDBConnectionBase<RelationalPooledDBConnection, RelationalDBConnection, RelationalDBConnectionPool>;
+    template class PooledDBConnectionBase<KVPooledDBConnection, KVDBConnection, KVDBConnectionPool>;
+    template class PooledDBConnectionBase<DocumentPooledDBConnection, DocumentDBConnection, DocumentDBConnectionPool>;
+    template class PooledDBConnectionBase<ColumnarPooledDBConnection, ColumnarDBConnection, ColumnarDBConnectionPool>;
 
 } // namespace cpp_dbc

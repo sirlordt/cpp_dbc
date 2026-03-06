@@ -35,13 +35,13 @@ namespace cpp_dbc
                                                const std::string &username,
                                                const std::string &password,
                                                const std::map<std::string, std::string> &options,
-                                               int initialSize,
-                                               int maxSize,
-                                               int minIdle,
-                                               long maxWaitMillis,
-                                               long validationTimeoutMillis,
-                                               long idleTimeoutMillis,
-                                               long maxLifetimeMillis,
+                                               size_t initialSize,
+                                               size_t maxSize,
+                                               size_t minIdle,
+                                               size_t maxWaitMillis,
+                                               size_t validationTimeoutMillis,
+                                               size_t idleTimeoutMillis,
+                                               size_t maxLifetimeMillis,
                                                bool testOnBorrow,
                                                bool testOnReturn,
                                                TransactionIsolationLevel transactionIsolation) noexcept
@@ -461,13 +461,27 @@ namespace cpp_dbc
 
     cpp_dbc::expected<void, DBException> DBConnectionPoolBase::initializePool(std::nothrow_t) noexcept
     {
+        // Validate pool configuration before allocating any resources
+        if (m_maxSize == 0)
+        {
+            return cpp_dbc::unexpected(DBException("NHGHX12485KU", "Invalid pool configuration: maxSize must be greater than 0", system_utils::captureCallStack()));
+        }
+        if (m_initialSize > m_maxSize)
+        {
+            return cpp_dbc::unexpected(DBException("XH0BG16TH5ZA", "Invalid pool configuration: initialSize (" + std::to_string(m_initialSize) + ") exceeds maxSize (" + std::to_string(m_maxSize) + ")", system_utils::captureCallStack()));
+        }
+        if (m_minIdle > m_maxSize)
+        {
+            return cpp_dbc::unexpected(DBException("0VESO2SABTOP", "Invalid pool configuration: minIdle (" + std::to_string(m_minIdle) + ") exceeds maxSize (" + std::to_string(m_maxSize) + ")", system_utils::captureCallStack()));
+        }
+
         try
         {
             // Reserve space for connections — can throw std::bad_alloc (no nothrow overload)
             m_allConnections.reserve(m_maxSize);
 
             // Create initial connections
-            for (int i = 0; i < m_initialSize; i++)
+            for (size_t i = 0; i < m_initialSize; i++)
             {
                 auto pooledResult = createPooledDBConnection(std::nothrow);
                 if (!pooledResult.has_value())
@@ -785,7 +799,7 @@ namespace cpp_dbc
 
                 if (timeSinceLastUse > m_validationTimeoutMillis)
                 {
-                    CP_DEBUG("DBConnectionPoolBase::acquireConnection - VALIDATING (timeSinceLastUse=%lld ms > %ld ms)", (long long)timeSinceLastUse, m_validationTimeoutMillis);
+                    CP_DEBUG("DBConnectionPoolBase::acquireConnection - VALIDATING (timeSinceLastUse=%lld ms > %zu ms)", (long long)timeSinceLastUse, m_validationTimeoutMillis);
                     auto valResult = validateConnection(std::nothrow, result->getUnderlyingConnection(std::nothrow));
                     bool validationPassed = valResult.has_value() && valResult.value();
 
@@ -832,6 +846,35 @@ namespace cpp_dbc
             if (!borrowResult.has_value())
             {
                 CP_DEBUG("DBConnectionPoolBase::acquireConnection - prepareForBorrow failed: %s", borrowResult.error().what_s().data());
+
+                // prepareForBorrow failed — connection state is unreliable.
+                // Undo active marking, remove from pool, close underlying connection, and retry.
+                {
+                    std::scoped_lock lockPool(m_mutexPool);
+                    result->setActive(std::nothrow, false);
+                    result->markPoolClosed(std::nothrow, true);
+                    m_activeConnections.fetch_sub(1, std::memory_order_acq_rel);
+
+                    auto it = std::ranges::find(m_allConnections, result);
+                    if (it != m_allConnections.end())
+                    {
+                        m_allConnections.erase(it);
+                    }
+                    notifyFirstWaiter(std::nothrow);
+                }
+
+                auto closeResult = result->getUnderlyingConnection(std::nothrow)->close(std::nothrow);
+                if (!closeResult.has_value())
+                {
+                    CP_DEBUG("DBConnectionPoolBase::acquireConnection - close() after prepareForBorrow failure: %s", closeResult.error().what_s().data());
+                }
+
+                if (steady_clock::now() >= deadline)
+                {
+                    return cpp_dbc::unexpected(DBException("QMP82J46OQOO", "Timeout waiting for connection from the pool (prepareForBorrow failed)", system_utils::captureCallStack()));
+                }
+
+                continue; // Retry
             }
 
             return result;

@@ -39,13 +39,13 @@ namespace cpp_dbc
                                            const std::string &username,
                                            const std::string &password,
                                            const std::map<std::string, std::string> &options,
-                                           int initialSize,
-                                           int maxSize,
-                                           int minIdle,
-                                           long maxWaitMillis,
-                                           long validationTimeoutMillis,
-                                           long idleTimeoutMillis,
-                                           long maxLifetimeMillis,
+                                           size_t initialSize,
+                                           size_t maxSize,
+                                           size_t minIdle,
+                                           size_t maxWaitMillis,
+                                           size_t validationTimeoutMillis,
+                                           size_t idleTimeoutMillis,
+                                           size_t maxLifetimeMillis,
                                            bool testOnBorrow,
                                            bool testOnReturn,
                                            TransactionIsolationLevel transactionIsolation) noexcept
@@ -128,13 +128,13 @@ namespace cpp_dbc
                                                                                                    const std::string &username,
                                                                                                    const std::string &password,
                                                                                                    const std::map<std::string, std::string> &options,
-                                                                                                   int initialSize,
-                                                                                                   int maxSize,
-                                                                                                   int minIdle,
-                                                                                                   long maxWaitMillis,
-                                                                                                   long validationTimeoutMillis,
-                                                                                                   long idleTimeoutMillis,
-                                                                                                   long maxLifetimeMillis,
+                                                                                                   size_t initialSize,
+                                                                                                   size_t maxSize,
+                                                                                                   size_t minIdle,
+                                                                                                   size_t maxWaitMillis,
+                                                                                                   size_t validationTimeoutMillis,
+                                                                                                   size_t idleTimeoutMillis,
+                                                                                                   size_t maxLifetimeMillis,
                                                                                                    bool testOnBorrow,
                                                                                                    bool testOnReturn,
                                                                                                    TransactionIsolationLevel transactionIsolation) noexcept
@@ -216,212 +216,352 @@ namespace cpp_dbc
     bool KVPooledDBConnection::setString(const std::string &key, const std::string &value,
                                          std::optional<int64_t> expirySeconds)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->setString(key, value, expirySeconds);
+        auto result = setString(std::nothrow, key, value, expirySeconds);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::string KVPooledDBConnection::getString(const std::string &key)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->getString(key);
+        auto result = getString(std::nothrow, key);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     bool KVPooledDBConnection::exists(const std::string &key)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->exists(key);
+        auto result = exists(std::nothrow, key);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     bool KVPooledDBConnection::deleteKey(const std::string &key)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->deleteKey(key);
+        auto result = deleteKey(std::nothrow, key);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     int64_t KVPooledDBConnection::deleteKeys(const std::vector<std::string> &keys)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->deleteKeys(keys);
+        auto result = deleteKeys(std::nothrow, keys);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     bool KVPooledDBConnection::expire(const std::string &key, int64_t seconds)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->expire(key, seconds);
+        auto result = expire(std::nothrow, key, seconds);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     int64_t KVPooledDBConnection::getTTL(const std::string &key)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->getTTL(key);
+        auto result = getTTL(std::nothrow, key);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     int64_t KVPooledDBConnection::increment(const std::string &key, int64_t by)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->increment(key, by);
+        auto result = increment(std::nothrow, key, by);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     int64_t KVPooledDBConnection::decrement(const std::string &key, int64_t by)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->decrement(key, by);
+        auto result = decrement(std::nothrow, key, by);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     int64_t KVPooledDBConnection::listPushLeft(const std::string &key, const std::string &value)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->listPushLeft(key, value);
+        auto result = listPushLeft(std::nothrow, key, value);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     int64_t KVPooledDBConnection::listPushRight(const std::string &key, const std::string &value)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->listPushRight(key, value);
+        auto result = listPushRight(std::nothrow, key, value);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::string KVPooledDBConnection::listPopLeft(const std::string &key)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->listPopLeft(key);
+        auto result = listPopLeft(std::nothrow, key);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::string KVPooledDBConnection::listPopRight(const std::string &key)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->listPopRight(key);
+        auto result = listPopRight(std::nothrow, key);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::vector<std::string> KVPooledDBConnection::listRange(const std::string &key, int64_t start, int64_t stop)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->listRange(key, start, stop);
+        auto result = listRange(std::nothrow, key, start, stop);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     int64_t KVPooledDBConnection::listLength(const std::string &key)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->listLength(key);
+        auto result = listLength(std::nothrow, key);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     bool KVPooledDBConnection::hashSet(const std::string &key, const std::string &field, const std::string &value)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->hashSet(key, field, value);
+        auto result = hashSet(std::nothrow, key, field, value);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::string KVPooledDBConnection::hashGet(const std::string &key, const std::string &field)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->hashGet(key, field);
+        auto result = hashGet(std::nothrow, key, field);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     bool KVPooledDBConnection::hashDelete(const std::string &key, const std::string &field)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->hashDelete(key, field);
+        auto result = hashDelete(std::nothrow, key, field);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     bool KVPooledDBConnection::hashExists(const std::string &key, const std::string &field)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->hashExists(key, field);
+        auto result = hashExists(std::nothrow, key, field);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::map<std::string, std::string> KVPooledDBConnection::hashGetAll(const std::string &key)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->hashGetAll(key);
+        auto result = hashGetAll(std::nothrow, key);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     int64_t KVPooledDBConnection::hashLength(const std::string &key)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->hashLength(key);
+        auto result = hashLength(std::nothrow, key);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     bool KVPooledDBConnection::setAdd(const std::string &key, const std::string &member)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->setAdd(key, member);
+        auto result = setAdd(std::nothrow, key, member);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     bool KVPooledDBConnection::setRemove(const std::string &key, const std::string &member)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->setRemove(key, member);
+        auto result = setRemove(std::nothrow, key, member);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     bool KVPooledDBConnection::setIsMember(const std::string &key, const std::string &member)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->setIsMember(key, member);
+        auto result = setIsMember(std::nothrow, key, member);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::vector<std::string> KVPooledDBConnection::setMembers(const std::string &key)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->setMembers(key);
+        auto result = setMembers(std::nothrow, key);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     int64_t KVPooledDBConnection::setSize(const std::string &key)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->setSize(key);
+        auto result = setSize(std::nothrow, key);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     bool KVPooledDBConnection::sortedSetAdd(const std::string &key, double score, const std::string &member)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->sortedSetAdd(key, score, member);
+        auto result = sortedSetAdd(std::nothrow, key, score, member);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     bool KVPooledDBConnection::sortedSetRemove(const std::string &key, const std::string &member)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->sortedSetRemove(key, member);
+        auto result = sortedSetRemove(std::nothrow, key, member);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::optional<double> KVPooledDBConnection::sortedSetScore(const std::string &key, const std::string &member)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->sortedSetScore(key, member);
+        auto result = sortedSetScore(std::nothrow, key, member);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::vector<std::string> KVPooledDBConnection::sortedSetRange(const std::string &key, int64_t start, int64_t stop)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->sortedSetRange(key, start, stop);
+        auto result = sortedSetRange(std::nothrow, key, start, stop);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     int64_t KVPooledDBConnection::sortedSetSize(const std::string &key)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->sortedSetSize(key);
+        auto result = sortedSetSize(std::nothrow, key);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::vector<std::string> KVPooledDBConnection::scanKeys(const std::string &pattern, int64_t count)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->scanKeys(pattern, count);
+        auto result = scanKeys(std::nothrow, pattern, count);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::string KVPooledDBConnection::executeCommand(const std::string &command, const std::vector<std::string> &args)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->executeCommand(command, args);
+        auto result = executeCommand(std::nothrow, command, args);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     bool KVPooledDBConnection::flushDB(bool async)
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->flushDB(async);
+        auto result = flushDB(std::nothrow, async);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::map<std::string, std::string> KVPooledDBConnection::getServerInfo()
     {
-        updateLastUsedTime(std::nothrow);
-        return m_conn->getServerInfo();
+        auto result = getServerInfo(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     void KVPooledDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
@@ -453,106 +593,166 @@ namespace cpp_dbc
         const std::string &value,
         std::optional<int64_t> expirySeconds) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("4VPQD2H5ZYLA", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->setString(std::nothrow, key, value, expirySeconds);
+        return getConn(std::nothrow)->setString(std::nothrow, key, value, expirySeconds);
     }
 
     cpp_dbc::expected<std::string, DBException> KVPooledDBConnection::getString(
         std::nothrow_t, const std::string &key) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("8B3GILMXWV04", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->getString(std::nothrow, key);
+        return getConn(std::nothrow)->getString(std::nothrow, key);
     }
 
     cpp_dbc::expected<bool, DBException> KVPooledDBConnection::exists(
         std::nothrow_t, const std::string &key) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("9JLXR5KHJL1V", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->exists(std::nothrow, key);
+        return getConn(std::nothrow)->exists(std::nothrow, key);
     }
 
     cpp_dbc::expected<bool, DBException> KVPooledDBConnection::deleteKey(
         std::nothrow_t, const std::string &key) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("WRL9V4IUCC5N", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->deleteKey(std::nothrow, key);
+        return getConn(std::nothrow)->deleteKey(std::nothrow, key);
     }
 
     cpp_dbc::expected<int64_t, DBException> KVPooledDBConnection::deleteKeys(
         std::nothrow_t, const std::vector<std::string> &keys) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("YYSBQ8253EEW", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->deleteKeys(std::nothrow, keys);
+        return getConn(std::nothrow)->deleteKeys(std::nothrow, keys);
     }
 
     cpp_dbc::expected<bool, DBException> KVPooledDBConnection::expire(
         std::nothrow_t, const std::string &key, int64_t seconds) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("WUO2USW00Z4X", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->expire(std::nothrow, key, seconds);
+        return getConn(std::nothrow)->expire(std::nothrow, key, seconds);
     }
 
     cpp_dbc::expected<int64_t, DBException> KVPooledDBConnection::getTTL(
         std::nothrow_t, const std::string &key) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("U96MMF4JYOY2", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->getTTL(std::nothrow, key);
+        return getConn(std::nothrow)->getTTL(std::nothrow, key);
     }
 
     cpp_dbc::expected<int64_t, DBException> KVPooledDBConnection::increment(
         std::nothrow_t, const std::string &key, int64_t by) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("YVGAFS6KDQ0Y", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->increment(std::nothrow, key, by);
+        return getConn(std::nothrow)->increment(std::nothrow, key, by);
     }
 
     cpp_dbc::expected<int64_t, DBException> KVPooledDBConnection::decrement(
         std::nothrow_t, const std::string &key, int64_t by) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("QX8JAUTJ0U7N", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->decrement(std::nothrow, key, by);
+        return getConn(std::nothrow)->decrement(std::nothrow, key, by);
     }
 
     cpp_dbc::expected<int64_t, DBException> KVPooledDBConnection::listPushLeft(
         std::nothrow_t, const std::string &key, const std::string &value) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("1FXK5A8EP0XR", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->listPushLeft(std::nothrow, key, value);
+        return getConn(std::nothrow)->listPushLeft(std::nothrow, key, value);
     }
 
     cpp_dbc::expected<int64_t, DBException> KVPooledDBConnection::listPushRight(
         std::nothrow_t, const std::string &key, const std::string &value) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("H9TBOJPVMWOC", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->listPushRight(std::nothrow, key, value);
+        return getConn(std::nothrow)->listPushRight(std::nothrow, key, value);
     }
 
     cpp_dbc::expected<std::string, DBException> KVPooledDBConnection::listPopLeft(
         std::nothrow_t, const std::string &key) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("4WY3QQRYDPBY", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->listPopLeft(std::nothrow, key);
+        return getConn(std::nothrow)->listPopLeft(std::nothrow, key);
     }
 
     cpp_dbc::expected<std::string, DBException> KVPooledDBConnection::listPopRight(
         std::nothrow_t, const std::string &key) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("F41VSGJSI98I", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->listPopRight(std::nothrow, key);
+        return getConn(std::nothrow)->listPopRight(std::nothrow, key);
     }
 
     cpp_dbc::expected<std::vector<std::string>, DBException> KVPooledDBConnection::listRange(
         std::nothrow_t, const std::string &key, int64_t start, int64_t stop) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("580M5J29HAZ4", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->listRange(std::nothrow, key, start, stop);
+        return getConn(std::nothrow)->listRange(std::nothrow, key, start, stop);
     }
 
     cpp_dbc::expected<int64_t, DBException> KVPooledDBConnection::listLength(
         std::nothrow_t, const std::string &key) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("G4L088U2OLBK", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->listLength(std::nothrow, key);
+        return getConn(std::nothrow)->listLength(std::nothrow, key);
     }
 
     cpp_dbc::expected<bool, DBException> KVPooledDBConnection::hashSet(
@@ -561,120 +761,188 @@ namespace cpp_dbc
         const std::string &field,
         const std::string &value) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("E6APDEZ3U5UH", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->hashSet(std::nothrow, key, field, value);
+        return getConn(std::nothrow)->hashSet(std::nothrow, key, field, value);
     }
 
     cpp_dbc::expected<std::string, DBException> KVPooledDBConnection::hashGet(
         std::nothrow_t, const std::string &key, const std::string &field) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("U4Q7V2NXS4XS", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->hashGet(std::nothrow, key, field);
+        return getConn(std::nothrow)->hashGet(std::nothrow, key, field);
     }
 
     cpp_dbc::expected<bool, DBException> KVPooledDBConnection::hashDelete(
         std::nothrow_t, const std::string &key, const std::string &field) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("98FB529Z0HU1", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->hashDelete(std::nothrow, key, field);
+        return getConn(std::nothrow)->hashDelete(std::nothrow, key, field);
     }
 
     cpp_dbc::expected<bool, DBException> KVPooledDBConnection::hashExists(
         std::nothrow_t, const std::string &key, const std::string &field) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("GW2I9BUNKUV3", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->hashExists(std::nothrow, key, field);
+        return getConn(std::nothrow)->hashExists(std::nothrow, key, field);
     }
 
     cpp_dbc::expected<std::map<std::string, std::string>, DBException> KVPooledDBConnection::hashGetAll(
         std::nothrow_t, const std::string &key) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("L7G2AIKNB7KR", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->hashGetAll(std::nothrow, key);
+        return getConn(std::nothrow)->hashGetAll(std::nothrow, key);
     }
 
     cpp_dbc::expected<int64_t, DBException> KVPooledDBConnection::hashLength(
         std::nothrow_t, const std::string &key) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("O0SQQ9SBCEBR", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->hashLength(std::nothrow, key);
+        return getConn(std::nothrow)->hashLength(std::nothrow, key);
     }
 
     cpp_dbc::expected<bool, DBException> KVPooledDBConnection::setAdd(
         std::nothrow_t, const std::string &key, const std::string &member) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("6WUCWGQ9DOU0", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->setAdd(std::nothrow, key, member);
+        return getConn(std::nothrow)->setAdd(std::nothrow, key, member);
     }
 
     cpp_dbc::expected<bool, DBException> KVPooledDBConnection::setRemove(
         std::nothrow_t, const std::string &key, const std::string &member) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("2DEHI6SV7BVW", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->setRemove(std::nothrow, key, member);
+        return getConn(std::nothrow)->setRemove(std::nothrow, key, member);
     }
 
     cpp_dbc::expected<bool, DBException> KVPooledDBConnection::setIsMember(
         std::nothrow_t, const std::string &key, const std::string &member) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("4GDRRINM61ZR", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->setIsMember(std::nothrow, key, member);
+        return getConn(std::nothrow)->setIsMember(std::nothrow, key, member);
     }
 
     cpp_dbc::expected<std::vector<std::string>, DBException> KVPooledDBConnection::setMembers(
         std::nothrow_t, const std::string &key) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("ZU4C0BH7E6NR", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->setMembers(std::nothrow, key);
+        return getConn(std::nothrow)->setMembers(std::nothrow, key);
     }
 
     cpp_dbc::expected<int64_t, DBException> KVPooledDBConnection::setSize(
         std::nothrow_t, const std::string &key) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("0071SDPBSFEL", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->setSize(std::nothrow, key);
+        return getConn(std::nothrow)->setSize(std::nothrow, key);
     }
 
     cpp_dbc::expected<bool, DBException> KVPooledDBConnection::sortedSetAdd(
         std::nothrow_t, const std::string &key, double score, const std::string &member) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("QHQ4YRFSNEE3", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->sortedSetAdd(std::nothrow, key, score, member);
+        return getConn(std::nothrow)->sortedSetAdd(std::nothrow, key, score, member);
     }
 
     cpp_dbc::expected<bool, DBException> KVPooledDBConnection::sortedSetRemove(
         std::nothrow_t, const std::string &key, const std::string &member) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("HW98B32OUCP8", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->sortedSetRemove(std::nothrow, key, member);
+        return getConn(std::nothrow)->sortedSetRemove(std::nothrow, key, member);
     }
 
     cpp_dbc::expected<std::optional<double>, DBException> KVPooledDBConnection::sortedSetScore(
         std::nothrow_t, const std::string &key, const std::string &member) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("74M3RKYNIDSV", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->sortedSetScore(std::nothrow, key, member);
+        return getConn(std::nothrow)->sortedSetScore(std::nothrow, key, member);
     }
 
     cpp_dbc::expected<std::vector<std::string>, DBException> KVPooledDBConnection::sortedSetRange(
         std::nothrow_t, const std::string &key, int64_t start, int64_t stop) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("K3H8GVNKF8R3", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->sortedSetRange(std::nothrow, key, start, stop);
+        return getConn(std::nothrow)->sortedSetRange(std::nothrow, key, start, stop);
     }
 
     cpp_dbc::expected<int64_t, DBException> KVPooledDBConnection::sortedSetSize(
         std::nothrow_t, const std::string &key) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("5WW77792M8EW", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->sortedSetSize(std::nothrow, key);
+        return getConn(std::nothrow)->sortedSetSize(std::nothrow, key);
     }
 
     cpp_dbc::expected<std::vector<std::string>, DBException> KVPooledDBConnection::scanKeys(
         std::nothrow_t, const std::string &pattern, int64_t count) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("ZIBW4FMSIRQU", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->scanKeys(std::nothrow, pattern, count);
+        return getConn(std::nothrow)->scanKeys(std::nothrow, pattern, count);
     }
 
     cpp_dbc::expected<std::string, DBException> KVPooledDBConnection::executeCommand(
@@ -682,44 +950,56 @@ namespace cpp_dbc
         const std::string &command,
         const std::vector<std::string> &args) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("V5PYNMSCNNZB", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->executeCommand(std::nothrow, command, args);
+        return getConn(std::nothrow)->executeCommand(std::nothrow, command, args);
     }
 
     cpp_dbc::expected<bool, DBException> KVPooledDBConnection::flushDB(
         std::nothrow_t, bool async) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("C9F1QO8X1RC1", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->flushDB(std::nothrow, async);
+        return getConn(std::nothrow)->flushDB(std::nothrow, async);
     }
 
     cpp_dbc::expected<std::map<std::string, std::string>, DBException> KVPooledDBConnection::getServerInfo(
         std::nothrow_t) noexcept
     {
+        if (isLocalClosed(std::nothrow))
+        {
+            return cpp_dbc::unexpected(DBException("Q4UUV0ULFRE4", "Connection is closed", system_utils::captureCallStack()));
+        }
         updateLastUsedTime(std::nothrow);
-        return m_conn->getServerInfo(std::nothrow);
+        return getConn(std::nothrow)->getServerInfo(std::nothrow);
     }
 
     cpp_dbc::expected<void, DBException>
     KVPooledDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("XYRS4F9L0GJN", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->setTransactionIsolation(std::nothrow, level);
+        return getConn(std::nothrow)->setTransactionIsolation(std::nothrow, level);
     }
 
     cpp_dbc::expected<TransactionIsolationLevel, DBException>
     KVPooledDBConnection::getTransactionIsolation(std::nothrow_t) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("YX9CAJLI0F0N", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->getTransactionIsolation(std::nothrow);
+        return getConn(std::nothrow)->getTransactionIsolation(std::nothrow);
     }
 
 } // namespace cpp_dbc

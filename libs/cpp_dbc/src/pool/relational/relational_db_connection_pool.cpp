@@ -39,13 +39,13 @@ namespace cpp_dbc
                                                            const std::string &username,
                                                            const std::string &password,
                                                            const std::map<std::string, std::string> &options,
-                                                           int initialSize,
-                                                           int maxSize,
-                                                           int minIdle,
-                                                           long maxWaitMillis,
-                                                           long validationTimeoutMillis,
-                                                           long idleTimeoutMillis,
-                                                           long maxLifetimeMillis,
+                                                           size_t initialSize,
+                                                           size_t maxSize,
+                                                           size_t minIdle,
+                                                           size_t maxWaitMillis,
+                                                           size_t validationTimeoutMillis,
+                                                           size_t idleTimeoutMillis,
+                                                           size_t maxLifetimeMillis,
                                                            bool testOnBorrow,
                                                            bool testOnReturn,
                                                            TransactionIsolationLevel transactionIsolation) noexcept
@@ -128,13 +128,13 @@ namespace cpp_dbc
                                                                                                                    const std::string &username,
                                                                                                                    const std::string &password,
                                                                                                                    const std::map<std::string, std::string> &options,
-                                                                                                                   int initialSize,
-                                                                                                                   int maxSize,
-                                                                                                                   int minIdle,
-                                                                                                                   long maxWaitMillis,
-                                                                                                                   long validationTimeoutMillis,
-                                                                                                                   long idleTimeoutMillis,
-                                                                                                                   long maxLifetimeMillis,
+                                                                                                                   size_t initialSize,
+                                                                                                                   size_t maxSize,
+                                                                                                                   size_t minIdle,
+                                                                                                                   size_t maxWaitMillis,
+                                                                                                                   size_t validationTimeoutMillis,
+                                                                                                                   size_t idleTimeoutMillis,
+                                                                                                                   size_t maxLifetimeMillis,
                                                                                                                    bool testOnBorrow,
                                                                                                                    bool testOnReturn,
                                                                                                                    TransactionIsolationLevel transactionIsolation) noexcept
@@ -325,112 +325,112 @@ namespace cpp_dbc
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> RelationalPooledDBConnection::prepareStatement(std::nothrow_t, const std::string &sql) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("NGFY9OKTDK8C", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->prepareStatement(std::nothrow, sql);
+        return getConn(std::nothrow)->prepareStatement(std::nothrow, sql);
     }
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> RelationalPooledDBConnection::executeQuery(std::nothrow_t, const std::string &sql) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("F9E32F56CFF4", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->executeQuery(std::nothrow, sql);
+        return getConn(std::nothrow)->executeQuery(std::nothrow, sql);
     }
 
     cpp_dbc::expected<uint64_t, DBException> RelationalPooledDBConnection::executeUpdate(std::nothrow_t, const std::string &sql) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("JURJ0DBHVVPS", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->executeUpdate(std::nothrow, sql);
+        return getConn(std::nothrow)->executeUpdate(std::nothrow, sql);
     }
 
     cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::setAutoCommit(std::nothrow_t, bool autoCommit) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("XNDX9UDCTDQF", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->setAutoCommit(std::nothrow, autoCommit);
+        return getConn(std::nothrow)->setAutoCommit(std::nothrow, autoCommit);
     }
 
     cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::getAutoCommit(std::nothrow_t) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("E3DEAB8A5E6D", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->getAutoCommit(std::nothrow);
+        return getConn(std::nothrow)->getAutoCommit(std::nothrow);
     }
 
     cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::beginTransaction(std::nothrow_t) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("B7C8D9E0F1G2", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->beginTransaction(std::nothrow);
+        return getConn(std::nothrow)->beginTransaction(std::nothrow);
     }
 
     cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::transactionActive(std::nothrow_t) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("H3I4J5K6L7M8", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->transactionActive(std::nothrow);
+        return getConn(std::nothrow)->transactionActive(std::nothrow);
     }
 
     cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::commit(std::nothrow_t) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("E32DBBC7316E", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->commit(std::nothrow);
+        return getConn(std::nothrow)->commit(std::nothrow);
     }
 
     cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::rollback(std::nothrow_t) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("C3UAXP7DGDPI", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->rollback(std::nothrow);
+        return getConn(std::nothrow)->rollback(std::nothrow);
     }
 
     cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("F7A2B9C3D1E5", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->setTransactionIsolation(std::nothrow, level);
+        return getConn(std::nothrow)->setTransactionIsolation(std::nothrow, level);
     }
 
     cpp_dbc::expected<TransactionIsolationLevel, DBException> RelationalPooledDBConnection::getTransactionIsolation(std::nothrow_t) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("A4B5C6D7E8F9", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->getTransactionIsolation(std::nothrow);
+        return getConn(std::nothrow)->getTransactionIsolation(std::nothrow);
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -454,6 +454,32 @@ namespace cpp_dbc
         {
             // MySQL-specific initialization if needed
         }
+
+#ifdef __cpp_exceptions
+
+        std::shared_ptr<MySQLConnectionPool> MySQLConnectionPool::create(const std::string &url,
+                                                                         const std::string &username,
+                                                                         const std::string &password)
+        {
+            auto result = create(std::nothrow, url, username, password);
+            if (!result.has_value())
+            {
+                throw result.error();
+            }
+            return result.value();
+        }
+
+        std::shared_ptr<MySQLConnectionPool> MySQLConnectionPool::create(const config::DBConnectionPoolConfig &config)
+        {
+            auto result = create(std::nothrow, config);
+            if (!result.has_value())
+            {
+                throw result.error();
+            }
+            return result.value();
+        }
+
+#endif // __cpp_exceptions
 
         cpp_dbc::expected<std::shared_ptr<MySQLConnectionPool>, DBException> MySQLConnectionPool::create(std::nothrow_t,
                                                                                                          const std::string &url,
@@ -498,6 +524,32 @@ namespace cpp_dbc
         {
             // PostgreSQL-specific initialization if needed
         }
+
+#ifdef __cpp_exceptions
+
+        std::shared_ptr<PostgreSQLConnectionPool> PostgreSQLConnectionPool::create(const std::string &url,
+                                                                                   const std::string &username,
+                                                                                   const std::string &password)
+        {
+            auto result = create(std::nothrow, url, username, password);
+            if (!result.has_value())
+            {
+                throw result.error();
+            }
+            return result.value();
+        }
+
+        std::shared_ptr<PostgreSQLConnectionPool> PostgreSQLConnectionPool::create(const config::DBConnectionPoolConfig &config)
+        {
+            auto result = create(std::nothrow, config);
+            if (!result.has_value())
+            {
+                throw result.error();
+            }
+            return result.value();
+        }
+
+#endif // __cpp_exceptions
 
         cpp_dbc::expected<std::shared_ptr<PostgreSQLConnectionPool>, DBException> PostgreSQLConnectionPool::create(std::nothrow_t,
                                                                                                                    const std::string &url,
@@ -547,6 +599,32 @@ namespace cpp_dbc
             SQLiteConnectionPool::setPoolTransactionIsolation(std::nothrow, TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
         }
 
+#ifdef __cpp_exceptions
+
+        std::shared_ptr<SQLiteConnectionPool> SQLiteConnectionPool::create(const std::string &url,
+                                                                           const std::string &username,
+                                                                           const std::string &password)
+        {
+            auto result = create(std::nothrow, url, username, password);
+            if (!result.has_value())
+            {
+                throw result.error();
+            }
+            return result.value();
+        }
+
+        std::shared_ptr<SQLiteConnectionPool> SQLiteConnectionPool::create(const config::DBConnectionPoolConfig &config)
+        {
+            auto result = create(std::nothrow, config);
+            if (!result.has_value())
+            {
+                throw result.error();
+            }
+            return result.value();
+        }
+
+#endif // __cpp_exceptions
+
         cpp_dbc::expected<std::shared_ptr<SQLiteConnectionPool>, DBException> SQLiteConnectionPool::create(std::nothrow_t,
                                                                                                            const std::string &url,
                                                                                                            const std::string &username,
@@ -590,6 +668,32 @@ namespace cpp_dbc
         {
             // Firebird-specific initialization if needed
         }
+
+#ifdef __cpp_exceptions
+
+        std::shared_ptr<FirebirdConnectionPool> FirebirdConnectionPool::create(const std::string &url,
+                                                                               const std::string &username,
+                                                                               const std::string &password)
+        {
+            auto result = create(std::nothrow, url, username, password);
+            if (!result.has_value())
+            {
+                throw result.error();
+            }
+            return result.value();
+        }
+
+        std::shared_ptr<FirebirdConnectionPool> FirebirdConnectionPool::create(const config::DBConnectionPoolConfig &config)
+        {
+            auto result = create(std::nothrow, config);
+            if (!result.has_value())
+            {
+                throw result.error();
+            }
+            return result.value();
+        }
+
+#endif // __cpp_exceptions
 
         cpp_dbc::expected<std::shared_ptr<FirebirdConnectionPool>, DBException> FirebirdConnectionPool::create(std::nothrow_t,
                                                                                                                const std::string &url,

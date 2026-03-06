@@ -40,6 +40,7 @@ namespace cpp_dbc::MySQL
         bool m_autoCommit{true};
         bool m_transactionActive{false};
         TransactionIsolationLevel m_isolationLevel{TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ}; // MySQL default
+        bool m_inGetTransactionIsolation{false}; // Recursion guard for getTransactionIsolation (per-instance, not static)
 
         /// @brief Cached URL string for getURL() method
         std::string m_url;

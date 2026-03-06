@@ -39,13 +39,13 @@ namespace cpp_dbc
                                                        const std::string &username,
                                                        const std::string &password,
                                                        const std::map<std::string, std::string> &options,
-                                                       int initialSize,
-                                                       int maxSize,
-                                                       int minIdle,
-                                                       long maxWaitMillis,
-                                                       long validationTimeoutMillis,
-                                                       long idleTimeoutMillis,
-                                                       long maxLifetimeMillis,
+                                                       size_t initialSize,
+                                                       size_t maxSize,
+                                                       size_t minIdle,
+                                                       size_t maxWaitMillis,
+                                                       size_t validationTimeoutMillis,
+                                                       size_t idleTimeoutMillis,
+                                                       size_t maxLifetimeMillis,
                                                        bool testOnBorrow,
                                                        bool testOnReturn,
                                                        TransactionIsolationLevel transactionIsolation) noexcept
@@ -128,13 +128,13 @@ namespace cpp_dbc
                                                                                                                const std::string &username,
                                                                                                                const std::string &password,
                                                                                                                const std::map<std::string, std::string> &options,
-                                                                                                               int initialSize,
-                                                                                                               int maxSize,
-                                                                                                               int minIdle,
-                                                                                                               long maxWaitMillis,
-                                                                                                               long validationTimeoutMillis,
-                                                                                                               long idleTimeoutMillis,
-                                                                                                               long maxLifetimeMillis,
+                                                                                                               size_t initialSize,
+                                                                                                               size_t maxSize,
+                                                                                                               size_t minIdle,
+                                                                                                               size_t maxWaitMillis,
+                                                                                                               size_t validationTimeoutMillis,
+                                                                                                               size_t idleTimeoutMillis,
+                                                                                                               size_t maxLifetimeMillis,
                                                                                                                bool testOnBorrow,
                                                                                                                bool testOnReturn,
                                                                                                                TransactionIsolationLevel transactionIsolation) noexcept
@@ -296,100 +296,100 @@ namespace cpp_dbc
 
     cpp_dbc::expected<std::shared_ptr<ColumnarDBPreparedStatement>, DBException> ColumnarPooledDBConnection::prepareStatement(std::nothrow_t, const std::string &query) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("T3SWMWQ4CMKE",
                                                    "Connection is closed",
                                                    system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->prepareStatement(std::nothrow, query);
+        return getConn(std::nothrow)->prepareStatement(std::nothrow, query);
     }
 
     cpp_dbc::expected<std::shared_ptr<ColumnarDBResultSet>, DBException> ColumnarPooledDBConnection::executeQuery(std::nothrow_t, const std::string &query) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("PTUV21WCDWB7",
                                                    "Connection is closed",
                                                    system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->executeQuery(std::nothrow, query);
+        return getConn(std::nothrow)->executeQuery(std::nothrow, query);
     }
 
     cpp_dbc::expected<uint64_t, DBException> ColumnarPooledDBConnection::executeUpdate(std::nothrow_t, const std::string &query) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("5OY4J9KQ4RWE",
                                                    "Connection is closed",
                                                    system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->executeUpdate(std::nothrow, query);
+        return getConn(std::nothrow)->executeUpdate(std::nothrow, query);
     }
 
     cpp_dbc::expected<bool, DBException> ColumnarPooledDBConnection::beginTransaction(std::nothrow_t) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("XJ11KQTI03DD",
                                                    "Connection is closed",
                                                    system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->beginTransaction(std::nothrow);
+        return getConn(std::nothrow)->beginTransaction(std::nothrow);
     }
 
     cpp_dbc::expected<void, DBException> ColumnarPooledDBConnection::commit(std::nothrow_t) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("N7OGZJNMWCQ4",
                                                    "Connection is closed",
                                                    system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->commit(std::nothrow);
+        return getConn(std::nothrow)->commit(std::nothrow);
     }
 
     cpp_dbc::expected<void, DBException> ColumnarPooledDBConnection::rollback(std::nothrow_t) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("PEY7OGNBFRQE",
                                                    "Connection is closed",
                                                    system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->rollback(std::nothrow);
+        return getConn(std::nothrow)->rollback(std::nothrow);
     }
 
     cpp_dbc::expected<void, DBException>
     ColumnarPooledDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("WQQNTF57OIB3",
                                                    "Connection is closed",
                                                    system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->setTransactionIsolation(std::nothrow, level);
+        return getConn(std::nothrow)->setTransactionIsolation(std::nothrow, level);
     }
 
     cpp_dbc::expected<TransactionIsolationLevel, DBException>
     ColumnarPooledDBConnection::getTransactionIsolation(std::nothrow_t) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("RL7UNKR8KXVW",
                                                    "Connection is closed",
                                                    system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return m_conn->getTransactionIsolation(std::nothrow);
+        return getConn(std::nothrow)->getTransactionIsolation(std::nothrow);
     }
 
 } // namespace cpp_dbc

@@ -332,6 +332,7 @@ TEST_CASE("Real SQLite connection pool tests", "[22_141_01_sqlite_real_connectio
                 auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::RelationalPooledDBConnection>(conn);
                 REQUIRE(pooledConn != nullptr);
                 auto underlyingConn = pooledConn->getUnderlyingConnection(std::nothrow);
+                REQUIRE(underlyingConn != nullptr);
                 underlyingConn->close();
             }
 

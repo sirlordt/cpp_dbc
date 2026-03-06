@@ -127,7 +127,7 @@ namespace cpp_dbc
      * // Register a MySQL driver and obtain a connection
      * cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
      * auto conn = cpp_dbc::DriverManager::getDBConnection(
-     *     "jdbc:mysql://localhost:3306/mydb", "user", "pass");
+     *     "cpp_dbc:mysql://localhost:3306/mydb", "user", "pass");
      * // Use conn, then close when done
      * conn->close();
      * ```
@@ -135,7 +135,7 @@ namespace cpp_dbc
      * ```cpp
      * // Cast to a specific paradigm connection
      * auto relConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
-     *     cpp_dbc::DriverManager::getDBConnection("jdbc:mysql://localhost/mydb", "u", "p"));
+     *     cpp_dbc::DriverManager::getDBConnection("cpp_dbc:mysql://localhost/mydb", "u", "p"));
      * auto rs = relConn->executeQuery("SELECT id, name FROM users");
      * while (rs->next()) {
      *     std::cout << rs->getString("name") << std::endl;
@@ -307,7 +307,7 @@ namespace cpp_dbc
          *
          * ```cpp
          * if (auto driver = cpp_dbc::DriverManager::getDriver("mysql")) {
-         *     auto conn = (*driver)->connect("jdbc:mysql://localhost/mydb", "u", "p");
+         *     auto conn = (*driver)->connect("cpp_dbc:mysql://localhost/mydb", "u", "p");
          * }
          * ```
          */

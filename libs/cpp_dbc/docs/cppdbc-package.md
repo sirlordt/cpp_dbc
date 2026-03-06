@@ -38,6 +38,7 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `include/cpp_dbc/pool/db_connection_pool.hpp` - Generic connection pool interface for all database types
 - `include/cpp_dbc/pool/db_connection_pooled.hpp` - Generic pooled connection interface for all database types
 - `include/cpp_dbc/pool/connection_pool.hpp` - Unified connection pool base class (`DBConnectionPoolBase`)
+- `include/cpp_dbc/pool/pooled_db_connection_base.hpp` - CRTP base template for pooled connections (`PooledDBConnectionBase<D,C,P>`)
 - `include/cpp_dbc/pool/relational/relational_db_connection_pool.hpp` - Relational database connection pool implementation
 - `include/cpp_dbc/transaction_manager.hpp` - Transaction manager for cross-thread transactions
 - `include/cpp_dbc/backward.hpp` - Stack trace capture and analysis
@@ -99,6 +100,7 @@ Each database driver implementation is split into multiple focused files within 
 
 **Other Implementation Files:**
 - `src/pool/connection_pool.cpp` - Unified connection pool base class (`DBConnectionPoolBase`) implementation
+- `src/pool/pooled_db_connection_base.cpp` - CRTP base template implementation (`PooledDBConnectionBase<D,C,P>`) with explicit instantiations
 - `src/pool/document/document_db_connection_pool.cpp` - Document database connection pool implementation
 - `src/pool/columnar/columnar_db_connection_pool.cpp` - Columnar database connection pool implementation
 - `src/pool/kv/kv_db_connection_pool.cpp` - Key-value database connection pool implementation

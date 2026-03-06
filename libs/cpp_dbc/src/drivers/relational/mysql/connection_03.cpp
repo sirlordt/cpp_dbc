@@ -123,13 +123,12 @@ namespace cpp_dbc::MySQL
 
             // If we're being called from setTransactionIsolation, return the cached value
             // to avoid potential infinite recursion
-            static bool inGetTransactionIsolation = false;
-            if (inGetTransactionIsolation)
+            if (m_inGetTransactionIsolation)
             {
                 return this->m_isolationLevel;
             }
 
-            inGetTransactionIsolation = true;
+            m_inGetTransactionIsolation = true;
 
             try // NOSONAR - nested try is intentional for separate cleanup logic
             {
@@ -137,14 +136,14 @@ namespace cpp_dbc::MySQL
                 if (mysql_query(m_mysql.get(), "SELECT @@transaction_isolation") != 0 &&
                     mysql_query(m_mysql.get(), "SELECT @@tx_isolation") != 0)
                 {
-                    inGetTransactionIsolation = false;
+                    m_inGetTransactionIsolation = false;
                     return cpp_dbc::unexpected(DBException("N9Z0A1B2C3D4", std::string("Failed to get transaction isolation level: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
                 }
 
                 MYSQL_RES *result = mysql_store_result(m_mysql.get());
                 if (!result)
                 {
-                    inGetTransactionIsolation = false;
+                    m_inGetTransactionIsolation = false;
                     return cpp_dbc::unexpected(DBException("O0Z1A2B3C4D5", std::string("Failed to get result set: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
                 }
 
@@ -152,7 +151,7 @@ namespace cpp_dbc::MySQL
                 if (!row)
                 {
                     mysql_free_result(result);
-                    inGetTransactionIsolation = false;
+                    m_inGetTransactionIsolation = false;
                     return cpp_dbc::unexpected(DBException("O1Z2A3B4C5D6", "Failed to fetch transaction isolation level", system_utils::captureCallStack()));
                 }
 
@@ -174,12 +173,12 @@ namespace cpp_dbc::MySQL
 
                 // Update our cached value
                 this->m_isolationLevel = isolationResult;
-                inGetTransactionIsolation = false;
+                m_inGetTransactionIsolation = false;
                 return isolationResult;
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                inGetTransactionIsolation = false;
+                m_inGetTransactionIsolation = false;
                 MYSQL_DEBUG("MySQLDBConnection::getTransactionIsolation - Exception during query: " << ex.what());
                 throw;
             }
