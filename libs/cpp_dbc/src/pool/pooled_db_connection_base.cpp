@@ -477,9 +477,9 @@ namespace cpp_dbc
 
     // ── Explicit instantiations ───────────────────────────────────────────────
 
-    template class PooledDBConnectionBase<RelationalPooledDBConnection, RelationalDBConnection, RelationalDBConnectionPool>;
-    template class PooledDBConnectionBase<KVPooledDBConnection, KVDBConnection, KVDBConnectionPool>;
-    template class PooledDBConnectionBase<DocumentPooledDBConnection, DocumentDBConnection, DocumentDBConnectionPool>;
-    template class PooledDBConnectionBase<ColumnarPooledDBConnection, ColumnarDBConnection, ColumnarDBConnectionPool>;
+    template class PooledDBConnectionBase<RelationalPooledDBConnection, RelationalDBConnection, RelationalDBConnectionPool>; // NOSONAR(cpp:S3656) — CRTP base: protected members required for derived class access
+    template class PooledDBConnectionBase<KVPooledDBConnection, KVDBConnection, KVDBConnectionPool>; // NOSONAR(cpp:S3656)
+    template class PooledDBConnectionBase<DocumentPooledDBConnection, DocumentDBConnection, DocumentDBConnectionPool>; // NOSONAR(cpp:S3656)
+    template class PooledDBConnectionBase<ColumnarPooledDBConnection, ColumnarDBConnection, ColumnarDBConnectionPool>; // NOSONAR(cpp:S3656)
 
 } // namespace cpp_dbc
