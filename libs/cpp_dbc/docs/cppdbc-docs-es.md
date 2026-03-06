@@ -752,7 +752,7 @@ conn->close();
 
 El sistema de pool tiene tres capas:
 
-1. **`DBConnectionPoolBase`** (`pool/connection_pool.hpp` / `.cpp`) — toda la infraestructura compartida del pool: ciclo de vida de conexiones, hilo de mantenimiento (30s), entrega directa (`ConnectionRequest` + `m_waitQueue`), validación estilo HikariCP (umbral 500ms), protocolo de bloqueo por fases. Heredado por cada pool de familia.
+1. **`DBConnectionPoolBase`** (`pool/connection_pool.hpp` / `.cpp`) — toda la infraestructura compartida del pool: ciclo de vida de conexiones, hilo de mantenimiento (30s), entrega directa (`ConnectionRequest` + `m_waitQueue`), validación estilo HikariCP (umbral configurable `validationTimeoutMillis`, default 5000ms), protocolo de bloqueo por fases. Heredado por cada pool de familia.
 2. **`PooledDBConnectionBase<Derived, ConnType, PoolType>`** (`pool/pooled_db_connection_base.hpp` / `.cpp`) — template CRTP con la lógica común de conexiones agrupadas: close/returnToPool (corrección de condición de carrera), limpieza en destructor, accesores de metadatos del pool. Proporciona métodos `*Impl` para métodos ambiguos de DBConnection (diamante) y métodos `*Throw` para delegadores con excepciones. Instanciaciones explícitas para las 4 familias.
 3. **`<Familia>DBConnectionPool`** + **`<Familia>PooledDBConnection`** (`pool/<familia>/<familia>_db_connection_pool.hpp` / `.cpp`) — clases derivadas delgadas. La clase pool sobrescribe `createPooledDBConnection()` y agrega un getter tipado. La clase de conexión agrupada proporciona delegadores inline de una línea para resolver la herencia diamante e implementa solo los métodos específicos de la familia.
 

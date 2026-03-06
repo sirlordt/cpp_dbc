@@ -193,6 +193,13 @@ namespace cpp_dbc::MySQL
                                                    std::string("getTransactionIsolation failed: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions
+        {
+            m_inGetTransactionIsolation = false;
+            return cpp_dbc::unexpected(DBException("U84GW5ZYI8YZ",
+                                                   "getTransactionIsolation failed: unknown exception",
+                                                   system_utils::captureCallStack()));
+        }
     }
 
     cpp_dbc::expected<void, DBException> MySQLDBConnection::close(std::nothrow_t) noexcept

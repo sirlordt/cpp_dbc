@@ -187,7 +187,14 @@ namespace cpp_dbc
                     auto returnResult = poolShared->returnConnection(std::nothrow, self);
                     if (!returnResult.has_value())
                     {
+                        // returnConnection rejected the connection — restore closed state
+                        // and dispose the underlying connection to prevent resource leak
                         CP_DEBUG("PooledDBConnectionBase::closeImpl - returnConnection failed: %s", returnResult.error().what_s().data());
+                        m_closed.store(true, std::memory_order_release);
+                        if (m_conn)
+                        {
+                            m_conn->close(std::nothrow);
+                        }
                         return returnResult;
                     }
                 }
@@ -266,7 +273,14 @@ namespace cpp_dbc
                 auto returnResult = poolShared->returnConnection(std::nothrow, self);
                 if (!returnResult.has_value())
                 {
+                    // returnConnection rejected the connection — restore closed state
+                    // and dispose the underlying connection to prevent resource leak
                     CP_DEBUG("PooledDBConnectionBase::returnToPoolImpl - returnConnection failed: %s", returnResult.error().what_s().data());
+                    m_closed.store(true, std::memory_order_release);
+                    if (m_conn)
+                    {
+                        m_conn->close(std::nothrow);
+                    }
                     return returnResult;
                 }
             }

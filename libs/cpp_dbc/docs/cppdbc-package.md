@@ -440,7 +440,15 @@ cpp_dbc/
 │       ├── include/
 │       │   └── cpp_dbc/
 │       │       ├── cpp_dbc.hpp
-│       │       ├── connection_pool.hpp
+│       │       ├── pool/
+│       │       │   ├── db_connection_pool.hpp
+│       │       │   ├── db_connection_pooled.hpp
+│       │       │   ├── connection_pool.hpp
+│       │       │   ├── pooled_db_connection_base.hpp
+│       │       │   ├── relational/
+│       │       │   ├── document/
+│       │       │   ├── columnar/
+│       │       │   └── kv/
 │       │       ├── transaction_manager.hpp
 │       │       ├── blob.hpp
 │       │       ├── config/
@@ -533,7 +541,13 @@ cpp_dbc/
 │       │           │       └── driver.hpp
 │       │           └── timeseries/
 │       ├── src/
-│       │   ├── connection_pool.cpp
+│       │   ├── pool/
+│       │   │   ├── connection_pool.cpp
+│       │   │   ├── pooled_db_connection_base.cpp
+│       │   │   ├── relational/
+│       │   │   ├── document/
+│       │   │   ├── columnar/
+│       │   │   └── kv/
 │       │   ├── transaction_manager.cpp
 │       │   ├── driver_manager.cpp
 │       │   ├── config/

@@ -112,9 +112,13 @@ namespace cpp_dbc
         {
             weakPool = std::static_pointer_cast<RelationalDBConnectionPool>(shared_from_this());
         }
-        catch ([[maybe_unused]] const std::bad_weak_ptr &ex)
+        catch (const std::bad_weak_ptr &ex)
         {
+            // Pool not managed by shared_ptr — pooled connection would have no way to return to pool
             CP_DEBUG("RelationalDBConnectionPool::createPooledDBConnection - Pool not managed by shared_ptr: %s", ex.what());
+            return cpp_dbc::unexpected(DBException("RXS8PODA5LMG",
+                                                   "Pool is not managed by shared_ptr, cannot create pooled connection",
+                                                   system_utils::captureCallStack()));
         }
 
         return std::static_pointer_cast<DBConnectionPooled>(
@@ -193,7 +197,14 @@ namespace cpp_dbc
         // acquireConnection() returns shared_ptr<DBConnectionPooled>. The underlying object
         // is a RelationalPooledDBConnection which inherits from both DBConnectionPooled and
         // RelationalDBConnection. dynamic_pointer_cast navigates the diamond correctly.
-        return std::dynamic_pointer_cast<RelationalDBConnection>(result.value());
+        auto conn = std::dynamic_pointer_cast<RelationalDBConnection>(result.value());
+        if (!conn)
+        {
+            return cpp_dbc::unexpected(DBException("H3WZ5N5DLVDY",
+                                                   "Failed to cast pooled connection to RelationalDBConnection",
+                                                   system_utils::captureCallStack()));
+        }
+        return conn;
     }
 
     // ════════════════════════════════════════════════════════════════════════
