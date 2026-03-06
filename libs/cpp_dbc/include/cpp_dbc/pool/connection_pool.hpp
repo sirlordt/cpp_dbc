@@ -88,7 +88,6 @@ namespace cpp_dbc
         template <typename, typename, typename>
         friend class PooledDBConnectionBase;
 
-    private:
         // Shared flag to indicate if the pool is still alive (shared with all pooled connections)
         std::shared_ptr<std::atomic<bool>> m_poolAlive{std::make_shared<std::atomic<bool>>(true)};
 

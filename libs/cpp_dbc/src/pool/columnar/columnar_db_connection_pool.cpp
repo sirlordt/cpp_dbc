@@ -65,15 +65,13 @@ namespace cpp_dbc
 
     // ── Destructor ───────────────────────────────────────────────────────────
 
-    ColumnarDBConnectionPool::~ColumnarDBConnectionPool()
-    {
-        // DBConnectionPoolBase destructor handles close() and cleanup
-    }
+    // DBConnectionPoolBase destructor handles close() and cleanup
+    ColumnarDBConnectionPool::~ColumnarDBConnectionPool() = default;
 
     // ── Private helpers ──────────────────────────────────────────────────────
 
     cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException>
-    ColumnarDBConnectionPool::createDBConnection(std::nothrow_t) noexcept
+    ColumnarDBConnectionPool::createDBConnection(std::nothrow_t) const noexcept
     {
         auto dbConnResult = DriverManager::getDBConnection(std::nothrow, getUrl(), getUsername(), getPassword(), getOptions());
         if (!dbConnResult.has_value())

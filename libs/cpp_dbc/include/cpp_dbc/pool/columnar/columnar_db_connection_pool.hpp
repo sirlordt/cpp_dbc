@@ -67,7 +67,7 @@ namespace cpp_dbc
         friend class ColumnarPooledDBConnection;
 
         // Creates a physical columnar connection via DriverManager
-        cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException> createDBConnection(std::nothrow_t) noexcept;
+        cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException> createDBConnection(std::nothrow_t) const noexcept;
 
         // Override from DBConnectionPoolBase — creates the columnar-specific pooled wrapper
         cpp_dbc::expected<std::shared_ptr<DBConnectionPooled>, DBException>
@@ -172,9 +172,9 @@ namespace cpp_dbc
 
 #ifdef __cpp_exceptions
         // ── Diamond-resolving throwing delegators (DBConnection methods) ──
-        void close() final { this->closeThrow(); }
+        void close() override { this->closeThrow(); }
         bool isClosed() const override { return this->isClosedThrow(); }
-        void returnToPool() final { this->returnToPoolThrow(); }
+        void returnToPool() override { this->returnToPoolThrow(); }
         bool isPooled() const override { return this->isPooledThrow(); }
         std::string getURL() const override { return this->getURLThrow(); }
         void reset() override { this->resetThrow(); }

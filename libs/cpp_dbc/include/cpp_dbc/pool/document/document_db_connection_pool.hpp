@@ -65,7 +65,7 @@ namespace cpp_dbc
         friend class DocumentPooledDBConnection;
 
         // Creates a physical document connection via DriverManager
-        cpp_dbc::expected<std::shared_ptr<DocumentDBConnection>, DBException> createDBConnection(std::nothrow_t) noexcept;
+        cpp_dbc::expected<std::shared_ptr<DocumentDBConnection>, DBException> createDBConnection(std::nothrow_t) const noexcept;
 
         // Override from DBConnectionPoolBase — creates the document-specific pooled wrapper
         cpp_dbc::expected<std::shared_ptr<DBConnectionPooled>, DBException>

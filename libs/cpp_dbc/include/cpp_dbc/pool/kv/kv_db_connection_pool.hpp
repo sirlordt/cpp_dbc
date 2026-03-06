@@ -65,7 +65,7 @@ namespace cpp_dbc
         friend class KVPooledDBConnection;
 
         // Creates a physical KV connection via DriverManager
-        cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> createDBConnection(std::nothrow_t) noexcept;
+        cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> createDBConnection(std::nothrow_t) const noexcept;
 
         // Override from DBConnectionPoolBase — creates the KV-specific pooled wrapper
         cpp_dbc::expected<std::shared_ptr<DBConnectionPooled>, DBException>

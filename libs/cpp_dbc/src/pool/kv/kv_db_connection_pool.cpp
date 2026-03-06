@@ -65,15 +65,13 @@ namespace cpp_dbc
 
     // ── Destructor ──────────────────────────────────────────────────────────
 
-    KVDBConnectionPool::~KVDBConnectionPool()
-    {
-        // DBConnectionPoolBase destructor handles close() and cleanup
-    }
+    // DBConnectionPoolBase destructor handles close() and cleanup
+    KVDBConnectionPool::~KVDBConnectionPool() = default;
 
     // ── Private helpers ─────────────────────────────────────────────────────
 
     cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException>
-    KVDBConnectionPool::createDBConnection(std::nothrow_t) noexcept
+    KVDBConnectionPool::createDBConnection(std::nothrow_t) const noexcept
     {
         auto dbConnResult = DriverManager::getDBConnection(std::nothrow, getUrl(), getUsername(), getPassword(), getOptions());
         if (!dbConnResult.has_value())

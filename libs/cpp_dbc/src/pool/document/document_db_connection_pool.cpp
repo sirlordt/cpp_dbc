@@ -65,15 +65,13 @@ namespace cpp_dbc
 
     // ── Destructor ───────────────────────────────────────────────────────
 
-    DocumentDBConnectionPool::~DocumentDBConnectionPool()
-    {
-        // DBConnectionPoolBase destructor handles close() and cleanup
-    }
+    // DBConnectionPoolBase destructor handles close() and cleanup
+    DocumentDBConnectionPool::~DocumentDBConnectionPool() = default;
 
     // ── Private helpers ──────────────────────────────────────────────────
 
     cpp_dbc::expected<std::shared_ptr<DocumentDBConnection>, DBException>
-    DocumentDBConnectionPool::createDBConnection(std::nothrow_t) noexcept
+    DocumentDBConnectionPool::createDBConnection(std::nothrow_t) const noexcept
     {
         auto dbConnResult = DriverManager::getDBConnection(std::nothrow, getUrl(), getUsername(), getPassword(), getOptions());
         if (!dbConnResult.has_value())

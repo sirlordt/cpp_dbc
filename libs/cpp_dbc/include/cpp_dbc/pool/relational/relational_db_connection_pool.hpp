@@ -62,7 +62,7 @@ namespace cpp_dbc
         friend class RelationalPooledDBConnection;
 
         // Creates a physical relational connection via DriverManager
-        cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> createDBConnection(std::nothrow_t) noexcept;
+        cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> createDBConnection(std::nothrow_t) const noexcept;
 
         // Override from DBConnectionPoolBase — creates the relational-specific pooled wrapper
         cpp_dbc::expected<std::shared_ptr<DBConnectionPooled>, DBException>

@@ -65,15 +65,13 @@ namespace cpp_dbc
 
     // ── Destructor ───────────────────────────────────────────────────────────
 
-    RelationalDBConnectionPool::~RelationalDBConnectionPool()
-    {
-        // DBConnectionPoolBase destructor handles close() and cleanup
-    }
+    // DBConnectionPoolBase destructor handles close() and cleanup
+    RelationalDBConnectionPool::~RelationalDBConnectionPool() = default;
 
     // ── Private helpers ──────────────────────────────────────────────────────
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>
-    RelationalDBConnectionPool::createDBConnection(std::nothrow_t) noexcept
+    RelationalDBConnectionPool::createDBConnection(std::nothrow_t) const noexcept
     {
         auto dbConnResult = DriverManager::getDBConnection(std::nothrow, getUrl(), getUsername(), getPassword(), getOptions());
         if (!dbConnResult.has_value())
