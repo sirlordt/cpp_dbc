@@ -826,7 +826,7 @@ Envuelve una conexión física para proporcionar funcionalidad de agrupamiento. 
 - Usa `shared_ptr<atomic<bool>>` (`m_poolAlive`) para rastrear el tiempo de vida del pool
 - El método `close()` verifica `isPoolValid()` antes de devolver la conexión al pool
 - Previene errores de uso después de liberación (use-after-free) cuando el pool es destruido mientras las conexiones están en uso
-- El destructor devuelve la conexión al pool si está vivo, llama a `decrementActiveCount()` en caso contrario
+- El destructor nunca llama a `returnToPool()`/`shared_from_this()` (el refcount ya es 0); en su lugar, llama a `decrementActiveCount()` si la conexión estaba activa y cierra `m_conn` directamente
 
 ### Implementaciones específicas de Pool por Familia
 
