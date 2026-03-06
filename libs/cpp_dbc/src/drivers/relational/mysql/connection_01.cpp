@@ -387,24 +387,6 @@ namespace cpp_dbc::MySQL
         }
     }
 
-    void MySQLDBConnection::prepareForPoolReturn()
-    {
-        auto result = prepareForPoolReturn(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
-    void MySQLDBConnection::prepareForBorrow()
-    {
-        auto result = prepareForBorrow(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
     void MySQLDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
     {
         auto result = setTransactionIsolation(std::nothrow, level);

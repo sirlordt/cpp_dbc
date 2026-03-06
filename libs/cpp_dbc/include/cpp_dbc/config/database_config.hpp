@@ -264,13 +264,13 @@ namespace cpp_dbc::config
             std::string m_username;
             std::string m_password;
             std::map<std::string, std::string> m_options;
-            unsigned int m_initialSize{5};
-            unsigned int m_maxSize{20};
-            unsigned int m_minIdle{3};
-            unsigned long m_connectionTimeout{30000};
-            unsigned long m_idleTimeout{300000};
-            unsigned long m_validationInterval{5000};
-            unsigned long m_maxLifetimeMillis{1800000};
+            size_t m_initialSize{5};
+            size_t m_maxSize{20};
+            size_t m_minIdle{3};
+            size_t m_connectionTimeout{30000};
+            size_t m_idleTimeout{300000};
+            size_t m_validationInterval{5000};
+            size_t m_maxLifetimeMillis{1800000};
             bool m_testOnBorrow{true};
             bool m_testOnReturn{false};
             std::string m_validationQuery{"SELECT 1"};
@@ -290,11 +290,11 @@ namespace cpp_dbc::config
              */
             DBConnectionPoolConfig(
                 const std::string &name,
-                unsigned int initialSize,
-                unsigned int maxSize,
-                unsigned long connectionTimeout,
-                unsigned long idleTimeout,
-                unsigned long validationInterval) : m_name(name),
+                size_t initialSize,
+                size_t maxSize,
+                size_t connectionTimeout,
+                size_t idleTimeout,
+                size_t validationInterval) : m_name(name),
                                                     m_initialSize(initialSize),
                                                     m_maxSize(maxSize),
                                                     m_connectionTimeout(connectionTimeout),
@@ -311,13 +311,13 @@ namespace cpp_dbc::config
                 const std::string &url,
                 const std::string &username,
                 const std::string &password,
-                unsigned int initialSize,
-                unsigned int maxSize,
-                unsigned int minIdle,
-                unsigned long connectionTimeout,
-                unsigned long idleTimeout,
-                unsigned long validationInterval,
-                unsigned long maxLifetimeMillis,
+                size_t initialSize,
+                size_t maxSize,
+                size_t minIdle,
+                size_t connectionTimeout,
+                size_t idleTimeout,
+                size_t validationInterval,
+                size_t maxLifetimeMillis,
                 bool testOnBorrow,
                 bool testOnReturn,
                 const std::string &validationQuery,
@@ -342,13 +342,13 @@ namespace cpp_dbc::config
             const std::string &getUrl() const { return m_url; }
             const std::string &getUsername() const { return m_username; }
             const std::string &getPassword() const { return m_password; }
-            unsigned int getInitialSize() const { return m_initialSize; }
-            unsigned int getMaxSize() const { return m_maxSize; }
-            unsigned int getMinIdle() const { return m_minIdle; }
-            unsigned long getConnectionTimeout() const { return m_connectionTimeout; }
-            unsigned long getIdleTimeout() const { return m_idleTimeout; }
-            unsigned long getValidationInterval() const { return m_validationInterval; }
-            unsigned long getMaxLifetimeMillis() const { return m_maxLifetimeMillis; }
+            size_t getInitialSize() const { return m_initialSize; }
+            size_t getMaxSize() const { return m_maxSize; }
+            size_t getMinIdle() const { return m_minIdle; }
+            size_t getConnectionTimeout() const { return m_connectionTimeout; }
+            size_t getIdleTimeout() const { return m_idleTimeout; }
+            size_t getValidationInterval() const { return m_validationInterval; }
+            size_t getMaxLifetimeMillis() const { return m_maxLifetimeMillis; }
             bool getTestOnBorrow() const { return m_testOnBorrow; }
             bool getTestOnReturn() const { return m_testOnReturn; }
             const std::string &getValidationQuery() const { return m_validationQuery; }
@@ -360,13 +360,13 @@ namespace cpp_dbc::config
             void setUrl(std::string_view value) { m_url = value; }
             void setUsername(std::string_view value) { m_username = value; }
             void setPassword(std::string_view value) { m_password = value; }
-            void setInitialSize(unsigned int value) { m_initialSize = value; }
-            void setMaxSize(unsigned int value) { m_maxSize = value; }
-            void setMinIdle(unsigned int value) { m_minIdle = value; }
-            void setConnectionTimeout(unsigned long value) { m_connectionTimeout = value; }
-            void setIdleTimeout(unsigned long value) { m_idleTimeout = value; }
-            void setValidationInterval(unsigned long value) { m_validationInterval = value; }
-            void setMaxLifetimeMillis(unsigned long value) { m_maxLifetimeMillis = value; }
+            void setInitialSize(size_t value) { m_initialSize = value; }
+            void setMaxSize(size_t value) { m_maxSize = value; }
+            void setMinIdle(size_t value) { m_minIdle = value; }
+            void setConnectionTimeout(size_t value) { m_connectionTimeout = value; }
+            void setIdleTimeout(size_t value) { m_idleTimeout = value; }
+            void setValidationInterval(size_t value) { m_validationInterval = value; }
+            void setMaxLifetimeMillis(size_t value) { m_maxLifetimeMillis = value; }
             void setTestOnBorrow(bool value) { m_testOnBorrow = value; }
             void setTestOnReturn(bool value) { m_testOnReturn = value; }
             void setValidationQuery(std::string_view value) { m_validationQuery = value; }

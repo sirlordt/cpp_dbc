@@ -31,7 +31,7 @@
 #include "example_common.hpp"
 #include "cpp_dbc/cpp_dbc.hpp"
 #include "cpp_dbc/config/database_config.hpp"
-#include "cpp_dbc/core/relational/relational_db_connection_pool.hpp"
+#include "cpp_dbc/pool/relational/relational_db_connection_pool.hpp"
 
 #ifdef USE_CPP_YAML
 #include "cpp_dbc/config/yaml_config_loader.hpp"

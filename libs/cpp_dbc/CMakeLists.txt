@@ -54,10 +54,12 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # Define the library
 add_library(cpp_dbc
-    src/core/relational/relational_db_connection_pool.cpp
-    src/core/document/document_db_connection_pool.cpp
-    src/core/columnar/columnar_db_connection_pool.cpp
-    src/core/kv/kv_db_connection_pool.cpp
+    src/pool/connection_pool.cpp
+    src/pool/pooled_db_connection_base.cpp
+    src/pool/relational/relational_db_connection_pool.cpp
+    src/pool/document/document_db_connection_pool.cpp
+    src/pool/columnar/columnar_db_connection_pool.cpp
+    src/pool/kv/kv_db_connection_pool.cpp
     src/transaction_manager.cpp
     src/driver_manager.cpp
     src/config/database_config.cpp

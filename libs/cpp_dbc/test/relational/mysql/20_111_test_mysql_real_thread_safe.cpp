@@ -31,7 +31,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
+#include <cpp_dbc/pool/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 #include <cpp_dbc/common/system_utils.hpp>
 
@@ -188,8 +188,8 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
         cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
         cleanupConn->close();
 
-        // We expect most operations to succeed
-        REQUIRE(successCount > 0);
+        // We expect at least 95% of operations to succeed
+        REQUIRE(successCount.load() >= (numThreads * opsPerThread * 0.95));
     }
 
     /* SECTION("Connection pool concurrent access") - moved to 20_141_test_mysql_real_connection_pool.cpp
@@ -205,7 +205,6 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
         poolConfig.setConnectionTimeout(10000);
         poolConfig.setValidationInterval(1000);
         poolConfig.setTestOnBorrow(true);
-        poolConfig.setValidationQuery("SELECT 1");
 
         auto poolResult = cpp_dbc::MySQL::MySQLConnectionPool::create(std::nothrow, poolConfig);
         if (!poolResult.has_value())
@@ -284,7 +283,6 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
         poolConfig.setConnectionTimeout(10000);
         poolConfig.setValidationInterval(1000);
         poolConfig.setTestOnBorrow(true);
-        poolConfig.setValidationQuery("SELECT 1");
 
         auto poolResult = cpp_dbc::MySQL::MySQLConnectionPool::create(std::nothrow, poolConfig);
         if (!poolResult.has_value())
@@ -382,7 +380,6 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
         poolConfig.setConnectionTimeout(10000);
         poolConfig.setValidationInterval(1000);
         poolConfig.setTestOnBorrow(true);
-        poolConfig.setValidationQuery("SELECT 1");
 
         auto poolResult = cpp_dbc::MySQL::MySQLConnectionPool::create(std::nothrow, poolConfig);
         if (!poolResult.has_value())

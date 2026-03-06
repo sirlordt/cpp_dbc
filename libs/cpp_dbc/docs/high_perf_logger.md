@@ -223,7 +223,7 @@ std::cout << "Total logs lost: " << overruns << "\n";
 ### Connection Pool
 
 ```cpp
-// libs/cpp_dbc/src/core/relational/relational_db_connection_pool.cpp
+// libs/cpp_dbc/src/pool/relational/relational_db_connection_pool.cpp
 #ifdef ENABLE_HIGH_PERF_DEBUG_LOGGER
 #include "cpp_dbc/debug/high_perf_logger.hpp"
 #endif

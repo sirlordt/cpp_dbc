@@ -30,7 +30,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
+#include <cpp_dbc/pool/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/transaction_manager.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 #include <cpp_dbc/common/system_utils.hpp>
@@ -175,7 +175,6 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         poolConfig.setMaxLifetimeMillis(10000);
         poolConfig.setTestOnBorrow(true);
         poolConfig.setTestOnReturn(true);
-        poolConfig.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
 
         // Create a connection pool using factory method
         auto poolResult = cpp_dbc::Firebird::FirebirdConnectionPool::create(std::nothrow, poolConfig);
@@ -261,7 +260,6 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         poolConfig.setMaxLifetimeMillis(10000); // Shorter lifetime
         poolConfig.setTestOnBorrow(true);
         poolConfig.setTestOnReturn(false);
-        poolConfig.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
 
         // Create a connection pool using factory method
         auto poolResult2 = cpp_dbc::Firebird::FirebirdConnectionPool::create(std::nothrow, poolConfig);
@@ -503,7 +501,6 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         poolConfig.setMaxLifetimeMillis(10000); // Shorter lifetime
         poolConfig.setTestOnBorrow(true);
         poolConfig.setTestOnReturn(false);
-        poolConfig.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
 
         // Create a connection pool using factory method
         auto poolResult3 = cpp_dbc::Firebird::FirebirdConnectionPool::create(std::nothrow, poolConfig);

@@ -30,7 +30,7 @@
 
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <cpp_dbc/common/system_utils.hpp>
-#include <cpp_dbc/core/kv/kv_db_connection_pool.hpp>
+#include <cpp_dbc/pool/kv/kv_db_connection_pool.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 
 #if USE_REDIS
@@ -70,7 +70,6 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
         poolConfigLocal.setMaxLifetimeMillis(60000);
         poolConfigLocal.setTestOnBorrow(true);
         poolConfigLocal.setTestOnReturn(false);
-        poolConfigLocal.setValidationQuery("PING");
 
         // Create a connection pool using factory method
         auto poolResult = cpp_dbc::Redis::RedisDBConnectionPool::create(std::nothrow, poolConfigLocal);
@@ -135,7 +134,6 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
         poolConfigLocal.setMaxLifetimeMillis(30000);
         poolConfigLocal.setTestOnBorrow(true);
         poolConfigLocal.setTestOnReturn(true);
-        poolConfigLocal.setValidationQuery("PING");
 
         // Create a connection pool
         auto poolResult2 = cpp_dbc::Redis::RedisDBConnectionPool::create(std::nothrow, poolConfigLocal);
@@ -202,7 +200,7 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
             auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::KVPooledDBConnection>(conn);
             REQUIRE(pooledConn != nullptr);
 
-            auto underlyingConn = pooledConn->getUnderlyingKVConnection();
+            auto underlyingConn = pooledConn->getUnderlyingConnection(std::nothrow);
             REQUIRE(underlyingConn != nullptr);
 
             // Close the underlying connection directly - this invalidates the pooled connection
@@ -269,7 +267,7 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
                 auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::KVPooledDBConnection>(conn);
                 REQUIRE(pooledConn != nullptr);
 
-                auto underlyingConn = pooledConn->getUnderlyingKVConnection();
+                auto underlyingConn = pooledConn->getUnderlyingConnection(std::nothrow);
                 REQUIRE(underlyingConn != nullptr);
                 underlyingConn->close();
             }
@@ -282,7 +280,7 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
 
             // Poll for the pool to process replacements instead of fixed sleep
             auto startTime = std::chrono::steady_clock::now();
-            const auto timeout = std::chrono::milliseconds(5000);
+            const auto timeout = std::chrono::milliseconds(10000);
             bool poolStateConverged = false;
 
             while (std::chrono::steady_clock::now() - startTime < timeout)

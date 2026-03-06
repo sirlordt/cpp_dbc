@@ -508,14 +508,15 @@ conn->close();
 ---
 
 ## Connection Pool
-*Components defined in connection_pool.hpp and connection_pool.cpp*
+*Components defined in pool/connection_pool.hpp, pool/pooled_db_connection_base.hpp, and pool/\<family\>/\<family\>_db_connection_pool.hpp*
 
-### SQLiteConnectionPool
-Implementation of ConnectionPool for SQLite databases.
+### Architecture
 
-**Methods:**
-- `SQLiteConnectionPool(string, string, string)`: Constructor that takes a URL, username, and password.
-- `SQLiteConnectionPool(ConnectionPoolConfig)`: Constructor that takes a pool configuration.
+The pool system has three layers:
+
+1. **`DBConnectionPoolBase`** (`pool/connection_pool.hpp` / `.cpp`) — all shared pool infrastructure: connection lifecycle, maintenance thread (30s), direct handoff (`ConnectionRequest` + `m_waitQueue`), HikariCP validation skip (500ms), phase-based lock protocol. Derived by each family pool.
+2. **`PooledDBConnectionBase<Derived, ConnType, PoolType>`** (`pool/pooled_db_connection_base.hpp` / `.cpp`) — CRTP template with common pooled connection logic: close/returnToPool (race-condition fix), destructor cleanup, pool metadata accessors. Provides `*Impl` methods for diamond-ambiguous DBConnection methods and `*Throw` methods for throwing delegators. Explicit template instantiations for all 4 families.
+3. **`<Family>DBConnectionPool`** + **`<Family>PooledDBConnection`** (`pool/<family>/<family>_db_connection_pool.hpp` / `.cpp`) — thin derived classes. The pool class overrides `createPooledDBConnection()` and adds a typed getter. The pooled connection class provides one-line inline delegators to resolve diamond inheritance and implements family-specific methods only.
 
 ### DBConnectionPoolConfig
 Configuration structure for connection pools.
@@ -536,43 +537,55 @@ Configuration structure for connection pools.
 - `testOnReturn`: Whether to test connections when returning to pool (default false)
 - `validationQuery`: Query used to validate connections (default "SELECT 1")
 
-### ConnectionPool
-Manages a pool of database connections.
+### DBConnectionPoolBase
+Unified base class for all connection pools. Manages the pool of database connections.
 
-**Methods:**
-- `ConnectionPool(string, string, string, map<string, string>, int, int, int, int, int, int, int, bool, bool, string)`: Constructor that takes individual configuration parameters.
-- `ConnectionPool(ConnectionPoolConfig)`: Constructor that takes a pool configuration.
-- `getConnection()`: Gets a connection from the pool.
-- `getActiveConnectionCount()`: Returns the number of active connections.
-- `getIdleConnectionCount()`: Returns the number of idle connections.
-- `getTotalConnectionCount()`: Returns the total number of connections.
-- `close()`: Closes the pool and all connections.
-- `createConnection()`: Creates a new physical connection (internal).
-- `createPooledConnection()`: Creates a new pooled connection wrapper (internal).
-- `validateConnection(Connection)`: Validates a connection (internal).
-- `returnConnection(PooledConnection)`: Returns a connection to the pool (internal).
-- `maintenanceTask()`: Maintenance thread function (internal).
+**Key Methods (protected/internal):**
+- `acquireConnection(std::nothrow_t)`: Core borrow logic — tries idle queue, creates new if under max, or waits via direct handoff.
+- `returnConnection(std::nothrow_t, shared_ptr<DBConnectionPooled>)`: Returns a connection — handles orphan detection, direct handoff to waiters, pool-closing exit.
+- `decrementActiveCount(std::nothrow_t)`: Destructor-safe connection abandonment when pool is dead.
+- `initializePool(std::nothrow_t)`: Creates initial connections; called by derived factory methods after `make_shared`.
+- `createPooledDBConnection(std::nothrow_t)`: Pure virtual — derived classes override to create family-specific pooled wrappers.
+- `maintenanceTask(std::nothrow_t)`: Background thread — idle eviction + minIdle replenishment every 30s.
 
-### PooledConnection
-Wraps a physical connection to provide pooling functionality.
+**Public Methods:**
+- `getDBConnection(std::nothrow_t)` / `getDBConnection()`: Gets a connection from the pool.
+- `getActiveDBConnectionCount(std::nothrow_t)`: Returns the number of active connections.
+- `getIdleDBConnectionCount(std::nothrow_t)`: Returns the number of idle connections.
+- `getTotalDBConnectionCount(std::nothrow_t)`: Returns the total number of connections.
+- `close(std::nothrow_t)` / `close()`: Closes the pool and all connections.
+- `isRunning(std::nothrow_t)`: Returns whether the pool is still running.
 
-**Methods:**
-Same as Connection, plus:
-- `PooledConnection(Connection, weak_ptr<ConnectionPool>, shared_ptr<atomic<bool>>, ConnectionPool*)`: Constructor that takes a connection, weak pool reference, pool alive flag, and raw pool pointer.
-- `getCreationTime()`: Returns the creation time of the connection.
-- `getLastUsedTime()`: Returns the last used time of the connection.
-- `setActive(bool)`: Sets whether the connection is active.
-- `isActive()`: Returns whether the connection is active.
-- `getUnderlyingConnection()`: Returns the underlying physical connection.
-- `setTransactionIsolation(TransactionIsolationLevel)`: Delegates to the underlying connection.
-- `getTransactionIsolation()`: Delegates to the underlying connection.
-- `isPoolValid()`: Returns whether the pool is still alive (checks the shared atomic flag).
+### PooledDBConnectionBase (CRTP Template)
+Wraps a physical connection to provide pooling functionality. All family-specific pooled connections inherit from this template.
+
+**Template Parameters:** `<Derived, ConnType, PoolType>` (e.g., `<RelationalPooledDBConnection, RelationalDBConnection, RelationalDBConnectionPool>`)
+
+**Protected Members:**
+- `m_conn`: The underlying physical connection (`shared_ptr<ConnType>`)
+- `m_pool`: Weak reference to the pool (`weak_ptr<PoolType>`)
+- `m_poolAlive`: Shared flag to check if pool is still alive (`shared_ptr<atomic<bool>>`)
+- `m_creationTime`, `m_lastUsedTimeNs` (atomic int64_t), `m_active` (atomic bool), `m_closed` (atomic bool)
+
+**Diamond-Resolving Impl Methods:** `closeImpl`, `returnToPoolImpl`, `isClosedImpl`, `isPooledImpl`, `getURLImpl`, `resetImpl`, `pingImpl`, `prepareForPoolReturnImpl`, `prepareForBorrowImpl`
+
+**DBConnectionPooled Interface Methods:**
+- `getCreationTime(std::nothrow_t)`: Returns the creation time of the connection.
+- `getLastUsedTime(std::nothrow_t)`: Returns the last used time of the connection.
+- `setActive(std::nothrow_t, bool)`: Sets whether the connection is active.
+- `isActive(std::nothrow_t)`: Returns whether the connection is active.
+- `getUnderlyingConnection(std::nothrow_t)`: Returns the underlying physical connection.
+- `isPoolValid(std::nothrow_t)`: Returns whether the pool is still alive.
+- `markPoolClosed(std::nothrow_t, bool)`: Marks pool as closed from the pool side.
+- `isPoolClosed(std::nothrow_t)`: Returns whether the pool has been closed.
+- `updateLastUsedTime(std::nothrow_t)`: Updates the last-used timestamp.
 
 **Memory Safety:**
-- Uses `weak_ptr<ConnectionPool>` for pool reference
+- Uses `weak_ptr<PoolType>` for pool reference
 - Uses `shared_ptr<atomic<bool>>` (`m_poolAlive`) to track pool lifetime
 - The `close()` method checks `isPoolValid()` before returning connection to pool
 - Prevents use-after-free when pool is destroyed while connections are in use
+- Destructor returns connection to pool if alive, calls `decrementActiveCount()` otherwise
 
 ---
 

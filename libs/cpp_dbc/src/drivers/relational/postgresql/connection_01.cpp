@@ -146,14 +146,6 @@ namespace cpp_dbc::PostgreSQL
     }
 
     #ifdef __cpp_exceptions
-    void PostgreSQLDBConnection::prepareForPoolReturn()
-    {
-        auto result = prepareForPoolReturn(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
 
     // Constructor
     PostgreSQLDBConnection::PostgreSQLDBConnection(const std::string &host,
@@ -280,15 +272,6 @@ namespace cpp_dbc::PostgreSQL
             throw result.error();
         }
         return result.value();
-    }
-
-    void PostgreSQLDBConnection::prepareForBorrow()
-    {
-        auto result = prepareForBorrow(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
     }
 
     // RelationalDBConnection interface

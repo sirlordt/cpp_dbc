@@ -13,7 +13,7 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `include/cpp_dbc/core/document/document_db_connection.hpp` - Document database connection interface
 - `include/cpp_dbc/core/document/document_db_driver.hpp` - Document database driver interface
 - `include/cpp_dbc/core/document/document_db_collection.hpp` - Document database collection interface
-- `include/cpp_dbc/core/document/document_db_connection_pool.hpp` - Document database connection pool interface
+- `include/cpp_dbc/pool/document/document_db_connection_pool.hpp` - Document database connection pool interface
 - `include/cpp_dbc/core/document/document_db_cursor.hpp` - Document database cursor interface
 - `include/cpp_dbc/core/document/document_db_data.hpp` - Document database data interface
 - `include/cpp_dbc/drivers/relational/driver_mysql.hpp` - MySQL aggregator header (includes `mysql/*.hpp`)
@@ -25,19 +25,21 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `include/cpp_dbc/core/columnar/columnar_db_driver.hpp` - Columnar database driver interface
 - `include/cpp_dbc/core/columnar/columnar_db_prepared_statement.hpp` - Columnar prepared statement interface
 - `include/cpp_dbc/core/columnar/columnar_db_result_set.hpp` - Columnar result set interface
-- `include/cpp_dbc/core/columnar/columnar_db_connection_pool.hpp` - Columnar database connection pool interface
+- `include/cpp_dbc/pool/columnar/columnar_db_connection_pool.hpp` - Columnar database connection pool interface
 - `include/cpp_dbc/drivers/columnar/driver_scylladb.hpp` - ScyllaDB aggregator header (includes `scylladb/*.hpp`)
 - `include/cpp_dbc/core/kv/kv_db_connection.hpp` - Key-value database connection interface
 - `include/cpp_dbc/core/kv/kv_db_driver.hpp` - Key-value database driver interface
-- `include/cpp_dbc/core/kv/kv_db_connection_pool.hpp` - Key-value database connection pool interface
+- `include/cpp_dbc/pool/kv/kv_db_connection_pool.hpp` - Key-value database connection pool interface
 - `include/cpp_dbc/drivers/kv/driver_redis.hpp` - Redis aggregator header (includes `redis/*.hpp`)
 - `include/cpp_dbc/drivers/relational/mysql/blob.hpp` - MySQL BLOB implementation (in driver subfolder)
 - `include/cpp_dbc/drivers/relational/postgresql/blob.hpp` - PostgreSQL BLOB implementation (in driver subfolder)
 - `include/cpp_dbc/drivers/relational/sqlite/blob.hpp` - SQLite BLOB implementation (in driver subfolder)
 - `include/cpp_dbc/drivers/relational/firebird/blob.hpp` - Firebird BLOB implementation (in driver subfolder)
-- `include/cpp_dbc/core/db_connection_pool.hpp` - Generic connection pool interface for all database types
-- `include/cpp_dbc/core/pooled_db_connection.hpp` - Generic pooled connection interface for all database types
-- `include/cpp_dbc/core/relational/relational_db_connection_pool.hpp` - Relational database connection pool implementation
+- `include/cpp_dbc/pool/db_connection_pool.hpp` - Generic connection pool interface for all database types
+- `include/cpp_dbc/pool/db_connection_pooled.hpp` - Generic pooled connection interface for all database types
+- `include/cpp_dbc/pool/connection_pool.hpp` - Unified connection pool base class (`DBConnectionPoolBase`)
+- `include/cpp_dbc/pool/pooled_db_connection_base.hpp` - CRTP base template for pooled connections (`PooledDBConnectionBase<D,C,P>`)
+- `include/cpp_dbc/pool/relational/relational_db_connection_pool.hpp` - Relational database connection pool implementation
 - `include/cpp_dbc/transaction_manager.hpp` - Transaction manager for cross-thread transactions
 - `include/cpp_dbc/backward.hpp` - Stack trace capture and analysis
 - `include/cpp_dbc/common/system_utils.hpp` - System utilities including stack trace functions
@@ -97,9 +99,11 @@ Each database driver implementation is split into multiple focused files within 
 - `result_set_01.cpp` to `result_set_03.cpp` - ScyllaDBResultSet implementation
 
 **Other Implementation Files:**
-- `src/core/document/document_db_connection_pool.cpp` - Document database connection pool implementation
-- `src/core/columnar/columnar_db_connection_pool.cpp` - Columnar database connection pool implementation
-- `src/core/kv/kv_db_connection_pool.cpp` - Key-value database connection pool implementation
+- `src/pool/connection_pool.cpp` - Unified connection pool base class (`DBConnectionPoolBase`) implementation
+- `src/pool/pooled_db_connection_base.cpp` - CRTP base template implementation (`PooledDBConnectionBase<D,C,P>`) with explicit instantiations
+- `src/pool/document/document_db_connection_pool.cpp` - Document database connection pool implementation
+- `src/pool/columnar/columnar_db_connection_pool.cpp` - Columnar database connection pool implementation
+- `src/pool/kv/kv_db_connection_pool.cpp` - Key-value database connection pool implementation
 - `benchmark/benchmark_mongodb_select.cpp` - MongoDB select operation benchmarks
 - `benchmark/benchmark_mongodb_insert.cpp` - MongoDB insert operation benchmarks
 - `benchmark/benchmark_mongodb_update.cpp` - MongoDB update operation benchmarks
@@ -123,7 +127,7 @@ Each database driver implementation is split into multiple focused files within 
 - `test/test_scylladb_thread_safe.cpp` - ScyllaDB thread safety tests
 - `test/test_redis_connection.cpp` - Redis connection tests
 - `test/test_redis_connection_pool.cpp` - Redis connection pool tests
-- `src/core/relational/relational_db_connection_pool.cpp` - Relational database connection pool implementation
+- `src/pool/relational/relational_db_connection_pool.cpp` - Relational database connection pool implementation
 - `src/transaction_manager.cpp` - Transaction manager implementation
 - `src/driver_manager.cpp` - Driver manager implementation
 - `src/common/system_utils.cpp` - System utilities implementation including stack trace functions
@@ -436,7 +440,15 @@ cpp_dbc/
 │       ├── include/
 │       │   └── cpp_dbc/
 │       │       ├── cpp_dbc.hpp
-│       │       ├── connection_pool.hpp
+│       │       ├── pool/
+│       │       │   ├── db_connection_pool.hpp
+│       │       │   ├── db_connection_pooled.hpp
+│       │       │   ├── connection_pool.hpp
+│       │       │   ├── pooled_db_connection_base.hpp
+│       │       │   ├── relational/
+│       │       │   ├── document/
+│       │       │   ├── columnar/
+│       │       │   └── kv/
 │       │       ├── transaction_manager.hpp
 │       │       ├── blob.hpp
 │       │       ├── config/
@@ -529,7 +541,13 @@ cpp_dbc/
 │       │           │       └── driver.hpp
 │       │           └── timeseries/
 │       ├── src/
-│       │   ├── connection_pool.cpp
+│       │   ├── pool/
+│       │   │   ├── connection_pool.cpp
+│       │   │   ├── pooled_db_connection_base.cpp
+│       │   │   ├── relational/
+│       │   │   ├── document/
+│       │   │   ├── columnar/
+│       │   │   └── kv/
 │       │   ├── transaction_manager.cpp
 │       │   ├── driver_manager.cpp
 │       │   ├── config/

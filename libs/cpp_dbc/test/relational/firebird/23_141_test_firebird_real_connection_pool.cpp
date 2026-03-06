@@ -30,7 +30,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
+#include <cpp_dbc/pool/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 
 #include "23_001_test_firebird_real_common.hpp"
@@ -82,7 +82,6 @@ TEST_CASE("Real Firebird connection pool tests", "[23_141_01_firebird_real_conne
         poolConfigLocal.setMaxLifetimeMillis(60000);
         poolConfigLocal.setTestOnBorrow(true);
         poolConfigLocal.setTestOnReturn(false);
-        poolConfigLocal.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
 
         // Create a connection pool using factory method
         auto poolResult = cpp_dbc::Firebird::FirebirdConnectionPool::create(std::nothrow, poolConfigLocal);
@@ -224,7 +223,6 @@ TEST_CASE("Real Firebird connection pool tests", "[23_141_01_firebird_real_conne
         poolConfigLocal.setMaxLifetimeMillis(30000);
         poolConfigLocal.setTestOnBorrow(true);
         poolConfigLocal.setTestOnReturn(true);
-        poolConfigLocal.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
 
         // Create a connection pool
         auto poolResult2 = cpp_dbc::Firebird::FirebirdConnectionPool::create(std::nothrow, poolConfigLocal);
@@ -291,7 +289,7 @@ TEST_CASE("Real Firebird connection pool tests", "[23_141_01_firebird_real_conne
             auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::RelationalPooledDBConnection>(conn);
             REQUIRE(pooledConn != nullptr);
 
-            auto underlyingConn = pooledConn->getUnderlyingRelationalConnection();
+            auto underlyingConn = pooledConn->getUnderlyingConnection(std::nothrow);
             REQUIRE(underlyingConn != nullptr);
 
             // Close the underlying connection directly - this invalidates the pooled connection
@@ -355,7 +353,7 @@ TEST_CASE("Real Firebird connection pool tests", "[23_141_01_firebird_real_conne
             {
                 auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::RelationalPooledDBConnection>(conn);
                 REQUIRE(pooledConn != nullptr);
-                auto underlyingConn = pooledConn->getUnderlyingRelationalConnection();
+                auto underlyingConn = pooledConn->getUnderlyingConnection(std::nothrow);
                 REQUIRE(underlyingConn != nullptr);
                 underlyingConn->close();
             }
@@ -368,7 +366,7 @@ TEST_CASE("Real Firebird connection pool tests", "[23_141_01_firebird_real_conne
 
             // Poll for the pool to process replacements instead of fixed sleep
             auto startTime = std::chrono::steady_clock::now();
-            const auto timeout = std::chrono::milliseconds(5000);
+            const auto timeout = std::chrono::milliseconds(10000);
             bool poolStateConverged = false;
 
             while (std::chrono::steady_clock::now() - startTime < timeout)

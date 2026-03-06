@@ -104,9 +104,8 @@ namespace cpp_dbc::SQLite
 
     protected:
         // Pool lifecycle overrides - only callable by pool infrastructure (via friend in RelationalDBConnection).
-        void prepareForPoolReturn() override;
-        void prepareForBorrow() override;
-        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
+            TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
         cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
 
     public:

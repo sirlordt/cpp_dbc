@@ -498,24 +498,6 @@ namespace cpp_dbc::SQLite
         return result.value();
     }
 
-    void SQLiteDBConnection::prepareForPoolReturn()
-    {
-        auto result = prepareForPoolReturn(std::nothrow);
-        if (!result)
-        {
-            throw result.error();
-        }
-    }
-
-    void SQLiteDBConnection::prepareForBorrow()
-    {
-        auto result = prepareForBorrow(std::nothrow);
-        if (!result)
-        {
-            throw result.error();
-        }
-    }
-
     std::shared_ptr<RelationalDBPreparedStatement> SQLiteDBConnection::prepareStatement(const std::string &sql)
     {
         auto result = prepareStatement(std::nothrow, sql);

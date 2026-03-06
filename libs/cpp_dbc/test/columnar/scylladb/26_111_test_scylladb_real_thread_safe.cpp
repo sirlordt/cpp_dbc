@@ -184,8 +184,8 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[26_111_01_scylladb_real_thread_safe]
         cleanupConn->executeUpdate("DROP TABLE IF EXISTS " + keyspace + ".thread_test");
         cleanupConn->close();
 
-        // We expect most operations to succeed
-        REQUIRE(successCount > 0);
+        // We expect at least 95% of operations to succeed
+        REQUIRE(successCount.load() >= (numThreads * opsPerThread * 0.95));
     }
 
     SECTION("Rapid connection open/close stress test")

@@ -79,7 +79,7 @@ namespace cpp_dbc
          *
          * @param level The transaction isolation level to use
          */
-        virtual void setPoolTransactionIsolation(TransactionIsolationLevel level) noexcept = 0;
+        virtual void setPoolTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept = 0;
 
     public:
         virtual ~DBConnectionPool() = default;

@@ -504,7 +504,23 @@ namespace cpp_dbc::MongoDB
         }
     }
 
-    expected<void, DBException> MongoDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    expected<void, DBException>
+    MongoDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
+    {
+        MONGODB_LOCK_GUARD(*m_connMutex);
+        m_transactionIsolation = level;
+        return {};
+    }
+
+    expected<TransactionIsolationLevel, DBException>
+    MongoDBConnection::getTransactionIsolation(std::nothrow_t) noexcept
+    {
+        MONGODB_LOCK_GUARD(*m_connMutex);
+        return m_transactionIsolation;
+    }
+
+    expected<void, DBException>
+    MongoDBConnection::prepareForPoolReturn(std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept
     {
         try
         {
@@ -531,6 +547,12 @@ namespace cpp_dbc::MongoDB
 
             // Clear active collections
             m_activeCollections.clear();
+
+            // Restore isolation level if requested (store-only, no DB command)
+            if (isolationLevel != TransactionIsolationLevel::TRANSACTION_NONE)
+            {
+                m_transactionIsolation = isolationLevel;
+            }
 
             MONGODB_DEBUG("MongoDBConnection::prepareForPoolReturn(nothrow) - Cleanup complete");
             return {};

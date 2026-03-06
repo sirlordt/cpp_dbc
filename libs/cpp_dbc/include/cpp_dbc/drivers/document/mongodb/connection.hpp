@@ -140,6 +140,7 @@ namespace cpp_dbc::MongoDB
          * Holds the DBException that would have been thrown, for deferred delivery.
          */
         DBException m_initError{"31N7TQLDCNQT", "", {}};
+        TransactionIsolationLevel m_transactionIsolation{TransactionIsolationLevel::TRANSACTION_NONE};
 
     public:
         /**
@@ -221,8 +222,8 @@ namespace cpp_dbc::MongoDB
         void commitTransaction(const std::string &sessionId) override;
         void abortTransaction(const std::string &sessionId) override;
         bool supportsTransactions() override;
-        void prepareForPoolReturn() override;
-        void prepareForBorrow() override;
+        void setTransactionIsolation(TransactionIsolationLevel level) override;
+        TransactionIsolationLevel getTransactionIsolation() override;
 
         // MongoDB-specific methods
 
@@ -337,7 +338,14 @@ namespace cpp_dbc::MongoDB
         expected<void, DBException> abortTransaction(
             std::nothrow_t, const std::string &sessionId) noexcept override;
         expected<bool, DBException> supportsTransactions(std::nothrow_t) noexcept override;
-        expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+        expected<void, DBException>
+            setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
+        expected<TransactionIsolationLevel, DBException>
+            getTransactionIsolation(std::nothrow_t) noexcept override;
+
+    protected:
+        expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
+            TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
         expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
     };
 

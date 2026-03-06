@@ -31,7 +31,7 @@
 #include <catch2/catch_approx.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
+#include <cpp_dbc/pool/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/common/system_utils.hpp>
 
 #include "22_001_test_sqlite_real_common.hpp"
@@ -353,7 +353,6 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
         poolConfig.setMaxLifetimeMillis(10000);
         poolConfig.setTestOnBorrow(true);
         poolConfig.setTestOnReturn(true);
-        poolConfig.setValidationQuery("SELECT 1");
 
         // Create a connection pool using factory method
         auto poolResult = cpp_dbc::SQLite::SQLiteConnectionPool::create(std::nothrow, poolConfig);

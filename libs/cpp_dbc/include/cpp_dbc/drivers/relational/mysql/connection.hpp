@@ -40,6 +40,7 @@ namespace cpp_dbc::MySQL
         bool m_autoCommit{true};
         bool m_transactionActive{false};
         TransactionIsolationLevel m_isolationLevel{TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ}; // MySQL default
+        bool m_inGetTransactionIsolation{false}; // Recursion guard for getTransactionIsolation (per-instance, not static)
 
         /// @brief Cached URL string for getURL() method
         std::string m_url;
@@ -147,9 +148,8 @@ namespace cpp_dbc::MySQL
 
     protected:
         // Pool lifecycle overrides - only callable by pool infrastructure (via friend in RelationalDBConnection).
-        void prepareForPoolReturn() override;
-        void prepareForBorrow() override;
-        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
+            TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
         cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
 
     public:

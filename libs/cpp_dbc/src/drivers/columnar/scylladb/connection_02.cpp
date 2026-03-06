@@ -194,10 +194,38 @@ namespace cpp_dbc::ScyllaDB
         return {};
     }
 
-    cpp_dbc::expected<void, DBException> ScyllaDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    cpp_dbc::expected<void, DBException>
+    ScyllaDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
     {
+        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        m_transactionIsolation = level;
+        return {};
+    }
+
+    cpp_dbc::expected<TransactionIsolationLevel, DBException>
+    ScyllaDBConnection::getTransactionIsolation(std::nothrow_t) noexcept
+    {
+        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        return m_transactionIsolation;
+    }
+
+    cpp_dbc::expected<void, DBException>
+    ScyllaDBConnection::prepareForPoolReturn(std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept
+    {
+        DB_DRIVER_LOCK_GUARD(m_connMutex);
         SCYLLADB_DEBUG("ScyllaDBConnection::prepareForPoolReturn(nothrow) - Rolling back any active transaction");
-        // ScyllaDB/Cassandra has no ACID transactions; this is a no-op
+        // ScyllaDB/Cassandra has no ACID transactions; cleanup is a no-op.
+        // Restore isolation level if requested (store-only, no DB command).
+        if (isolationLevel != TransactionIsolationLevel::TRANSACTION_NONE)
+        {
+            m_transactionIsolation = isolationLevel;
+        }
+        return {};
+    }
+
+    cpp_dbc::expected<void, DBException> ScyllaDBConnection::prepareForBorrow(std::nothrow_t) noexcept
+    {
+        // ScyllaDB/Cassandra connections are stateless; no refresh needed on borrow
         return {};
     }
 

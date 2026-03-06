@@ -112,7 +112,8 @@ namespace cpp_dbc::Firebird
     }
 
     cpp_dbc::expected<void, DBException>
-    FirebirdDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    FirebirdDBConnection::prepareForPoolReturn(
+        std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept
     {
         // Reset connection state: close all statements/resultsets and rollback
         auto resetResult = reset(std::nothrow);
@@ -125,6 +126,28 @@ namespace cpp_dbc::Firebird
 
         // Reset auto-commit to true (default state for pooled connections)
         [[maybe_unused]] auto setResult = setAutoCommit(std::nothrow, true);
+
+        // Restore transaction isolation level if requested by the pool
+        if (isolationLevel != TransactionIsolationLevel::TRANSACTION_NONE)
+        {
+            auto isoResult = getTransactionIsolation(std::nothrow);
+            if (!isoResult.has_value())
+            {
+                FIREBIRD_DEBUG("prepareForPoolReturn(nothrow): Failed to get isolation: %s",
+                               isoResult.error().what_s().data());
+                return cpp_dbc::unexpected(isoResult.error());
+            }
+            if (isoResult.value() != isolationLevel)
+            {
+                auto setIsoResult = setTransactionIsolation(std::nothrow, isolationLevel);
+                if (!setIsoResult.has_value())
+                {
+                    FIREBIRD_DEBUG("prepareForPoolReturn(nothrow): Failed to restore isolation: %s",
+                                   setIsoResult.error().what_s().data());
+                    return setIsoResult;
+                }
+            }
+        }
 
         return {};
     }

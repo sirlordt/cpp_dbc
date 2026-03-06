@@ -23,6 +23,7 @@
 #include <new> // For std::nothrow_t
 #include "db_expected.hpp"
 #include "db_exception.hpp"
+#include "db_types.hpp"
 
 namespace cpp_dbc
 {
@@ -140,9 +141,10 @@ namespace cpp_dbc
         virtual bool ping() = 0;
 
 #endif // __cpp_exceptions
-       // ====================================================================
-       // NOTHROW VERSIONS - Exception-free API
-       // ====================================================================
+
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
 
         /**
          * @brief Close the database connection (nothrow version)
@@ -195,6 +197,35 @@ namespace cpp_dbc
          * @return expected containing true if alive, or DBException on failure
          */
         virtual cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept = 0;
+
+        // ====================================================================
+        // POOL LIFECYCLE - Methods used by connection pools
+        // ====================================================================
+
+        /**
+         * @brief Prepare the connection for return to the pool (nothrow version)
+         *
+         * Resets connection state (active transactions, prepared statements)
+         * so the connection is clean for the next borrower.
+         *
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @param isolationLevel Transaction isolation level to restore (default: TRANSACTION_NONE)
+         * @return expected containing void on success, or DBException on failure
+         */
+        virtual cpp_dbc::expected<void, DBException>
+            prepareForPoolReturn(std::nothrow_t,
+                TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept = 0;
+
+        /**
+         * @brief Prepare the connection after being borrowed from the pool (nothrow version)
+         *
+         * Initializes connection state for fresh use by a new borrower.
+         *
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing void on success, or DBException on failure
+         */
+        virtual cpp_dbc::expected<void, DBException>
+            prepareForBorrow(std::nothrow_t) noexcept = 0;
     };
 
 } // namespace cpp_dbc

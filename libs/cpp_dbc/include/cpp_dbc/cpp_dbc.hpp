@@ -127,7 +127,7 @@ namespace cpp_dbc
      * // Register a MySQL driver and obtain a connection
      * cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
      * auto conn = cpp_dbc::DriverManager::getDBConnection(
-     *     "jdbc:mysql://localhost:3306/mydb", "user", "pass");
+     *     "cpp_dbc:mysql://localhost:3306/mydb", "user", "pass");
      * // Use conn, then close when done
      * conn->close();
      * ```
@@ -135,7 +135,7 @@ namespace cpp_dbc
      * ```cpp
      * // Cast to a specific paradigm connection
      * auto relConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
-     *     cpp_dbc::DriverManager::getDBConnection("jdbc:mysql://localhost/mydb", "u", "p"));
+     *     cpp_dbc::DriverManager::getDBConnection("cpp_dbc:mysql://localhost/mydb", "u", "p"));
      * auto rs = relConn->executeQuery("SELECT id, name FROM users");
      * while (rs->next()) {
      *     std::cout << rs->getString("name") << std::endl;
@@ -176,13 +176,14 @@ namespace cpp_dbc
          */
         static void registerDriver(const std::string &name, std::shared_ptr<DBDriver> driver);
 
+#ifdef __cpp_exceptions
         /**
          * @brief Create a database connection from a URL
          *
          * Iterates through registered drivers to find one that accepts the URL,
          * then uses it to create a connection.
          *
-         * @param url The database URL (e.g., "jdbc:mysql://host:port/database")
+         * @param url The database URL (e.g., "cpp_dbc:driverName://host:port/database")
          * @param user The username for authentication
          * @param password The password for authentication
          * @param options Additional driver-specific connection options
@@ -191,7 +192,7 @@ namespace cpp_dbc
          *
          * ```cpp
          * auto conn = cpp_dbc::DriverManager::getDBConnection(
-         *     "jdbc:mysql://localhost:3306/mydb", "root", "secret");
+         *     "cpp_dbc:mysql://localhost:3306/mydb", "root", "secret");
          * // ... use connection ...
          * conn->close();
          * ```
@@ -230,6 +231,46 @@ namespace cpp_dbc
          */
         static std::shared_ptr<DBConnection> getDBConnection(const config::DatabaseConfigManager &configManager,
                                                              const std::string &configName);
+#endif // __cpp_exceptions
+
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+
+        /**
+         * @brief Create a database connection from a URL (nothrow)
+         *
+         * @param url The database URL (e.g., "cpp_dbc:driverName://host:port/database")
+         * @param user The username for authentication
+         * @param password The password for authentication
+         * @param options Additional driver-specific connection options
+         * @return expected containing a shared_ptr to the connection, or DBException on failure
+         */
+        static cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> getDBConnection(std::nothrow_t,
+                                                                                             const std::string &url,
+                                                                                             const std::string &user,
+                                                                                             const std::string &password,
+                                                                                             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept;
+
+        /**
+         * @brief Create a database connection from a DatabaseConfig object (nothrow)
+         *
+         * @param dbConfig The database configuration
+         * @return expected containing a shared_ptr to the connection, or DBException on failure
+         */
+        static cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> getDBConnection(std::nothrow_t,
+                                                                                             const config::DatabaseConfig &dbConfig) noexcept;
+
+        /**
+         * @brief Create a database connection by config name from a ConfigManager (nothrow)
+         *
+         * @param configManager The configuration manager containing named configs
+         * @param configName The name of the configuration to use
+         * @return expected containing a shared_ptr to the connection, or DBException on failure
+         */
+        static cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> getDBConnection(std::nothrow_t,
+                                                                                             const config::DatabaseConfigManager &configManager,
+                                                                                             const std::string &configName) noexcept;
 
         /**
          * @brief Get a list of all registered driver names
@@ -266,7 +307,7 @@ namespace cpp_dbc
          *
          * ```cpp
          * if (auto driver = cpp_dbc::DriverManager::getDriver("mysql")) {
-         *     auto conn = (*driver)->connect("jdbc:mysql://localhost/mydb", "u", "p");
+         *     auto conn = (*driver)->connect("cpp_dbc:mysql://localhost/mydb", "u", "p");
          * }
          * ```
          */

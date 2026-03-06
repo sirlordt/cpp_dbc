@@ -34,7 +34,7 @@
  */
 
 #include "../../common/example_common.hpp"
-#include "cpp_dbc/core/relational/relational_db_connection_pool.hpp"
+#include "cpp_dbc/pool/relational/relational_db_connection_pool.hpp"
 #include <thread>
 #include <chrono>
 #include <vector>

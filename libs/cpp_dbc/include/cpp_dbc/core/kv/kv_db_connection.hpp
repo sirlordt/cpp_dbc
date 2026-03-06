@@ -27,6 +27,7 @@
 #include <optional>
 #include <new> // For std::nothrow_t
 #include "cpp_dbc/core/db_connection.hpp"
+#include "cpp_dbc/core/db_types.hpp"
 #include "cpp_dbc/core/db_exception.hpp"
 #include "cpp_dbc/core/db_expected.hpp"
 
@@ -60,6 +61,10 @@ namespace cpp_dbc
      */
     class KVDBConnection : public DBConnection
     {
+        friend class KVDBConnectionPool;
+        friend class KVPooledDBConnection;
+        template <typename, typename, typename> friend class PooledDBConnectionBase;
+
     public:
         ~KVDBConnection() override = default;
 
@@ -433,13 +438,17 @@ namespace cpp_dbc
         virtual std::map<std::string, std::string> getServerInfo() = 0;
 
         /**
-         * @brief Prepare the connection for return to pool
-         *
-         * This method is called when a connection is returned to the pool.
-         * For KV stores, this is typically a no-op as they don't have
-         * transactions or prepared statements.
+         * @brief Set the transaction isolation level
+         * @param level The desired isolation level
+         * @note For KV stores, this stores the level in-memory (no database command).
          */
-        virtual void prepareForPoolReturn() = 0;
+        virtual void setTransactionIsolation(TransactionIsolationLevel level) = 0;
+
+        /**
+         * @brief Get the current transaction isolation level
+         * @return The current isolation level
+         */
+        virtual TransactionIsolationLevel getTransactionIsolation() = 0;
 
         #endif // __cpp_exceptions
         // ====================================================================
@@ -794,11 +803,48 @@ namespace cpp_dbc
             std::nothrow_t) noexcept = 0;
 
         /**
-         * @brief Prepare the connection for return to pool (nothrow version)
-         * @param std::nothrow_t Nothrow tag to indicate exception-free operation
+         * @brief Set the transaction isolation level (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param level The desired isolation level
          * @return expected containing void on success, or DBException on failure
          */
-        virtual expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept = 0;
+        virtual expected<void, DBException>
+            setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept = 0;
+
+        /**
+         * @brief Get the current transaction isolation level (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing the current isolation level, or DBException on failure
+         */
+        virtual expected<TransactionIsolationLevel, DBException>
+            getTransactionIsolation(std::nothrow_t) noexcept = 0;
+
+    protected:
+        /**
+         * @brief Prepare the connection for return to pool
+         *
+         * Called when a connection is returned to the pool. For KV stores,
+         * this is typically a no-op as they don't have transactions or prepared statements.
+         *
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param isolationLevel The transaction isolation level to restore.
+         *        TRANSACTION_NONE (default) means "do not restore isolation level".
+         * @return expected containing void on success, or DBException on failure
+         */
+        expected<void, DBException>
+            prepareForPoolReturn(std::nothrow_t,
+                TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override = 0;
+
+        /**
+         * @brief Prepare the connection for borrowing from pool
+         *
+         * Called when a connection is borrowed from the pool.
+         * For KV stores, this is typically a no-op.
+         *
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing void on success, or DBException on failure
+         */
+        expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override = 0;
     };
 
 } // namespace cpp_dbc

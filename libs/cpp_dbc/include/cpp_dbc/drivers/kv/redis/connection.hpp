@@ -57,6 +57,7 @@ namespace cpp_dbc::Redis
         mutable std::mutex m_mutex;
         bool m_initFailed{false};
         std::optional<DBException> m_initError{std::nullopt};
+        TransactionIsolationLevel m_transactionIsolation{TransactionIsolationLevel::TRANSACTION_NONE};
 
         /**
          * @brief Check if the connection is valid
@@ -209,7 +210,8 @@ namespace cpp_dbc::Redis
         bool flushDB(bool async = false) override;
         bool ping() override;
         std::map<std::string, std::string> getServerInfo() override;
-        void prepareForPoolReturn() override;
+        void setTransactionIsolation(TransactionIsolationLevel level) override;
+        TransactionIsolationLevel getTransactionIsolation() override;
 
         /**
          * @brief Execute a Redis command and return the raw reply
@@ -261,7 +263,10 @@ namespace cpp_dbc::Redis
         cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
-        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException>
+            setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
+        cpp_dbc::expected<TransactionIsolationLevel, DBException>
+            getTransactionIsolation(std::nothrow_t) noexcept override;
 
         cpp_dbc::expected<bool, DBException> setString(
             std::nothrow_t,
@@ -402,6 +407,11 @@ namespace cpp_dbc::Redis
          * @return expected containing void on success, or DBException on failure
          */
         cpp_dbc::expected<void, DBException> selectDatabase(std::nothrow_t, int index) noexcept;
+
+    protected:
+        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
+            TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
+        cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
     };
 
 } // namespace cpp_dbc::Redis

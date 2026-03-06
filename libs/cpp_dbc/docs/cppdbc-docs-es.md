@@ -746,33 +746,26 @@ conn->close();
 ---
 
 ## Pool de Conexiones
-*Componentes definidos en core/db_connection_pool.hpp, core/pooled_db_connection.hpp, core/relational/relational_db_connection_pool.hpp y src/core/relational/relational_db_connection_pool.cpp*
+*Componentes definidos en pool/connection_pool.hpp, pool/pooled_db_connection_base.hpp, y pool/\<familia\>/\<familia\>_db_connection_pool.hpp*
+
+### Arquitectura
+
+El sistema de pool tiene tres capas:
+
+1. **`DBConnectionPoolBase`** (`pool/connection_pool.hpp` / `.cpp`) — toda la infraestructura compartida del pool: ciclo de vida de conexiones, hilo de mantenimiento (30s), entrega directa (`ConnectionRequest` + `m_waitQueue`), validación estilo HikariCP (umbral configurable `validationTimeoutMillis`, default 5000ms), protocolo de bloqueo por fases. Heredado por cada pool de familia.
+2. **`PooledDBConnectionBase<Derived, ConnType, PoolType>`** (`pool/pooled_db_connection_base.hpp` / `.cpp`) — template CRTP con la lógica común de conexiones agrupadas: close/returnToPool (corrección de condición de carrera), limpieza en destructor, accesores de metadatos del pool. Proporciona métodos `*Impl` para métodos ambiguos de DBConnection (diamante) y métodos `*Throw` para delegadores con excepciones. Instanciaciones explícitas para las 4 familias.
+3. **`<Familia>DBConnectionPool`** + **`<Familia>PooledDBConnection`** (`pool/<familia>/<familia>_db_connection_pool.hpp` / `.cpp`) — clases derivadas delgadas. La clase pool sobrescribe `createPooledDBConnection()` y agrega un getter tipado. La clase de conexión agrupada proporciona delegadores inline de una línea para resolver la herencia diamante e implementa solo los métodos específicos de la familia.
 
 ### DBConnectionPool
-Clase abstracta que define la interfaz común para todos los pools de conexiones, independientemente del tipo específico de base de datos.
+Clase abstracta que define la interfaz común para todos los pools de conexiones.
 
 **Métodos:**
-- `getDBConnection()`: Obtiene una conexión de la base de datos desde el pool.
-- `getActiveDBConnectionCount()`: Devuelve el número de conexiones actualmente en uso.
-- `getIdleDBConnectionCount()`: Devuelve el número de conexiones actualmente inactivas en el pool.
-- `getTotalDBConnectionCount()`: Devuelve el número total de conexiones gestionadas por este pool.
-- `close()`: Cierra el pool de conexiones y todas sus conexiones.
-- `isRunning()`: Devuelve true si el pool está en funcionamiento y puede proporcionar conexiones.
-
-### PooledDBConnection
-Clase abstracta que extiende DBConnection con métodos específicos para conexiones agrupadas.
-
-**Métodos:**
-- `isPoolValid()`: Verifica si el pool de conexiones sigue siendo válido.
-- Hereda todos los métodos de DBConnection.
-
-### RelationalDBConnectionPool
-Implementación concreta de DBConnectionPool para bases de datos relacionales.
-
-**Métodos:**
-- `RelationalDBConnectionPool(string, string, string)`: Constructor que toma una URL, nombre de usuario y contraseña.
-- `RelationalDBConnectionPool(ConnectionPoolConfig)`: Constructor que toma una configuración de pool.
-- `getRelationalDBConnection()`: Obtiene una conexión relacional del pool.
+- `getDBConnection(std::nothrow_t)` / `getDBConnection()`: Obtiene una conexión desde el pool.
+- `getActiveDBConnectionCount(std::nothrow_t)`: Devuelve el número de conexiones activas.
+- `getIdleDBConnectionCount(std::nothrow_t)`: Devuelve el número de conexiones inactivas.
+- `getTotalDBConnectionCount(std::nothrow_t)`: Devuelve el número total de conexiones.
+- `close(std::nothrow_t)` / `close()`: Cierra el pool y todas las conexiones.
+- `isRunning(std::nothrow_t)`: Devuelve si el pool está en funcionamiento.
 
 ### DBConnectionPoolConfig
 Estructura de configuración para pools de conexiones.
@@ -793,48 +786,56 @@ Estructura de configuración para pools de conexiones.
 - `testOnReturn`: Si se deben probar las conexiones al devolverlas al pool (predeterminado false)
 - `validationQuery`: Consulta utilizada para validar conexiones (predeterminado "SELECT 1")
 
-### Implementaciones específicas de ConnectionPool
-Las implementaciones específicas de cada base de datos relacionales heredan de RelationalDBConnectionPool:
+### DBConnectionPoolBase
+Clase base unificada para todos los pools de conexiones.
 
-- **MySQLConnectionPool**: Implementación para MySQL
-- **PostgreSQLConnectionPool**: Implementación para PostgreSQL
-- **SQLiteConnectionPool**: Implementación para SQLite
-- **FirebirdConnectionPool**: Implementación para Firebird SQL
+**Métodos clave (protegidos/internos):**
+- `acquireConnection(std::nothrow_t)`: Lógica central de préstamo — intenta cola inactiva, crea nueva si bajo máximo, o espera vía entrega directa.
+- `returnConnection(std::nothrow_t, shared_ptr<DBConnectionPooled>)`: Devuelve conexión — maneja detección de huérfanos, entrega directa a esperadores, salida por cierre de pool.
+- `decrementActiveCount(std::nothrow_t)`: Abandono seguro de conexión en destructor cuando el pool está muerto.
+- `initializePool(std::nothrow_t)`: Crea conexiones iniciales; llamado por métodos factory derivados después de `make_shared`.
+- `createPooledDBConnection(std::nothrow_t)`: Virtual puro — clases derivadas sobrescriben para crear envolturas de conexión agrupada específicas de familia.
+- `maintenanceTask(std::nothrow_t)`: Hilo en segundo plano — evicción de inactivas + reposición de minIdle cada 30s.
 
-**Métodos comunes:**
-- `RelationalDBConnectionPool(string, string, string, map<string, string>, int, int, int, int, int, int, int, bool, bool, string)`: Constructor que toma parámetros de configuración individuales.
-- `RelationalDBConnectionPool(ConnectionPoolConfig)`: Constructor que toma una configuración de pool.
-- `getRelationalDBConnection()`: Obtiene una conexión relacional del pool.
-- `getActiveDBConnectionCount()`: Devuelve el número de conexiones activas.
-- `getIdleDBConnectionCount()`: Devuelve el número de conexiones inactivas.
-- `getTotalDBConnectionCount()`: Devuelve el número total de conexiones.
-- `close()`: Cierra el pool y todas las conexiones.
-- `createConnection()`: Crea una nueva conexión física (interno).
-- `createPooledConnection()`: Crea un nuevo envoltorio de conexión agrupada (interno).
-- `validateConnection(Connection)`: Valida una conexión (interno).
-- `returnConnection(PooledConnection)`: Devuelve una conexión al pool (interno).
-- `maintenanceTask()`: Función de hilo de mantenimiento (interno).
+### PooledDBConnectionBase (Template CRTP)
+Envuelve una conexión física para proporcionar funcionalidad de agrupamiento. Todas las conexiones agrupadas específicas de familia heredan de este template.
 
-### RelationalPooledConnection
-Implementación concreta de PooledDBConnection para conexiones de bases de datos relacionales.
+**Parámetros de Template:** `<Derived, ConnType, PoolType>` (ej., `<RelationalPooledDBConnection, RelationalDBConnection, RelationalDBConnectionPool>`)
 
-**Métodos:**
-Los mismos que PooledDBConnection y RelationalDBConnection, más:
-- `RelationalPooledConnection(RelationalDBConnection, weak_ptr<RelationalDBConnectionPool>, shared_ptr<atomic<bool>>, RelationalDBConnectionPool*)`: Constructor que toma una conexión, referencia débil al pool, bandera de pool activo y puntero raw al pool.
-- `getCreationTime()`: Devuelve el tiempo de creación de la conexión.
-- `getLastUsedTime()`: Devuelve el último tiempo de uso de la conexión.
-- `setActive(bool)`: Establece si la conexión está activa.
-- `isActive()`: Devuelve si la conexión está activa.
-- `getUnderlyingConnection()`: Devuelve la conexión física subyacente.
-- `setTransactionIsolation(TransactionIsolationLevel)`: Delega a la conexión subyacente.
-- `getTransactionIsolation()`: Delega a la conexión subyacente.
-- `isPoolValid()`: Devuelve si el pool sigue activo (verifica la bandera atómica compartida).
+**Miembros protegidos:**
+- `m_conn`: La conexión física subyacente (`shared_ptr<ConnType>`)
+- `m_pool`: Referencia débil al pool (`weak_ptr<PoolType>`)
+- `m_poolAlive`: Bandera compartida para verificar si el pool sigue vivo (`shared_ptr<atomic<bool>>`)
+- `m_creationTime`, `m_lastUsedTimeNs` (atomic int64_t), `m_active` (atomic bool), `m_closed` (atomic bool)
+
+**Métodos Impl para resolución de diamante:** `closeImpl`, `returnToPoolImpl`, `isClosedImpl`, `isPooledImpl`, `getURLImpl`, `resetImpl`, `pingImpl`, `prepareForPoolReturnImpl`, `prepareForBorrowImpl`
+
+**Métodos de interfaz DBConnectionPooled:**
+- `getCreationTime(std::nothrow_t)`: Devuelve el tiempo de creación.
+- `getLastUsedTime(std::nothrow_t)`: Devuelve el último tiempo de uso.
+- `setActive(std::nothrow_t, bool)`: Establece si la conexión está activa.
+- `isActive(std::nothrow_t)`: Devuelve si la conexión está activa.
+- `getUnderlyingConnection(std::nothrow_t)`: Devuelve la conexión física subyacente.
+- `isPoolValid(std::nothrow_t)`: Devuelve si el pool sigue activo.
+- `markPoolClosed(std::nothrow_t, bool)`: Marca el pool como cerrado desde el lado del pool.
+- `isPoolClosed(std::nothrow_t)`: Devuelve si el pool ha sido cerrado.
+- `updateLastUsedTime(std::nothrow_t)`: Actualiza la marca de tiempo de último uso.
 
 **Seguridad de Memoria:**
-- Usa `weak_ptr<ConnectionPool>` para la referencia al pool
+- Usa `weak_ptr<PoolType>` para la referencia al pool
 - Usa `shared_ptr<atomic<bool>>` (`m_poolAlive`) para rastrear el tiempo de vida del pool
 - El método `close()` verifica `isPoolValid()` antes de devolver la conexión al pool
 - Previene errores de uso después de liberación (use-after-free) cuando el pool es destruido mientras las conexiones están en uso
+- El destructor nunca llama a `returnToPool()`/`shared_from_this()` (el refcount ya es 0); en su lugar, llama a `decrementActiveCount()` si la conexión estaba activa y cierra `m_conn` directamente
+
+### Implementaciones específicas de Pool por Familia
+
+Cada familia de base de datos tiene un pool y un envoltorio de conexión agrupada:
+
+- **Relacional:** `RelationalDBConnectionPool` + `RelationalPooledDBConnection` — pools específicos: `MySQLConnectionPool`, `PostgreSQLConnectionPool`, `SQLiteConnectionPool`, `FirebirdConnectionPool`
+- **Documento:** `DocumentDBConnectionPool` + `DocumentPooledDBConnection` — pool específico: `MongoDBConnectionPool`
+- **Columnar:** `ColumnarDBConnectionPool` + `ColumnarPooledDBConnection` — pool específico: `ScyllaDBConnectionPool`
+- **Clave-Valor:** `KVDBConnectionPool` + `KVPooledDBConnection` — pool específico: `RedisDBConnectionPool`
 
 ---
 

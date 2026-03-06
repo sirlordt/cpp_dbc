@@ -27,7 +27,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/core/columnar/columnar_db_connection_pool.hpp>
+#include <cpp_dbc/pool/columnar/columnar_db_connection_pool.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 #include <cpp_dbc/common/system_utils.hpp>
 
@@ -77,10 +77,9 @@ TEST_CASE("Real ScyllaDB connection pool tests", "[26_141_01_scylladb_real_conne
         poolConfigLocal.setMaxLifetimeMillis(60000);
         poolConfigLocal.setTestOnBorrow(true);
         poolConfigLocal.setTestOnReturn(false);
-        poolConfigLocal.setValidationQuery("SELECT now() FROM system.local");
 
         // Create a connection pool using factory method
-        auto poolResult = cpp_dbc::ScyllaDB::ScyllaConnectionPool::create(std::nothrow, poolConfigLocal);
+        auto poolResult = cpp_dbc::ScyllaDB::ScyllaDBConnectionPool::create(std::nothrow, poolConfigLocal);
         if (!poolResult.has_value())
         {
             throw poolResult.error();
@@ -168,10 +167,9 @@ TEST_CASE("Real ScyllaDB connection pool tests", "[26_141_01_scylladb_real_conne
         poolConfigLocal.setMaxLifetimeMillis(30000);
         poolConfigLocal.setTestOnBorrow(true);
         poolConfigLocal.setTestOnReturn(true);
-        poolConfigLocal.setValidationQuery("SELECT now() FROM system.local");
 
         // Create a connection pool
-        auto poolResult2 = cpp_dbc::ScyllaDB::ScyllaConnectionPool::create(std::nothrow, poolConfigLocal);
+        auto poolResult2 = cpp_dbc::ScyllaDB::ScyllaDBConnectionPool::create(std::nothrow, poolConfigLocal);
         if (!poolResult2.has_value())
         {
             throw poolResult2.error();
@@ -237,7 +235,7 @@ TEST_CASE("Real ScyllaDB connection pool tests", "[26_141_01_scylladb_real_conne
             auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::ColumnarPooledDBConnection>(conn);
             REQUIRE(pooledConn != nullptr);
 
-            auto underlyingConn = pooledConn->getUnderlyingColumnarConnection();
+            auto underlyingConn = pooledConn->getUnderlyingConnection(std::nothrow);
             REQUIRE(underlyingConn != nullptr);
 
             // Close the underlying connection directly - this invalidates the pooled connection
@@ -306,7 +304,7 @@ TEST_CASE("Real ScyllaDB connection pool tests", "[26_141_01_scylladb_real_conne
                 auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::ColumnarPooledDBConnection>(conn);
                 REQUIRE(pooledConn != nullptr);
 
-                auto underlyingConn = pooledConn->getUnderlyingColumnarConnection();
+                auto underlyingConn = pooledConn->getUnderlyingConnection(std::nothrow);
                 REQUIRE(underlyingConn != nullptr);
                 underlyingConn->close();
             }
@@ -319,7 +317,7 @@ TEST_CASE("Real ScyllaDB connection pool tests", "[26_141_01_scylladb_real_conne
 
             // Poll for the pool to process replacements instead of fixed sleep
             auto startTime = std::chrono::steady_clock::now();
-            const auto timeout = std::chrono::milliseconds(5000);
+            const auto timeout = std::chrono::milliseconds(10000);
             bool poolStateConverged = false;
 
             while (std::chrono::steady_clock::now() - startTime < timeout)

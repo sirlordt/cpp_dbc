@@ -144,8 +144,8 @@ TEST_CASE("Redis Thread-Safety Tests", "[24_111_01_redis_real_thread_safe]")
 
         cpp_dbc::system_utils::logWithTimesMillis("TEST", "Multiple threads with individual connections: " + std::to_string(successCount) + " successes, " + std::to_string(errorCount) + " errors");
 
-        const int expectedAttempts = numThreads * opsPerThread;
-        REQUIRE(successCount >= static_cast<int>(expectedAttempts * 0.95));
+        // We expect at least 95% of operations to succeed
+        REQUIRE(successCount.load() >= (numThreads * opsPerThread * 0.95));
     }
 
     SECTION("Rapid connection open/close stress test")
