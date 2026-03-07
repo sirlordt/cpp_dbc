@@ -34,17 +34,67 @@
 namespace cpp_dbc::MySQL
 {
 
-    // MySQLDBDriver implementation
+    // Static member initialization
+    std::atomic<bool> MySQLDBDriver::s_initialized{false};
+    std::mutex MySQLDBDriver::s_initMutex;
+
+    // ============================================================================
+    // MySQLDBDriver Implementation - Private Static Initializer
+    // ============================================================================
+
+    cpp_dbc::expected<bool, DBException> MySQLDBDriver::initialize(std::nothrow_t) noexcept
+    {
+        // Fast path: already initialized (acquire load for visibility)
+        if (s_initialized.load(std::memory_order_acquire))
+        {
+            return true;
+        }
+
+        // Slow path: take lock and check again (double-checked locking)
+        std::lock_guard<std::mutex> lock(s_initMutex);
+        if (s_initialized.load(std::memory_order_acquire))
+        {
+            return true;
+        }
+
+        if (mysql_library_init(0, nullptr, nullptr) != 0)
+        {
+            return cpp_dbc::unexpected(DBException("7PEJDIPGKZ1Q",
+                                                   "Failed to initialize MySQL library",
+                                                   system_utils::captureCallStack()));
+        }
+
+        s_initialized.store(true, std::memory_order_release);
+        return true;
+    }
+
+    // ============================================================================
+    // MySQLDBDriver Implementation - Constructor + Destructor
+    // ============================================================================
+
     MySQLDBDriver::MySQLDBDriver()
     {
-        // Initialize MySQL library
-        mysql_library_init(0, nullptr, nullptr);
+        auto result = initialize(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
     }
 
     MySQLDBDriver::~MySQLDBDriver()
     {
-        // Cleanup MySQL library
-        mysql_library_end();
+        // Intentionally empty — cleanup is done via the static cleanup() method
+        // to allow re-initialization after driver destruction.
+    }
+
+    void MySQLDBDriver::cleanup()
+    {
+        std::lock_guard<std::mutex> lock(s_initMutex);
+        if (s_initialized.load(std::memory_order_acquire))
+        {
+            mysql_library_end();
+            s_initialized.store(false, std::memory_order_release);
+        }
     }
 
     #ifdef __cpp_exceptions
@@ -82,7 +132,7 @@ namespace cpp_dbc::MySQL
                                       false,  // allowLocalConnection
                                       false)) // requireDatabase (MySQL allows no database)
         {
-            MYSQL_DEBUG("MySQLDBDriver::parseURL - Failed to parse URL: " << url);
+            MYSQL_DEBUG("MySQLDBDriver::parseURL - Failed to parse URL: %s", url.c_str());
             return false;
         }
 
@@ -116,7 +166,7 @@ namespace cpp_dbc::MySQL
                 }
                 catch ([[maybe_unused]] const std::exception &ex)
                 {
-                    MYSQL_DEBUG("MySQLDBDriver::connectRelational - Invalid port in URL: " << ex.what());
+                    MYSQL_DEBUG("MySQLDBDriver::connectRelational - Invalid port in URL: %s", ex.what());
                     return cpp_dbc::unexpected(DBException("P6Z7A8B9C0D1", "Invalid port in URL: " + url, system_utils::captureCallStack()));
                 }
             };
@@ -194,7 +244,12 @@ namespace cpp_dbc::MySQL
                 return cpp_dbc::unexpected(DBException("Y2BIGEHLS4QE", "Invalid MySQL connection URL: " + url, system_utils::captureCallStack()));
             }
 
-            return std::shared_ptr<RelationalDBConnection>(std::make_shared<MySQLDBConnection>(host, port, database, user, password, options));
+            auto connResult = MySQLDBConnection::create(std::nothrow, host, port, database, user, password, options);
+            if (!connResult.has_value())
+            {
+                return cpp_dbc::unexpected(connResult.error());
+            }
+            return std::shared_ptr<RelationalDBConnection>(connResult.value());
         }
         catch (const DBException &ex)
         {

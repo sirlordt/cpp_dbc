@@ -55,7 +55,7 @@ Represents SQL parameter types.
 All BLOB implementations use smart pointers (`std::weak_ptr`) for safe connection references:
 
 - **FirebirdBlob**: Uses `weak_ptr<FirebirdConnection>` with `getConnection()` helper
-- **MySQLBlob**: Uses `weak_ptr<MYSQL>` with `getMySQLConnection()` helper
+- **MySQLBlob**: Uses `weak_ptr<MySQLDBConnection>` for safe connection access
 - **PostgreSQLBlob**: Uses `weak_ptr<PGconn>` with `getPGConnection()` helper
 - **SQLiteBlob**: Uses `weak_ptr<sqlite3>` with `getSQLiteConnection()` helper
 

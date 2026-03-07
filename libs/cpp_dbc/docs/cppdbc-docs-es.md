@@ -173,7 +173,7 @@ CPP_DBC proporciona soporte completo para objetos binarios grandes (BLOB) en tod
 Todas las implementaciones de BLOB utilizan punteros inteligentes (`std::weak_ptr`) para referencias seguras a la conexión:
 
 - **FirebirdBlob**: Usa `weak_ptr<FirebirdConnection>` con el método auxiliar `getConnection()`
-- **MySQLBlob**: Usa `weak_ptr<MYSQL>` con el método auxiliar `getMySQLConnection()`
+- **MySQLBlob**: Usa `weak_ptr<MySQLDBConnection>` para acceso seguro a la conexión
 - **PostgreSQLBlob**: Usa `weak_ptr<PGconn>` con el método auxiliar `getPGConnection()`
 - **SQLiteBlob**: Usa `weak_ptr<sqlite3>` con el método auxiliar `getSQLiteConnection()`
 

@@ -12,6 +12,15 @@
 
 ## Completed Tasks
 
+- MySQL Driver — Full Nothrow-First Refactor, Static Factory Pattern, Result Set Registry, and Dead try/catch Elimination (2026-03-06):
+  - `MySQLDBDriver`: double-checked locking with `atomic<bool>` + `mutex` for library init; new `cleanup()` static method
+  - `MySQLDBConnection`: PrivateCtorTag pattern, nothrow constructor with `m_initFailed`/`m_initError`, result set registry (`m_activeResultSets`) with two-phase close, `getMySQLNativeHandle()`/`getConnectionMutex()` for child access, `m_resetting` anti-deadlock flag
+  - `MySQLDBPreparedStatement`: `weak_ptr<MySQLDBConnection>` replaces `weak_ptr<MYSQL>`, private nothrow constructor, `create(std::nothrow_t)` via `new`, `m_closed` atomic flag
+  - `MySQLDBResultSet`: private nothrow constructor, `weak_ptr<MySQLDBConnection>` for lifecycle, `notifyConnClosing(std::nothrow_t)`, `[[nodiscard]]` on all nothrow methods
+  - `mysql_internal.hpp`: `MySQLConnectionLock` RAII helper, `MYSQL_CONNECTION_LOCK_OR_RETURN` macro, `MYSQL_DEBUG` macro
+  - Dead try/catch eliminated across all MySQL `.cpp` files (nothrow methods calling only nothrow methods)
+  - 17 files changed, +1559/-2202 lines (net reduction of ~643 lines)
+
 - CRTP `PooledDBConnectionBase<D,C,P>` — Unified Pooled Connection Logic via Template Inheritance (2026-03-06):
   - New CRTP template `PooledDBConnectionBase<Derived, ConnType, PoolType>` in `pool/pooled_db_connection_base.hpp` + `.cpp` (~485 lines) — extracts close/returnToPool (race-condition fix), destructor cleanup, and pool metadata from all 4 family pooled connection wrappers
   - All 4 family `PooledDBConnection` classes now inherit from the CRTP base with one-line inline delegators resolving diamond inheritance

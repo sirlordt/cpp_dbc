@@ -63,7 +63,14 @@ namespace cpp_dbc::MySQL
         return {};
     }
 
-    MySQLDBResultSet::MySQLDBResultSet(MYSQL_RES *res) : m_result(res)
+    cpp_dbc::expected<void, DBException> MySQLDBResultSet::notifyConnClosing(std::nothrow_t) noexcept
+    {
+        m_closed.store(true, std::memory_order_release);
+        return {};
+    }
+
+    MySQLDBResultSet::MySQLDBResultSet(std::nothrow_t, MYSQL_RES *res, std::shared_ptr<MySQLDBConnection> conn) noexcept
+        : m_result(res), m_connection(std::move(conn))
     {
         if (m_result)
         {
@@ -84,6 +91,8 @@ namespace cpp_dbc::MySQL
             m_rowCount = 0;
             m_fieldCount = 0;
         }
+
+        m_closed.store(false, std::memory_order_release);
     }
 
     MySQLDBResultSet::~MySQLDBResultSet()
@@ -91,7 +100,7 @@ namespace cpp_dbc::MySQL
         auto closeResult = MySQLDBResultSet::close(std::nothrow);
         if (!closeResult.has_value())
         {
-            MYSQL_DEBUG("MySQLDBResultSet::destructor - close() failed: " << closeResult.error().what_s());
+            MYSQL_DEBUG("MySQLDBResultSet::destructor - close() failed: %s", closeResult.error().what_s().data());
         }
     }
 

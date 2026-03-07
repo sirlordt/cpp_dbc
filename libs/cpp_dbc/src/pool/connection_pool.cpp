@@ -318,13 +318,15 @@ namespace cpp_dbc
                         continue;
                     }
 
-                    auto idleTime = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                        now - pooledConn->getLastUsedTime(std::nothrow))
-                                        .count();
+                    auto idleTime = static_cast<size_t>(
+                        std::chrono::duration_cast<std::chrono::milliseconds>(
+                            now - pooledConn->getLastUsedTime(std::nothrow))
+                            .count());
 
-                    auto lifeTime = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                        now - pooledConn->getCreationTime(std::nothrow))
-                                        .count();
+                    auto lifeTime = static_cast<size_t>(
+                        std::chrono::duration_cast<std::chrono::milliseconds>(
+                            now - pooledConn->getCreationTime(std::nothrow))
+                            .count());
 
                     bool expired = (idleTime > m_idleTimeoutMillis) ||
                                    (lifeTime > m_maxLifetimeMillis);
@@ -795,11 +797,11 @@ namespace cpp_dbc
             {
                 auto lastUsed = result->getLastUsedTime(std::nothrow);
                 auto now = steady_clock::now();
-                auto timeSinceLastUse = duration_cast<milliseconds>(now - lastUsed).count();
+                auto timeSinceLastUse = static_cast<size_t>(duration_cast<milliseconds>(now - lastUsed).count());
 
                 if (timeSinceLastUse > m_validationTimeoutMillis)
                 {
-                    CP_DEBUG("DBConnectionPoolBase::acquireConnection - VALIDATING (timeSinceLastUse=%lld ms > %zu ms)", (long long)timeSinceLastUse, m_validationTimeoutMillis);
+                    CP_DEBUG("DBConnectionPoolBase::acquireConnection - VALIDATING (timeSinceLastUse=%zu ms > %zu ms)", timeSinceLastUse, m_validationTimeoutMillis);
                     auto valResult = validateConnection(std::nothrow, result->getUnderlyingConnection(std::nothrow));
                     bool validationPassed = valResult.has_value() && valResult.value();
 

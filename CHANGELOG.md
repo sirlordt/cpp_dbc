@@ -1,6 +1,66 @@
 # Changelog
 
-## 2026-03-06 08:43:23 PST [Current]
+## 2026-03-06 20:29:58 PST [Current]
+
+### MySQL Driver — Full Nothrow-First Refactor, Static Factory Pattern, Result Set Registry, and Dead try/catch Elimination
+
+This release applies the nothrow-first dual-API architecture to the MySQL driver — the last relational driver to undergo this refactor. All four MySQL classes (`MySQLDBDriver`, `MySQLDBConnection`, `MySQLDBPreparedStatement`, `MySQLDBResultSet`) now follow the same patterns already established in Firebird, PostgreSQL, SQLite, MongoDB, ScyllaDB, and Redis: private nothrow constructors with `m_initFailed`/`m_initError` error deferral, static factory `create(std::nothrow_t)` without try/catch, `#ifdef __cpp_exceptions` guards, double-checked locking for driver init, `[[nodiscard]]` on all nothrow methods, and dead try/catch elimination across all `.cpp` files. Additionally, `MySQLDBConnection` gains a result set registry (`m_activeResultSets`) with `closeAllActiveResultSets()` for pool lifecycle safety, and `MySQLDBPreparedStatement`/`MySQLDBResultSet` now hold `weak_ptr<MySQLDBConnection>` instead of `weak_ptr<MYSQL>` — accessing the native handle and connection mutex through the connection object. Total: **17 files changed, +1559/-2202 lines** (net reduction of ~643 lines of boilerplate).
+
+#### MySQLDBDriver — Double-Checked Locking for Library Init
+
+- Added `static std::atomic<bool> s_initialized` + `static std::mutex s_initMutex` (replaces implicit init)
+- New `static initialize(std::nothrow_t) noexcept` with double-checked locking pattern — compatible with `-fno-exceptions` and allows re-init after `cleanup()`
+- New `static cleanup()` method — resets `s_initialized` so a new driver instance can re-initialize
+- Constructor calls `initialize(std::nothrow)` internally
+
+#### MySQLDBConnection — PrivateCtorTag + Result Set Registry
+
+- **PrivateCtorTag pattern:** Public constructor guarded by private tag type — enables `std::make_shared` from factory while preventing external construction
+- **Nothrow constructor:** All `mysql_init`, `mysql_real_connect`, `mysql_select_db`, and autocommit setup moved into `noexcept` constructor body with try/catch converting to `m_initFailed`/`m_initError`
+- **`create(std::nothrow_t)` factory:** No try/catch — checks `m_initFailed` directly
+- **`m_closed` default changed:** `{false}` → `{true}`, set to `false` only on successful connection
+- **`m_resetting` flag:** `std::atomic<bool>` prevents unregister deadlock during `closeAllActiveResultSets()`/`closeAllStatements()`
+- **Result set registry:** `m_activeResultSets` set of `weak_ptr<MySQLDBResultSet>` with `registerResultSet()`, `unregisterResultSet()`, `closeAllActiveResultSets()` — two-phase close pattern (collect under lock, close outside lock)
+- **`getMySQLNativeHandle()`:** Returns raw `MYSQL*` for PreparedStatement/ResultSet access via `weak_ptr<MySQLDBConnection>`
+- **`getConnectionMutex()`:** Returns `std::recursive_mutex&` for child object serialization (thread-safe builds only)
+- **`isResetting()`:** Exposes `m_resetting` flag for ResultSet/PreparedStatement deadlock avoidance
+- **Friend declarations:** `MySQLDBPreparedStatement`, `MySQLDBResultSet`, `MySQLBlob`
+- **Dead try/catch eliminated** in: `executeUpdate`, `setAutoCommit`, `getAutoCommit`, `beginTransaction`, `commit`, `rollback`, `close`, `reset`, `isClosed`, `returnToPool`, `isPooled`, `getURL`, `setTransactionIsolation`, `getTransactionIsolation`, `prepareForPoolReturn`, `prepareForBorrow`
+
+#### MySQLDBPreparedStatement — weak_ptr<MySQLDBConnection> + Private Constructor
+
+- **`m_connection`:** `weak_ptr<MySQLDBConnection>` replaces `weak_ptr<MYSQL>` — accesses MYSQL* and mutex through the connection
+- **Removed `m_connMutex`:** No longer stores separate mutex copy; locks via `m_connection.lock()->getConnectionMutex()`
+- **Private nothrow constructor:** `mysql_stmt_init`, `mysql_stmt_prepare`, and parameter allocation in constructor body with try/catch → `m_initFailed`/`m_initError`
+- **`create(std::nothrow_t)` uses `new`:** Cannot use `std::make_shared` with private constructor — static member function can access private ctor via `new`
+- **`m_closed` flag:** New `std::atomic<bool>{true}` — set to `false` on successful init, checked in all operations
+- **`notifyConnClosing()` → `notifyConnClosing(std::nothrow_t)`:** Returns `expected<void, DBException>` instead of void
+- **Deleted copy/move operators** explicitly declared
+- **Dead try/catch eliminated** in: all `set*()` methods, `executeQuery`, `executeUpdate`, `close`, `clearParameters`
+
+#### MySQLDBResultSet — Private Constructor + Connection Registration
+
+- **Private nothrow constructor:** Initializes column metadata from `MYSQL_RES*`; stores errors in `m_initFailed`/`m_initError`
+- **`create(std::nothrow_t)` uses `new`:** Same pattern as PreparedStatement — `new` for private ctor access
+- **`m_connection`:** `weak_ptr<MySQLDBConnection>` for lifecycle management (unregister on close)
+- **`m_closed` flag:** New `std::atomic<bool>{true}` — checked in all operations
+- **`notifyConnClosing(std::nothrow_t)`:** Connection calls this during `closeAllActiveResultSets()`
+- **`[[nodiscard]]`** added to all nothrow method declarations
+- **Dead try/catch eliminated** across all result set `.cpp` files
+
+#### mysql_internal.hpp — Enhanced with RAII Helpers and Macros
+
+- **`MySQLConnectionLock`:** RAII helper that locks connection mutex via `weak_ptr<MySQLDBConnection>` — validates connection is alive and not closed, returns `expected` on failure
+- **`MYSQL_CONNECTION_LOCK_OR_RETURN` macro:** Expands to `MySQLConnectionLock` construction + error check — replaces repeated `DB_DRIVER_LOCK_GUARD` + closed-check boilerplate in every method
+- **`MYSQL_DEBUG` macro:** Printf-style debug output using `logWithTimesMillis`
+
+#### Connection Pool — Minor Fix
+
+- `connection_pool.cpp`: Adjusted `returnConnection()` handling for improved connection validation flow
+
+---
+
+## 2026-03-06 08:43:23 PST
 
 ### CRTP `PooledDBConnectionBase<D,C,P>` — Unified Pooled Connection Logic via Template Inheritance
 

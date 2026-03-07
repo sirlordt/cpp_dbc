@@ -4,7 +4,9 @@
 
 #if USE_MYSQL
 
+#include <atomic>
 #include <map>
+#include <mutex>
 #include <string>
 #include <memory>
 
@@ -26,6 +28,16 @@ namespace cpp_dbc::MySQL
      */
     class MySQLDBDriver final : public RelationalDBDriver
     {
+        // Note: atomic<bool> + mutex instead of std::once_flag because
+        // std::once_flag cannot be reset, but we need cleanup() to allow
+        // re-initialization on subsequent driver construction.
+        // Also, std::call_once can throw std::system_error, which is incompatible
+        // with -fno-exceptions builds.
+        static std::atomic<bool> s_initialized;
+        static std::mutex s_initMutex;
+
+        static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
+
     public:
         MySQLDBDriver();
         ~MySQLDBDriver() override;
@@ -74,6 +86,8 @@ namespace cpp_dbc::MySQL
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
 
         std::string getName() const noexcept override;
+
+        static void cleanup();
     };
 
 } // namespace cpp_dbc::MySQL

@@ -20,7 +20,10 @@
 - **MySQL Client Library**: For MySQL database connectivity
   - Uses the C API (`mysql.h`)
   - Requires libmysqlclient development package
-  - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory, double-checked locking for driver init, `-fno-exceptions` compatible
+  - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory (`PrivateCtorTag` pattern for `make_shared`), double-checked locking for driver init, `-fno-exceptions` compatible
+  - `MySQLDBConnection`: result set registry (`m_activeResultSets`) with two-phase close for pool lifecycle safety; `m_resetting` anti-deadlock flag; `getMySQLNativeHandle()`/`getConnectionMutex()` for child access
+  - `MySQLDBPreparedStatement`/`MySQLDBResultSet`: hold `weak_ptr<MySQLDBConnection>` (not `weak_ptr<MYSQL>`), access native handle and mutex through connection; private nothrow constructors with `m_initFailed`/`m_initError` error deferral
+  - `MySQLConnectionLock` RAII helper in `mysql_internal.hpp` for consistent lock-or-return pattern
 
 - **PostgreSQL Client Library**: For PostgreSQL database connectivity
   - Uses the C API (`libpq-fe.h`)

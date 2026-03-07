@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file prepared_statement_01.cpp
- @brief MySQL database driver implementation - MySQLDBPreparedStatement (constructor, destructor, throwing methods)
+ @brief MySQL database driver implementation - MySQLDBPreparedStatement (private nothrow constructor, private helpers, destructor, throwing methods)
 
 */
 
@@ -34,58 +34,40 @@
 namespace cpp_dbc::MySQL
 {
 
-    // MySQLDBPreparedStatement implementation
+    // ============================================================================
+    // MySQLDBPreparedStatement - Private Nothrow Constructor
+    // ============================================================================
 
-    #ifdef __cpp_exceptions
-    void MySQLDBPreparedStatement::notifyConnClosing()
+    MySQLDBPreparedStatement::MySQLDBPreparedStatement(std::nothrow_t,
+                                                       std::weak_ptr<MySQLDBConnection> conn,
+                                                       const std::string &sql) noexcept
+        : m_connection(std::move(conn)), m_sql(sql)
     {
-        // Connection is closing, invalidate the statement without calling mysql_stmt_close
-        // since the connection is already being destroyed
-        auto result = this->close(std::nothrow);
-        if (!result.has_value())
-        {
-            // Log the error but don't throw - connection is already closing
-            MYSQL_DEBUG("Failed to close prepared statement during connection shutdown: " << result.error().what_s());
-        }
-    }
-
-    cpp_dbc::expected<MYSQL *, DBException> MySQLDBPreparedStatement::getMySQLConnection(std::nothrow_t) const noexcept
-    {
-        auto conn = m_mysql.lock();
-        if (!conn)
-        {
-            return cpp_dbc::unexpected(DBException("I45CI2CYTVOT", "MySQL connection has been closed", system_utils::captureCallStack()));
-        }
-        return conn.get();
-    }
-
-#if DB_DRIVER_THREAD_SAFE
-    MySQLDBPreparedStatement::MySQLDBPreparedStatement(std::weak_ptr<MYSQL> mysql_conn, SharedConnMutex connMutex, const std::string &sql_stmt)
-        : m_mysql(mysql_conn), m_sql(sql_stmt), m_connMutex(std::move(connMutex))
-    {
-#else
-    MySQLDBPreparedStatement::MySQLDBPreparedStatement(std::weak_ptr<MYSQL> mysql_conn, const std::string &sql_stmt)
-        : m_mysql(mysql_conn), m_sql(sql_stmt)
-    {
-#endif
         auto mysqlResult = getMySQLConnection(std::nothrow);
         if (!mysqlResult.has_value())
         {
-            throw mysqlResult.error();
+            // Store the error for deferred delivery via create(nothrow_t) — do not throw
+            m_initFailed = true;
+            m_initError = mysqlResult.error();
+            return;
         }
         MYSQL *mysqlPtr = mysqlResult.value();
 
         m_stmt.reset(mysql_stmt_init(mysqlPtr));
         if (!m_stmt)
         {
-            throw DBException("3Y4Z5A6B7C8D", "Failed to initialize statement", system_utils::captureCallStack());
+            m_initFailed = true;
+            m_initError = DBException("3Y4Z5A6B7C8D", "Failed to initialize statement", system_utils::captureCallStack());
+            return;
         }
 
         if (mysql_stmt_prepare(m_stmt.get(), m_sql.c_str(), m_sql.length()) != 0)
         {
             std::string error = mysql_stmt_error(m_stmt.get());
             m_stmt.reset(); // Smart pointer will call mysql_stmt_close via deleter
-            throw DBException("P0Z1A2B3C4D5", "Failed to prepare statement: " + error, system_utils::captureCallStack());
+            m_initFailed = true;
+            m_initError = DBException("P0Z1A2B3C4D5", "Failed to prepare statement: " + error, system_utils::captureCallStack());
+            return;
         }
 
         // Count parameters (question marks) in the SQL
@@ -109,18 +91,58 @@ namespace cpp_dbc::MySQL
         m_blobValues.resize(paramCount);
         m_blobObjects.resize(paramCount);
         m_streamObjects.resize(paramCount);
+
+        m_closed.store(false, std::memory_order_release);
     }
+
+    // ============================================================================
+    // MySQLDBPreparedStatement - Private Helper Methods
+    // ============================================================================
+
+    cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::notifyConnClosing(std::nothrow_t) noexcept
+    {
+        MYSQL_DEBUG("MySQLPreparedStatement::notifyConnClosing - Starting");
+
+        // Connection is closing — close the statement without throwing.
+        // The connection already holds its mutex, but recursive_mutex allows re-entrant locking.
+        auto closeResult = this->close(std::nothrow);
+        if (!closeResult.has_value())
+        {
+            MYSQL_DEBUG("  close() failed during notifyConnClosing: %s", closeResult.error().what_s().data());
+        }
+
+        MYSQL_DEBUG("MySQLPreparedStatement::notifyConnClosing - Done");
+        return {};
+    }
+
+    cpp_dbc::expected<MYSQL *, DBException> MySQLDBPreparedStatement::getMySQLConnection(std::nothrow_t) const noexcept
+    {
+        auto conn = m_connection.lock();
+        if (!conn)
+        {
+            return cpp_dbc::unexpected(DBException("I45CI2CYTVOT", "MySQL connection has been closed", system_utils::captureCallStack()));
+        }
+        return conn->getMySQLNativeHandle();
+    }
+
+    // ============================================================================
+    // MySQLDBPreparedStatement - Destructor
+    // ============================================================================
 
     MySQLDBPreparedStatement::~MySQLDBPreparedStatement()
     {
-        // Call close and log errors, but don't throw from destructor
         auto result = MySQLDBPreparedStatement::close(std::nothrow);
         if (!result.has_value())
         {
-            // Log the error but don't throw from destructor
-            MYSQL_DEBUG("Failed to close prepared statement in destructor: " << result.error().what_s());
+            MYSQL_DEBUG("Failed to close prepared statement in destructor: %s", result.error().what_s().data());
         }
     }
+
+    // ============================================================================
+    // MySQLDBPreparedStatement - Throwing API Wrappers
+    // ============================================================================
+
+#ifdef __cpp_exceptions
 
     void MySQLDBPreparedStatement::setInt(int parameterIndex, int value)
     {
@@ -288,7 +310,8 @@ namespace cpp_dbc::MySQL
         }
     }
 
+#endif // __cpp_exceptions
+
 } // namespace cpp_dbc::MySQL
-    #endif // __cpp_exceptions
 
 #endif // USE_MYSQL

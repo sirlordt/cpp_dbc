@@ -38,187 +38,70 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<void, DBException> MySQLDBResultSet::close(std::nothrow_t) noexcept
     {
-        try
-        {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
-            if (m_result)
-            {
-                // Smart pointer will automatically call mysql_free_result via MySQLResDeleter
-                m_result.reset();
-                m_currentRow = nullptr;
-                m_rowPosition = 0;
-                m_rowCount = 0;
-                m_fieldCount = 0;
-            }
-            return {};
-        }
-        catch (const DBException &ex)
+        if (m_result)
         {
-            return cpp_dbc::unexpected(ex);
+            // Smart pointer will automatically call mysql_free_result via MySQLResDeleter
+            m_result.reset();
+            m_currentRow = nullptr;
+            m_rowPosition = 0;
+            m_rowCount = 0;
+            m_fieldCount = 0;
         }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("4G5YN08HQYRQ",
-                                                   std::string("close failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("1VPGMU1SBFSE",
-                                                   "close failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return {};
     }
 
     cpp_dbc::expected<bool, DBException> MySQLDBResultSet::isEmpty(std::nothrow_t) noexcept
     {
-        try
-        {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
-            return m_rowCount == 0;
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("VT6GP25FE0PJ",
-                                                   std::string("isEmpty failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("A9D77C6NFBBY",
-                                                   "isEmpty failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        DB_DRIVER_LOCK_GUARD(m_mutex);
+        return m_rowCount == 0;
     }
 
     cpp_dbc::expected<bool, DBException> MySQLDBResultSet::next(std::nothrow_t) noexcept
     {
-        try
+        DB_DRIVER_LOCK_GUARD(m_mutex);
+
+        if (!m_result || m_rowPosition >= m_rowCount)
         {
-
-            DB_DRIVER_LOCK_GUARD(m_mutex);
-
-            if (!m_result || m_rowPosition >= m_rowCount)
-            {
-                m_currentRow = nullptr; // Ensure currentRow is invalidated
-                return false;
-            }
-
-            m_currentRow = mysql_fetch_row(m_result.get());
-            if (m_currentRow)
-            {
-                m_rowPosition++;
-                return true;
-            }
-
+            m_currentRow = nullptr; // Ensure currentRow is invalidated
             return false;
         }
-        catch (const DBException &ex)
+
+        m_currentRow = mysql_fetch_row(m_result.get());
+        if (m_currentRow)
         {
-            return cpp_dbc::unexpected(ex);
+            m_rowPosition++;
+            return true;
         }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("B8C4D0E6F2A4",
-                                                   std::string("next failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("B8C4D0E6F2A5",
-                                                   "next failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+
+        return false;
     }
 
     cpp_dbc::expected<bool, DBException> MySQLDBResultSet::isBeforeFirst(std::nothrow_t) noexcept
     {
-        try
-        {
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
-            DB_DRIVER_LOCK_GUARD(m_mutex);
-
-            return m_rowPosition == 0;
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("C9D5E1F7A4B1",
-                                                   std::string("isBeforeFirst failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("C9D5E1F7A4B2",
-                                                   "isBeforeFirst failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return m_rowPosition == 0;
     }
 
     cpp_dbc::expected<bool, DBException> MySQLDBResultSet::isAfterLast(std::nothrow_t) noexcept
     {
-        try
-        {
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
-            DB_DRIVER_LOCK_GUARD(m_mutex);
-
-            return m_result && m_rowPosition > m_rowCount;
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("D0E6F2A8B5C2",
-                                                   std::string("isAfterLast failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("D0E6F2A8B5C3",
-                                                   "isAfterLast failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return m_result && m_rowPosition > m_rowCount;
     }
 
     cpp_dbc::expected<uint64_t, DBException> MySQLDBResultSet::getRow(std::nothrow_t) noexcept
     {
-        try
-        {
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
-            DB_DRIVER_LOCK_GUARD(m_mutex);
-
-            return m_rowPosition;
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("E1F7A3B9C6D3",
-                                                   std::string("getRow failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("E1F7A3B9C6D4",
-                                                   "getRow failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return m_rowPosition;
     }
 
     cpp_dbc::expected<int, DBException> MySQLDBResultSet::getInt(std::nothrow_t, size_t columnIndex) noexcept
     {
+        // try/catch is required: std::stoi can throw std::invalid_argument or std::out_of_range
         try
         {
 
@@ -264,35 +147,17 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<int, DBException> MySQLDBResultSet::getInt(std::nothrow_t, const std::string &columnName) noexcept
     {
-        try
+        auto it = m_columnMap.find(columnName);
+        if (it == m_columnMap.end())
         {
-            auto it = m_columnMap.find(columnName);
-            if (it == m_columnMap.end())
-            {
-                return cpp_dbc::unexpected(DBException("P9Z0A1B2C3D4", "Column not found: " + columnName, system_utils::captureCallStack()));
-            }
-            return getInt(std::nothrow, it->second + 1); // +1 because getInt(int) is 1-based
+            return cpp_dbc::unexpected(DBException("P9Z0A1B2C3D4", "Column not found: " + columnName, system_utils::captureCallStack()));
         }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("C9D5E1F7A4B7",
-                                                   std::string("getInt failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("C9D5E1F7A4B8",
-                                                   "getInt failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return getInt(std::nothrow, it->second + 1); // +1 because getInt(int) is 1-based
     }
 
     cpp_dbc::expected<int64_t, DBException> MySQLDBResultSet::getLong(std::nothrow_t, size_t columnIndex) noexcept
     {
+        // try/catch is required: std::stoll can throw std::invalid_argument or std::out_of_range
         try
         {
 
@@ -337,35 +202,17 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<int64_t, DBException> MySQLDBResultSet::getLong(std::nothrow_t, const std::string &columnName) noexcept
     {
-        try
+        auto it = m_columnMap.find(columnName);
+        if (it == m_columnMap.end())
         {
-            auto it = m_columnMap.find(columnName);
-            if (it == m_columnMap.end())
-            {
-                return cpp_dbc::unexpected(DBException("5G6H7I8J9K0L", "Column not found: " + columnName, system_utils::captureCallStack()));
-            }
-            return getLong(std::nothrow, it->second + 1);
+            return cpp_dbc::unexpected(DBException("5G6H7I8J9K0L", "Column not found: " + columnName, system_utils::captureCallStack()));
         }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("D0E6F2A8B5C8",
-                                                   std::string("getLong failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("D0E6F2A8B5C9",
-                                                   "getLong failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return getLong(std::nothrow, it->second + 1);
     }
 
     cpp_dbc::expected<double, DBException> MySQLDBResultSet::getDouble(std::nothrow_t, size_t columnIndex) noexcept
     {
+        // try/catch is required: std::stod can throw std::invalid_argument or std::out_of_range
         try
         {
 
@@ -410,31 +257,12 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<double, DBException> MySQLDBResultSet::getDouble(std::nothrow_t, const std::string &columnName) noexcept
     {
-        try
+        auto it = m_columnMap.find(columnName);
+        if (it == m_columnMap.end())
         {
-            auto it = m_columnMap.find(columnName);
-            if (it == m_columnMap.end())
-            {
-                return cpp_dbc::unexpected(DBException("FA0HK6HTPRIP", "Column not found: " + columnName, system_utils::captureCallStack()));
-            }
-            return getDouble(std::nothrow, it->second + 1);
+            return cpp_dbc::unexpected(DBException("FA0HK6HTPRIP", "Column not found: " + columnName, system_utils::captureCallStack()));
         }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("E1F7A3B9C6D9",
-                                                   std::string("getDouble failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("E1F7A3B9C6DA",
-                                                   "getDouble failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return getDouble(std::nothrow, it->second + 1);
     }
 
 } // namespace cpp_dbc::MySQL

@@ -589,7 +589,7 @@ The project includes comprehensive smart pointer usage to prevent memory leaks:
    - `MySQLHandle` (shared_ptr<MYSQL>) for connection management
    - `MySQLStmtHandle` (unique_ptr<MYSQL_STMT>) for prepared statements
    - `MySQLResHandle` (unique_ptr<MYSQL_RES>) for result sets
-   - `weak_ptr<MYSQL>` in PreparedStatement for safe connection reference
+   - `weak_ptr<MySQLDBConnection>` in PreparedStatement and ResultSet for safe connection reference (accesses MYSQL* and mutex through the connection object)
 
 3. **PostgreSQL Driver Smart Pointers**:
    - `PGconnHandle` (shared_ptr<PGconn>) for connection management
@@ -611,7 +611,7 @@ The project includes comprehensive smart pointer usage to prevent memory leaks:
 6. **BLOB Memory Safety**:
    - All BLOB implementations use `weak_ptr` for safe connection references
    - `FirebirdBlob`: Uses `weak_ptr<FirebirdConnection>` with `getConnection()` helper
-   - `MySQLBlob`: Uses `weak_ptr<MYSQL>` with `getMySQLConnection()` helper
+   - `MySQLBlob`: Uses `weak_ptr<MySQLDBConnection>` with connection reference for safe MYSQL* access
    - `PostgreSQLBlob`: Uses `weak_ptr<PGconn>` with `getPGConnection()` helper
    - `SQLiteBlob`: Uses `weak_ptr<sqlite3>` with `getSQLiteConnection()` helper
    - All BLOB classes have `isConnectionValid()` method to check connection state

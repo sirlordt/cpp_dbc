@@ -36,252 +36,162 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<void, DBException> MySQLDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
     {
-        try
+        MYSQL_CONNECTION_LOCK_OR_RETURN("47FCEE77D4F3", "Cannot set transaction isolation");
+
+        using enum TransactionIsolationLevel;
+        std::string query;
+        switch (level)
         {
-
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
-            {
-                return cpp_dbc::unexpected(DBException("47FCEE77D4F3", "Connection is closed", system_utils::captureCallStack()));
-            }
-
-            using enum TransactionIsolationLevel;
-            std::string query;
-            switch (level)
-            {
-            case TRANSACTION_READ_UNCOMMITTED:
-                query = "SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED";
-                break;
-            case TRANSACTION_READ_COMMITTED:
-                query = "SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED";
-                break;
-            case TRANSACTION_REPEATABLE_READ:
-                query = "SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ";
-                break;
-            case TRANSACTION_SERIALIZABLE:
-                query = "SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE";
-                break;
-            default:
-                return cpp_dbc::unexpected(DBException("N6Z7A8B9C0D1", "Unsupported transaction isolation level", system_utils::captureCallStack()));
-            }
-
-            if (mysql_query(m_mysql.get(), query.c_str()) != 0)
-            {
-                return cpp_dbc::unexpected(DBException("N7Z8A9B0C1D2", std::string("Failed to set transaction isolation level: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
-            }
-
-            // Verify that the isolation level was actually set
-            auto actualLevelResult = getTransactionIsolation(std::nothrow);
-            if (!actualLevelResult)
-            {
-                return cpp_dbc::unexpected(actualLevelResult.error());
-            }
-            TransactionIsolationLevel actualLevel = *actualLevelResult;
-
-            if (actualLevel != level)
-            {
-                // Some MySQL configurations might not allow certain isolation levels
-                // In this case, we'll update our internal state to match what MySQL actually set
-                this->m_isolationLevel = actualLevel;
-            }
-            else
-            {
-                this->m_isolationLevel = level;
-            }
-            return {};
+        case TRANSACTION_READ_UNCOMMITTED:
+            query = "SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED";
+            break;
+        case TRANSACTION_READ_COMMITTED:
+            query = "SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED";
+            break;
+        case TRANSACTION_REPEATABLE_READ:
+            query = "SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ";
+            break;
+        case TRANSACTION_SERIALIZABLE:
+            query = "SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE";
+            break;
+        default:
+            return cpp_dbc::unexpected(DBException("N6Z7A8B9C0D1", "Unsupported transaction isolation level", system_utils::captureCallStack()));
         }
-        catch (const DBException &ex)
+
+        if (mysql_query(m_mysql.get(), query.c_str()) != 0)
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(DBException("N7Z8A9B0C1D2", std::string("Failed to set transaction isolation level: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
+
+        // Verify that the isolation level was actually set
+        auto actualLevelResult = getTransactionIsolation(std::nothrow);
+        if (!actualLevelResult.has_value())
         {
-            return cpp_dbc::unexpected(DBException("E3F9A5B1C7DB",
-                                                   std::string("setTransactionIsolation failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(actualLevelResult.error());
         }
-        catch (...)
+        TransactionIsolationLevel actualLevel = *actualLevelResult;
+
+        if (actualLevel != level)
         {
-            return cpp_dbc::unexpected(DBException("E3F9A5B1C7DC",
-                                                   "setTransactionIsolation failed: unknown error",
-                                                   system_utils::captureCallStack()));
+            // Some MySQL configurations might not allow certain isolation levels
+            // In this case, we'll update our internal state to match what MySQL actually set
+            this->m_isolationLevel = actualLevel;
         }
+        else
+        {
+            this->m_isolationLevel = level;
+        }
+        return {};
     }
 
     cpp_dbc::expected<TransactionIsolationLevel, DBException> MySQLDBConnection::getTransactionIsolation(std::nothrow_t) noexcept
     {
-        try
+        MYSQL_CONNECTION_LOCK_OR_RETURN("N8Z9A0B1C2D3", "Cannot get transaction isolation");
+
+        // If we're being called from setTransactionIsolation, return the cached value
+        // to avoid potential infinite recursion
+        if (m_inGetTransactionIsolation)
         {
-
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
-            {
-                return cpp_dbc::unexpected(DBException("N8Z9A0B1C2D3", "Connection is closed", system_utils::captureCallStack()));
-            }
-
-            // If we're being called from setTransactionIsolation, return the cached value
-            // to avoid potential infinite recursion
-            if (m_inGetTransactionIsolation)
-            {
-                return this->m_isolationLevel;
-            }
-
-            m_inGetTransactionIsolation = true;
-
-            try // NOSONAR - nested try is intentional for separate cleanup logic
-            {
-                // Query the current isolation level (try newer syntax first, then fall back to older MySQL versions)
-                if (mysql_query(m_mysql.get(), "SELECT @@transaction_isolation") != 0 &&
-                    mysql_query(m_mysql.get(), "SELECT @@tx_isolation") != 0)
-                {
-                    m_inGetTransactionIsolation = false;
-                    return cpp_dbc::unexpected(DBException("N9Z0A1B2C3D4", std::string("Failed to get transaction isolation level: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
-                }
-
-                MYSQL_RES *result = mysql_store_result(m_mysql.get());
-                if (!result)
-                {
-                    m_inGetTransactionIsolation = false;
-                    return cpp_dbc::unexpected(DBException("O0Z1A2B3C4D5", std::string("Failed to get result set: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
-                }
-
-                MYSQL_ROW row = mysql_fetch_row(result);
-                if (!row)
-                {
-                    mysql_free_result(result);
-                    m_inGetTransactionIsolation = false;
-                    return cpp_dbc::unexpected(DBException("O1Z2A3B4C5D6", "Failed to fetch transaction isolation level", system_utils::captureCallStack()));
-                }
-
-                std::string level = row[0];
-                mysql_free_result(result);
-
-                // Convert the string value to the enum
-                TransactionIsolationLevel isolationResult;
-                if (level == "READ-UNCOMMITTED" || level == "READ_UNCOMMITTED")
-                    isolationResult = TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED;
-                else if (level == "READ-COMMITTED" || level == "READ_COMMITTED")
-                    isolationResult = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED;
-                else if (level == "REPEATABLE-READ" || level == "REPEATABLE_READ")
-                    isolationResult = TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ;
-                else if (level == "SERIALIZABLE")
-                    isolationResult = TransactionIsolationLevel::TRANSACTION_SERIALIZABLE;
-                else
-                    isolationResult = TransactionIsolationLevel::TRANSACTION_NONE;
-
-                // Update our cached value
-                this->m_isolationLevel = isolationResult;
-                m_inGetTransactionIsolation = false;
-                return isolationResult;
-            }
-            catch ([[maybe_unused]] const std::exception &ex)
-            {
-                m_inGetTransactionIsolation = false;
-                MYSQL_DEBUG("MySQLDBConnection::getTransactionIsolation - Exception during query: " << ex.what());
-                throw;
-            }
+            return this->m_isolationLevel;
         }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("F4A0B6C2D8EB",
-                                                   std::string("getTransactionIsolation failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions
+
+        m_inGetTransactionIsolation = true;
+
+        // Query the current isolation level (try newer syntax first, then fall back to older MySQL versions)
+        if (mysql_query(m_mysql.get(), "SELECT @@transaction_isolation") != 0 &&
+            mysql_query(m_mysql.get(), "SELECT @@tx_isolation") != 0)
         {
             m_inGetTransactionIsolation = false;
-            return cpp_dbc::unexpected(DBException("U84GW5ZYI8YZ",
-                                                   "getTransactionIsolation failed: unknown exception",
-                                                   system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("N9Z0A1B2C3D4", std::string("Failed to get transaction isolation level: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
         }
+
+        MYSQL_RES *result = mysql_store_result(m_mysql.get());
+        if (!result)
+        {
+            m_inGetTransactionIsolation = false;
+            return cpp_dbc::unexpected(DBException("O0Z1A2B3C4D5", std::string("Failed to get result set: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
+        }
+
+        MYSQL_ROW row = mysql_fetch_row(result);
+        if (!row)
+        {
+            mysql_free_result(result);
+            m_inGetTransactionIsolation = false;
+            return cpp_dbc::unexpected(DBException("O1Z2A3B4C5D6", "Failed to fetch transaction isolation level", system_utils::captureCallStack()));
+        }
+
+        std::string level = row[0];
+        mysql_free_result(result);
+
+        // Convert the string value to the enum
+        TransactionIsolationLevel isolationResult;
+        if (level == "READ-UNCOMMITTED" || level == "READ_UNCOMMITTED")
+        {
+            isolationResult = TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED;
+        }
+        else if (level == "READ-COMMITTED" || level == "READ_COMMITTED")
+        {
+            isolationResult = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED;
+        }
+        else if (level == "REPEATABLE-READ" || level == "REPEATABLE_READ")
+        {
+            isolationResult = TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ;
+        }
+        else if (level == "SERIALIZABLE")
+        {
+            isolationResult = TransactionIsolationLevel::TRANSACTION_SERIALIZABLE;
+        }
+        else
+        {
+            isolationResult = TransactionIsolationLevel::TRANSACTION_NONE;
+        }
+
+        // Update our cached value
+        this->m_isolationLevel = isolationResult;
+        m_inGetTransactionIsolation = false;
+        return isolationResult;
     }
 
     cpp_dbc::expected<void, DBException> MySQLDBConnection::close(std::nothrow_t) noexcept
     {
-        try
-        {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        MYSQL_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
 
-            if (!m_closed.load(std::memory_order_acquire) && m_mysql)
-            {
-                // Close all active statements before closing the connection
-                // This ensures mysql_stmt_close() is called while we have exclusive access
-                [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
+        // Close all active result sets and statements before closing the connection
+        // This ensures mysql_stmt_close() is called while we have exclusive access
+        [[maybe_unused]] auto closeRsResult = closeAllActiveResultSets(std::nothrow);
+        [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
 
-                // Sleep for 25ms to avoid problems with concurrency
-                std::this_thread::sleep_for(std::chrono::milliseconds(25));
+        // Sleep for 25ms to avoid problems with concurrency
+        std::this_thread::sleep_for(std::chrono::milliseconds(25));
 
-                m_mysql.reset();
-                m_closed.store(true, std::memory_order_release);
-            }
-            return {};
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("EVNAW6RQL7XJ",
-                                                   std::string("close failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("RUYEVHUFNAKU",
-                                                   "close failed with unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        m_mysql.reset();
+        m_closed.store(true, std::memory_order_release);
+        return {};
     }
 
     cpp_dbc::expected<void, DBException> MySQLDBConnection::reset(std::nothrow_t) noexcept
     {
-        try
+        MYSQL_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
+
+        // RAII guard to set m_resetting flag during reset operation
+        // This prevents ResultSet/PreparedStatement from calling unregister during closeAll*()
+        cpp_dbc::system_utils::AtomicGuard<bool> resettingGuard(m_resetting, true, false);
+
+        // Close all active result sets and statements
+        [[maybe_unused]] auto closeRsResult = closeAllActiveResultSets(std::nothrow);
+        [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
+
+        // Rollback any active transaction
+        auto txActive = transactionActive(std::nothrow);
+        if (txActive.has_value() && txActive.value())
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
-            {
-                return {}; // Nothing to reset if already closed
-            }
-
-            // Close all active statements
-            [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
-
-            // Rollback any active transaction
-            auto txActive = transactionActive(std::nothrow);
-            if (txActive.has_value() && txActive.value())
-            {
-                rollback(std::nothrow);
-            }
-
-            // Reset auto-commit to true
-            setAutoCommit(std::nothrow, true);
-
-            return {};
+            [[maybe_unused]] auto rbResult = rollback(std::nothrow);
         }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("UEZ6WHV72DW6",
-                                                   std::string("reset failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("TBZM1ZVPE3LF",
-                                                   "reset failed with unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+
+        // Reset auto-commit to true
+        [[maybe_unused]] auto acResult = setAutoCommit(std::nothrow, true);
+
+        return {};
     }
 
     cpp_dbc::expected<bool, DBException> MySQLDBConnection::isClosed(std::nothrow_t) const noexcept
@@ -291,36 +201,18 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<void, DBException> MySQLDBConnection::returnToPool(std::nothrow_t) noexcept
     {
-        try
-        {
-            // CRITICAL: Close all active statements BEFORE making connection available
-            // closeAllStatements() acquires m_connMutex internally
-            [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
+        // CRITICAL: Close all active result sets and statements BEFORE making connection available
+        // closeAllStatements() acquires m_connMutex internally
+        [[maybe_unused]] auto closeRsResult = closeAllActiveResultSets(std::nothrow);
+        [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
 
-            // Restore autocommit for the next user of this connection
-            if (!m_autoCommit)
-            {
-                setAutoCommit(std::nothrow, true);
-            }
+        // Restore autocommit for the next user of this connection
+        if (!m_autoCommit)
+        {
+            setAutoCommit(std::nothrow, true);
+        }
 
-            return {};
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("XP5VQOWILZHR",
-                                                   std::string("returnToPool failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("0YNOET2LQT76",
-                                                   "returnToPool failed with unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return {};
     }
 
     cpp_dbc::expected<bool, DBException> MySQLDBConnection::isPooled(std::nothrow_t) const noexcept
@@ -336,7 +228,7 @@ namespace cpp_dbc::MySQL
     cpp_dbc::expected<void, DBException> MySQLDBConnection::prepareForPoolReturn(
         std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept
     {
-        // Delegate to reset() which closes statements, rolls back, and resets autocommit
+        // Delegate to reset() which closes result sets, statements, rolls back, and resets autocommit
         auto resetResult = reset(std::nothrow);
         if (!resetResult.has_value())
         {

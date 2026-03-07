@@ -36,10 +36,10 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::setBlob(std::nothrow_t, int parameterIndex, std::shared_ptr<Blob> x) noexcept
     {
+        // try/catch required: x->getBytes() and x->length() are throwing Blob interface methods
         try
         {
-
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            MYSQL_STMT_LOCK_OR_RETURN("ZPONUDZ1G6PM", "setBlob failed");
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
@@ -61,7 +61,7 @@ namespace cpp_dbc::MySQL
                 return {};
             }
 
-            // Get the blob data
+            // Get the blob data — x->getBytes() and x->length() can throw
             std::vector<uint8_t> data = x->getBytes(0, x->length());
 
             // Store the data in our vector to keep it alive
@@ -97,10 +97,10 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x) noexcept
     {
+        // try/catch required: x->read() is a throwing InputStream interface method
         try
         {
-
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            MYSQL_STMT_LOCK_OR_RETURN("ATVKMR2CYNW3", "setBinaryStream failed");
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
@@ -122,7 +122,7 @@ namespace cpp_dbc::MySQL
                 return {};
             }
 
-            // Read all data from the stream
+            // Read all data from the stream — x->read() can throw
             std::vector<uint8_t> data;
             std::array<uint8_t, 4096> buffer{};
             int bytesRead = 0;
@@ -164,10 +164,10 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x, size_t length) noexcept
     {
+        // try/catch required: x->read() is a throwing InputStream interface method
         try
         {
-
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            MYSQL_STMT_LOCK_OR_RETURN("2TN4M0W7PMXX", "setBinaryStream failed");
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
@@ -189,7 +189,7 @@ namespace cpp_dbc::MySQL
                 return {};
             }
 
-            // Read up to 'length' bytes from the stream
+            // Read up to 'length' bytes from the stream — x->read() can throw
             std::vector<uint8_t> data;
             data.reserve(length);
             std::array<uint8_t, 4096> buffer{};
@@ -244,253 +244,159 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::setBytes(std::nothrow_t, int parameterIndex, const uint8_t *x, size_t length) noexcept
     {
-        try
+        MYSQL_STMT_LOCK_OR_RETURN("EI21DGR86T2Z", "setBytes failed");
+
+        if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
+            return cpp_dbc::unexpected(DBException("B5C6D7E8F9G0", "Invalid parameter index for setBytes", system_utils::captureCallStack()));
+        }
 
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        int idx = parameterIndex - 1;
 
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
+        if (!x)
+        {
+            auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
+            if (!nullResult.has_value())
             {
-                return cpp_dbc::unexpected(DBException("B5C6D7E8F9G0", "Invalid parameter index for setBytes", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(nullResult.error());
             }
-
-            int idx = parameterIndex - 1;
-
-            if (!x)
-            {
-                auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
-                if (!nullResult.has_value())
-                {
-                    return cpp_dbc::unexpected(nullResult.error());
-                }
-                return {};
-            }
-
-            // Store the data in our vector to keep it alive
-            m_blobValues[idx].resize(length);
-            std::memcpy(m_blobValues[idx].data(), x, length);
-
-            m_binds[idx].buffer_type = MYSQL_TYPE_BLOB;
-            m_binds[idx].buffer = m_blobValues[idx].data();
-            m_binds[idx].buffer_length = m_blobValues[idx].size();
-            m_binds[idx].is_null = nullptr;
-            m_binds[idx].length = nullptr;
-
-            // Store parameter value for query reconstruction
-            m_parameterValues[idx] = "BINARY DATA";
             return {};
         }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("F1A7B3C9D6E2",
-                                                   std::string("setBytes failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("F1A7B3C9D6E3",
-                                                   "setBytes failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+
+        // Store the data in our vector to keep it alive
+        m_blobValues[idx].resize(length);
+        std::memcpy(m_blobValues[idx].data(), x, length);
+
+        m_binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+        m_binds[idx].buffer = m_blobValues[idx].data();
+        m_binds[idx].buffer_length = m_blobValues[idx].size();
+        m_binds[idx].is_null = nullptr;
+        m_binds[idx].length = nullptr;
+
+        // Store parameter value for query reconstruction
+        m_parameterValues[idx] = "BINARY DATA";
+        return {};
     }
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> MySQLDBPreparedStatement::executeQuery(std::nothrow_t) noexcept
     {
-        try
+        MYSQL_STMT_LOCK_OR_RETURN("LXJI5IP1RX5S", "executeQuery failed");
+
+        if (!m_stmt)
         {
-
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            if (!m_stmt)
-            {
-                return cpp_dbc::unexpected(DBException("P1Z2A3B4C5D6", "Statement is applied", system_utils::captureCallStack()));
-            }
-
-            // Get the MySQL connection safely
-            auto mysqlResult = getMySQLConnection(std::nothrow);
-            if (!mysqlResult.has_value())
-            {
-                return cpp_dbc::unexpected(mysqlResult.error());
-            }
-            MYSQL *mysqlPtr = mysqlResult.value();
-
-            // Reconstruct the query with bound parameters to avoid "Commands out of sync" issue
-            std::string finalQuery = m_sql;
-
-            // Replace each '?' with the corresponding parameter value
-            for (const auto &paramValue : m_parameterValues)
-            {
-                size_t pos = finalQuery.find('?');
-                if (pos != std::string::npos)
-                {
-                    finalQuery.replace(pos, 1, paramValue);
-                }
-            }
-
-            // Execute the reconstructed query using the regular connection interface
-            if (mysql_query(mysqlPtr, finalQuery.c_str()) != 0)
-            {
-                return cpp_dbc::unexpected(DBException("P2Z3A4B5C6D7", std::string("Query failed: ") + mysql_error(mysqlPtr), system_utils::captureCallStack()));
-            }
-
-            MYSQL_RES *result = mysql_store_result(mysqlPtr);
-            if (!result && mysql_field_count(mysqlPtr) > 0)
-            {
-                return cpp_dbc::unexpected(DBException("H1I2J3K4L5M6", std::string("Failed to get result set: ") + mysql_error(mysqlPtr), system_utils::captureCallStack()));
-            }
-
-            auto rsResult = MySQLDBResultSet::create(std::nothrow, result);
-            if (!rsResult.has_value())
-            {
-                return cpp_dbc::unexpected(rsResult.error());
-            }
-
-            // Close the statement after execution (single-use)
-            // This is safe because mysql_store_result() copies all data to client memory
-            // close();
-
-            return std::shared_ptr<RelationalDBResultSet>(rsResult.value());
+            return cpp_dbc::unexpected(DBException("P1Z2A3B4C5D6", "Statement is not initialized", system_utils::captureCallStack()));
         }
-        catch (const DBException &ex)
+
+        // Get the MySQL connection safely
+        auto mysqlResult = getMySQLConnection(std::nothrow);
+        if (!mysqlResult.has_value())
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(mysqlResult.error());
         }
-        catch (const std::exception &ex)
+        MYSQL *mysqlPtr = mysqlResult.value();
+
+        // Reconstruct the query with bound parameters to avoid "Commands out of sync" issue
+        std::string finalQuery = m_sql;
+
+        // Replace each '?' with the corresponding parameter value
+        for (const auto &paramValue : m_parameterValues)
         {
-            return cpp_dbc::unexpected(DBException("D4E0F6A2B9CC",
-                                                   std::string("executeQuery failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
+            size_t pos = finalQuery.find('?');
+            if (pos != std::string::npos)
+            {
+                finalQuery.replace(pos, 1, paramValue);
+            }
         }
-        catch (...)
+
+        // Execute the reconstructed query using the regular connection interface
+        if (mysql_query(mysqlPtr, finalQuery.c_str()) != 0)
         {
-            return cpp_dbc::unexpected(DBException("D4E0F6A2B9CD",
-                                                   "executeQuery failed: unknown error",
-                                                   system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("P2Z3A4B5C6D7", std::string("Query failed: ") + mysql_error(mysqlPtr), system_utils::captureCallStack()));
         }
+
+        MYSQL_RES *result = mysql_store_result(mysqlPtr);
+        if (!result && mysql_field_count(mysqlPtr) > 0)
+        {
+            return cpp_dbc::unexpected(DBException("H1I2J3K4L5M6", std::string("Failed to get result set: ") + mysql_error(mysqlPtr), system_utils::captureCallStack()));
+        }
+
+        // Lock the connection to pass it to the ResultSet and register it
+        auto conn = m_connection.lock();
+        auto rsResult = MySQLDBResultSet::create(std::nothrow, result, conn);
+        if (!rsResult.has_value())
+        {
+            return cpp_dbc::unexpected(rsResult.error());
+        }
+
+        auto rs = rsResult.value();
+        if (conn)
+        {
+            [[maybe_unused]] auto regResult = conn->registerResultSet(std::nothrow, std::weak_ptr<MySQLDBResultSet>(rs));
+        }
+
+        return std::shared_ptr<RelationalDBResultSet>(rs);
     }
 
     cpp_dbc::expected<uint64_t, DBException> MySQLDBPreparedStatement::executeUpdate(std::nothrow_t) noexcept
     {
-        try
+        MYSQL_STMT_LOCK_OR_RETURN("04CY5QLA3WRQ", "executeUpdate failed");
+
+        if (!m_stmt)
         {
-
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            if (!m_stmt)
-            {
-                return cpp_dbc::unexpected(DBException("5LX1HOYTGK2I", "Statement is applied", system_utils::captureCallStack()));
-            }
-
-            // Bind parameters
-            if (!m_binds.empty() && mysql_stmt_bind_param(m_stmt.get(), m_binds.data()) != 0)
-            {
-                return cpp_dbc::unexpected(DBException("BEQW22FPSELD", std::string("Failed to bind parameters: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
-            }
-
-            // Execute the query
-            if (mysql_stmt_execute(m_stmt.get()) != 0)
-            {
-                return cpp_dbc::unexpected(DBException("GFRDKCPL25D3", std::string("Failed to execute update: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
-            }
-
-            return mysql_stmt_affected_rows(m_stmt.get());
+            return cpp_dbc::unexpected(DBException("5LX1HOYTGK2I", "Statement is not initialized", system_utils::captureCallStack()));
         }
-        catch (const DBException &ex)
+
+        // Bind parameters
+        if (!m_binds.empty() && mysql_stmt_bind_param(m_stmt.get(), m_binds.data()) != 0)
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(DBException("BEQW22FPSELD", std::string("Failed to bind parameters: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
+
+        // Execute the query
+        if (mysql_stmt_execute(m_stmt.get()) != 0)
         {
-            return cpp_dbc::unexpected(DBException("F6A2B8C4D1EE",
-                                                   std::string("executeUpdate failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("GFRDKCPL25D3", std::string("Failed to execute update: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("F6A2B8C4D1EF",
-                                                   "executeUpdate failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+
+        return mysql_stmt_affected_rows(m_stmt.get());
     }
 
     cpp_dbc::expected<bool, DBException> MySQLDBPreparedStatement::execute(std::nothrow_t) noexcept
     {
-        try
+        MYSQL_STMT_LOCK_OR_RETURN("A9VR5AXG07G3", "execute failed");
+
+        if (!m_stmt)
         {
-
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            if (!m_stmt)
-            {
-                return cpp_dbc::unexpected(DBException("P3Z4A5B6C7D8", "Statement is not initialized", system_utils::captureCallStack()));
-            }
-
-            // Bind parameters
-            if (!m_binds.empty() && mysql_stmt_bind_param(m_stmt.get(), m_binds.data()) != 0)
-            {
-                return cpp_dbc::unexpected(DBException("P4Z5A6B7C8D9", std::string("Failed to bind parameters: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
-            }
-
-            // Execute the query
-            if (mysql_stmt_execute(m_stmt.get()) != 0)
-            {
-                return cpp_dbc::unexpected(DBException("P5Z6A7B8C9D0", std::string("Failed to execute statement: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
-            }
-
-            // Return whether there's a result set
-            return mysql_stmt_field_count(m_stmt.get()) > 0;
+            return cpp_dbc::unexpected(DBException("P3Z4A5B6C7D8", "Statement is not initialized", system_utils::captureCallStack()));
         }
-        catch (const DBException &ex)
+
+        // Bind parameters
+        if (!m_binds.empty() && mysql_stmt_bind_param(m_stmt.get(), m_binds.data()) != 0)
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(DBException("P4Z5A6B7C8D9", std::string("Failed to bind parameters: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
+
+        // Execute the query
+        if (mysql_stmt_execute(m_stmt.get()) != 0)
         {
-            return cpp_dbc::unexpected(DBException("B8C4D0E6F3B0",
-                                                   std::string("execute failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("P5Z6A7B8C9D0", std::string("Failed to execute statement: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("B8C4D0E6F3B1",
-                                                   "execute failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+
+        // Return whether there's a result set
+        return mysql_stmt_field_count(m_stmt.get()) > 0;
     }
 
     cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::close(std::nothrow_t) noexcept
     {
-        try
-        {
+        MYSQL_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
 
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        if (m_stmt)
+        {
+            m_stmt.reset(); // Smart pointer will call mysql_stmt_close via deleter
+        }
 
-            if (m_stmt)
-            {
-                m_stmt.reset(); // Smart pointer will call mysql_stmt_close via deleter
-            }
-            return {};
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("C9D5E1F7A4B9",
-                                                   std::string("close failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("C9D5E1F7A4BA",
-                                                   "close failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        m_closed.store(true, std::memory_order_release);
+        return {};
     }
 
 } // namespace cpp_dbc::MySQL

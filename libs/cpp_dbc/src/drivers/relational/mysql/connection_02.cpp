@@ -38,30 +38,21 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> MySQLDBConnection::prepareStatement(std::nothrow_t, const std::string &sql) noexcept
     {
+        // try/catch is needed here: shared_from_this() can throw std::bad_weak_ptr
         try
         {
+            MYSQL_CONNECTION_LOCK_OR_RETURN("M1Y2S3Q4L5C6", "Cannot prepare statement");
 
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
-            {
-                return cpp_dbc::unexpected(DBException("M1Y2S3Q4L5C6", "Connection is closed", system_utils::captureCallStack()));
-            }
-
-            // Pass weak_ptr and shared mutex to the PreparedStatement
-            // The shared mutex ensures all operations (including destructor) are serialized
-#if DB_DRIVER_THREAD_SAFE
-            auto stmtResult = MySQLDBPreparedStatement::create(std::nothrow, std::weak_ptr<MYSQL>(m_mysql), m_connMutex, sql);
-#else
-            auto stmtResult = MySQLDBPreparedStatement::create(std::nothrow, std::weak_ptr<MYSQL>(m_mysql), sql);
-#endif
+            // Pass weak_ptr<MySQLDBConnection> to the PreparedStatement
+            // The statement accesses the MYSQL* and mutex through the connection reference
+            auto stmtResult = MySQLDBPreparedStatement::create(std::nothrow, std::weak_ptr<MySQLDBConnection>(shared_from_this()), sql);
             if (!stmtResult.has_value())
             {
                 return cpp_dbc::unexpected(stmtResult.error());
             }
             auto stmt = stmtResult.value();
 
-            // Register the statement as weak_ptr - allows natural destruction when user releases reference
+            // Register the statement as weak_ptr — allows natural destruction when user releases reference
             // Statements will be explicitly closed in returnToPool() or close() before connection reuse
             [[maybe_unused]] auto regResult = registerStatement(std::nothrow, std::weak_ptr<MySQLDBPreparedStatement>(stmt));
 
@@ -73,13 +64,13 @@ namespace cpp_dbc::MySQL
         }
         catch (const std::exception &ex)
         {
-            return cpp_dbc::unexpected(DBException("B4C0D6E2F9AC",
+            return cpp_dbc::unexpected(DBException("5PFOVDU347UD",
                                                    std::string("prepareStatement failed: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("B4C0D6E2F9AD",
+            return cpp_dbc::unexpected(DBException("P4AGG0BAVQIP",
                                                    "prepareStatement failed: unknown error",
                                                    system_utils::captureCallStack()));
         }
@@ -87,15 +78,11 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> MySQLDBConnection::executeQuery(std::nothrow_t, const std::string &sql) noexcept
     {
+        // try/catch is needed here: shared_from_this() can throw std::bad_weak_ptr
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
-            {
-                return cpp_dbc::unexpected(DBException("7I8J9K0L1M2N", "Connection is closed", system_utils::captureCallStack()));
-            }
+            MYSQL_CONNECTION_LOCK_OR_RETURN("7I8J9K0L1M2N", "Cannot execute query");
 
             if (mysql_query(m_mysql.get(), sql.c_str()) != 0)
             {
@@ -108,12 +95,17 @@ namespace cpp_dbc::MySQL
                 return cpp_dbc::unexpected(DBException("M3Y4S5Q6L7C8", std::string("Failed to get result set: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
             }
 
-            auto rsResult = MySQLDBResultSet::create(std::nothrow, result);
+            auto rsResult = MySQLDBResultSet::create(std::nothrow, result, shared_from_this());
             if (!rsResult.has_value())
             {
                 return cpp_dbc::unexpected(rsResult.error());
             }
-            return std::shared_ptr<RelationalDBResultSet>(rsResult.value());
+            auto rs = rsResult.value();
+
+            // Register the result set for tracking — allows cleanup in close/reset/returnToPool
+            [[maybe_unused]] auto regResult = registerResultSet(std::nothrow, std::weak_ptr<MySQLDBResultSet>(rs));
+
+            return std::shared_ptr<RelationalDBResultSet>(rs);
         }
         catch (const DBException &ex)
         {
@@ -135,297 +127,132 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<uint64_t, DBException> MySQLDBConnection::executeUpdate(std::nothrow_t, const std::string &sql) noexcept
     {
-        try
-        {
+        MYSQL_CONNECTION_LOCK_OR_RETURN("M4Y5S6Q7L8C9", "Cannot execute update");
 
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
-            {
-                return cpp_dbc::unexpected(DBException("M4Y5S6Q7L8C9", "Connection is closed", system_utils::captureCallStack()));
-            }
-
-            if (mysql_query(m_mysql.get(), sql.c_str()) != 0)
-            {
-                return cpp_dbc::unexpected(DBException("M5Y6S7Q8L9C0", std::string("Update failed: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
-            }
-
-            return mysql_affected_rows(m_mysql.get());
-        }
-        catch (const DBException &ex)
+        if (mysql_query(m_mysql.get(), sql.c_str()) != 0)
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(DBException("M5Y6S7Q8L9C0", std::string("Update failed: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("D6E2F8A4B1CF",
-                                                   std::string("executeUpdate failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("D6E2F8A4B1D0",
-                                                   "executeUpdate failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+
+        return mysql_affected_rows(m_mysql.get());
     }
 
     cpp_dbc::expected<void, DBException> MySQLDBConnection::setAutoCommit(std::nothrow_t, bool autoCommitFlag) noexcept
     {
-        try
+        MYSQL_CONNECTION_LOCK_OR_RETURN("M6Y7S8Q9L0C1", "Cannot set autocommit");
+
+        // Only change the SQL state if we're actually changing the mode
+        if (this->m_autoCommit != autoCommitFlag)
         {
-
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
+            if (autoCommitFlag)
             {
-                return cpp_dbc::unexpected(DBException("M6Y7S8Q9L0C1", "Connection is closed", system_utils::captureCallStack()));
-            }
-
-            // Only change the SQL state if we're actually changing the mode
-            if (this->m_autoCommit != autoCommitFlag)
-            {
-                if (autoCommitFlag)
+                // Habilitar autocommit (1) y desactivar transacciones
+                std::string query = "SET autocommit=1";
+                if (mysql_query(m_mysql.get(), query.c_str()) != 0)
                 {
-                    // Habilitar autocommit (1) y desactivar transacciones
-                    std::string query = "SET autocommit=1";
-                    if (mysql_query(m_mysql.get(), query.c_str()) != 0)
-                    {
-                        return cpp_dbc::unexpected(DBException("M7Y8S9Q0L1C2", std::string("Failed to set autocommit mode: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
-                    }
-
-                    this->m_autoCommit = true;
-                    this->m_transactionActive = false;
+                    return cpp_dbc::unexpected(DBException("M7Y8S9Q0L1C2", std::string("Failed to set autocommit mode: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
                 }
-                else
+
+                this->m_autoCommit = true;
+                this->m_transactionActive = false;
+            }
+            else
+            {
+                // Si estamos desactivando autocommit, usar beginTransaction para iniciar la transacción
+                auto beginResult = beginTransaction(std::nothrow);
+                if (!beginResult.has_value())
                 {
-                    // Si estamos desactivando autocommit, usar beginTransaction para iniciar la transacción
-                    auto beginResult = beginTransaction(std::nothrow);
-                    if (!beginResult.has_value())
-                    {
-                        return cpp_dbc::unexpected(beginResult.error());
-                    }
+                    return cpp_dbc::unexpected(beginResult.error());
                 }
             }
-            return {};
         }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("E7F3A9B5C2DB",
-                                                   std::string("setAutoCommit failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("E7F3A9B5C2DC",
-                                                   "setAutoCommit failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return {};
     }
 
     cpp_dbc::expected<bool, DBException> MySQLDBConnection::getAutoCommit(std::nothrow_t) noexcept
     {
-        try
-        {
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            return m_autoCommit;
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("F8A4B0C6D3EC",
-                                                   std::string("getAutoCommit failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("F8A4B0C6D3ED",
-                                                   "getAutoCommit failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return m_autoCommit;
     }
 
     cpp_dbc::expected<bool, DBException> MySQLDBConnection::beginTransaction(std::nothrow_t) noexcept
     {
-        try
+        MYSQL_CONNECTION_LOCK_OR_RETURN("U7V8W9X0Y1Z2", "Cannot begin transaction");
+
+        // If transaction is already active, just return true
+        if (m_transactionActive)
         {
-
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
-            {
-                return cpp_dbc::unexpected(DBException("U7V8W9X0Y1Z2", "Connection is closed", system_utils::captureCallStack()));
-            }
-
-            // If transaction is already active, just return true
-            if (m_transactionActive)
-            {
-                return true;
-            }
-
-            // Start transaction by disabling autocommit
-            std::string query = "SET autocommit=0";
-            if (mysql_query(m_mysql.get(), query.c_str()) != 0)
-            {
-                return cpp_dbc::unexpected(DBException("M8Y9S0Q1L2C3", std::string("Failed to begin transaction: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
-            }
-
-            m_autoCommit = false;
-            m_transactionActive = true;
             return true;
         }
-        catch (const DBException &ex)
+
+        // Start transaction by disabling autocommit
+        std::string query = "SET autocommit=0";
+        if (mysql_query(m_mysql.get(), query.c_str()) != 0)
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(DBException("M8Y9S0Q1L2C3", std::string("Failed to begin transaction: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("A9B5C1D7E4F9",
-                                                   std::string("beginTransaction failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("A9B5C1D7E4FA",
-                                                   "beginTransaction failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+
+        m_autoCommit = false;
+        m_transactionActive = true;
+        return true;
     }
 
     cpp_dbc::expected<bool, DBException> MySQLDBConnection::transactionActive(std::nothrow_t) noexcept
     {
-        try
-        {
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            return m_transactionActive;
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("B0C6D2E8F5AB",
-                                                   std::string("transactionActive failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("B0C6D2E8F5AC",
-                                                   "transactionActive failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return m_transactionActive;
     }
 
     cpp_dbc::expected<void, DBException> MySQLDBConnection::commit(std::nothrow_t) noexcept
     {
-        try
+        MYSQL_CONNECTION_LOCK_OR_RETURN("M9Y0S1Q2L3C4", "Cannot commit");
+
+        // No transaction active, nothing to commit
+        if (!m_transactionActive)
         {
-
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
-            {
-                return cpp_dbc::unexpected(DBException("M9Y0S1Q2L3C4", "Connection is closed", system_utils::captureCallStack()));
-            }
-
-            // No transaction active, nothing to commit
-            if (!m_transactionActive)
-            {
-                return {};
-            }
-
-            if (mysql_query(m_mysql.get(), "COMMIT") != 0)
-            {
-                return cpp_dbc::unexpected(DBException("N0Y1S2Q3L4C5", std::string("Commit failed: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
-            }
-
-            m_transactionActive = false;
-
-            // If autoCommit is still false, a new transaction starts automatically in MySQL
-            if (!m_autoCommit)
-            {
-                m_transactionActive = true;
-            }
             return {};
         }
-        catch (const DBException &ex)
+
+        if (mysql_query(m_mysql.get(), "COMMIT") != 0)
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(DBException("N0Y1S2Q3L4C5", std::string("Commit failed: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
+
+        m_transactionActive = false;
+
+        // If autoCommit is still false, a new transaction starts automatically in MySQL
+        if (!m_autoCommit)
         {
-            return cpp_dbc::unexpected(DBException("C1D7E3F9A6BB",
-                                                   std::string("commit failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
+            m_transactionActive = true;
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("C1D7E3F9A6BC",
-                                                   "commit failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return {};
     }
 
     cpp_dbc::expected<void, DBException> MySQLDBConnection::rollback(std::nothrow_t) noexcept
     {
-        try
+        MYSQL_CONNECTION_LOCK_OR_RETURN("N1Y2S3Q4L5C6", "Cannot rollback");
+
+        // No transaction active, nothing to rollback
+        if (!m_transactionActive)
         {
-
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
-            {
-                return cpp_dbc::unexpected(DBException("N1Y2S3Q4L5C6", "Connection is closed", system_utils::captureCallStack()));
-            }
-
-            // No transaction active, nothing to rollback
-            if (!m_transactionActive)
-            {
-                return {};
-            }
-
-            if (mysql_query(m_mysql.get(), "ROLLBACK") != 0)
-            {
-                return cpp_dbc::unexpected(DBException("N2Y3S4Q5L6C7", std::string("Rollback failed: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
-            }
-
-            m_transactionActive = false;
-
-            // If autoCommit is still false, a new transaction starts automatically in MySQL
-            if (!m_autoCommit)
-            {
-                m_transactionActive = true;
-            }
             return {};
         }
-        catch (const DBException &ex)
+
+        if (mysql_query(m_mysql.get(), "ROLLBACK") != 0)
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(DBException("N2Y3S4Q5L6C7", std::string("Rollback failed: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
+
+        m_transactionActive = false;
+
+        // If autoCommit is still false, a new transaction starts automatically in MySQL
+        if (!m_autoCommit)
         {
-            return cpp_dbc::unexpected(DBException("D2E8F4A0B6CB",
-                                                   std::string("rollback failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
+            m_transactionActive = true;
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("D2E8F4A0B6CC",
-                                                   "rollback failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return {};
     }
 
 } // namespace cpp_dbc::MySQL

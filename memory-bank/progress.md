@@ -2,29 +2,40 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. MongoDB was the last driver to adopt this architecture (2026-03-04). `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). The connection pool system is now fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
+The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. MySQL was the last relational driver to undergo the full nothrow-first refactor (2026-03-06), completing the architecture across all drivers. `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). The connection pool system is now fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
 
-### Recent Improvements (2026-03-06 08:43 PST)
+### Recent Improvements (2026-03-06 20:29 PST)
 
-**CRTP `PooledDBConnectionBase<D,C,P>` — Unified Pooled Connection Logic via Template Inheritance:**
+**MySQL Driver — Full Nothrow-First Refactor, Static Factory Pattern, Result Set Registry, and Dead try/catch Elimination:**
 
-1. **New CRTP Template — `PooledDBConnectionBase<Derived, ConnType, PoolType>`:**
-   - `pool/pooled_db_connection_base.hpp` + `.cpp` (~485 lines) — extracts close/returnToPool (race-condition fix), destructor cleanup, and pool metadata from all 4 family pooled connection wrappers
-   - `*Impl` methods for diamond-ambiguous DBConnection methods; `*Throw` methods under `#ifdef __cpp_exceptions`
-   - DBConnectionPooled interface overrides (no diamond): `isPoolValid`, `getCreationTime`, `getLastUsedTime`, `setActive`, `isActive`, etc.
-   - Explicit template instantiations for all 4 families
+1. **MySQLDBDriver — Double-Checked Locking:**
+   - `static std::atomic<bool> s_initialized` + `static std::mutex s_initMutex` with `initialize(std::nothrow_t)` double-checked locking
+   - New `static cleanup()` method for re-initialization after driver destruction
 
-2. **Family Pooled Connections — Thin CRTP Delegators:**
-   - One-line inline throwing/nothrow delegators resolve diamond inheritance
-   - Destructors changed to `= default`; only family-specific methods remain
+2. **MySQLDBConnection — PrivateCtorTag + Result Set Registry:**
+   - PrivateCtorTag pattern for `std::make_shared` with effectively-private constructor
+   - Nothrow constructor with `m_initFailed`/`m_initError` error deferral
+   - Result set registry (`m_activeResultSets`) with `registerResultSet()`, `unregisterResultSet()`, `closeAllActiveResultSets()` — two-phase close pattern
+   - `getMySQLNativeHandle()`, `getConnectionMutex()`, `isResetting()` for child object access
+   - `m_resetting` anti-deadlock flag for `closeAllActiveResultSets()`/`closeAllStatements()`
+   - Friend declarations: `MySQLDBPreparedStatement`, `MySQLDBResultSet`, `MySQLBlob`
 
-3. **Friend Declarations:** All 4 family connection classes + `DBConnectionPoolBase` gained `template <typename,typename,typename> friend class PooledDBConnectionBase;`
+3. **MySQLDBPreparedStatement — `weak_ptr<MySQLDBConnection>`:**
+   - `weak_ptr<MySQLDBConnection>` replaces `weak_ptr<MYSQL>` — accesses MYSQL* and mutex through connection
+   - Private nothrow constructor; `create(std::nothrow_t)` via `new` (not `make_shared`)
+   - `m_closed` atomic flag; `notifyConnClosing(std::nothrow_t)` returns `expected`
 
-4. **Dead try/catch Elimination:** All `create(std::nothrow_t)` factory methods cleaned up
+4. **MySQLDBResultSet — Private Constructor + Connection Registration:**
+   - Private nothrow constructor with `m_initFailed`/`m_initError`; `create(std::nothrow_t)` via `new`
+   - `weak_ptr<MySQLDBConnection>` for lifecycle management; `notifyConnClosing(std::nothrow_t)`
+   - `[[nodiscard]]` on all nothrow methods
 
-5. **Documentation:** `how_add_new_db_drivers.md` updated with pool integration guide (Scenario A/B)
+5. **mysql_internal.hpp — RAII Helpers and Macros:**
+   - `MySQLConnectionLock` RAII helper; `MYSQL_CONNECTION_LOCK_OR_RETURN` macro; `MYSQL_DEBUG` macro
 
-6. **Impact:** 17 files changed, +1312/-2230 lines (net reduction of ~918 lines)
+6. **Dead try/catch Elimination:** All nothrow methods calling only nothrow methods cleaned up
+
+7. **Impact:** 17 files changed, +1559/-2202 lines (net reduction of ~643 lines)
 
 ### Recent Improvements (2026-03-06 01:59 PST)
 
