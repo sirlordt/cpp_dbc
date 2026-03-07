@@ -35,15 +35,15 @@ TEST_CASE("MongoDB driver tests", "[25_021_01_mongodb_real_driver]")
         cpp_dbc::MongoDB::MongoDBDriver driver;
 
         // Check that it accepts MongoDB URLs
-        REQUIRE(driver.acceptsURL("cpp_dbc:mongodb://localhost:27017/testdb"));
-        REQUIRE(driver.acceptsURL("cpp_dbc:mongodb://127.0.0.1:27017/testdb"));
-        REQUIRE(driver.acceptsURL("cpp_dbc:mongodb://db.example.com:27017/testdb"));
+        REQUIRE(driver.acceptURI("cpp_dbc:mongodb://localhost:27017/testdb"));
+        REQUIRE(driver.acceptURI("cpp_dbc:mongodb://127.0.0.1:27017/testdb"));
+        REQUIRE(driver.acceptURI("cpp_dbc:mongodb://db.example.com:27017/testdb"));
 
         // Check that it rejects non-MongoDB URLs
-        REQUIRE_FALSE(driver.acceptsURL("cpp_dbc:mysql://localhost:3306/testdb"));
-        REQUIRE_FALSE(driver.acceptsURL("cpp_dbc:postgresql://localhost:5432/testdb"));
-        REQUIRE_FALSE(driver.acceptsURL("mongodb://localhost:27017/testdb"));
-        REQUIRE_FALSE(driver.acceptsURL("jdbc:mongodb://localhost:27017/testdb"));
+        REQUIRE_FALSE(driver.acceptURI("cpp_dbc:mysql://localhost:3306/testdb"));
+        REQUIRE_FALSE(driver.acceptURI("cpp_dbc:postgresql://localhost:5432/testdb"));
+        REQUIRE_FALSE(driver.acceptURI("mongodb://localhost:27017/testdb"));
+        REQUIRE_FALSE(driver.acceptURI("jdbc:mongodb://localhost:27017/testdb"));
     }
 
     SECTION("MongoDB driver connection string parsing")
@@ -65,26 +65,26 @@ TEST_CASE("MongoDB driver tests", "[25_021_01_mongodb_real_driver]")
     {
         cpp_dbc::MongoDB::MongoDBDriver driver;
 
-        // parseURI expects standard mongodb:// format (not cpp_dbc: prefix)
-        auto params = driver.parseURI("mongodb://localhost:27017/testdb");
+        // parseURI expects cpp_dbc:mongodb:// prefix
+        auto params = driver.parseURI("cpp_dbc:mongodb://localhost:27017/testdb");
         REQUIRE(params.at("host") == "localhost");
         REQUIRE(params.at("port") == "27017");
         REQUIRE(params.at("database") == "testdb");
 
         // URI with IP address
-        params = driver.parseURI("mongodb://127.0.0.1:27017/mydb");
+        params = driver.parseURI("cpp_dbc:mongodb://127.0.0.1:27017/mydb");
         REQUIRE(params.at("host") == "127.0.0.1");
         REQUIRE(params.at("port") == "27017");
         REQUIRE(params.at("database") == "mydb");
 
         // URI with custom port
-        params = driver.parseURI("mongodb://dbserver:28017/proddb");
+        params = driver.parseURI("cpp_dbc:mongodb://dbserver:28017/proddb");
         REQUIRE(params.at("host") == "dbserver");
         REQUIRE(params.at("port") == "28017");
         REQUIRE(params.at("database") == "proddb");
 
         // URI with IPv6 address
-        params = driver.parseURI("mongodb://[::1]:27017/testdb");
+        params = driver.parseURI("cpp_dbc:mongodb://[::1]:27017/testdb");
         REQUIRE(params.at("host") == "::1");
         REQUIRE(params.at("port") == "27017");
         REQUIRE(params.at("database") == "testdb");

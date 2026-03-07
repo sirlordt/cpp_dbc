@@ -342,7 +342,7 @@ NewDBDriver::connect(const std::string &url,
                      const std::string &password)
 {
     // Validate URL format
-    if (!acceptsURL(url))
+    if (!acceptURI(url))
     {
         throw DBException("A1B2C3D4E5F6",
             "Invalid URL format: " + url,

@@ -35,12 +35,12 @@ TEST_CASE("ScyllaDB driver tests", "[26_021_01_scylladb_real_driver]")
         cpp_dbc::ScyllaDB::ScyllaDBDriver driver;
 
         // Check that it accepts ScyllaDB URLs
-        REQUIRE(driver.acceptsURL("cpp_dbc:scylladb://localhost:9042/testdb"));
-        REQUIRE(driver.acceptsURL("cpp_dbc:scylladb://127.0.0.1:9042/testdb"));
+        REQUIRE(driver.acceptURI("cpp_dbc:scylladb://localhost:9042/testdb"));
+        REQUIRE(driver.acceptURI("cpp_dbc:scylladb://127.0.0.1:9042/testdb"));
 
         // Check that it rejects non-ScyllaDB URLs
-        REQUIRE_FALSE(driver.acceptsURL("cpp_dbc:mysql://localhost:3306/testdb"));
-        REQUIRE_FALSE(driver.acceptsURL("scylladb://localhost:9042/testdb"));
+        REQUIRE_FALSE(driver.acceptURI("cpp_dbc:mysql://localhost:3306/testdb"));
+        REQUIRE_FALSE(driver.acceptURI("scylladb://localhost:9042/testdb"));
     }
 
     SECTION("ScyllaDB driver parseURI - valid URIs")

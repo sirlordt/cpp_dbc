@@ -42,7 +42,7 @@ namespace cpp_dbc
      * ```cpp
      * // Register and use a driver directly
      * auto driver = std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>();
-     * if (driver->acceptsURL("cpp_dbc:mysql://localhost/mydb")) {
+     * if (driver->acceptURI("cpp_dbc:mysql://localhost/mydb")) {
      *     auto conn = driver->connect("cpp_dbc:mysql://localhost/mydb", "user", "pass");
      *     // ... use connection ...
      *     conn->close();
@@ -117,6 +117,65 @@ namespace cpp_dbc
             return result.value();
         }
 
+        /**
+         * @brief Check if this driver accepts the given URL
+         *
+         * @param url The database URL to check
+         * @return true if this driver can handle the URL
+         * @return false if this driver cannot handle the URL
+         * @throws DBException on error
+         */
+        virtual bool acceptURI(const std::string &url)
+        {
+            auto result = acceptURI(std::nothrow, url);
+            if (!result.has_value())
+            {
+                throw result.error();
+            }
+            return result.value();
+        }
+
+        /**
+         * @brief Parse a connection URI and extract components
+         *
+         * @param uri The connection URI (e.g., "cpp_dbc:mysql://host:port/database")
+         * @return A map containing parsed components (host, port, database, etc.)
+         * @throws DBException if the URI is invalid
+         */
+        virtual std::map<std::string, std::string> parseURI(const std::string &uri)
+        {
+            auto result = parseURI(std::nothrow, uri);
+            if (!result.has_value())
+            {
+                throw result.error();
+            }
+            return result.value();
+        }
+
+        /**
+         * @brief Build a connection URI from components
+         *
+         * @param host The hostname
+         * @param port The port number
+         * @param database The database name or path
+         * @param options Additional options
+         * @return The constructed URI string
+         * @throws DBException if the URI cannot be built
+         */
+        virtual std::string buildURI(
+            const std::string &host,
+            int port,
+            const std::string &database,
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>())
+        {
+            auto result = buildURI(std::nothrow, host, port, database, options);
+            if (!result.has_value())
+            {
+                throw result.error();
+            }
+            return result.value();
+        }
+
 #endif // __cpp_exceptions
 
         // ====================================================================
@@ -141,21 +200,56 @@ namespace cpp_dbc
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept = 0;
 
         /**
-         * @brief Check if this driver accepts the given URL
+         * @brief Check if this driver accepts the given URL (nothrow version)
          *
          * Each driver recognizes a specific URL scheme (e.g., "cpp_dbc:mysql://", "cpp_dbc:postgresql://").
          *
+         * @param nothrow std::nothrow tag to indicate exception-free operation
          * @param url The database URL to check
-         * @return true if this driver can handle the URL
-         * @return false if this driver cannot handle the URL
+         * @return expected containing true if this driver can handle the URL, false otherwise
          *
          * ```cpp
          * auto driver = std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>();
-         * bool ok = driver->acceptsURL("cpp_dbc:mysql://localhost/mydb");  // true
-         * bool no = driver->acceptsURL("cpp_dbc:postgresql://localhost/mydb");  // false
+         * auto ok = driver->acceptURI(std::nothrow, "cpp_dbc:mysql://localhost/mydb");   // true
+         * auto no = driver->acceptURI(std::nothrow, "cpp_dbc:postgresql://localhost/mydb"); // false
          * ```
          */
-        virtual bool acceptsURL(const std::string &url) noexcept = 0;
+        virtual cpp_dbc::expected<bool, DBException> acceptURI(
+            std::nothrow_t, const std::string &url) noexcept
+        {
+            return parseURI(std::nothrow, url).has_value();
+        }
+
+        /**
+         * @brief Parse a connection URI and extract components (nothrow version)
+         *
+         * Each driver implements this to extract connection components
+         * from a driver-specific URI format.
+         *
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param uri The connection URI
+         * @return expected containing map of parsed components (host, port, database, etc.),
+         *         or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(
+            std::nothrow_t, const std::string &uri) noexcept = 0;
+
+        /**
+         * @brief Build a connection URI from components (nothrow version)
+         *
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param host The hostname
+         * @param port The port number
+         * @param database The database name or path
+         * @param options Additional options
+         * @return expected containing the constructed URI string, or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::string, DBException> buildURI(
+            std::nothrow_t,
+            const std::string &host,
+            int port,
+            const std::string &database,
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept = 0;
 
         /**
          * @brief Get the database type supported by this driver
@@ -163,6 +257,21 @@ namespace cpp_dbc
          * @return DBType The type of database (RELATIONAL, DOCUMENT, KEY_VALUE, COLUMNAR)
          */
         virtual DBType getDBType() const noexcept = 0;
+
+        /**
+         * @brief Get the full URI scheme template accepted by this driver
+         *
+         * Returns a human-readable URI template showing all components that
+         * this driver's `parseURI()` expects. Placeholders use angle brackets.
+         *
+         * Examples:
+         * - `"cpp_dbc:mysql://<host>:<port>/<database>"`
+         * - `"cpp_dbc:sqlite://<path>"`
+         * - `"cpp_dbc:redis://<host>:<port>/<db>"`
+         *
+         * @return The URI scheme template string
+         */
+        virtual std::string getURIScheme() const noexcept = 0;
 
         /**
          * @brief Execute a driver-specific command without requiring a connection (nothrow version)

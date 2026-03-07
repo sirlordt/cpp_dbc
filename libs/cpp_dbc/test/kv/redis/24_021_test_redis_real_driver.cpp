@@ -37,17 +37,17 @@ TEST_CASE("Redis driver tests", "[24_021_01_redis_real_driver]")
         cpp_dbc::Redis::RedisDBDriver driver;
 
         // Check that it accepts Redis URLs
-        REQUIRE(driver.acceptsURL("cpp_dbc:redis://localhost:6379/0"));
-        REQUIRE(driver.acceptsURL("cpp_dbc:redis://127.0.0.1:6379/0"));
-        REQUIRE(driver.acceptsURL("cpp_dbc:redis://db.example.com:6379/1"));
-        REQUIRE(driver.acceptsURL("cpp_dbc:redis://localhost:6379/15"));
+        REQUIRE(driver.acceptURI("cpp_dbc:redis://localhost:6379/0"));
+        REQUIRE(driver.acceptURI("cpp_dbc:redis://127.0.0.1:6379/0"));
+        REQUIRE(driver.acceptURI("cpp_dbc:redis://db.example.com:6379/1"));
+        REQUIRE(driver.acceptURI("cpp_dbc:redis://localhost:6379/15"));
 
         // Check that it rejects non-Redis URLs
-        REQUIRE_FALSE(driver.acceptsURL("cpp_dbc:mysql://localhost:3306/testdb"));
-        REQUIRE_FALSE(driver.acceptsURL("cpp_dbc:postgresql://localhost:5432/testdb"));
-        REQUIRE_FALSE(driver.acceptsURL("cpp_dbc:mongodb://localhost:27017/testdb"));
-        REQUIRE_FALSE(driver.acceptsURL("redis://localhost:6379/0"));
-        REQUIRE_FALSE(driver.acceptsURL("jdbc:redis://localhost:6379/0"));
+        REQUIRE_FALSE(driver.acceptURI("cpp_dbc:mysql://localhost:3306/testdb"));
+        REQUIRE_FALSE(driver.acceptURI("cpp_dbc:postgresql://localhost:5432/testdb"));
+        REQUIRE_FALSE(driver.acceptURI("cpp_dbc:mongodb://localhost:27017/testdb"));
+        REQUIRE_FALSE(driver.acceptURI("redis://localhost:6379/0"));
+        REQUIRE_FALSE(driver.acceptURI("jdbc:redis://localhost:6379/0"));
     }
 
     SECTION("Redis driver connection with config credentials")

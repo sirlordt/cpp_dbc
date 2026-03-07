@@ -47,12 +47,12 @@
     }
 
 // For throwing DBConnection methods - throws DBException if connection is closed
-#define MYSQL_CONNECTION_LOCK_OR_THROW(mark, msg)                      \
-    DB_DRIVER_LOCK_GUARD(*m_connMutex);                                \
-    if (m_closed.load(std::memory_order_acquire))                      \
-    {                                                                  \
-        throw DBException(mark, msg " (connection closed)",            \
-                          cpp_dbc::system_utils::captureCallStack());  \
+#define MYSQL_CONNECTION_LOCK_OR_THROW(mark, msg)                     \
+    DB_DRIVER_LOCK_GUARD(*m_connMutex);                               \
+    if (m_closed.load(std::memory_order_acquire))                     \
+    {                                                                 \
+        throw DBException(mark, msg " (connection closed)",           \
+                          cpp_dbc::system_utils::captureCallStack()); \
     }
 
 // For close() method of DBConnection - returns success if already closed (idempotent)
@@ -67,9 +67,25 @@
 #define DB_DRIVER_MUTEX
 #define DB_DRIVER_LOCK_GUARD(mutex) (void)0
 #define DB_DRIVER_UNIQUE_LOCK(mutex) (void)0
-#define MYSQL_CONNECTION_LOCK_OR_RETURN(mark, msg) (void)0
-#define MYSQL_CONNECTION_LOCK_OR_THROW(mark, msg) (void)0
-#define MYSQL_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED() (void)0
+#define MYSQL_CONNECTION_LOCK_OR_RETURN(mark, msg)                                          \
+    if (m_closed.load(std::memory_order_acquire))                                           \
+    {                                                                                       \
+        return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",            \
+                                               cpp_dbc::system_utils::captureCallStack())); \
+    }
+
+#define MYSQL_CONNECTION_LOCK_OR_THROW(mark, msg)                     \
+    if (m_closed.load(std::memory_order_acquire))                     \
+    {                                                                 \
+        throw DBException(mark, msg " (connection closed)",           \
+                          cpp_dbc::system_utils::captureCallStack()); \
+    }
+
+#define MYSQL_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED() \
+    if (m_closed.load(std::memory_order_acquire))           \
+    {                                                       \
+        return {};                                          \
+    }
 #endif
 
 // ============================================================================
@@ -94,7 +110,6 @@ namespace cpp_dbc::MySQL
      */
     class MySQLConnectionLock
     {
-    private:
         std::shared_ptr<MySQLDBConnection> m_conn;
         std::unique_lock<std::recursive_mutex> m_lock;
         bool m_acquired{false};
@@ -162,11 +177,11 @@ namespace cpp_dbc::MySQL
     }
 
 // Macro for close() methods - returns success if already closed (idempotent)
-#define MYSQL_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()                   \
-    cpp_dbc::MySQL::MySQLConnectionLock __lock(this, m_closed);         \
-    if (!__lock)                                                        \
-    {                                                                   \
-        return {}; /* Already closed or connection lost = success */    \
+#define MYSQL_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()                \
+    cpp_dbc::MySQL::MySQLConnectionLock __lock(this, m_closed);      \
+    if (!__lock)                                                     \
+    {                                                                \
+        return {}; /* Already closed or connection lost = success */ \
     }
 
 #else
@@ -184,27 +199,27 @@ namespace cpp_dbc::MySQL
         throw DBException(mark, msg " (connection closed)", cpp_dbc::system_utils::captureCallStack()); \
     }
 
-#define MYSQL_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()         \
-    if (m_closed.load(std::memory_order_acquire))             \
-    {                                                         \
-        return {}; /* Already closed = success */             \
+#define MYSQL_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED() \
+    if (m_closed.load(std::memory_order_acquire))     \
+    {                                                 \
+        return {}; /* Already closed = success */     \
     }
 #endif // DB_DRIVER_THREAD_SAFE
 
 // Debug output is controlled by -DDEBUG_MYSQL=1 or -DDEBUG_ALL=1 CMake option
 #if (defined(DEBUG_MYSQL) && DEBUG_MYSQL) || (defined(DEBUG_ALL) && DEBUG_ALL)
-#define MYSQL_DEBUG(format, ...)                                                       \
-    do                                                                                 \
-    {                                                                                  \
-        char debug_buffer[1024];                                                       \
+#define MYSQL_DEBUG(format, ...)                                                                      \
+    do                                                                                                \
+    {                                                                                                 \
+        char debug_buffer[1024];                                                                      \
         int mysql_debug_n = std::snprintf(debug_buffer, sizeof(debug_buffer), format, ##__VA_ARGS__); \
-        if (mysql_debug_n >= static_cast<int>(sizeof(debug_buffer)))                   \
-        {                                                                              \
-            static constexpr const char mysql_trunc[] = "...[TRUNCATED]";              \
-            std::memcpy(debug_buffer + sizeof(debug_buffer) - sizeof(mysql_trunc),     \
-                        mysql_trunc, sizeof(mysql_trunc));                              \
-        }                                                                              \
-        cpp_dbc::system_utils::logWithTimesMillis("MySQL", debug_buffer);              \
+        if (mysql_debug_n >= static_cast<int>(sizeof(debug_buffer)))                                  \
+        {                                                                                             \
+            static constexpr const char mysql_trunc[] = "...[TRUNCATED]";                             \
+            std::memcpy(debug_buffer + sizeof(debug_buffer) - sizeof(mysql_trunc),                    \
+                        mysql_trunc, sizeof(mysql_trunc));                                            \
+        }                                                                                             \
+        cpp_dbc::system_utils::logWithTimesMillis("MySQL", debug_buffer);                             \
     } while (0)
 #else
 #define MYSQL_DEBUG(...) ((void)0)

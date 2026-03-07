@@ -47,7 +47,7 @@ namespace cpp_dbc::PostgreSQL
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     std::shared_ptr<RelationalDBConnection> PostgreSQLDBDriver::connectRelational(const std::string &url,
                                                                                   const std::string &user,
                                                                                   const std::string &password,
@@ -60,36 +60,52 @@ namespace cpp_dbc::PostgreSQL
         }
         return result.value();
     }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
-    bool PostgreSQLDBDriver::acceptsURL(const std::string &url) noexcept
-    {
-        return url.starts_with("cpp_dbc:postgresql://");
-    }
 
-    bool PostgreSQLDBDriver::parseURL(const std::string &url,
-                                      std::string &host,
-                                      int &port,
-                                      std::string &database) const
+    cpp_dbc::expected<std::map<std::string, std::string>, DBException> PostgreSQLDBDriver::parseURI(
+        std::nothrow_t, const std::string &uri) noexcept
     {
+        if (!uri.starts_with("cpp_dbc:postgresql://"))
+        {
+            return cpp_dbc::unexpected(DBException("YPN18WI6BPTS",
+                                                   "Invalid PostgreSQL URI scheme: " + uri,
+                                                   system_utils::captureCallStack()));
+        }
+
         // Use centralized URL parsing from system_utils
         // PostgreSQL URLs: cpp_dbc:postgresql://host:port/database
         // Also supports IPv6: cpp_dbc:postgresql://[::1]:port/database
         constexpr int DEFAULT_POSTGRESQL_PORT = 5432;
 
         system_utils::ParsedDBURL parsed;
-        if (!system_utils::parseDBURL(url, "cpp_dbc:postgresql://", DEFAULT_POSTGRESQL_PORT, parsed,
+        if (!system_utils::parseDBURL(uri, "cpp_dbc:postgresql://", DEFAULT_POSTGRESQL_PORT, parsed,
                                       false, // allowLocalConnection
                                       true)) // requireDatabase (PostgreSQL requires database)
         {
-            PG_DEBUG("PostgreSQLDBDriver::parseURL - Failed to parse URL: " << url);
-            return false;
+            PG_DEBUG("PostgreSQLDBDriver::parseURI - Failed to parse URI: " << uri);
+            return cpp_dbc::unexpected(DBException("1P567517HBSK",
+                                                   "Failed to parse PostgreSQL URI: " + uri,
+                                                   system_utils::captureCallStack()));
         }
 
-        host = parsed.host;
-        port = parsed.port;
-        database = parsed.database;
-        return true;
+        return std::map<std::string, std::string>{
+            {"host", parsed.host},
+            {"port", std::to_string(parsed.port)},
+            {"database", parsed.database}
+        };
+    }
+
+    cpp_dbc::expected<std::string, DBException> PostgreSQLDBDriver::buildURI(
+        std::nothrow_t,
+        const std::string &host,
+        int port,
+        const std::string &database,
+        const std::map<std::string, std::string> & /*options*/) noexcept
+    {
+        constexpr int DEFAULT_POSTGRESQL_PORT = 5432;
+        int effectivePort = (port <= 0) ? DEFAULT_POSTGRESQL_PORT : port;
+        return "cpp_dbc:postgresql://" + host + ":" + std::to_string(effectivePort) + "/" + database;
     }
 
     // Nothrow API implementation
@@ -102,71 +118,16 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            std::string host;
-            int port;
-            std::string database;
-
-            // Check if the URL is in the expected format
-            if (acceptsURL(url))
+            auto parseResult = parseURI(std::nothrow, url);
+            if (!parseResult.has_value())
             {
-                // URL is in the format cpp_dbc:postgresql://host:port/database
-                if (!parseURL(url, host, port, database))
-                {
-                    return cpp_dbc::unexpected<DBException>(DBException("1K2L3M4N5O6P", "Invalid PostgreSQL connection URL: " + url, system_utils::captureCallStack()));
-                }
+                return cpp_dbc::unexpected(parseResult.error());
             }
-            else
-            {
-                // Try to extract host, port, and database directly
-                size_t hostStart = url.find("://");
-                if (hostStart != std::string::npos)
-                {
-                    std::string temp = url.substr(hostStart + 3);
 
-                    // Find host:port separator
-                    size_t hostEnd = temp.find(":");
-                    if (hostEnd == std::string::npos)
-                    {
-                        // Try to find database separator if no port is specified
-                        hostEnd = temp.find("/");
-                        if (hostEnd == std::string::npos)
-                        {
-                            return cpp_dbc::unexpected<DBException>(DBException("7Q8R9S0T1U2V", "Invalid PostgreSQL connection URL: " + url, system_utils::captureCallStack()));
-                        }
-
-                        host = temp.substr(0, hostEnd);
-                        port = 5432; // Default PostgreSQL port
-                    }
-                    else
-                    {
-                        host = temp.substr(0, hostEnd);
-
-                        // Find port/database separator
-                        size_t portEnd = temp.find("/", hostEnd + 1);
-                        if (portEnd == std::string::npos)
-                        {
-                            return cpp_dbc::unexpected<DBException>(DBException("5I6J7K8L9M0N", "Invalid PostgreSQL connection URL: " + url, system_utils::captureCallStack()));
-                        }
-
-                        std::string portStr = temp.substr(hostEnd + 1, portEnd - hostEnd - 1);
-                        try
-                        {
-                            port = std::stoi(portStr);
-                        }
-                        catch (...)
-                        {
-                            return cpp_dbc::unexpected<DBException>(DBException("1O2P3Q4R5S6T", "Invalid port in URL: " + url, system_utils::captureCallStack()));
-                        }
-
-                        // Extract database
-                        database = temp.substr(portEnd + 1);
-                    }
-                }
-                else
-                {
-                    return cpp_dbc::unexpected<DBException>(DBException("7U8V9W0X1Y2Z", "Invalid PostgreSQL connection URL: " + url, system_utils::captureCallStack()));
-                }
-            }
+            auto &parsed = parseResult.value();
+            const std::string &host = parsed["host"];
+            int port = std::stoi(parsed["port"]);
+            const std::string &database = parsed["database"];
 
             auto connection = std::make_shared<PostgreSQLDBConnection>(host, port, database, user, password, options);
             return cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>(std::static_pointer_cast<RelationalDBConnection>(connection));
@@ -188,6 +149,11 @@ namespace cpp_dbc::PostgreSQL
     std::string PostgreSQLDBDriver::getName() const noexcept
     {
         return "postgresql";
+    }
+
+    std::string PostgreSQLDBDriver::getURIScheme() const noexcept
+    {
+        return "cpp_dbc:postgresql://<host>:<port>/<database>";
     }
 
 } // namespace cpp_dbc::PostgreSQL

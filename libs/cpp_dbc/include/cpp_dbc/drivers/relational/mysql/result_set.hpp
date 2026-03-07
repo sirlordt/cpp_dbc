@@ -88,6 +88,16 @@ namespace cpp_dbc::MySQL
     {
         friend class MySQLDBConnection;
 
+        /**
+         * @brief Private tag for the passkey idiom — enables std::make_shared
+         * from static factory methods while keeping the constructor
+         * effectively private (external code cannot construct PrivateCtorTag).
+         */
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
         // ── Member variables ──────────────────────────────────────────────────
 
         /**
@@ -184,19 +194,7 @@ namespace cpp_dbc::MySQL
          *
          * Holds the DBException that would have been thrown, for deferred delivery.
          */
-        DBException m_initError{"MRC5J67RDC2U", "", {}};
-
-        // ── Private nothrow constructor ───────────────────────────────────────
-        /**
-         * @brief Private nothrow constructor — contains all initialization logic
-         *
-         * Initializes column metadata from MYSQL_RES. On failure, sets
-         * m_initFailed and m_initError instead of throwing. Only intended to be
-         * called from the static create() factory methods via `new`.
-         *
-         * @note create(nothrow_t) uses `new` (not std::make_shared) to access this private constructor.
-         */
-        MySQLDBResultSet(std::nothrow_t, MYSQL_RES *res, std::shared_ptr<MySQLDBConnection> conn) noexcept;
+        std::unique_ptr<DBException> m_initError{nullptr};
 
         // ── Private helper methods ────────────────────────────────────────────
 
@@ -216,6 +214,20 @@ namespace cpp_dbc::MySQL
         cpp_dbc::expected<void, DBException> validateCurrentRow(std::nothrow_t) const noexcept;
 
     public:
+        // ── PrivateCtorTag constructor ────────────────────────────────────────
+        /**
+         * @brief Nothrow constructor — contains all initialization logic.
+         *
+         * Initializes column metadata from MYSQL_RES. On failure, sets
+         * m_initFailed and m_initError instead of throwing.
+         * Public for std::make_shared access, but effectively private:
+         * external code cannot construct PrivateCtorTag.
+         */
+        MySQLDBResultSet(PrivateCtorTag,
+                         std::nothrow_t,
+                         MYSQL_RES *res,
+                         std::shared_ptr<MySQLDBConnection> conn) noexcept;
+
         // ── Destructor ────────────────────────────────────────────────────────
         ~MySQLDBResultSet() override;
 
@@ -298,14 +310,15 @@ namespace cpp_dbc::MySQL
         static cpp_dbc::expected<std::shared_ptr<MySQLDBResultSet>, DBException>
         create(std::nothrow_t, MYSQL_RES *res, std::shared_ptr<MySQLDBConnection> conn) noexcept
         {
-            // Use `new` instead of std::make_shared: std::make_shared cannot access private constructors,
-            // but a static class member function can. The private nothrow constructor stores init
-            // errors in m_initFailed/m_initError rather than throwing, so no try/catch is needed here.
-            auto obj = std::shared_ptr<MySQLDBResultSet>(
-                new MySQLDBResultSet(std::nothrow, res, std::move(conn)));
+            // No try/catch: std::make_shared can only throw std::bad_alloc, which is a
+            // death-sentence exception — the heap is exhausted and no meaningful recovery
+            // is possible. Catching it would hide a catastrophic failure as a silent error
+            // return. Letting std::terminate fire is safer and more debuggable.
+            auto obj = std::make_shared<MySQLDBResultSet>(
+                PrivateCtorTag{}, std::nothrow, res, std::move(conn));
             if (obj->m_initFailed)
             {
-                return cpp_dbc::unexpected(obj->m_initError);
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
             }
             return obj;
         }

@@ -19,6 +19,7 @@
 */
 
 #include <string>
+#include <map>
 #include <memory>
 
 #include <catch2/catch_test_macros.hpp>
@@ -35,16 +36,16 @@ TEST_CASE("Firebird driver tests", "[23_021_01_firebird_real_driver]")
         cpp_dbc::Firebird::FirebirdDBDriver driver;
 
         // Check that it accepts Firebird URLs
-        REQUIRE(driver.acceptsURL("cpp_dbc:firebird://localhost:3050/testdb"));
-        REQUIRE(driver.acceptsURL("cpp_dbc:firebird://127.0.0.1:3050/testdb"));
-        REQUIRE(driver.acceptsURL("cpp_dbc:firebird://db.example.com:3050/testdb"));
-        REQUIRE(driver.acceptsURL("cpp_dbc:firebird://localhost:3050//var/lib/firebird/data/testdb.fdb"));
+        REQUIRE(driver.acceptURI("cpp_dbc:firebird://localhost:3050/testdb"));
+        REQUIRE(driver.acceptURI("cpp_dbc:firebird://127.0.0.1:3050/testdb"));
+        REQUIRE(driver.acceptURI("cpp_dbc:firebird://db.example.com:3050/testdb"));
+        REQUIRE(driver.acceptURI("cpp_dbc:firebird://localhost:3050//var/lib/firebird/data/testdb.fdb"));
 
         // Check that it rejects non-Firebird URLs
-        REQUIRE_FALSE(driver.acceptsURL("cpp_dbc:mysql://localhost:3306/testdb"));
-        REQUIRE_FALSE(driver.acceptsURL("cpp_dbc:postgresql://localhost:5432/testdb"));
-        REQUIRE_FALSE(driver.acceptsURL("jdbc:firebird://localhost:3050/testdb"));
-        REQUIRE_FALSE(driver.acceptsURL("firebird://localhost:3050/testdb"));
+        REQUIRE_FALSE(driver.acceptURI("cpp_dbc:mysql://localhost:3306/testdb"));
+        REQUIRE_FALSE(driver.acceptURI("cpp_dbc:postgresql://localhost:5432/testdb"));
+        REQUIRE_FALSE(driver.acceptURI("jdbc:firebird://localhost:3050/testdb"));
+        REQUIRE_FALSE(driver.acceptURI("firebird://localhost:3050/testdb"));
     }
 
     SECTION("Firebird driver connection string parsing")
@@ -62,57 +63,74 @@ TEST_CASE("Firebird driver tests", "[23_021_01_firebird_real_driver]")
             cpp_dbc::DBException);
     }
 
-    SECTION("Firebird driver parseURL - valid URLs")
+    SECTION("Firebird driver parseURI - valid URLs")
     {
         cpp_dbc::Firebird::FirebirdDBDriver driver;
-        std::string host;
-        int port = 0;
-        std::string database;
 
         // Full URL with host, port, and database path
-        REQUIRE(driver.parseURL("cpp_dbc:firebird://localhost:3050/testdb", host, port, database));
-        REQUIRE(host == "localhost");
-        REQUIRE(port == 3050);
-        REQUIRE(database == "/testdb");
+        auto result1 = driver.parseURI("cpp_dbc:firebird://localhost:3050/testdb");
+        REQUIRE(result1.at("host") == "localhost");
+        REQUIRE(result1.at("port") == "3050");
+        REQUIRE(result1.at("database") == "/testdb");
 
         // URL with custom port and absolute path
-        REQUIRE(driver.parseURL("cpp_dbc:firebird://dbserver:3051//var/lib/firebird/data/test.fdb", host, port, database));
-        REQUIRE(host == "dbserver");
-        REQUIRE(port == 3051);
-        REQUIRE(database == "//var/lib/firebird/data/test.fdb");
+        auto result2 = driver.parseURI("cpp_dbc:firebird://dbserver:3051//var/lib/firebird/data/test.fdb");
+        REQUIRE(result2.at("host") == "dbserver");
+        REQUIRE(result2.at("port") == "3051");
+        REQUIRE(result2.at("database") == "//var/lib/firebird/data/test.fdb");
 
         // URL without port (should default to 3050)
-        REQUIRE(driver.parseURL("cpp_dbc:firebird://localhost/testdb.fdb", host, port, database));
-        REQUIRE(host == "localhost");
-        REQUIRE(port == 3050);
-        REQUIRE(database == "/testdb.fdb");
+        auto result3 = driver.parseURI("cpp_dbc:firebird://localhost/testdb.fdb");
+        REQUIRE(result3.at("host") == "localhost");
+        REQUIRE(result3.at("port") == "3050");
+        REQUIRE(result3.at("database") == "/testdb.fdb");
 
         // Local connection (no host, starts with /)
-        REQUIRE(driver.parseURL("cpp_dbc:firebird:///var/lib/firebird/data/test.fdb", host, port, database));
-        REQUIRE(host.empty());
-        REQUIRE(port == 3050);
-        REQUIRE(database == "/var/lib/firebird/data/test.fdb");
+        auto result4 = driver.parseURI("cpp_dbc:firebird:///var/lib/firebird/data/test.fdb");
+        REQUIRE(result4.at("host").empty());
+        REQUIRE(result4.at("port") == "3050");
+        REQUIRE(result4.at("database") == "/var/lib/firebird/data/test.fdb");
 
         // URL with IPv6 address
-        REQUIRE(driver.parseURL("cpp_dbc:firebird://[::1]:3050/testdb.fdb", host, port, database));
-        REQUIRE(host == "::1");
-        REQUIRE(port == 3050);
-        REQUIRE(database == "/testdb.fdb");
+        auto result5 = driver.parseURI("cpp_dbc:firebird://[::1]:3050/testdb.fdb");
+        REQUIRE(result5.at("host") == "::1");
+        REQUIRE(result5.at("port") == "3050");
+        REQUIRE(result5.at("database") == "/testdb.fdb");
     }
 
-    SECTION("Firebird driver parseURL - invalid URLs")
+    SECTION("Firebird driver parseURI - invalid URLs")
     {
         cpp_dbc::Firebird::FirebirdDBDriver driver;
-        std::string host;
-        int port = 0;
-        std::string database;
 
-        // Wrong scheme
-        REQUIRE_FALSE(driver.parseURL("cpp_dbc:mysql://localhost:3306/testdb", host, port, database));
-        REQUIRE_FALSE(driver.parseURL("jdbc:firebird://localhost:3050/testdb", host, port, database));
+        // Wrong scheme — returns unexpected (not accepted)
+        auto r1 = driver.parseURI(std::nothrow, "cpp_dbc:mysql://localhost:3306/testdb");
+        REQUIRE_FALSE(r1.has_value());
 
-        // Host without database path
-        REQUIRE_FALSE(driver.parseURL("cpp_dbc:firebird://localhost", host, port, database));
+        auto r2 = driver.parseURI(std::nothrow, "jdbc:firebird://localhost:3050/testdb");
+        REQUIRE_FALSE(r2.has_value());
+
+        // Host without database path — returns unexpected (parse error)
+        auto r3 = driver.parseURI(std::nothrow, "cpp_dbc:firebird://localhost");
+        REQUIRE_FALSE(r3.has_value());
+    }
+
+    SECTION("Firebird driver buildURI")
+    {
+        cpp_dbc::Firebird::FirebirdDBDriver driver;
+
+        // Build a standard URL
+        auto uri = driver.buildURI("localhost", 3050, "/testdb");
+        REQUIRE(uri == "cpp_dbc:firebird://localhost/testdb");
+
+        // Build URL with absolute path
+        auto uri2 = driver.buildURI("dbserver", 3051, "//var/lib/firebird/data/test.fdb");
+        REQUIRE(uri2 == "cpp_dbc:firebird://dbserver:3051//var/lib/firebird/data/test.fdb");
+
+        // Roundtrip: buildURI -> parseURI
+        auto parsed = driver.parseURI(uri);
+        REQUIRE(parsed.at("host") == "localhost");
+        REQUIRE(parsed.at("port") == "3050");
+        REQUIRE(parsed.at("database") == "/testdb");
     }
 }
 #endif

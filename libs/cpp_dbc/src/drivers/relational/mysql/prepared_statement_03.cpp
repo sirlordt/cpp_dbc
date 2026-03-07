@@ -36,205 +36,169 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::setBlob(std::nothrow_t, int parameterIndex, std::shared_ptr<Blob> x) noexcept
     {
-        // try/catch required: x->getBytes() and x->length() are throwing Blob interface methods
-        try
+        MYSQL_STMT_LOCK_OR_RETURN("ZPONUDZ1G6PM", "setBlob failed");
+
+        if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
-            MYSQL_STMT_LOCK_OR_RETURN("ZPONUDZ1G6PM", "setBlob failed");
+            return cpp_dbc::unexpected(DBException("D1E2F3G4H5I6", "Invalid parameter index for setBlob", system_utils::captureCallStack()));
+        }
 
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
+        int idx = parameterIndex - 1;
+
+        // Store the blob object to keep it alive
+        m_blobObjects[idx] = x;
+
+        if (!x)
+        {
+            auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
+            if (!nullResult.has_value())
             {
-                return cpp_dbc::unexpected(DBException("D1E2F3G4H5I6", "Invalid parameter index for setBlob", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(nullResult.error());
             }
-
-            int idx = parameterIndex - 1;
-
-            // Store the blob object to keep it alive
-            m_blobObjects[idx] = x;
-
-            if (!x)
-            {
-                auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
-                if (!nullResult.has_value())
-                {
-                    return cpp_dbc::unexpected(nullResult.error());
-                }
-                return {};
-            }
-
-            // Get the blob data — x->getBytes() and x->length() can throw
-            std::vector<uint8_t> data = x->getBytes(0, x->length());
-
-            // Store the data in our vector to keep it alive
-            m_blobValues[idx] = std::move(data);
-
-            m_binds[idx].buffer_type = MYSQL_TYPE_BLOB;
-            m_binds[idx].buffer = m_blobValues[idx].data();
-            m_binds[idx].buffer_length = m_blobValues[idx].size();
-            m_binds[idx].is_null = nullptr;
-            m_binds[idx].length = nullptr;
-
-            // Store parameter value for query reconstruction (with proper escaping)
-            m_parameterValues[idx] = "BINARY DATA";
             return {};
         }
-        catch (const DBException &ex)
+
+        // Get the blob length via nothrow overload
+        auto lengthResult = x->length(std::nothrow);
+        if (!lengthResult.has_value())
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(lengthResult.error());
         }
-        catch (const std::exception &ex)
+
+        // Get the blob data via nothrow overload
+        auto dataResult = x->getBytes(std::nothrow, 0, lengthResult.value());
+        if (!dataResult.has_value())
         {
-            return cpp_dbc::unexpected(DBException("C8D4E0F6A3B9",
-                                                   std::string("setBlob failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(dataResult.error());
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("C8D4E0F6A3BA",
-                                                   "setBlob failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+
+        // Store the data in our vector to keep it alive
+        m_blobValues[idx] = std::move(dataResult.value());
+
+        m_binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+        m_binds[idx].buffer = m_blobValues[idx].data();
+        m_binds[idx].buffer_length = m_blobValues[idx].size();
+        m_binds[idx].is_null = nullptr;
+        m_binds[idx].length = nullptr;
+
+        // Store parameter value for query reconstruction (with proper escaping)
+        m_parameterValues[idx] = "BINARY DATA";
+        return {};
     }
 
     cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x) noexcept
     {
-        // try/catch required: x->read() is a throwing InputStream interface method
-        try
+        MYSQL_STMT_LOCK_OR_RETURN("ATVKMR2CYNW3", "setBinaryStream failed");
+
+        if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
-            MYSQL_STMT_LOCK_OR_RETURN("ATVKMR2CYNW3", "setBinaryStream failed");
+            return cpp_dbc::unexpected(DBException("J7K8L9M0N1O2", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack()));
+        }
 
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
+        int idx = parameterIndex - 1;
+
+        // Store the stream object to keep it alive
+        m_streamObjects[idx] = x;
+
+        if (!x)
+        {
+            auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
+            if (!nullResult.has_value())
             {
-                return cpp_dbc::unexpected(DBException("J7K8L9M0N1O2", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(nullResult.error());
             }
-
-            int idx = parameterIndex - 1;
-
-            // Store the stream object to keep it alive
-            m_streamObjects[idx] = x;
-
-            if (!x)
-            {
-                auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
-                if (!nullResult.has_value())
-                {
-                    return cpp_dbc::unexpected(nullResult.error());
-                }
-                return {};
-            }
-
-            // Read all data from the stream — x->read() can throw
-            std::vector<uint8_t> data;
-            std::array<uint8_t, 4096> buffer{};
-            int bytesRead = 0;
-            while ((bytesRead = x->read(buffer.data(), buffer.size())) > 0)
-            {
-                data.insert(data.end(), buffer.begin(), buffer.begin() + bytesRead);
-            }
-
-            // Store the data in our vector to keep it alive
-            m_blobValues[idx] = std::move(data);
-
-            m_binds[idx].buffer_type = MYSQL_TYPE_BLOB;
-            m_binds[idx].buffer = m_blobValues[idx].data();
-            m_binds[idx].buffer_length = m_blobValues[idx].size();
-            m_binds[idx].is_null = nullptr;
-            m_binds[idx].length = nullptr;
-
-            // Store parameter value for query reconstruction
-            m_parameterValues[idx] = "BINARY DATA";
             return {};
         }
-        catch (const DBException &ex)
+
+        // Read all data from the stream via nothrow overload
+        std::vector<uint8_t> data;
+        std::array<uint8_t, 4096> buffer{};
+        for (;;)
         {
-            return cpp_dbc::unexpected(ex);
+            auto readResult = x->read(std::nothrow, buffer.data(), buffer.size());
+            if (!readResult.has_value())
+            {
+                return cpp_dbc::unexpected(readResult.error());
+            }
+            int bytesRead = readResult.value();
+            if (bytesRead <= 0)
+            {
+                break;
+            }
+            data.insert(data.end(), buffer.begin(), buffer.begin() + bytesRead);
         }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("D9E5F1A7B4C0",
-                                                   std::string("setBinaryStream failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("D9E5F1A7B4C1",
-                                                   "setBinaryStream failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+
+        // Store the data in our vector to keep it alive
+        m_blobValues[idx] = std::move(data);
+
+        m_binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+        m_binds[idx].buffer = m_blobValues[idx].data();
+        m_binds[idx].buffer_length = m_blobValues[idx].size();
+        m_binds[idx].is_null = nullptr;
+        m_binds[idx].length = nullptr;
+
+        // Store parameter value for query reconstruction
+        m_parameterValues[idx] = "BINARY DATA";
+        return {};
     }
 
     cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x, size_t length) noexcept
     {
-        // try/catch required: x->read() is a throwing InputStream interface method
-        try
+        MYSQL_STMT_LOCK_OR_RETURN("2TN4M0W7PMXX", "setBinaryStream failed");
+
+        if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
-            MYSQL_STMT_LOCK_OR_RETURN("2TN4M0W7PMXX", "setBinaryStream failed");
+            return cpp_dbc::unexpected(DBException("P3Q4R5S6T7U8", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack()));
+        }
 
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
+        int idx = parameterIndex - 1;
+
+        // Store the stream object to keep it alive
+        m_streamObjects[idx] = x;
+
+        if (!x)
+        {
+            auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
+            if (!nullResult.has_value())
             {
-                return cpp_dbc::unexpected(DBException("P3Q4R5S6T7U8", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(nullResult.error());
             }
-
-            int idx = parameterIndex - 1;
-
-            // Store the stream object to keep it alive
-            m_streamObjects[idx] = x;
-
-            if (!x)
-            {
-                auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
-                if (!nullResult.has_value())
-                {
-                    return cpp_dbc::unexpected(nullResult.error());
-                }
-                return {};
-            }
-
-            // Read up to 'length' bytes from the stream — x->read() can throw
-            std::vector<uint8_t> data;
-            data.reserve(length);
-            std::array<uint8_t, 4096> buffer{};
-            size_t totalBytesRead = 0;
-            int bytesRead = 0;
-            while (totalBytesRead < length)
-            {
-                bytesRead = x->read(buffer.data(), std::min(buffer.size(), length - totalBytesRead));
-                if (bytesRead <= 0)
-                {
-                    break;
-                }
-                data.insert(data.end(), buffer.begin(), buffer.begin() + bytesRead);
-                totalBytesRead += bytesRead;
-            }
-
-            // Store the data in our vector to keep it alive
-            m_blobValues[idx] = std::move(data);
-
-            m_binds[idx].buffer_type = MYSQL_TYPE_BLOB;
-            m_binds[idx].buffer = m_blobValues[idx].data();
-            m_binds[idx].buffer_length = m_blobValues[idx].size();
-            m_binds[idx].is_null = nullptr;
-            m_binds[idx].length = nullptr;
-
-            // Store parameter value for query reconstruction
-            m_parameterValues[idx] = "BINARY DATA";
             return {};
         }
-        catch (const DBException &ex)
+
+        // Read up to 'length' bytes from the stream via nothrow overload
+        std::vector<uint8_t> data;
+        data.reserve(length);
+        std::array<uint8_t, 4096> buffer{};
+        size_t totalBytesRead = 0;
+        while (totalBytesRead < length)
         {
-            return cpp_dbc::unexpected(ex);
+            auto readResult = x->read(std::nothrow, buffer.data(), std::min(buffer.size(), length - totalBytesRead));
+            if (!readResult.has_value())
+            {
+                return cpp_dbc::unexpected(readResult.error());
+            }
+            int bytesRead = readResult.value();
+            if (bytesRead <= 0)
+            {
+                break;
+            }
+            data.insert(data.end(), buffer.begin(), buffer.begin() + bytesRead);
+            totalBytesRead += bytesRead;
         }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("E0F6A2B8C5D1",
-                                                   std::string("setBinaryStream failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("E0F6A2B8C5D2",
-                                                   "setBinaryStream failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+
+        // Store the data in our vector to keep it alive
+        m_blobValues[idx] = std::move(data);
+
+        m_binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+        m_binds[idx].buffer = m_blobValues[idx].data();
+        m_binds[idx].buffer_length = m_blobValues[idx].size();
+        m_binds[idx].is_null = nullptr;
+        m_binds[idx].length = nullptr;
+
+        // Store parameter value for query reconstruction
+        m_parameterValues[idx] = "BINARY DATA";
+        return {};
     }
 
     cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::setBytes(std::nothrow_t, int parameterIndex, const std::vector<uint8_t> &x) noexcept

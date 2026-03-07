@@ -35,10 +35,11 @@ namespace cpp_dbc::MySQL
 {
 
     // ============================================================================
-    // MySQLDBPreparedStatement - Private Nothrow Constructor
+    // MySQLDBPreparedStatement - PrivateCtorTag Constructor
     // ============================================================================
 
-    MySQLDBPreparedStatement::MySQLDBPreparedStatement(std::nothrow_t,
+    MySQLDBPreparedStatement::MySQLDBPreparedStatement(PrivateCtorTag,
+                                                       std::nothrow_t,
                                                        std::weak_ptr<MySQLDBConnection> conn,
                                                        const std::string &sql) noexcept
         : m_connection(std::move(conn)), m_sql(sql)
@@ -48,7 +49,7 @@ namespace cpp_dbc::MySQL
         {
             // Store the error for deferred delivery via create(nothrow_t) — do not throw
             m_initFailed = true;
-            m_initError = mysqlResult.error();
+            m_initError = std::make_unique<DBException>(mysqlResult.error());
             return;
         }
         MYSQL *mysqlPtr = mysqlResult.value();
@@ -57,7 +58,7 @@ namespace cpp_dbc::MySQL
         if (!m_stmt)
         {
             m_initFailed = true;
-            m_initError = DBException("3Y4Z5A6B7C8D", "Failed to initialize statement", system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("3Y4Z5A6B7C8D", "Failed to initialize statement", system_utils::captureCallStack());
             return;
         }
 
@@ -66,7 +67,7 @@ namespace cpp_dbc::MySQL
             std::string error = mysql_stmt_error(m_stmt.get());
             m_stmt.reset(); // Smart pointer will call mysql_stmt_close via deleter
             m_initFailed = true;
-            m_initError = DBException("P0Z1A2B3C4D5", "Failed to prepare statement: " + error, system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("P0Z1A2B3C4D5", "Failed to prepare statement: " + error, system_utils::captureCallStack());
             return;
         }
 

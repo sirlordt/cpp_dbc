@@ -33,6 +33,16 @@ namespace cpp_dbc::MySQL
         friend class MySQLDBConnection;
         friend class MySQLConnectionLock;
 
+        /**
+         * @brief Private tag for the passkey idiom — enables std::make_shared
+         * from static factory methods while keeping the constructor
+         * effectively private (external code cannot construct PrivateCtorTag).
+         */
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
         // ── Member variables ──────────────────────────────────────────────────
         std::weak_ptr<MySQLDBConnection> m_connection; // Weak reference to parent connection
         std::string m_sql;
@@ -62,22 +72,7 @@ namespace cpp_dbc::MySQL
          *
          * Holds the DBException that would have been thrown, for deferred delivery.
          */
-        DBException m_initError{"O1M5MDSGNFPO", "", {}};
-
-        // ── Private nothrow constructor ───────────────────────────────────────
-        /**
-         * @brief Private nothrow constructor — contains all initialization logic
-         *
-         * Calls mysql_stmt_init, mysql_stmt_prepare, and parameter allocation
-         * internally. On failure, sets m_initFailed and m_initError instead of
-         * throwing. Only intended to be called from the static create() factory
-         * methods via `new`.
-         *
-         * @note create(nothrow_t) uses `new` (not std::make_shared) to access this private constructor.
-         */
-        MySQLDBPreparedStatement(std::nothrow_t,
-                                 std::weak_ptr<MySQLDBConnection> conn,
-                                 const std::string &sql) noexcept;
+        std::unique_ptr<DBException> m_initError{nullptr};
 
         // ── Private helper methods ────────────────────────────────────────────
 
@@ -88,6 +83,20 @@ namespace cpp_dbc::MySQL
         cpp_dbc::expected<MYSQL *, DBException> getMySQLConnection(std::nothrow_t) const noexcept;
 
     public:
+        // ── PrivateCtorTag constructor ────────────────────────────────────────
+        /**
+         * @brief Nothrow constructor — contains all initialization logic.
+         *
+         * Calls mysql_stmt_init, mysql_stmt_prepare, and parameter allocation
+         * internally. On failure, sets m_initFailed and m_initError instead of
+         * throwing. Public for std::make_shared access, but effectively private:
+         * external code cannot construct PrivateCtorTag.
+         */
+        MySQLDBPreparedStatement(PrivateCtorTag,
+                                 std::nothrow_t,
+                                 std::weak_ptr<MySQLDBConnection> conn,
+                                 const std::string &sql) noexcept;
+
         // ── Destructor ────────────────────────────────────────────────────────
         ~MySQLDBPreparedStatement() override;
 
@@ -146,14 +155,15 @@ namespace cpp_dbc::MySQL
                std::weak_ptr<MySQLDBConnection> conn,
                const std::string &sql) noexcept
         {
-            // Use `new` instead of std::make_shared: std::make_shared cannot access private constructors,
-            // but a static class member function can. The private nothrow constructor stores init
-            // errors in m_initFailed/m_initError rather than throwing, so no try/catch is needed here.
-            auto obj = std::shared_ptr<MySQLDBPreparedStatement>(
-                new MySQLDBPreparedStatement(std::nothrow, std::move(conn), sql));
+            // No try/catch: std::make_shared can only throw std::bad_alloc, which is a
+            // death-sentence exception — the heap is exhausted and no meaningful recovery
+            // is possible. Catching it would hide a catastrophic failure as a silent error
+            // return. Letting std::terminate fire is safer and more debuggable.
+            auto obj = std::make_shared<MySQLDBPreparedStatement>(
+                PrivateCtorTag{}, std::nothrow, std::move(conn), sql);
             if (obj->m_initFailed)
             {
-                return cpp_dbc::unexpected(obj->m_initError);
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
             }
             return obj;
         }

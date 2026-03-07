@@ -24,6 +24,7 @@
   - `MySQLDBConnection`: result set registry (`m_activeResultSets`) with two-phase close for pool lifecycle safety; `m_resetting` anti-deadlock flag; `getMySQLNativeHandle()`/`getConnectionMutex()` for child access
   - `MySQLDBPreparedStatement`/`MySQLDBResultSet`: hold `weak_ptr<MySQLDBConnection>` (not `weak_ptr<MYSQL>`), access native handle and mutex through connection; private nothrow constructors with `m_initFailed`/`m_initError` error deferral
   - `MySQLConnectionLock` RAII helper in `mysql_internal.hpp` for consistent lock-or-return pattern
+  - `MySQLBlob`/`MySQLInputStream` upgraded to PrivateCtorTag pattern with `m_initFailed`/`m_initError` and `#ifdef __cpp_exceptions` guards (2026-03-07)
 
 - **PostgreSQL Client Library**: For PostgreSQL database connectivity
   - Uses the C API (`libpq-fe.h`)
@@ -161,7 +162,8 @@ The project uses:
   - `libs/cpp_dbc/docs/how_add_new_db_drivers.md`: Comprehensive guide for adding new database drivers (5 phases)
   - `libs/cpp_dbc/docs/error_handling_patterns.md`: Complete guide to DBException, error codes, and nothrow API
   - `libs/cpp_dbc/docs/shell_script_dependencies.md`: Shell script call hierarchy and dependencies
-  - `.claude/rules/cpp_dbc_conventions.md`: Project conventions including new driver guidelines
+  - `.claude/rules/cpp_dbc_conventions.md`: Project conventions — expanded with 8 new sections (preprocessor directives, Allman braces, NOSONAR, bug-fix comments, unused params, private access specifier, PrivateCtorTag, migration rule) (2026-03-07)
+  - `.claude/rules/cpp_dbc_conventions_violations_how_report_them.md`: Structured format for convention compliance analysis reports (2026-03-07)
 - Conditional compilation options:
   - `--yaml`: Enable YAML configuration support
   - `--examples`: Build example applications

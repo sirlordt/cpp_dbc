@@ -87,63 +87,12 @@ namespace cpp_dbc::MongoDB
         return r.value();
     }
 
-    std::map<std::string, std::string> MongoDBDriver::parseURI(const std::string &uri)
-    {
-        auto r = parseURI(std::nothrow, uri);
-        if (!r.has_value())
-        {
-            throw r.error();
-        }
-        return r.value();
-    }
-
-    std::string MongoDBDriver::buildURI(
-        const std::string &host,
-        int port,
-        const std::string &database,
-        const std::map<std::string, std::string> &options)
-    {
-        std::ostringstream uri;
-
-        // Start with scheme
-        uri << "mongodb://";
-
-        // Add host
-        uri << (host.empty() ? "localhost" : host);
-
-        // Add port
-        if (port > 0)
-        {
-            uri << ":" << port;
-        }
-
-        // Add database
-        if (!database.empty())
-        {
-            uri << "/" << database;
-        }
-
-        // Add options
-        bool firstOption = true;
-        for (const auto &[key, value] : options)
-        {
-            uri << (firstOption ? "?" : "&");
-            uri << key << "=" << value;
-            firstOption = false;
-        }
-
-        return uri.str();
-    }
 #endif // __cpp_exceptions
 
-    bool MongoDBDriver::acceptsURL(const std::string &url) noexcept
-    {
-        return url.starts_with("cpp_dbc:mongodb://");
-    }
 
     std::string MongoDBDriver::getURIScheme() const noexcept
     {
-        return "cpp_dbc:mongodb://";
+        return "cpp_dbc:mongodb://<host>:<port>/<database>";
     }
 
     bool MongoDBDriver::supportsReplicaSets() const noexcept
@@ -179,8 +128,15 @@ namespace cpp_dbc::MongoDB
 
     bool MongoDBDriver::validateURI(const std::string &uri)
     {
+        // Strip cpp_dbc: prefix — mongoc expects native mongodb:// URIs
+        constexpr std::string_view CPP_DBC_PREFIX = "cpp_dbc:";
+        std::string nativeUri = uri;
+        if (nativeUri.substr(0, CPP_DBC_PREFIX.size()) == CPP_DBC_PREFIX)
+        {
+            nativeUri = nativeUri.substr(CPP_DBC_PREFIX.size());
+        }
         bson_error_t error;
-        mongoc_uri_t *mongoUri = mongoc_uri_new_with_error(uri.c_str(), &error);
+        mongoc_uri_t *mongoUri = mongoc_uri_new_with_error(nativeUri.c_str(), &error);
 
         if (mongoUri)
         {
@@ -204,7 +160,12 @@ namespace cpp_dbc::MongoDB
     {
         MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connecting to: " << url);
 
-        if (!acceptsURL(url))
+        auto urlCheck = acceptURI(std::nothrow, url);
+        if (!urlCheck.has_value())
+        {
+            return unexpected<DBException>(urlCheck.error());
+        }
+        if (!urlCheck.value())
         {
             return unexpected<DBException>(DBException(
                 "1C2D3E4F5A6B",
@@ -232,10 +193,20 @@ namespace cpp_dbc::MongoDB
     expected<std::map<std::string, std::string>, DBException> MongoDBDriver::parseURI(
         std::nothrow_t, const std::string &uri) noexcept
     {
+        // Require cpp_dbc: prefix and strip it before passing to mongoc
+        constexpr std::string_view PREFIX = "cpp_dbc:";
+        if (uri.substr(0, PREFIX.size()) != PREFIX)
+        {
+            return unexpected<DBException>(DBException(
+                "1C2D3E4F5A6B",
+                "Invalid MongoDB URL: " + uri));
+        }
+        std::string nativeUri = uri.substr(PREFIX.size());
+
         std::map<std::string, std::string> result;
 
         bson_error_t error;
-        MongoUriHandle mongoUri(mongoc_uri_new_with_error(uri.c_str(), &error));
+        MongoUriHandle mongoUri(mongoc_uri_new_with_error(nativeUri.c_str(), &error));
 
         if (!mongoUri)
         {
@@ -277,6 +248,45 @@ namespace cpp_dbc::MongoDB
         }
 
         return result;
+    }
+
+    cpp_dbc::expected<std::string, DBException> MongoDBDriver::buildURI(
+        std::nothrow_t,
+        const std::string &host,
+        int port,
+        const std::string &database,
+        const std::map<std::string, std::string> &options) noexcept
+    {
+        std::ostringstream uri;
+
+        // Start with scheme (cpp_dbc: prefix + native mongodb://)
+        uri << "cpp_dbc:mongodb://";
+
+        // Add host
+        uri << (host.empty() ? "localhost" : host);
+
+        // Add port
+        if (port > 0)
+        {
+            uri << ":" << port;
+        }
+
+        // Add database
+        if (!database.empty())
+        {
+            uri << "/" << database;
+        }
+
+        // Add options
+        bool firstOption = true;
+        for (const auto &[key, value] : options)
+        {
+            uri << (firstOption ? "?" : "&");
+            uri << key << "=" << value;
+            firstOption = false;
+        }
+
+        return uri.str();
     }
 
     std::string MongoDBDriver::getName() const noexcept

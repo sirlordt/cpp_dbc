@@ -25,53 +25,65 @@ namespace cpp_dbc::MySQL
      */
     class MySQLInputStream : public InputStream
     {
-    private:
+        /**
+         * @brief Private tag for the passkey idiom — enables std::make_shared
+         * from static factory methods while keeping the constructor
+         * effectively private (external code cannot construct PrivateCtorTag).
+         */
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
+        // ── Member variables ──────────────────────────────────────────────────
         std::vector<uint8_t> m_data;
         size_t m_position{0};
 
-        static cpp_dbc::expected<const char *, DBException> validateAndEnd(std::nothrow_t, const char *buffer, size_t length) noexcept
+        /**
+         * @brief Flag indicating constructor initialization failed
+         *
+         * Set by the nothrow constructor when buffer validation fails.
+         * Inspected by create(nothrow_t) to propagate the error via expected.
+         */
+        bool m_initFailed{false};
+
+        /**
+         * @brief Error captured when constructor initialization fails
+         *
+         * Holds the DBException that would have been thrown, for deferred delivery.
+         */
+        std::unique_ptr<DBException> m_initError{nullptr};
+
+    public:
+        // ── PrivateCtorTag constructor ────────────────────────────────────────
+        /**
+         * @brief Nothrow constructor — validates buffer and copies data.
+         *
+         * On failure (null buffer with non-zero length), sets m_initFailed
+         * and m_initError instead of throwing.
+         * Public for std::make_shared access, but effectively private:
+         * external code cannot construct PrivateCtorTag.
+         */
+        MySQLInputStream(PrivateCtorTag, std::nothrow_t, const char *buffer, size_t length) noexcept
         {
             if (length > 0 && buffer == nullptr)
             {
-                return cpp_dbc::unexpected(DBException("B10SNQSDSV85", "Null buffer passed to MySQLInputStream", system_utils::captureCallStack()));
+                m_initFailed = true;
+                m_initError = std::make_unique<DBException>("B10SNQSDSV85", "Null buffer passed to MySQLInputStream", system_utils::captureCallStack());
+                return;
             }
-            return buffer + length;
-        }
-
-        static const char *validateAndEnd(const char *buffer, size_t length)
-        {
-            auto r = validateAndEnd(std::nothrow, buffer, length);
-            if (!r.has_value())
+            if (buffer != nullptr && length > 0)
             {
-                throw r.error();
-            }
-            return r.value();
-        }
-
-    public:
-        MySQLInputStream(const char *buffer, size_t length)
-            : m_data(buffer, validateAndEnd(buffer, length)) {}
-
-        static cpp_dbc::expected<std::shared_ptr<MySQLInputStream>, DBException> create(std::nothrow_t, const char *buffer, size_t length) noexcept
-        {
-            try
-            {
-                return std::make_shared<MySQLInputStream>(buffer, length);
-            }
-            catch (const DBException &ex)
-            {
-                return cpp_dbc::unexpected(ex);
-            }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("W0VH7HGGQG9C", ex.what(), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("66FXROT2IOCV", "Unknown error creating MySQLInputStream", system_utils::captureCallStack()));
+                m_data.assign(reinterpret_cast<const uint8_t *>(buffer),
+                              reinterpret_cast<const uint8_t *>(buffer) + length);
             }
         }
 
+        // ====================================================================
+        // THROWING API - Exception-based (requires __cpp_exceptions)
+        // ====================================================================
+
+#ifdef __cpp_exceptions
         static std::shared_ptr<MySQLInputStream> create(const char *buffer, size_t length)
         {
             auto r = create(std::nothrow, buffer, length);
@@ -82,17 +94,6 @@ namespace cpp_dbc::MySQL
             return r.value();
         }
 
-        cpp_dbc::expected<void, DBException> copyFrom(std::nothrow_t, const MySQLInputStream &other) noexcept
-        {
-            if (this == &other)
-            {
-                return {};
-            }
-            m_data = other.m_data;
-            m_position = 0;
-            return {};
-        }
-
         void copyFrom(const MySQLInputStream &other)
         {
             auto r = copyFrom(std::nothrow, other);
@@ -101,12 +102,6 @@ namespace cpp_dbc::MySQL
                 throw r.error();
             }
         }
-
-        // ====================================================================
-        // THROWING API - Exception-based (requires __cpp_exceptions)
-        // ====================================================================
-
-#ifdef __cpp_exceptions
 
         int read(uint8_t *buffer, size_t length) override
         {
@@ -137,9 +132,39 @@ namespace cpp_dbc::MySQL
         }
 
 #endif // __cpp_exceptions
+
+        // ====================================================================
+        // NOTHROW FACTORIES — exception-free, always available
+        // ====================================================================
+
+        static cpp_dbc::expected<std::shared_ptr<MySQLInputStream>, DBException> create(std::nothrow_t, const char *buffer, size_t length) noexcept
+        {
+            // No try/catch: std::make_shared can only throw std::bad_alloc, which is a
+            // death-sentence exception — the heap is exhausted and no meaningful recovery
+            // is possible. Catching it would hide a catastrophic failure as a silent error
+            // return. Letting std::terminate fire is safer and more debuggable.
+            auto obj = std::make_shared<MySQLInputStream>(PrivateCtorTag{}, std::nothrow, buffer, length);
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            return obj;
+        }
+
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
+
+        cpp_dbc::expected<void, DBException> copyFrom(std::nothrow_t, const MySQLInputStream &other) noexcept
+        {
+            if (this == &other)
+            {
+                return {};
+            }
+            m_data = other.m_data;
+            m_position = 0;
+            return {};
+        }
 
         cpp_dbc::expected<int, DBException> read(std::nothrow_t, uint8_t *buffer, size_t length) noexcept override
         {

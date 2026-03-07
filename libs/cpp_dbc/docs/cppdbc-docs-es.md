@@ -151,7 +151,7 @@ Una clase base abstracta que representa un controlador de base de datos.
 **Métodos:**
 - `connect(string, string, string, map<string, string>)`: Establece una conexión a la base de datos con opciones de conexión opcionales.
 - `connectRelational(string, string, string, map<string, string>)`: Establece una conexión relacional a la base de datos con opciones de conexión opcionales.
-- `acceptsURL(string)`: Devuelve true si el controlador puede conectarse a la URL dada.
+- `acceptURI(string)`: Devuelve true si el controlador puede conectarse a la URL dada.
 
 ### DriverManager
 Una clase gestora para registrar y recuperar instancias de controladores.
@@ -639,7 +639,7 @@ Una clase base abstracta que representa un controlador de base de datos de docum
 
 **Métodos:**
 - `connectDocument(string, string, string, map<string, string>)`: Establece una conexión a la base de datos de documentos.
-- `acceptsURL(string)`: Devuelve true si el controlador puede conectarse a la URL dada.
+- `acceptURI(string)`: Devuelve true si el controlador puede conectarse a la URL dada.
 
 ### MongoDBDocument (anteriormente MongoDBData)
 Implementación de DocumentDBData para MongoDB. Usa patrón de fábrica estática para construcción.
@@ -693,7 +693,7 @@ Implementación de DocumentDBDriver para MongoDB.
 
 **Métodos:**
 Los mismos que DocumentDBDriver, más:
-- `acceptsURL(string)`: Devuelve true solo para URLs `cpp_dbc:mongodb://`.
+- `acceptURI(string)`: Devuelve true solo para URLs `cpp_dbc:mongodb://`.
 - `cleanup()`: Reinicia el estado de inicialización, permitiendo re-inicialización.
 - `isInitialized()`: Verifica si la biblioteca C está inicializada.
 

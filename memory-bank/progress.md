@@ -2,7 +2,37 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. MySQL was the last relational driver to undergo the full nothrow-first refactor (2026-03-06), completing the architecture across all drivers. `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). The connection pool system is now fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
+The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. The `DBDriver` base class now provides a unified URI API (`acceptURI`, `parseURI`, `buildURI`, `getURIScheme`) replacing the old family-specific `acceptsURL`/`parseURL`/`buildURL` private helpers (2026-03-07). `MySQLBlob` and `MySQLInputStream` have been upgraded to the PrivateCtorTag creational pattern. The project conventions document has been significantly expanded with 8 new sections, and a structured convention violations reporting document has been added. `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). The connection pool system is fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
+
+### Recent Improvements (2026-03-07 13:34 PST)
+
+**Unified URI API in DBDriver Base, PrivateCtorTag for MySQLBlob/InputStream, Expanded Convention Rules:**
+
+1. **DBDriver Base Class — Unified URI API:**
+   - `acceptsURL()` renamed to `acceptURI()` with throwing + nothrow versions (throwing delegates to nothrow)
+   - New `parseURI(std::nothrow_t)` pure virtual — each driver implements URI parsing
+   - New `buildURI(std::nothrow_t)` pure virtual — each driver implements URI building from components
+   - New `getURIScheme()` pure virtual — returns human-readable URI template
+   - Default `acceptURI(std::nothrow_t)` implementation uses `parseURI()` (successful parse = accepted)
+   - Removed private helpers from family driver bases (`ColumnarDBDriver`, `DocumentDBDriver`, `KVDBDriver`): -130 lines
+
+2. **All 7 Drivers Updated for New URI API:**
+   - MySQL, PostgreSQL, SQLite, Firebird, MongoDB, Redis, ScyllaDB implement `acceptURI`, `parseURI`, `buildURI`, `getURIScheme`
+   - All driver `_01.cpp` files refactored; all test files updated
+
+3. **MySQLBlob + MySQLInputStream — PrivateCtorTag Pattern:**
+   - PrivateCtorTag + `m_initFailed`/`m_initError` for both classes
+   - `#ifdef __cpp_exceptions` guards on all throwing methods
+   - Nothrow static factories using `std::make_shared` with `PrivateCtorTag`
+
+4. **Convention Rules — Major Expansion:**
+   - 8 new sections: preprocessor directives flush left, Allman braces, NOSONAR with rule ID, bug-fix ISO 8601 format, no `(void)` cast, `private:` omit in class, PrivateCtorTag pattern, migration rule
+   - New convention violations reporting document with structured format and severity levels
+
+5. **Documentation Updates:**
+   - cppdbc-docs-en/es, error_handling_patterns, how_add_new_db_drivers updated for new URI API
+
+6. **Impact:** 49 files changed, +2938/-1354 lines
 
 ### Recent Improvements (2026-03-06 20:29 PST)
 

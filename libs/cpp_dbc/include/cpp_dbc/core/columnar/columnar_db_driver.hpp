@@ -93,28 +93,6 @@ namespace cpp_dbc
             return std::static_pointer_cast<DBConnection>(result.value());
         }
 
-        /**
-         * @brief Parse a connection URI and extract components
-         * @param uri The connection URI
-         * @return A map containing parsed components (host, port, database, etc.)
-         * @throws DBException if the URI is invalid
-         */
-        virtual std::map<std::string, std::string> parseURI(const std::string &uri) = 0;
-
-        /**
-         * @brief Build a connection URI from components
-         * @param host The hostname
-         * @param port The port number
-         * @param database The database name
-         * @param options Additional options
-         * @return The constructed URI
-         */
-        virtual std::string buildURI(
-            const std::string &host,
-            int port,
-            const std::string &database,
-            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) = 0;
-
 #endif // __cpp_exceptions
 
         // ====================================================================
@@ -163,28 +141,7 @@ namespace cpp_dbc
             return std::static_pointer_cast<DBConnection>(result.value());
         }
 
-        /**
-         * @brief Parse a connection URI and extract components (nothrow version)
-         * @param nothrow std::nothrow tag to indicate exception-free operation
-         * @return expected containing map of parsed components, or DBException on failure
-         */
-        virtual cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(
-            std::nothrow_t, const std::string &uri) noexcept = 0;
-
         // Columnar database specific driver methods (trivial — cannot fail)
-
-        /**
-         * @brief Get the URL prefix accepted by this driver
-         *
-         * Returns the full connection URL prefix that this driver handles,
-         * e.g. `"cpp_dbc:scylladb://"`. This value is also the prefix that
-         * `acceptsURL()` checks against.
-         *
-         * Example format: `cpp_dbc:<engine>://host:port/keyspace`
-         *
-         * @return The URL prefix string (e.g., "cpp_dbc:scylladb://")
-         */
-        virtual std::string getURIScheme() const noexcept = 0;
 
         /**
          * @brief Check if the driver supports clustering/sharding

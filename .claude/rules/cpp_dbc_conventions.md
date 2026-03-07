@@ -43,6 +43,45 @@ throw DBException("001", "Error message", ...);               // Too short
 
 - **Indentation**: 4 spaces per level (no tabs)
 
+### Preprocessor Directives — Always Flush Left (Column 0)
+
+All preprocessor directives (`#ifdef`, `#ifndef`, `#if`, `#else`, `#elif`, `#endif`, `#define`, `#include`, `#pragma`) must start at column 0 (no indentation), regardless of the surrounding code's nesting level. This is a universal C/C++ convention and is required by the project:
+
+```cpp
+// Correct — directives at column 0, even inside a class or function
+class MyClass
+{
+    int m_value{0};
+
+#ifdef __cpp_exceptions
+    void doSomething();
+#endif
+
+    void doOtherThing(std::nothrow_t) noexcept;
+};
+
+// Correct — nested #if/#endif, all at column 0
+#if USE_MYSQL
+#ifdef __cpp_exceptions
+    static std::shared_ptr<MySQLDBDriver> create();
+#endif
+#endif
+
+// Incorrect — indented to match surrounding code
+class MyClass
+{
+    int m_value{0};
+
+    #ifdef __cpp_exceptions          // WRONG: indented
+        void doSomething();
+    #endif                           // WRONG: indented
+
+    void doOtherThing(std::nothrow_t) noexcept;
+};
+```
+
+This applies only to new or modified code. Pre-existing indented directives do not need to be updated retroactively.
+
 ### Braces — Always Required
 
 Every control flow statement (`if`, `else`, `while`, `for`, `do`, `switch`, `case`) or any other C++ syntax block **must** use braces, even for single-line bodies:
@@ -59,6 +98,47 @@ if (condition)
     doSomething();
 ```
 
+### Braces — Allman Style (Own Line)
+
+Opening and closing braces **must** each be on their own line. Placing a brace on the same line as a statement, keyword, or return expression is forbidden. This applies to every C++ construct that uses braces: `if`, `else`, `while`, `for`, `do`, `switch`, `case`, `try`, `catch`, functions, lambdas, classes, structs, namespaces, and any other compound statement.
+
+```cpp
+// Correct — each brace on its own line
+catch (const DBException &ex)
+{
+    return cpp_dbc::unexpected(ex);
+}
+
+// Correct
+if (condition)
+{
+    doSomething();
+}
+else
+{
+    doOtherThing();
+}
+
+// Incorrect — opening brace on same line as keyword
+catch (const DBException &ex) {
+    return cpp_dbc::unexpected(ex);
+}
+
+// Incorrect — entire block collapsed to one line
+catch (const DBException &ex)
+{ return cpp_dbc::unexpected(ex); }
+
+// Incorrect — entire block collapsed to one line
+catch (const DBException &ex) { return cpp_dbc::unexpected(ex); }
+
+// Incorrect — closing brace on same line as statement
+if (condition)
+{
+    doSomething(); }
+```
+
+This applies only to new or modified code. Pre-existing brace placement does not need to be updated retroactively.
+
 ### Empty Braces — Always Documented
 
 An intentionally empty compound statement must contain a comment explaining why:
@@ -74,33 +154,85 @@ catch (...)
 catch (...) {}
 ```
 
-### Bug-Fix Comments — Always Required
+### NOSONAR Comments — Rule ID and Explanation Required
 
-Every code block that exists to fix a bug or patch a problem **must** include a comment explaining:
-1. Why the code is necessary (the root cause or symptom being addressed)
-2. What it patches or works around
-
-The comment length should be proportional to the complexity of the fix:
+Every `// NOSONAR` annotation must include the SonarQube rule ID in parentheses and a brief English explanation of why the suppression is justified, all on a single line:
 
 ```cpp
-// Correct — simple fix with concise comment
+// Correct — rule ID + explanation on one line
+catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
+{
+    // ...
+}
+
+m_pool.reset(); // NOSONAR(cpp:S5weakptr) — intentional release of shared ownership during shutdown
+
+// Incorrect — missing rule ID
+catch (...) // NOSONAR — fallback for non-std exceptions
+{
+}
+
+// Incorrect — missing explanation
+catch (...) // NOSONAR(cpp:S2738)
+{
+}
+
+// Incorrect — no annotation at all
+catch (...)
+{
+}
+```
+
+This applies only to new or modified code. Pre-existing NOSONAR comments do not need to be updated retroactively.
+
+### Bug-Fix Comments — Always Required
+
+Every code block that exists to fix a bug or patch a problem **must** include a structured comment with an ISO 8601 timestamp, problem description, and solution. Each line is at most 128 characters. Always in English:
+
+```
+// YYYY-MM-DDTHH:mm:ssZ (ISO 8601, UTC timezone)
+// Bug: <problem description line 1, max 128 chars>
+// <problem description continuation line 2, max 128 chars>
+// <problem description continuation line 3, max 128 chars>
+// Solution: <solution description line 1, max 128 chars>
+// <solution description continuation line 2, max 128 chars>
+```
+
+The `Bug:` and `Solution:` prefixes are mandatory. Problem lines (up to 3) describe the root cause or symptom. Solution lines (up to 2) describe what the fix does. Additional continuation lines without a prefix belong to the preceding `Bug:` or `Solution:` block.
+
+```cpp
+// Correct — simple fix
+// 2026-03-07T14:30:00Z
+// Bug: setActive(false) was called unconditionally before the handoff decision,
+// so when a waiter takes the connection directly, the active count is wrong.
+// Solution: Restore active state (setActive(true) + m_activeConnections++) before
+// setting req->fulfilled = true in the direct-handoff path.
+conn->setActive(true);
+m_activeConnections++;
+
+// Correct — complex workaround
+// 2026-03-05T09:15:00Z
+// Bug: Helgrind cannot track POSIX file locks used by SQLite internally. ThreadSanitizer
+// reports 132 false-positive data races because it sees concurrent memory access
+// without any visible synchronization primitive.
+// Solution: FileMutexRegistry provides a shared std::recursive_mutex per database file,
+// making synchronization visible to sanitizers. Compiled out in production via
+// ENABLE_FILE_MUTEX_REGISTRY=OFF (zero overhead).
+std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
+
+// Incorrect — no timestamp
+// Bug: Connection leak when pool is exhausted.
+// Solution: Return connection before timeout.
+conn->returnToPool();
+
+// Incorrect — free-form comment without Bug:/Solution: structure
 // Restore active state before handoff: setActive(false) was called unconditionally
 // above, so it must be undone here when a waiter takes the connection directly.
 conn->setActive(true);
 m_activeConnections++;
-
-// Correct — complex workaround with detailed comment
-// WORKAROUND: Helgrind cannot track POSIX file locks used by SQLite internally.
-// Without this global mutex, ThreadSanitizer reports false-positive data races
-// because it sees concurrent memory access without any visible synchronization.
-// This mutex makes synchronization visible to sanitizers at the cost of ~33%
-// throughput overhead, so it is compiled out in production via ENABLE_FILE_MUTEX_REGISTRY=OFF.
-std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
-
-// Incorrect — no explanation, intent is opaque
-conn->setActive(true);
-m_activeConnections++;
 ```
+
+This format applies only to new or modified code. Pre-existing bug-fix comments do not need to be updated retroactively.
 
 ## Namespace Style
 
@@ -120,6 +252,62 @@ namespace cpp_dbc
     } // namespace MySQL
 } // namespace cpp_dbc
 ```
+
+## Unused Parameters — No `(void)` Cast
+
+When a function parameter is intentionally unused, suppress the compiler warning using one of the two allowed techniques. The C-style `(void)param;` cast is **forbidden** — it is a pre-C++17 idiom that adds noise and is unnecessary in modern C++.
+
+**Allowed techniques** (in order of preference):
+
+1. **Omit the parameter name** (declaration and definition) — preferred when the parameter is never referenced:
+
+```cpp
+// Correct — unnamed parameter in definition
+cpp_dbc::expected<std::string, DBException> ScyllaDBDriver::buildURI(
+    std::nothrow_t,
+    const std::string &host,
+    int port,
+    const std::string &database,
+    const std::map<std::string, std::string> & /* options */) noexcept
+{
+    return "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) +
+           (database.empty() ? "" : "/" + database);
+}
+```
+
+2. **`[[maybe_unused]]` attribute** — preferred when the parameter might be used conditionally (e.g. behind `#ifdef`) or when omitting the name would hurt readability:
+
+```cpp
+// Correct — [[maybe_unused]] attribute
+cpp_dbc::expected<std::string, DBException> ScyllaDBDriver::buildURI(
+    std::nothrow_t,
+    const std::string &host,
+    int port,
+    const std::string &database,
+    [[maybe_unused]] const std::map<std::string, std::string> &options) noexcept
+{
+    return "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) +
+           (database.empty() ? "" : "/" + database);
+}
+```
+
+**Forbidden**:
+
+```cpp
+// Incorrect — C-style void cast
+cpp_dbc::expected<std::string, DBException> ScyllaDBDriver::buildURI(
+    std::nothrow_t,
+    const std::string &host,
+    int port,
+    const std::string &database,
+    const std::map<std::string, std::string> &options) noexcept
+{
+    (void)options;  // WRONG: use unnamed parameter or [[maybe_unused]] instead
+    // ...
+}
+```
+
+This applies only to new or modified code. Pre-existing `(void)param;` casts do not need to be updated retroactively.
 
 ## Memory Safety
 
@@ -231,8 +419,41 @@ if (!result)
 Internal class methods (`private` or `protected`) must:
 1. Be declared `noexcept` — making it explicit and compiler-enforced that the method never throws
 2. Return `std::expected<T, DBException>` instead of throwing exceptions — keeping error paths visible to the caller
+3. **Never have a throwing version** — the dual throw/nothrow pattern does NOT apply here. Only the nothrow version exists.
 
 This eliminates hidden control flow, makes error propagation explicit, and prevents exceptions from escaping internal implementation boundaries.
+
+**The dual throw/nothrow pattern (two versions of the same method) applies exclusively to:**
+- `public` methods
+- `public override` methods
+- `protected override` methods (overriding a base class interface)
+
+**Private methods and non-override protected methods must only have the nothrow version.** A throwing variant for internal methods is unnecessary — there is no external caller that needs it, and it adds dead code. Internal callers always use the nothrow version and check `.has_value()`.
+
+**Migration rule**: If an existing private or non-override protected method is found with a throwing signature (no `std::nothrow_t`, no `noexcept`, may throw), it **must** be converted to the nothrow pattern: add `std::nothrow_t` as first parameter, declare `noexcept`, and return `std::expected<T, DBException>` if it contains fallible operations. The throwing version must be removed entirely — it is not kept for backwards compatibility. **All call sites must be updated** to reflect the new signature: pass `std::nothrow` as first argument and handle the `std::expected` return value via `.has_value()` / `.value()` / `.error()` instead of try/catch. After migration, if all inner calls at a call site are now nothrow and no code can throw exceptions other than death sentences (`std::bad_alloc`, mutex `std::system_error`), any surrounding try/catch blocks become dead code and **must be removed** — see [No Redundant try/catch in Nothrow Methods](#no-redundant-trycatch-in-nothrow-methods).
+
+```cpp
+// Correct — private method exists ONLY as nothrow
+    std::expected<void, DBException> doWorkInternal(std::nothrow_t) noexcept;
+
+// Incorrect — private method has a throwing version (unnecessary, dead code)
+    void doWorkInternal();  // WRONG: throwing variant of a private method
+    std::expected<void, DBException> doWorkInternal(std::nothrow_t) noexcept;
+
+// Correct — public method has BOTH versions (throw delegates to nothrow)
+public:
+#ifdef __cpp_exceptions
+    void connect();  // throwing wrapper
+#endif
+    std::expected<void, DBException> connect(std::nothrow_t) noexcept;  // real logic
+
+// Correct — protected override has BOTH versions (base class defines both)
+protected:
+#ifdef __cpp_exceptions
+    void onPoolReturn() override;  // throwing wrapper
+#endif
+    std::expected<void, DBException> onPoolReturn(std::nothrow_t) noexcept override;
+```
 
 The first parameter must always be `std::nothrow_t`. This makes it explicit at every call site that the method never throws — the caller must pass `std::nothrow` to invoke it:
 
@@ -297,7 +518,7 @@ std::expected<void, DBException> MyClass::connectInternal(std::nothrow_t) noexce
     {
         return std::unexpected(DBException("A1B2C3D4E5F6", ex.what(), system_utils::captureCallStack()));
     }
-    catch (...)
+    catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
     {
         return std::unexpected(DBException("G7H8I9J0K1L2", "Unknown error during connect", system_utils::captureCallStack()));
     }
@@ -586,6 +807,60 @@ Classes whose construction can fail, or that must remain compilable under `-fno-
 
 The access specifier order is always **`private` → `protected` → `public`**. The `protected` section is optional and only present when the class is designed for inheritance. Within each section the order is: member variables first, then methods.
 
+### `private:` Access Specifier — Omit in `class`, Require in `struct`
+
+In C++, `class` defaults to `private` access and `struct` defaults to `public` access. Since the layout puts private members first:
+
+- **`class`**: The `private:` specifier is **redundant and must be omitted**. Members at the top of a `class` body are already private by default.
+- **`struct`**: The `private:` specifier is **required and must be explicit**. Without it, members at the top of a `struct` body would be public by default, which is incorrect.
+
+```cpp
+// Correct — class: no private: tag (redundant, members are private by default)
+class MyClass
+{
+    // ── private ──────────────────────────────────────────────
+    std::string m_host;
+    int         m_port{0};
+
+protected:
+    // ...
+
+public:
+    // ...
+};
+
+// Correct — struct: private: tag required (default is public)
+struct MyStruct
+{
+private:
+    // ── private ──────────────────────────────────────────────
+    std::string m_host;
+    int         m_port{0};
+
+protected:
+    // ...
+
+public:
+    // ...
+};
+
+// Incorrect — class with redundant private: tag
+class MyClass
+{
+private:  // redundant — class is already private by default
+    std::string m_host;
+};
+
+// Incorrect — struct missing private: tag
+struct MyStruct
+{
+    // ── private ──────────────────────────────────────────────
+    std::string m_host;  // WRONG: this is public by default in a struct!
+};
+```
+
+This applies only to new or modified class/struct definitions. Pre-existing definitions do not need to be updated retroactively.
+
 ```cpp
 class MyClass
 {
@@ -732,6 +1007,243 @@ return pool;
 | Fallible initialization | `initialize(std::nothrow)` called by factory | `initializePool(std::nothrow)` called by factory |
 
 **Classes that use this variant**: all connection pool classes (`*DBConnectionPool`) and their pooled connection wrappers (`*PooledDBConnection`).
+
+### PrivateCtorTag Pattern — Driver Classes (Creational Pattern)
+
+All driver classes — Connection, PreparedStatement, ResultSet, Blob, InputStream, Cursor, Collection, Document — use the **PrivateCtorTag creational pattern**. The only exception is `*DBDriver` classes, which follow the [DBDriver Variant](#dbdriver-variant--c-library-initialization-with-double-checked-locking) pattern instead.
+
+The goal is a **throw-free creational pattern**: no `throw` statement exists anywhere except inside the explicit `::create` throwing wrappers. Constructors never throw — they capture errors in member variables for deferred delivery by the factory.
+
+#### PrivateCtorTag
+
+Each class defines its own `PrivateCtorTag` as a private nested struct. This prevents external code from constructing instances directly (the tag type is inaccessible outside the class), while keeping the constructor public so `std::make_shared` can call it:
+
+```cpp
+class MyDBConnection final : public RelationalDBConnection,
+                              public std::enable_shared_from_this<MyDBConnection>
+{
+    struct PrivateCtorTag
+    {
+        explicit PrivateCtorTag() = default;
+    };
+
+    // ... rest of class ...
+};
+```
+
+Every driver class declares exactly **one** `PrivateCtorTag` in its private section. The tag is never shared across classes — each class owns its own.
+
+#### Construction State Variables
+
+Every class declares two member variables that track whether the constructor succeeded or failed:
+
+```cpp
+    // Set to true by the constructor when initialization fails.
+    // Inspected by create(nothrow_t) to propagate the error via expected.
+    bool m_initFailed{false};
+
+    // Only allocated on the failure path. Holds the DBException for deferred
+    // delivery. nullptr when construction succeeds (~256 bytes saved per
+    // successful instance vs storing a bare DBException inline).
+    std::unique_ptr<DBException> m_initError{nullptr};
+```
+
+**Why `std::unique_ptr<DBException>`**: A `DBException` is ~256 bytes. Storing it inline wastes that space on every successful instance (the vast majority). With `std::unique_ptr`, successful instances pay only 8 bytes (the pointer). The `DBException` is heap-allocated only on the failure path. `std::make_unique` can throw `std::bad_alloc` inside the catch block, but if the system cannot allocate ~256 bytes, it is a death sentence regardless.
+
+#### Public Nothrow Constructors
+
+All constructors are **public** and **`noexcept`**. The first parameter is always `PrivateCtorTag`, the second is always `std::nothrow_t`, followed by any class-specific parameters:
+
+```cpp
+public:
+    // PrivateCtorTag prevents external instantiation.
+    // std::nothrow_t signals the constructor never throws.
+    MyDBConnection(PrivateCtorTag,
+                   std::nothrow_t,
+                   const std::string &host,
+                   int port,
+                   const std::string &database,
+                   const std::string &user,
+                   const std::string &password,
+                   const std::map<std::string, std::string> &options) noexcept;
+```
+
+The constructor wraps all fallible initialization in try/catch and stores errors in `m_initFailed` / `m_initError` instead of throwing:
+
+```cpp
+MyDBConnection::MyDBConnection(PrivateCtorTag,
+                               std::nothrow_t,
+                               const std::string &host,
+                               int port,
+                               const std::string &database,
+                               const std::string &user,
+                               const std::string &password,
+                               const std::map<std::string, std::string> &options) noexcept
+{
+    try
+    {
+        m_handle = c_api_connect(host, port, database, user, password);
+        if (!m_handle)
+        {
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>(
+                "XXXXXXXXXXXX", "Failed to connect",
+                system_utils::captureCallStack());
+            return;
+        }
+        m_closed.store(false, std::memory_order_release);
+    }
+    catch (const std::exception &ex)
+    {
+        m_initFailed = true;
+        m_initError = std::make_unique<DBException>(
+            "XXXXXXXXXXXX", ex.what(),
+            system_utils::captureCallStack());
+    }
+    catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
+    {
+        m_initFailed = true;
+        m_initError = std::make_unique<DBException>(
+            "XXXXXXXXXXXX", "Unknown error in constructor",
+            system_utils::captureCallStack());
+    }
+}
+```
+
+If a class has multiple constructors (e.g. different parameter sets), each one follows this same pattern — public, `noexcept`, `PrivateCtorTag` first, `std::nothrow_t` second, errors captured in `m_initFailed` / `m_initError`.
+
+#### Static Factory `::create`
+
+The `::create` static factory is the **only** way to instantiate a class. There is one `::create` per constructor. Each `::create` has **two versions**:
+
+**Throwing version** — a thin wrapper that delegates entirely to the nothrow version. Must be inside `#ifdef __cpp_exceptions` to avoid compilation under `-fno-exceptions`:
+
+```cpp
+#ifdef __cpp_exceptions
+    static std::shared_ptr<MyDBConnection>
+    create(const std::string &host, int port, const std::string &database,
+           const std::string &user, const std::string &password,
+           const std::map<std::string, std::string> &options = {})
+    {
+        auto r = create(std::nothrow, host, port, database, user, password, options);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+#endif
+```
+
+**Nothrow version** — contains the real creation logic. First parameter is always `std::nothrow_t`. Uses `std::make_shared` and checks `m_initFailed` after construction:
+
+```cpp
+    static cpp_dbc::expected<std::shared_ptr<MyDBConnection>, DBException>
+    create(std::nothrow_t,
+           const std::string &host, int port, const std::string &database,
+           const std::string &user, const std::string &password,
+           const std::map<std::string, std::string> &options = {}) noexcept
+    {
+        // std::make_shared may throw std::bad_alloc. No try/catch here:
+        // if the system cannot allocate memory for the object, it is a
+        // death sentence — no meaningful recovery is possible.
+        auto obj = std::make_shared<MyDBConnection>(
+            PrivateCtorTag{}, std::nothrow, host, port, database, user, password, options);
+        if (obj->m_initFailed)
+        {
+            return cpp_dbc::unexpected(std::move(*obj->m_initError));
+        }
+        return obj;
+    }
+```
+
+#### Complete Header Example
+
+```cpp
+class MyDBPreparedStatement final : public RelationalDBPreparedStatement
+{
+    // ── PrivateCtorTag ────────────────────────────────────────────────────
+    struct PrivateCtorTag
+    {
+        explicit PrivateCtorTag() = default;
+    };
+
+    // ── Member variables ──────────────────────────────────────────────────
+    std::weak_ptr<MyDBConnection> m_connection;
+    std::string m_sql;
+    std::atomic<bool> m_closed{true};
+    // ...
+
+    // ── Construction state ────────────────────────────────────────────────
+    bool m_initFailed{false};
+    std::unique_ptr<DBException> m_initError{nullptr};
+
+    // ── Private helpers ───────────────────────────────────────────────────
+    cpp_dbc::expected<void, DBException> prepareInternal(std::nothrow_t) noexcept;
+
+public:
+    // ── Public nothrow constructor (guarded by PrivateCtorTag) ─────────────
+    MyDBPreparedStatement(PrivateCtorTag,
+                          std::nothrow_t,
+                          std::weak_ptr<MyDBConnection> conn,
+                          const std::string &sql) noexcept;
+
+    ~MyDBPreparedStatement() override;
+
+    MyDBPreparedStatement(const MyDBPreparedStatement &) = delete;
+    MyDBPreparedStatement &operator=(const MyDBPreparedStatement &) = delete;
+
+#ifdef __cpp_exceptions
+    // ── Throwing factory (delegates to nothrow) ──────────────────────────
+    static std::shared_ptr<MyDBPreparedStatement>
+    create(std::weak_ptr<MyDBConnection> conn, const std::string &sql)
+    {
+        auto r = create(std::nothrow, std::move(conn), sql);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+#endif
+
+    // ── Nothrow factory (real creation logic) ────────────────────────────
+    static cpp_dbc::expected<std::shared_ptr<MyDBPreparedStatement>, DBException>
+    create(std::nothrow_t,
+           std::weak_ptr<MyDBConnection> conn,
+           const std::string &sql) noexcept
+    {
+        // std::make_shared may throw std::bad_alloc. No try/catch here:
+        // if the system cannot allocate memory for the object, it is a
+        // death sentence — no meaningful recovery is possible.
+        auto obj = std::make_shared<MyDBPreparedStatement>(
+            PrivateCtorTag{}, std::nothrow, std::move(conn), sql);
+        if (obj->m_initFailed)
+        {
+            return cpp_dbc::unexpected(std::move(*obj->m_initError));
+        }
+        return obj;
+    }
+
+    // ── Nothrow public methods ───────────────────────────────────────────
+    cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept;
+    // ...
+};
+```
+
+#### Summary
+
+| Rule | Description |
+|------|-------------|
+| **Scope** | All driver classes except `*DBDriver` |
+| **PrivateCtorTag** | One per class, private nested struct, prevents external construction |
+| **Constructor** | Public, `noexcept`, params: `PrivateCtorTag` → `std::nothrow_t` → class-specific |
+| **Construction state** | `bool m_initFailed{false}` + `std::unique_ptr<DBException> m_initError{nullptr}` |
+| **`::create` count** | One per constructor |
+| **`::create` throwing** | Inside `#ifdef __cpp_exceptions`, delegates to nothrow version |
+| **`::create` nothrow** | First param `std::nothrow_t`, uses `std::make_shared`, no try/catch |
+| **`bad_alloc`** | Death sentence — no try/catch in `::create` nothrow |
+| **Throw-free guarantee** | No `throw` anywhere except inside `::create` throwing wrappers |
 
 ### Source File Distribution
 
@@ -920,7 +1432,7 @@ cpp_dbc::expected<bool, DBException> MyDriver::initialize(std::nothrow_t) noexce
     {
         return std::unexpected(DBException("XXXXXXXXXXXX", ex.what(), system_utils::captureCallStack()));
     }
-    catch (...)
+    catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
     {
         return std::unexpected(DBException("XXXXXXXXXXXX", "Unknown error during library init", system_utils::captureCallStack()));
     }

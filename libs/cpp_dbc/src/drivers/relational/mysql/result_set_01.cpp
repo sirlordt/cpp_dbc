@@ -69,7 +69,9 @@ namespace cpp_dbc::MySQL
         return {};
     }
 
-    MySQLDBResultSet::MySQLDBResultSet(std::nothrow_t, MYSQL_RES *res, std::shared_ptr<MySQLDBConnection> conn) noexcept
+    // ── PrivateCtorTag Constructor ──────────────────────────────────────────
+
+    MySQLDBResultSet::MySQLDBResultSet(PrivateCtorTag, std::nothrow_t, MYSQL_RES *res, std::shared_ptr<MySQLDBConnection> conn) noexcept
         : m_result(res), m_connection(std::move(conn))
     {
         if (m_result)
@@ -104,7 +106,7 @@ namespace cpp_dbc::MySQL
         }
     }
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     void MySQLDBResultSet::close()
     {
         auto result = close(std::nothrow);
@@ -424,7 +426,7 @@ namespace cpp_dbc::MySQL
         }
         return *result;
     }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::MySQL
 

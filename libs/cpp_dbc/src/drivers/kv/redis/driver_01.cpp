@@ -97,57 +97,12 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    std::map<std::string, std::string> RedisDBDriver::parseURI(const std::string &uri)
-    {
-        auto result = parseURI(std::nothrow, uri);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return *result;
-    }
-
-    std::string RedisDBDriver::buildURI(
-        const std::string &host,
-        int port,
-        const std::string &db,
-        [[maybe_unused]] const std::map<std::string, std::string> &options)
-    {
-        std::ostringstream uri;
-
-        // Start with scheme (use cpp_dbc: prefix for consistency with acceptsURL/connectKV)
-        uri << "cpp_dbc:redis://";
-
-        // Add host
-        uri << (host.empty() ? "localhost" : host);
-
-        // Add port
-        if (port > 0 && port != 6379)
-        {
-            uri << ":" << port;
-        }
-
-        // Add database index
-        if (!db.empty() && db != "0")
-        {
-            uri << "/" << db;
-        }
-
-        // Redis URI doesn't support options in the URI
-        // They are handled separately in the connection method
-
-        return uri.str();
-    }
 #endif // __cpp_exceptions
 
-    bool RedisDBDriver::acceptsURL(const std::string &url) noexcept
-    {
-        return url.starts_with("cpp_dbc:redis://");
-    }
 
     std::string RedisDBDriver::getURIScheme() const noexcept
     {
-        return "cpp_dbc:redis://";
+        return "cpp_dbc:redis://<host>:<port>/<db>";
     }
 
     bool RedisDBDriver::supportsClustering() const noexcept
@@ -196,7 +151,12 @@ namespace cpp_dbc::Redis
         {
             REDIS_DEBUG("RedisDBDriver::connectKV(nothrow) - Connecting to: " << url);
 
-            if (!acceptsURL(url))
+            auto urlCheck = acceptURI(std::nothrow, url);
+            if (!urlCheck.has_value())
+            {
+                return cpp_dbc::unexpected(urlCheck.error());
+            }
+            if (!urlCheck.value())
             {
                 return cpp_dbc::unexpected(DBException("A93B8C7D2E1F", "Invalid Redis URL: " + url,
                                                        system_utils::captureCallStack()));
@@ -236,8 +196,8 @@ namespace cpp_dbc::Redis
         try
         {
             std::map<std::string, std::string> result;
-            // Support both regular hosts and bracketed IPv6 addresses (e.g., redis://[::1]:6379)
-            std::regex uriRegex(R"(redis://(\[[^\]]+\]|[^:/]+)(?::([0-9]+))?(?:/([0-9]+))?)");
+            // Support both regular hosts and bracketed IPv6 addresses (e.g., cpp_dbc:redis://[::1]:6379)
+            std::regex uriRegex(R"(^cpp_dbc:redis://(\[[^\]]+\]|[^:/]+)(?::([0-9]+))?(?:/([0-9]+))?)");
             std::smatch matches;
 
             if (std::regex_search(uri, matches, uriRegex))
@@ -299,6 +259,39 @@ namespace cpp_dbc::Redis
                                                    "parseURI failed: unknown error",
                                                    system_utils::captureCallStack()));
         }
+    }
+
+    cpp_dbc::expected<std::string, DBException> RedisDBDriver::buildURI(
+        std::nothrow_t,
+        const std::string &host,
+        int port,
+        const std::string &database,
+        const std::map<std::string, std::string> & /*options*/) noexcept
+    {
+        std::ostringstream uri;
+
+        // Start with scheme (use cpp_dbc: prefix for consistency with acceptURI/connectKV)
+        uri << "cpp_dbc:redis://";
+
+        // Add host
+        uri << (host.empty() ? "localhost" : host);
+
+        // Add port
+        if (port > 0 && port != 6379)
+        {
+            uri << ":" << port;
+        }
+
+        // Add database index
+        if (!database.empty() && database != "0")
+        {
+            uri << "/" << database;
+        }
+
+        // Redis URI doesn't support options in the URI
+        // They are handled separately in the connection method
+
+        return uri.str();
     }
 
     std::string RedisDBDriver::getName() const noexcept

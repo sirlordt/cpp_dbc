@@ -77,17 +77,13 @@ namespace cpp_dbc::MongoDB
         // ====================================================================
 
 #ifdef __cpp_exceptions
+        using DBDriver::parseURI;
+        using DBDriver::buildURI;
+
         std::shared_ptr<DocumentDBConnection> connectDocument(
             const std::string &url,
             const std::string &user,
             const std::string &password,
-            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
-
-        std::map<std::string, std::string> parseURI(const std::string &uri) override;
-        std::string buildURI(
-            const std::string &host,
-            int port,
-            const std::string &database,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
 #endif // __cpp_exceptions
@@ -96,7 +92,6 @@ namespace cpp_dbc::MongoDB
         // NOTHROW API — exception-free, always available
         // ====================================================================
 
-        bool acceptsURL(const std::string &url) noexcept override;
 
         std::string getURIScheme() const noexcept override;
         bool supportsReplicaSets() const noexcept override;
@@ -135,6 +130,13 @@ namespace cpp_dbc::MongoDB
 
         expected<std::map<std::string, std::string>, DBException> parseURI(
             std::nothrow_t, const std::string &uri) noexcept override;
+
+        expected<std::string, DBException> buildURI(
+            std::nothrow_t,
+            const std::string &host,
+            int port,
+            const std::string &database,
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
 
         std::string getName() const noexcept override;
     };
@@ -191,29 +193,15 @@ namespace cpp_dbc::MongoDB
             return {};
         }
 
-        std::string buildURI(
-            const std::string &,
-            int,
-            const std::string &,
-            const std::map<std::string, std::string> & = {}) override
-        {
-            return {};
-        }
-
 #endif // __cpp_exceptions
 
         // ====================================================================
         // NOTHROW API — exception-free, always available
         // ====================================================================
 
-        bool acceptsURL(const std::string &url) noexcept override
-        {
-            return url.starts_with("cpp_dbc:mongodb://");
-        }
-
         std::string getURIScheme() const noexcept override
         {
-            return "cpp_dbc:mongodb://";
+            return "cpp_dbc:mongodb://<host>:<port>/<database>";
         }
 
         bool supportsReplicaSets() const noexcept override
@@ -241,7 +229,17 @@ namespace cpp_dbc::MongoDB
             return cpp_dbc::unexpected(DBException("QRXRXWB7UHKN", "MongoDB support is not enabled in this build"));
         }
 
-        std::string getName() const noexcept override { return "MongoDB (disabled)"; }
+        cpp_dbc::expected<std::string, DBException> buildURI(
+            std::nothrow_t,
+            const std::string &,
+            int,
+            const std::string &,
+            const std::map<std::string, std::string> & = std::map<std::string, std::string>()) noexcept override
+        {
+            return cpp_dbc::unexpected(DBException("YW84QOLGYOK3", "MongoDB support is not enabled in this build"));
+        }
+
+        std::string getName() const noexcept override { return "mongodb/disabled"; }
     };
 
 } // namespace cpp_dbc::MongoDB

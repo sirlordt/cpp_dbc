@@ -70,8 +70,13 @@ namespace cpp_dbc::MongoDB
         : m_url(uri)
     {
         MONGODB_DEBUG("MongoDBConnection::constructor(nothrow) - Connecting to: " << uri);
-        // Build the connection URI with credentials if provided
+        // Strip cpp_dbc: prefix — mongoc expects native mongodb:// URIs
+        constexpr std::string_view CPP_DBC_PREFIX = "cpp_dbc:";
         std::string connectionUri = uri;
+        if (connectionUri.substr(0, CPP_DBC_PREFIX.size()) == CPP_DBC_PREFIX)
+        {
+            connectionUri = connectionUri.substr(CPP_DBC_PREFIX.size());
+        }
 
         // If user/password provided and not in URI, add them
         if (!user.empty() && !uri.contains("@"))

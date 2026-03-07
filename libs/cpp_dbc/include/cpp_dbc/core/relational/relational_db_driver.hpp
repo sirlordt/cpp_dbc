@@ -54,7 +54,7 @@ namespace cpp_dbc
          *
          * This is the typed version that returns a RelationalDBConnection.
          *
-         * @param url The database URL (e.g., "jdbc:mysql://host:port/database")
+         * @param url The database URL (e.g., "cpp_dbc:mysql://host:port/database")
          * @param user The username for authentication
          * @param password The password for authentication
          * @param options Additional connection options

@@ -124,7 +124,7 @@ An abstract base class representing a database driver.
 **Methods:**
 - `connect(string, string, string, map<string, string>)`: Establishes a connection to the database with optional connection options.
 - `connectRelational(string, string, string, map<string, string>)`: Establishes a relational database connection with optional connection options.
-- `acceptsURL(string)`: Returns true if the driver can connect to the given URL.
+- `acceptURI(string)`: Returns true if the driver can connect to the given URL.
 
 ### DriverManager
 A manager class to register and retrieve driver instances.
@@ -306,7 +306,7 @@ Implementation of Driver for Firebird SQL.
 Same as Driver, plus:
 - `FirebirdDBDriver()`: Constructor.
 - `parseURL(string, string&, int&, string&)`: Parses a connection URL.
-- `acceptsURL(string)`: Returns true only for `cpp_dbc:firebird://` URLs.
+- `acceptURI(string)`: Returns true only for `cpp_dbc:firebird://` URLs.
 - `command(map<string, any>)`: Executes driver-specific commands (e.g., "create_database").
 - `createDatabase(string, string, string, map<string, string>)`: Creates a new Firebird database with optional page size and charset.
 
@@ -401,7 +401,7 @@ An abstract base class representing a document database driver.
 
 **Methods:**
 - `connectDocument(string, string, string, map<string, string>)`: Establishes a document database connection.
-- `acceptsURL(string)`: Returns true if the driver can connect to the given URL.
+- `acceptURI(string)`: Returns true if the driver can connect to the given URL.
 
 ### MongoDBDocument (formerly MongoDBData)
 Implementation of DocumentDBData for MongoDB. Uses static factory pattern for construction.
@@ -455,7 +455,7 @@ Implementation of DocumentDBDriver for MongoDB.
 
 **Methods:**
 Same as DocumentDBDriver, plus:
-- `acceptsURL(string)`: Returns true only for `cpp_dbc:mongodb://` URLs.
+- `acceptURI(string)`: Returns true only for `cpp_dbc:mongodb://` URLs.
 - `cleanup()`: Resets initialization state, allowing re-initialization.
 - `isInitialized()`: Checks if the C library is initialized.
 

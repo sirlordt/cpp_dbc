@@ -196,7 +196,15 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
   - Nothrow methods that call only nothrow methods have no try/catch blocks (dead code elimination per conventions)
   - Error deferral pattern: private constructors store errors in `m_initFailed` / `m_initError` members; factory checks and propagates via `unexpected`
   - MySQL-specific (2026-03-06): `MySQLDBConnection` uses `PrivateCtorTag` pattern (public ctor with private tag type) for `std::make_shared` compatibility; `MySQLDBPreparedStatement`/`MySQLDBResultSet` use `new` (not `make_shared`) since their ctors are private; `weak_ptr<MySQLDBConnection>` replaces `weak_ptr<MYSQL>` for accessing native handle and mutex through connection
+  - MySQL-specific (2026-03-07): `MySQLBlob` and `MySQLInputStream` upgraded to PrivateCtorTag pattern with `m_initFailed`/`m_initError` and `#ifdef __cpp_exceptions` guards
   - MongoDB-specific (2026-03-04): `DocumentDBCursor` chaining methods (`skip`, `limit`, `sort`) return `expected<std::reference_wrapper<DocumentDBCursor>, DBException>`; `DocumentDBDriver::getURIScheme()` `noexcept` returning full URL prefix; `getDefaultPort()` removed; `MongoDBDocument` ID caching
+- **Unified URI API in DBDriver Base (2026-03-07):**
+  - `acceptsURL()` renamed to `acceptURI()` — both throwing and nothrow versions in `DBDriver` base (throwing delegates to nothrow)
+  - `parseURI(std::nothrow_t)` pure virtual — each driver implements URI parsing, returns `expected<map<string,string>, DBException>`
+  - `buildURI(std::nothrow_t)` pure virtual — each driver implements URI building from components
+  - `getURIScheme()` pure virtual — returns human-readable URI template (e.g., `"cpp_dbc:mysql://<host>:<port>/<database>"`)
+  - Default `acceptURI(std::nothrow_t)` implementation uses `parseURI()`: successful parse = accepted
+  - Private helpers (`acceptsURL`, `parseURL`, `buildURL`) removed from `ColumnarDBDriver`, `DocumentDBDriver`, `KVDBDriver` — logic now in concrete drivers
 - Member variables prefixed with `m_` to avoid shadowing issues in exception handling
 
 ### Connection Pooling

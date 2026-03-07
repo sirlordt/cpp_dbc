@@ -78,6 +78,9 @@ namespace cpp_dbc::Firebird
         // ====================================================================
 
 #ifdef __cpp_exceptions
+        using DBDriver::buildURI;
+        using DBDriver::parseURI;
+
         std::shared_ptr<RelationalDBConnection> connectRelational(
             const std::string &url,
             const std::string &user,
@@ -124,17 +127,15 @@ namespace cpp_dbc::Firebird
         // NOTHROW API — exception-free, always available
         // ====================================================================
 
-        bool acceptsURL(const std::string &url) noexcept override;
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(
+            std::nothrow_t, const std::string &uri) noexcept override;
 
-        /**
-         * @brief Parses a URL: cpp_dbc:firebird://host:port/path/to/database.fdb
-         * @param url The URL to parse
-         * @param host Output: the host name
-         * @param port Output: the port number
-         * @param database Output: the database path
-         * @return true if parsing was successful
-         */
-        bool parseURL(const std::string &url, std::string &host, int &port, std::string &database) noexcept;
+        cpp_dbc::expected<std::string, DBException> buildURI(
+            std::nothrow_t,
+            const std::string &host,
+            int port,
+            const std::string &database,
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>
         connectRelational(
@@ -155,6 +156,7 @@ namespace cpp_dbc::Firebird
                        const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept;
 
         std::string getName() const noexcept override;
+        std::string getURIScheme() const noexcept override;
     };
 
     // ============================================================================
@@ -207,6 +209,9 @@ namespace cpp_dbc::Firebird
         // ====================================================================
 
 #ifdef __cpp_exceptions
+        using DBDriver::buildURI;
+        using DBDriver::parseURI;
+
         std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
                                                                   const std::string &,
                                                                   const std::string &,
@@ -233,17 +238,20 @@ namespace cpp_dbc::Firebird
         // NOTHROW API — exception-free, always available
         // ====================================================================
 
-        bool acceptsURL(const std::string &url) noexcept override
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(
+            std::nothrow_t, const std::string & /*uri*/) noexcept override
         {
-            return url.starts_with("cpp_dbc:firebird://");
+            return cpp_dbc::unexpected(DBException("W7C41KZI8819", "Firebird support is not enabled in this build", system_utils::captureCallStack()));
         }
 
-        bool parseURL(const std::string & /*url*/,
-                      std::string & /*host*/,
-                      int & /*port*/,
-                      std::string & /*database*/) const noexcept
+        cpp_dbc::expected<std::string, DBException> buildURI(
+            std::nothrow_t,
+            const std::string & /*host*/,
+            int /*port*/,
+            const std::string & /*database*/,
+            const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override
         {
-            return false;
+            return cpp_dbc::unexpected(DBException("07NET9XGT519", "Firebird support is not enabled in this build", system_utils::captureCallStack()));
         }
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
@@ -274,7 +282,12 @@ namespace cpp_dbc::Firebird
 
         std::string getName() const noexcept override
         {
-            return "Firebird (disabled)";
+            return "firebird/disabled";
+        }
+
+        std::string getURIScheme() const noexcept override
+        {
+            return "cpp_dbc:firebird://<host>:<port>/<database_server_path>";
         }
     };
 } // namespace cpp_dbc::Firebird

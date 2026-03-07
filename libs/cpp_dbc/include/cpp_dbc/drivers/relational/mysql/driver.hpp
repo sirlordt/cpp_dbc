@@ -53,6 +53,9 @@ namespace cpp_dbc::MySQL
         // ====================================================================
 
 #ifdef __cpp_exceptions
+        using DBDriver::parseURI;
+        using DBDriver::buildURI;
+
         std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
                                                                   const std::string &user,
                                                                   const std::string &password,
@@ -63,20 +66,16 @@ namespace cpp_dbc::MySQL
         // NOTHROW API — exception-free, always available
         // ====================================================================
 
-        bool acceptsURL(const std::string &url) noexcept override;
 
-        /**
-         * @brief Parse a JDBC-like URL into host, port, and database components
-         * @param url URL in format "cpp_dbc:mysql://host:port/database"
-         * @param host Output: extracted hostname
-         * @param port Output: extracted port number
-         * @param database Output: extracted database name
-         * @return true if parsing succeeded
-         */
-        bool parseURL(const std::string &url,
-                      std::string &host,
-                      int &port,
-                      std::string &database) const;
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(
+            std::nothrow_t, const std::string &uri) noexcept override;
+
+        cpp_dbc::expected<std::string, DBException> buildURI(
+            std::nothrow_t,
+            const std::string &host,
+            int port,
+            const std::string &database,
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
             std::nothrow_t,
@@ -86,6 +85,7 @@ namespace cpp_dbc::MySQL
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
 
         std::string getName() const noexcept override;
+        std::string getURIScheme() const noexcept override;
 
         static void cleanup();
     };
@@ -114,6 +114,9 @@ namespace cpp_dbc::MySQL
         // ====================================================================
 
 #ifdef __cpp_exceptions
+        using DBDriver::parseURI;
+        using DBDriver::buildURI;
+
         std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
                                                                   const std::string &,
                                                                   const std::string &,
@@ -127,9 +130,21 @@ namespace cpp_dbc::MySQL
         // NOTHROW API — exception-free, always available
         // ====================================================================
 
-        bool acceptsURL(const std::string &url) noexcept override
+
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(
+            std::nothrow_t, const std::string &) noexcept override
         {
-            return url.starts_with("cpp_dbc:mysql://");
+            return cpp_dbc::unexpected(DBException("60KVZ1GMDYHY", "MySQL support is not enabled in this build"));
+        }
+
+        cpp_dbc::expected<std::string, DBException> buildURI(
+            std::nothrow_t,
+            const std::string &,
+            int,
+            const std::string &,
+            const std::map<std::string, std::string> & = std::map<std::string, std::string>()) noexcept override
+        {
+            return cpp_dbc::unexpected(DBException("YPQJVKDIBJGI", "MySQL support is not enabled in this build"));
         }
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
@@ -144,7 +159,12 @@ namespace cpp_dbc::MySQL
 
         std::string getName() const noexcept override
         {
-            return "MySQL (disabled)";
+            return "mysql/disabled";
+        }
+
+        std::string getURIScheme() const noexcept override
+        {
+            return "cpp_dbc:mysql://<host>:<port>/<database>";
         }
     };
 } // namespace cpp_dbc::MySQL

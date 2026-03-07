@@ -61,7 +61,12 @@ namespace cpp_dbc::MySQL
         if (m_currentRow[idx] == nullptr)
         {
             // Return an empty blob with no connection (data is already loaded)
-            return std::shared_ptr<Blob>(std::make_shared<MySQL::MySQLBlob>(std::shared_ptr<MYSQL>()));
+            auto blobResult = MySQL::MySQLBlob::create(std::nothrow, std::shared_ptr<MYSQL>());
+            if (!blobResult.has_value())
+            {
+                return cpp_dbc::unexpected(blobResult.error());
+            }
+            return std::shared_ptr<Blob>(blobResult.value());
         }
 
         // Get the length of the BLOB data
@@ -81,7 +86,12 @@ namespace cpp_dbc::MySQL
             std::memcpy(data.data(), m_currentRow[idx], lengths[idx]);
         }
 
-        return std::shared_ptr<Blob>(std::make_shared<MySQL::MySQLBlob>(std::shared_ptr<MYSQL>(), data));
+        auto blobResult = MySQL::MySQLBlob::create(std::nothrow, std::shared_ptr<MYSQL>(), data);
+        if (!blobResult.has_value())
+        {
+            return cpp_dbc::unexpected(blobResult.error());
+        }
+        return std::shared_ptr<Blob>(blobResult.value());
     }
 
     cpp_dbc::expected<std::shared_ptr<Blob>, DBException> MySQLDBResultSet::getBlob(std::nothrow_t, const std::string &columnName) noexcept
@@ -114,7 +124,12 @@ namespace cpp_dbc::MySQL
         if (m_currentRow[idx] == nullptr)
         {
             // Return an empty stream
-            return std::shared_ptr<InputStream>(std::make_shared<MySQL::MySQLInputStream>("", 0));
+            auto streamResult = MySQL::MySQLInputStream::create(std::nothrow, "", 0);
+            if (!streamResult.has_value())
+            {
+                return cpp_dbc::unexpected(streamResult.error());
+            }
+            return std::shared_ptr<InputStream>(streamResult.value());
         }
 
         // Get the length of the BLOB data
@@ -125,7 +140,12 @@ namespace cpp_dbc::MySQL
         }
 
         // Create a new input stream with the data
-        return std::shared_ptr<InputStream>(std::make_shared<MySQL::MySQLInputStream>(m_currentRow[idx], lengths[idx]));
+        auto streamResult = MySQL::MySQLInputStream::create(std::nothrow, m_currentRow[idx], lengths[idx]);
+        if (!streamResult.has_value())
+        {
+            return cpp_dbc::unexpected(streamResult.error());
+        }
+        return std::shared_ptr<InputStream>(streamResult.value());
     }
 
     cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> MySQLDBResultSet::getBinaryStream(std::nothrow_t, const std::string &columnName) noexcept

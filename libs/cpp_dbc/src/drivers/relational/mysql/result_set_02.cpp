@@ -137,7 +137,7 @@ namespace cpp_dbc::MySQL
                                                    std::string("getInt failed: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("F2A8B4C0D7E5",
                                                    "getInt failed: unknown error",
@@ -192,7 +192,7 @@ namespace cpp_dbc::MySQL
                                                    std::string("getLong failed: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("A3B9C5D1E8F7",
                                                    "getLong failed: unknown error",
@@ -247,7 +247,7 @@ namespace cpp_dbc::MySQL
                                                    std::string("getDouble failed: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("B4C0D6E2F9A8",
                                                    "getDouble failed: unknown error",

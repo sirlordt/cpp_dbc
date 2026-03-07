@@ -36,6 +36,21 @@ namespace cpp_dbc::MySQL
 
     // Nothrow API implementations
 
+    cpp_dbc::expected<bool, DBException> MySQLDBConnection::ping(std::nothrow_t) noexcept
+    {
+        auto result = executeQuery(std::nothrow, "SELECT 1");
+        if (!result.has_value())
+        {
+            return cpp_dbc::unexpected(result.error());
+        }
+        auto closeResult = result.value()->close(std::nothrow);
+        if (!closeResult.has_value())
+        {
+            return cpp_dbc::unexpected(closeResult.error());
+        }
+        return true;
+    }
+
     cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> MySQLDBConnection::prepareStatement(std::nothrow_t, const std::string &sql) noexcept
     {
         // try/catch is needed here: shared_from_this() can throw std::bad_weak_ptr
@@ -68,7 +83,7 @@ namespace cpp_dbc::MySQL
                                                    std::string("prepareStatement failed: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("P4AGG0BAVQIP",
                                                    "prepareStatement failed: unknown error",
@@ -117,7 +132,7 @@ namespace cpp_dbc::MySQL
                                                    std::string("executeQuery failed: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("C5D1E7F3A0BF",
                                                    "executeQuery failed: unknown error",

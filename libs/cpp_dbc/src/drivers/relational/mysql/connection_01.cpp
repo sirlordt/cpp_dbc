@@ -56,7 +56,8 @@ namespace cpp_dbc::MySQL
         std::scoped_lock lock(m_statementsMutex);
         if (m_activeStatements.size() > 50)
         {
-            std::erase_if(m_activeStatements, [](const auto &w) { return w.expired(); });
+            std::erase_if(m_activeStatements, [](const auto &w)
+                          { return w.expired(); });
         }
         m_activeStatements.insert(stmt);
         return {};
@@ -82,10 +83,9 @@ namespace cpp_dbc::MySQL
         // Remove expired weak_ptrs and the specified one
         auto stmtLocked = stmt.lock();
         std::erase_if(m_activeStatements, [&stmtLocked](const auto &w)
-        {
+                      {
             auto locked = w.lock();
-            return !locked || (stmtLocked && locked.get() == stmtLocked.get());
-        });
+            return !locked || (stmtLocked && locked.get() == stmtLocked.get()); });
         return {};
     }
 
@@ -140,7 +140,8 @@ namespace cpp_dbc::MySQL
         std::scoped_lock lock(m_statementsMutex);
         if (m_activeResultSets.size() > 50)
         {
-            std::erase_if(m_activeResultSets, [](const auto &w) { return w.expired(); });
+            std::erase_if(m_activeResultSets, [](const auto &w)
+                          { return w.expired(); });
         }
         m_activeResultSets.insert(rs);
         return {};
@@ -206,7 +207,7 @@ namespace cpp_dbc::MySQL
             if (!m_mysql)
             {
                 m_initFailed = true;
-                m_initError = DBException("N3Z4A5B6C7D8", "Failed to initialize MySQL connection", system_utils::captureCallStack());
+                m_initError = std::make_unique<DBException>("N3Z4A5B6C7D8", "Failed to initialize MySQL connection", system_utils::captureCallStack());
                 return;
             }
 
@@ -250,7 +251,7 @@ namespace cpp_dbc::MySQL
                 std::string error = mysql_error(m_mysql.get());
                 m_mysql.reset();
                 m_initFailed = true;
-                m_initError = DBException("N4Z5A6B7C8D9", "Failed to connect to MySQL: " + error, system_utils::captureCallStack());
+                m_initError = std::make_unique<DBException>("N4Z5A6B7C8D9", "Failed to connect to MySQL: " + error, system_utils::captureCallStack());
                 return;
             }
 
@@ -260,7 +261,7 @@ namespace cpp_dbc::MySQL
                 std::string error = mysql_error(m_mysql.get());
                 m_mysql.reset();
                 m_initFailed = true;
-                m_initError = DBException("N5Z6A7B8C9D0", "Failed to select database: " + error, system_utils::captureCallStack());
+                m_initError = std::make_unique<DBException>("N5Z6A7B8C9D0", "Failed to select database: " + error, system_utils::captureCallStack());
                 return;
             }
 
@@ -271,7 +272,7 @@ namespace cpp_dbc::MySQL
                 std::string error = mysql_error(m_mysql.get());
                 m_mysql.reset();
                 m_initFailed = true;
-                m_initError = DBException("WNZ2VGHWVLBA", "Failed to enable auto-commit: " + error, system_utils::captureCallStack());
+                m_initError = std::make_unique<DBException>("WNZ2VGHWVLBA", "Failed to enable auto-commit: " + error, system_utils::captureCallStack());
                 return;
             }
             m_autoCommit = true;
@@ -293,12 +294,12 @@ namespace cpp_dbc::MySQL
         catch (const std::exception &ex)
         {
             m_initFailed = true;
-            m_initError = DBException("2OAN8D02QDY4", std::string("Exception during MySQL connection setup: ") + ex.what(), system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("2OAN8D02QDY4", std::string("Exception during MySQL connection setup: ") + ex.what(), system_utils::captureCallStack());
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             m_initFailed = true;
-            m_initError = DBException("R0BKZLIW5HEU", "Unknown exception during MySQL connection setup", system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("R0BKZLIW5HEU", "Unknown exception during MySQL connection setup", system_utils::captureCallStack());
         }
     }
 
@@ -488,21 +489,6 @@ namespace cpp_dbc::MySQL
     }
 
 #endif // __cpp_exceptions
-
-    cpp_dbc::expected<bool, DBException> MySQLDBConnection::ping(std::nothrow_t) noexcept
-    {
-        auto result = executeQuery(std::nothrow, "SELECT 1");
-        if (!result.has_value())
-        {
-            return cpp_dbc::unexpected(result.error());
-        }
-        auto closeResult = result.value()->close(std::nothrow);
-        if (!closeResult.has_value())
-        {
-            return cpp_dbc::unexpected(closeResult.error());
-        }
-        return true;
-    }
 
 } // namespace cpp_dbc::MySQL
 

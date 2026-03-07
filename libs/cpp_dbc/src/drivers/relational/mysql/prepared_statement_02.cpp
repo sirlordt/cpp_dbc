@@ -182,31 +182,49 @@ namespace cpp_dbc::MySQL
         switch (type)
         {
         case INTEGER:
+        {
             mysqlType = MYSQL_TYPE_LONG;
             break;
+        }
         case FLOAT:
+        {
             mysqlType = MYSQL_TYPE_FLOAT;
             break;
+        }
         case DOUBLE:
+        {
             mysqlType = MYSQL_TYPE_DOUBLE;
             break;
+        }
         case VARCHAR:
+        {
             mysqlType = MYSQL_TYPE_STRING;
             break;
+        }
         case DATE:
+        {
             mysqlType = MYSQL_TYPE_DATE;
             break;
+        }
         case TIMESTAMP:
+        {
             mysqlType = MYSQL_TYPE_TIMESTAMP;
             break;
+        }
         case BOOLEAN:
+        {
             mysqlType = MYSQL_TYPE_TINY;
             break;
+        }
         case BLOB:
+        {
             mysqlType = MYSQL_TYPE_BLOB;
             break;
+        }
         default:
+        {
             mysqlType = MYSQL_TYPE_NULL;
+        }
         }
 
         // Store the null flag in our vector (1 for true, 0 for false)
@@ -214,7 +232,7 @@ namespace cpp_dbc::MySQL
 
         m_binds[idx].buffer_type = mysqlType;
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) - Required for MySQL C API interop
-        m_binds[idx].is_null = reinterpret_cast<bool *>(&m_nullFlags[idx]); // NOSONAR
+        m_binds[idx].is_null = reinterpret_cast<bool *>(&m_nullFlags[idx]); // NOSONAR(cpp:S3630) — required for MySQL C API interop: is_null expects bool*
         m_binds[idx].buffer = nullptr;
         m_binds[idx].buffer_length = 0;
         m_binds[idx].length = nullptr;

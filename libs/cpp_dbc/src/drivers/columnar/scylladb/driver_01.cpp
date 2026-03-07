@@ -87,29 +87,11 @@ namespace cpp_dbc::ScyllaDB
         return *result;
     }
 
-    std::map<std::string, std::string> ScyllaDBDriver::parseURI(const std::string &uri)
-    {
-        auto result = parseURI(std::nothrow, uri);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return *result;
-    }
-
-    std::string ScyllaDBDriver::buildURI(const std::string &host, int port, const std::string &database, const std::map<std::string, std::string> &options)
-    {
-        (void)options;
-        // Append the database/keyspace only when non-empty to avoid a trailing slash
-        // on URLs without a keyspace (e.g. "cpp_dbc:scylladb://host:port").
-        return "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) +
-               (database.empty() ? "" : "/" + database);
-    }
 #endif // __cpp_exceptions
 
     std::string ScyllaDBDriver::getURIScheme() const noexcept
     {
-        return "cpp_dbc:scylladb://";
+        return "cpp_dbc:scylladb://<host>:<port>/<keyspace>";
     }
 
     bool ScyllaDBDriver::supportsClustering() const noexcept
@@ -131,11 +113,6 @@ namespace cpp_dbc::ScyllaDB
 #else
         return "unknown";
 #endif
-    }
-
-    bool ScyllaDBDriver::acceptsURL(const std::string &url) noexcept
-    {
-        return url.starts_with("cpp_dbc:scylladb://");
     }
 
     std::string ScyllaDBDriver::getName() const noexcept
@@ -200,6 +177,19 @@ namespace cpp_dbc::ScyllaDB
 
         SCYLLADB_DEBUG("ScyllaDBDriver::parseURI - Parsed host: " << result["host"] << ", port: " << result["port"] << ", database: " << result["database"]);
         return result;
+    }
+
+    cpp_dbc::expected<std::string, DBException> ScyllaDBDriver::buildURI(
+        std::nothrow_t,
+        const std::string &host,
+        int port,
+        const std::string &database,
+        const std::map<std::string, std::string> & /*options*/) noexcept
+    {
+        // Append the database/keyspace only when non-empty to avoid a trailing slash
+        // on URLs without a keyspace (e.g. "cpp_dbc:scylladb://host:port").
+        return "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) +
+               (database.empty() ? "" : "/" + database);
     }
 
 } // namespace cpp_dbc::ScyllaDB

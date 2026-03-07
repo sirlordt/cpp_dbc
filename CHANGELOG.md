@@ -1,6 +1,67 @@
 # Changelog
 
-## 2026-03-06 20:29:58 PST [Current]
+## 2026-03-07 13:34:00 PST [Current]
+
+### Unified URI API in DBDriver Base, PrivateCtorTag for MySQLBlob/InputStream, Expanded Convention Rules, and Convention Violations Reporting
+
+This release refactors the `DBDriver` base class URI handling into a unified interface, applies the PrivateCtorTag creational pattern to `MySQLBlob` and `MySQLInputStream`, significantly expands the project conventions document with new coding rules, and adds a structured convention violations reporting document. Total: **49 files changed, +2938/-1354 lines**.
+
+#### DBDriver Base Class — Unified URI API
+
+- **`acceptsURL()` renamed to `acceptURI()`**: Both throwing and nothrow versions in `DBDriver` base class (throwing delegates to nothrow)
+- **New `parseURI(std::nothrow_t)` pure virtual**: Each driver must implement URI parsing; returns `expected<map<string,string>, DBException>`
+- **New `buildURI(std::nothrow_t)` pure virtual**: Each driver must implement URI building from components
+- **New `getURIScheme()` pure virtual**: Returns human-readable URI template (e.g., `"cpp_dbc:mysql://<host>:<port>/<database>"`)
+- **Default `acceptURI(std::nothrow_t)` implementation**: Uses `parseURI()` — a successful parse means the URI is accepted
+- **Removed private helpers from family driver bases**: `acceptsURL()`, `parseURL()`, `buildURL()` removed from `ColumnarDBDriver`, `DocumentDBDriver`, `KVDBDriver` (-130 lines)
+
+#### All 7 Drivers Updated for New URI API
+
+- MySQL, PostgreSQL, SQLite, Firebird, MongoDB, Redis, ScyllaDB drivers updated to implement `acceptURI`, `parseURI`, `buildURI`, `getURIScheme` pure virtuals
+- All driver `_01.cpp` files refactored: method renames + nothrow implementations
+- All test files updated: `acceptsURL()` → `acceptURI()`, `parseURL()` → `parseURI()`, `buildURL()` → `buildURI()`
+
+#### MySQLBlob — PrivateCtorTag Pattern
+
+- **PrivateCtorTag + `m_initFailed`/`m_initError`**: Applied to `MySQLBlob` — public `noexcept` constructors guarded by private tag type
+- **`#ifdef __cpp_exceptions` guards**: All throwing methods (`create`, `ensureLoaded`, `copyFrom`, `length`, `getBytes`, `getBinaryStream`, `setBytes`, `truncate`, `free`, `position`) now inside `#ifdef __cpp_exceptions`
+- **Nothrow static factories**: `create(std::nothrow_t, ...)` uses `std::make_shared` with `PrivateCtorTag`
+- **Removed `getMySQLHandle()` throwing variant**: Only nothrow version remains (private helper)
+
+#### MySQLInputStream — PrivateCtorTag Pattern
+
+- **PrivateCtorTag + `m_initFailed`/`m_initError`**: Same pattern applied to `MySQLInputStream`
+- **`#ifdef __cpp_exceptions` guards**: All throwing methods guarded
+- **Nothrow static factories**: `create(std::nothrow_t, ...)` with `PrivateCtorTag`
+
+#### Convention Rules — Major Expansion (`.claude/rules/cpp_dbc_conventions.md`)
+
+New convention sections added:
+- **Preprocessor Directives — Always Flush Left (Column 0)**
+- **Braces — Allman Style (Own Line)**: Opening and closing braces each on their own line
+- **NOSONAR Comments — Rule ID and Explanation Required**: Must include `(cpp:SXXXX)` and brief explanation
+- **Bug-Fix Comments**: ISO 8601 timestamp + `Bug:` + `Solution:` structured format
+- **Unused Parameters — No `(void)` Cast**: Use unnamed parameters or `[[maybe_unused]]` instead
+- **`private:` Access Specifier — Omit in `class`, Require in `struct`**
+- **PrivateCtorTag Pattern**: Complete documentation for driver class creational pattern
+- **Private/Protected Methods — Migration Rule**: Expanded with concrete examples and checklist
+
+#### Convention Violations Reporting (New Document)
+
+- **New `.claude/rules/cpp_dbc_conventions_violations_how_report_them.md`**: Structured format for convention compliance analysis reports
+- Defines severity levels (Critical/High/Medium/Low), report structure, diagnostic checklist
+- Comprehensive checklist of all conventions to verify
+- Output location: `research/<driver_name>_improvements_<N>.md`
+
+#### Documentation Updates
+
+- `cppdbc-docs-en.md` and `cppdbc-docs-es.md`: Updated for `acceptURI`/`parseURI`/`buildURI` API
+- `error_handling_patterns.md`: Updated method signatures
+- `how_add_new_db_drivers.md`: Updated driver implementation guide with new URI API requirements
+
+---
+
+## 2026-03-06 20:29:58 PST
 
 ### MySQL Driver — Full Nothrow-First Refactor, Static Factory Pattern, Result Set Registry, and Dead try/catch Elimination
 

@@ -21,6 +21,7 @@
 #include "cpp_dbc/drivers/relational/driver_mysql.hpp"
 
 #include <array>
+#include <charconv>
 #include <cstring>
 #include <sstream>
 #include <iostream>
@@ -97,7 +98,7 @@ namespace cpp_dbc::MySQL
         }
     }
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     std::shared_ptr<RelationalDBConnection> MySQLDBDriver::connectRelational(const std::string &url,
                                                                              const std::string &user,
                                                                              const std::string &password,
@@ -110,36 +111,73 @@ namespace cpp_dbc::MySQL
         }
         return *result;
     }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
-    bool MySQLDBDriver::acceptsURL(const std::string &url) noexcept
-    {
-        return url.starts_with("cpp_dbc:mysql://");
-    }
 
-    bool MySQLDBDriver::parseURL(const std::string &url,
-                                 std::string &host,
-                                 int &port,
-                                 std::string &database) const
+    cpp_dbc::expected<std::map<std::string, std::string>, DBException> MySQLDBDriver::parseURI(
+        std::nothrow_t, const std::string &uri) noexcept
     {
+        if (!uri.starts_with("cpp_dbc:mysql://"))
+        {
+            return cpp_dbc::unexpected(DBException("6MF2P9L2JN8K",
+                                                   "Invalid MySQL URI scheme: " + uri,
+                                                   system_utils::captureCallStack()));
+        }
+
         // Use centralized URL parsing from system_utils
         // MySQL URLs: cpp_dbc:mysql://host:port/database
         // Also supports IPv6: cpp_dbc:mysql://[::1]:port/database
         constexpr int DEFAULT_MYSQL_PORT = 3306;
 
         system_utils::ParsedDBURL parsed;
-        if (!system_utils::parseDBURL(url, "cpp_dbc:mysql://", DEFAULT_MYSQL_PORT, parsed,
+        if (!system_utils::parseDBURL(uri, "cpp_dbc:mysql://", DEFAULT_MYSQL_PORT, parsed,
                                       false,  // allowLocalConnection
                                       false)) // requireDatabase (MySQL allows no database)
         {
-            MYSQL_DEBUG("MySQLDBDriver::parseURL - Failed to parse URL: %s", url.c_str());
-            return false;
+            MYSQL_DEBUG("MySQLDBDriver::parseURI - Failed to parse URI: %s", uri.c_str());
+            return cpp_dbc::unexpected(DBException("WIB2CEJME4IV",
+                                                   "Failed to parse MySQL URI: " + uri,
+                                                   system_utils::captureCallStack()));
         }
 
-        host = parsed.host;
-        port = parsed.port;
-        database = parsed.database;
-        return true;
+        return std::map<std::string, std::string>{
+            {"host", parsed.host},
+            {"port", std::to_string(parsed.port)},
+            {"database", parsed.database}
+        };
+    }
+
+    cpp_dbc::expected<std::string, DBException> MySQLDBDriver::buildURI(
+        std::nothrow_t,
+        const std::string &host,
+        int port,
+        const std::string &database,
+        const std::map<std::string, std::string> & /*options*/) noexcept
+    {
+        std::ostringstream uri;
+        uri << "cpp_dbc:mysql://";
+
+        if (host.empty())
+        {
+            uri << "localhost";
+        }
+        else
+        {
+            uri << host;
+        }
+
+        constexpr int DEFAULT_MYSQL_PORT = 3306;
+        if (port > 0 && port != DEFAULT_MYSQL_PORT)
+        {
+            uri << ":" << port;
+        }
+
+        if (!database.empty())
+        {
+            uri << "/" << database;
+        }
+
+        return uri.str();
     }
 
     // Nothrow API implementations
@@ -151,127 +189,43 @@ namespace cpp_dbc::MySQL
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
     {
-        try
+        auto parseResult = parseURI(std::nothrow, url);
+        if (!parseResult.has_value())
         {
-            std::string host;
-            int port = 0;
-            std::string database = ""; // Default to empty database
-
-            // Helper lambda to parse port string safely
-            auto parsePort = [&url](const std::string &portStr) -> cpp_dbc::expected<int, DBException>
-            {
-                try
-                {
-                    return std::stoi(portStr);
-                }
-                catch ([[maybe_unused]] const std::exception &ex)
-                {
-                    MYSQL_DEBUG("MySQLDBDriver::connectRelational - Invalid port in URL: %s", ex.what());
-                    return cpp_dbc::unexpected(DBException("P6Z7A8B9C0D1", "Invalid port in URL: " + url, system_utils::captureCallStack()));
-                }
-            };
-
-            // Simple parsing for common URL formats
-            if (url.starts_with("cpp_dbc:mysql://"))
-            {
-                std::string temp = url.substr(16); // Remove "cpp_dbc:mysql://"
-
-                // Check if there's a port specified
-                size_t colonPos = temp.find(":");
-                if (colonPos != std::string::npos)
-                {
-                    // Host with port
-                    host = temp.substr(0, colonPos);
-
-                    // Find if there's a database specified
-                    size_t slashPos = temp.find("/", colonPos);
-                    if (slashPos != std::string::npos)
-                    {
-                        // Extract port
-                        std::string portStr = temp.substr(colonPos + 1, slashPos - colonPos - 1);
-                        auto portResult = parsePort(portStr);
-                        if (!portResult.has_value())
-                        {
-                            return cpp_dbc::unexpected(portResult.error());
-                        }
-                        port = *portResult;
-
-                        // Extract database (if any)
-                        if (slashPos + 1 < temp.length())
-                        {
-                            database = temp.substr(slashPos + 1);
-                        }
-                    }
-                    else
-                    {
-                        // No database specified, just port
-                        std::string portStr = temp.substr(colonPos + 1);
-                        auto portResult = parsePort(portStr);
-                        if (!portResult.has_value())
-                        {
-                            return cpp_dbc::unexpected(portResult.error());
-                        }
-                        port = *portResult;
-                    }
-                }
-                else
-                {
-                    // No port specified
-                    size_t slashPos = temp.find("/");
-                    if (slashPos != std::string::npos)
-                    {
-                        // Host with database
-                        host = temp.substr(0, slashPos);
-
-                        // Extract database (if any)
-                        if (slashPos + 1 < temp.length())
-                        {
-                            database = temp.substr(slashPos + 1);
-                        }
-
-                        port = 3306; // Default MySQL port
-                    }
-                    else
-                    {
-                        // Just host
-                        host = temp;
-                        port = 3306; // Default MySQL port
-                    }
-                }
-            }
-            else
-            {
-                return cpp_dbc::unexpected(DBException("Y2BIGEHLS4QE", "Invalid MySQL connection URL: " + url, system_utils::captureCallStack()));
-            }
-
-            auto connResult = MySQLDBConnection::create(std::nothrow, host, port, database, user, password, options);
-            if (!connResult.has_value())
-            {
-                return cpp_dbc::unexpected(connResult.error());
-            }
-            return std::shared_ptr<RelationalDBConnection>(connResult.value());
+            return cpp_dbc::unexpected(parseResult.error());
         }
-        catch (const DBException &ex)
+
+        auto &parsed = parseResult.value();
+        std::string host = parsed["host"];
+
+        auto &portStr = parsed["port"];
+        int port = 0;
+        auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), port);
+        if (ec != std::errc{})
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(DBException("IYLFP3EHABUY",
+                "Invalid port number in URI: " + portStr,
+                system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
+
+        std::string database = parsed["database"];
+
+        auto connResult = MySQLDBConnection::create(std::nothrow, host, port, database, user, password, options);
+        if (!connResult.has_value())
         {
-            return cpp_dbc::unexpected(DBException("MY2B3C4D5E6F",
-                                                   std::string("connectRelational failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(connResult.error());
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("MY3C4D5E6F7G",
-                                                   "connectRelational failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return std::shared_ptr<RelationalDBConnection>(connResult.value());
     }
 
     std::string MySQLDBDriver::getName() const noexcept
     {
         return "mysql";
+    }
+
+    std::string MySQLDBDriver::getURIScheme() const noexcept
+    {
+        return "cpp_dbc:mysql://<host>:<port>/<database>";
     }
 
 } // namespace cpp_dbc::MySQL

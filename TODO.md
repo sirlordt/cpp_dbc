@@ -12,6 +12,15 @@
 
 ## Completed Tasks
 
+- Unified URI API in DBDriver Base, PrivateCtorTag for MySQLBlob/InputStream, Expanded Conventions (2026-03-07):
+  - `DBDriver` base class: `acceptsURL()` → `acceptURI()`, new `parseURI()` + `buildURI()` + `getURIScheme()` pure virtuals
+  - All 7 drivers updated to implement new URI pure virtuals; private helpers removed from family driver bases (-130 lines)
+  - `MySQLBlob` + `MySQLInputStream`: PrivateCtorTag pattern, `m_initFailed`/`m_initError`, `#ifdef __cpp_exceptions` guards
+  - `.claude/rules/cpp_dbc_conventions.md`: 8 new convention sections (preprocessor directives, Allman braces, NOSONAR, bug-fix comments, unused params, private access specifier, PrivateCtorTag, migration rule)
+  - New `.claude/rules/cpp_dbc_conventions_violations_how_report_them.md`: structured violation reporting format
+  - All tests updated for new URI API; docs updated (en/es, error_handling_patterns, how_add_new_db_drivers)
+  - 49 files changed, +2938/-1354 lines
+
 - MySQL Driver — Full Nothrow-First Refactor, Static Factory Pattern, Result Set Registry, and Dead try/catch Elimination (2026-03-06):
   - `MySQLDBDriver`: double-checked locking with `atomic<bool>` + `mutex` for library init; new `cleanup()` static method
   - `MySQLDBConnection`: PrivateCtorTag pattern, nothrow constructor with `m_initFailed`/`m_initError`, result set registry (`m_activeResultSets`) with two-phase close, `getMySQLNativeHandle()`/`getConnectionMutex()` for child access, `m_resetting` anti-deadlock flag

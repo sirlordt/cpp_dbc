@@ -74,14 +74,14 @@ namespace cpp_dbc::ScyllaDB
         // ====================================================================
 
 #ifdef __cpp_exceptions
+        using DBDriver::parseURI;
+        using DBDriver::buildURI;
+
         std::shared_ptr<ColumnarDBConnection> connectColumnar(
             const std::string &url,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
-
-        std::map<std::string, std::string> parseURI(const std::string &uri) override;
-        std::string buildURI(const std::string &host, int port, const std::string &database, const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
 #endif // __cpp_exceptions
 
@@ -93,7 +93,6 @@ namespace cpp_dbc::ScyllaDB
         bool supportsClustering() const noexcept override;
         bool supportsAsync() const noexcept override;
         std::string getDriverVersion() const noexcept override;
-        bool acceptsURL(const std::string &url) noexcept override;
         std::string getName() const noexcept override;
 
         cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException> connectColumnar(
@@ -104,6 +103,13 @@ namespace cpp_dbc::ScyllaDB
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
 
         cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(std::nothrow_t, const std::string &uri) noexcept override;
+
+        cpp_dbc::expected<std::string, DBException> buildURI(
+            std::nothrow_t,
+            const std::string &host,
+            int port,
+            const std::string &database,
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
     };
 } // namespace cpp_dbc::ScyllaDB
 
@@ -127,19 +133,20 @@ namespace cpp_dbc::ScyllaDB
         // ====================================================================
 
 #ifdef __cpp_exceptions
+        using DBDriver::parseURI;
+        using DBDriver::buildURI;
+
         std::shared_ptr<ColumnarDBConnection> connectColumnar(const std::string &, const std::string &, const std::string &, const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
         {
             return nullptr;
         }
-        std::map<std::string, std::string> parseURI(const std::string &) override { return {}; }
-        std::string buildURI(const std::string &, int, const std::string &, const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override { return {}; }
 #endif // __cpp_exceptions
 
         // ====================================================================
         // NOTHROW API — exception-free, always available
         // ====================================================================
 
-        std::string getURIScheme() const noexcept override { return "cpp_dbc:scylladb://"; }
+        std::string getURIScheme() const noexcept override { return "cpp_dbc:scylladb://<host>:<port>/<keyspace>"; }
         bool supportsClustering() const noexcept override { return false; }
         bool supportsAsync() const noexcept override { return false; }
         std::string getDriverVersion() const noexcept override { return "0.0.0"; }
@@ -152,8 +159,15 @@ namespace cpp_dbc::ScyllaDB
         {
             return cpp_dbc::unexpected(DBException("7PPDEW842J3I", "ScyllaDB support is not enabled in this build"));
         }
-        bool acceptsURL(const std::string &url) noexcept override { return url.starts_with("cpp_dbc:scylladb://"); }
-        std::string getName() const noexcept override { return "scylladb"; }
+        cpp_dbc::expected<std::string, DBException> buildURI(std::nothrow_t, const std::string &, int, const std::string &, const std::map<std::string, std::string> & = std::map<std::string, std::string>()) noexcept override
+        {
+            return cpp_dbc::unexpected(DBException("0HFIU6XBM1LY", "ScyllaDB support is not enabled in this build"));
+        }
+
+        std::string getName() const noexcept override
+        {
+            return "scylladb/disabled";
+        }
     };
 } // namespace cpp_dbc::ScyllaDB
 

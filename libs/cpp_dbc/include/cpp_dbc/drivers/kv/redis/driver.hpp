@@ -65,17 +65,13 @@ namespace cpp_dbc::Redis
         // ====================================================================
 
 #ifdef __cpp_exceptions
+        using DBDriver::parseURI;
+        using DBDriver::buildURI;
+
         std::shared_ptr<KVDBConnection> connectKV(
             const std::string &url,
             const std::string &user,
             const std::string &password,
-            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
-
-        std::map<std::string, std::string> parseURI(const std::string &uri) override;
-        std::string buildURI(
-            const std::string &host,
-            int port,
-            const std::string &db = std::string{},
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
 #endif // __cpp_exceptions
@@ -84,7 +80,6 @@ namespace cpp_dbc::Redis
         // NOTHROW API — exception-free, always available
         // ====================================================================
 
-        bool acceptsURL(const std::string &url) noexcept override;
 
         std::string getURIScheme() const noexcept override;
         bool supportsClustering() const noexcept override;
@@ -105,6 +100,13 @@ namespace cpp_dbc::Redis
 
         cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(
             std::nothrow_t, const std::string &uri) noexcept override;
+
+        cpp_dbc::expected<std::string, DBException> buildURI(
+            std::nothrow_t,
+            const std::string &host,
+            int port,
+            const std::string &database,
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
 
         std::string getName() const noexcept override;
     };
@@ -144,29 +146,12 @@ namespace cpp_dbc::Redis
             return nullptr;
         }
 
-        std::map<std::string, std::string> parseURI(const std::string &) override
-        {
-            return {};
-        }
-
-        std::string buildURI(
-            const std::string &,
-            int,
-            const std::string & = std::string{},
-            const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
-        {
-            return {};
-        }
 #endif // __cpp_exceptions
 
         // ====================================================================
         // NOTHROW API — exception-free, always available
         // ====================================================================
 
-        bool acceptsURL(const std::string &url) noexcept override
-        {
-            return url.starts_with("cpp_dbc:redis://");
-        }
 
         cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> connectKV(
             std::nothrow_t,
@@ -184,11 +169,21 @@ namespace cpp_dbc::Redis
             return cpp_dbc::unexpected(DBException("RM4SN70ZPIL7", "Redis support is not enabled in this build"));
         }
 
-        std::string getURIScheme() const noexcept override { return "cpp_dbc:redis://"; }
+        cpp_dbc::expected<std::string, DBException> buildURI(
+            std::nothrow_t,
+            const std::string & /*host*/,
+            int /*port*/,
+            const std::string & /*database*/,
+            const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override
+        {
+            return cpp_dbc::unexpected(DBException("RM4SN70ZPIL7", "Redis support is not enabled in this build"));
+        }
+
+        std::string getURIScheme() const noexcept override { return "cpp_dbc:redis://<host>:<port>/<db>"; }
         bool supportsClustering() const noexcept override { return false; }
         bool supportsReplication() const noexcept override { return false; }
         std::string getDriverVersion() const noexcept override { return "0.0.0"; }
-        std::string getName() const noexcept override { return "redis (disabled)"; }
+        std::string getName() const noexcept override { return "redis/disabled"; }
     };
 } // namespace cpp_dbc::Redis
 

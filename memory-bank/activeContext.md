@@ -37,7 +37,17 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **MySQL Driver — Full Nothrow-First Refactor, Static Factory Pattern, Result Set Registry** (2026-03-06 20:29 PST):
+1. **Unified URI API in DBDriver Base, PrivateCtorTag for MySQLBlob/InputStream, Expanded Conventions** (2026-03-07 13:34 PST):
+   - **DBDriver base class refactored:** `acceptsURL()` → `acceptURI()` (throwing + nothrow); new `parseURI()`, `buildURI()`, `getURIScheme()` pure virtuals — all with default `acceptURI` using `parseURI`
+   - **Family driver bases cleaned:** Removed `acceptsURL()`, `parseURL()`, `buildURL()` private helpers from `ColumnarDBDriver`, `DocumentDBDriver`, `KVDBDriver` (-130 lines)
+   - **All 7 drivers updated:** Implement new URI pure virtuals; all tests updated for `acceptURI`/`parseURI`/`buildURI`
+   - **MySQLBlob + MySQLInputStream:** PrivateCtorTag pattern with `m_initFailed`/`m_initError`, `#ifdef __cpp_exceptions` guards, nothrow static factories
+   - **Convention rules expanded:** 8 new sections in `cpp_dbc_conventions.md` (preprocessor directives flush left, Allman braces, NOSONAR with rule ID, bug-fix ISO 8601 format, no `(void)` cast, `private:` omit in class, PrivateCtorTag pattern, migration rule for private methods)
+   - **New convention violations report document:** `.claude/rules/cpp_dbc_conventions_violations_how_report_them.md` with structured format, severity levels, and comprehensive checklist
+   - Docs updated: cppdbc-docs-en/es, error_handling_patterns, how_add_new_db_drivers
+   - 49 files changed, +2938/-1354 lines
+
+2. **MySQL Driver — Full Nothrow-First Refactor, Static Factory Pattern, Result Set Registry** (2026-03-06 20:29 PST):
    - **MySQLDBDriver:** Double-checked locking with `atomic<bool>` + `mutex` for library init; new `cleanup()` static method
    - **MySQLDBConnection:** PrivateCtorTag pattern, nothrow constructor with `m_initFailed`/`m_initError`, result set registry (`m_activeResultSets`) with two-phase close, `getMySQLNativeHandle()`/`getConnectionMutex()` for child access, `m_resetting` anti-deadlock flag, friend declarations for PreparedStatement/ResultSet/Blob
    - **MySQLDBPreparedStatement:** `weak_ptr<MySQLDBConnection>` replaces `weak_ptr<MYSQL>`, private nothrow constructor, `create(std::nothrow_t)` via `new`, `m_closed` atomic flag, `notifyConnClosing` returns `expected`
@@ -46,7 +56,7 @@ Recent changes to the codebase include:
    - Dead try/catch eliminated across all MySQL `.cpp` files
    - 17 files changed, +1559/-2202 lines (net reduction of ~643 lines)
 
-2. **CRTP `PooledDBConnectionBase<D,C,P>` — Unified Pooled Connection Logic** (2026-03-06 08:43 PST):
+3. **CRTP `PooledDBConnectionBase<D,C,P>` — Unified Pooled Connection Logic** (2026-03-06 08:43 PST):
    - **New CRTP template:** `PooledDBConnectionBase<Derived, ConnType, PoolType>` in `pool/pooled_db_connection_base.hpp` + `.cpp` (~485 lines) — extracts close/returnToPool (race-condition fix), destructor cleanup, and pool metadata from all 4 family pooled connection wrappers
    - **Family wrappers now thin CRTP delegators:** One-line inline delegators resolve diamond inheritance; destructors changed to `= default`
    - **Dead try/catch removed** from all `create(std::nothrow_t)` factory methods (death-sentence exception rule)
@@ -54,7 +64,7 @@ Recent changes to the codebase include:
    - **`how_add_new_db_drivers.md`** updated with comprehensive connection pool integration guide (Scenario A: existing family, Scenario B: new family)
    - 17 files changed, +1312/-2230 lines (net reduction of ~918 lines)
 
-3. **Unified Connection Pool Base Class (`DBConnectionPoolBase`) — Extracted Common Pool Logic into `pool/` Directory** (2026-03-06 01:59 PST):
+4. **Unified Connection Pool Base Class (`DBConnectionPoolBase`) — Extracted Common Pool Logic into `pool/` Directory** (2026-03-06 01:59 PST):
    - **New `DBConnectionPoolBase`:** Single base class in `pool/connection_pool.hpp` + `pool/connection_pool.cpp` (955 lines) containing all pool infrastructure: connection acquisition with direct handoff, HikariCP validation skip, phase-based lock protocol, maintenance thread, `returnConnection()` with orphan detection
    - **`DBConnectionPooled` extended:** Added pool-internal lifecycle methods (`updateLastUsedTime`, `isPoolClosed`, `getClosedFlag`)
    - **Directory restructure:** All pool headers/sources moved from `core/` to `pool/` directory; new placeholder dirs for `pool/graph/`, `pool/timeseries/`

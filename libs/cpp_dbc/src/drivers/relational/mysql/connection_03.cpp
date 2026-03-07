@@ -43,19 +43,29 @@ namespace cpp_dbc::MySQL
         switch (level)
         {
         case TRANSACTION_READ_UNCOMMITTED:
+        {
             query = "SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED";
             break;
+        }
         case TRANSACTION_READ_COMMITTED:
+        {
             query = "SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED";
             break;
+        }
         case TRANSACTION_REPEATABLE_READ:
+        {
             query = "SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ";
             break;
+        }
         case TRANSACTION_SERIALIZABLE:
+        {
             query = "SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE";
             break;
+        }
         default:
+        {
             return cpp_dbc::unexpected(DBException("N6Z7A8B9C0D1", "Unsupported transaction isolation level", system_utils::captureCallStack()));
+        }
         }
 
         if (mysql_query(m_mysql.get(), query.c_str()) != 0)
@@ -105,23 +115,21 @@ namespace cpp_dbc::MySQL
             return cpp_dbc::unexpected(DBException("N9Z0A1B2C3D4", std::string("Failed to get transaction isolation level: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
         }
 
-        MYSQL_RES *result = mysql_store_result(m_mysql.get());
-        if (!result)
+        MySQLResHandle resultHandle(mysql_store_result(m_mysql.get()));
+        if (!resultHandle)
         {
             m_inGetTransactionIsolation = false;
             return cpp_dbc::unexpected(DBException("O0Z1A2B3C4D5", std::string("Failed to get result set: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
         }
 
-        MYSQL_ROW row = mysql_fetch_row(result);
+        MYSQL_ROW row = mysql_fetch_row(resultHandle.get());
         if (!row)
         {
-            mysql_free_result(result);
             m_inGetTransactionIsolation = false;
             return cpp_dbc::unexpected(DBException("O1Z2A3B4C5D6", "Failed to fetch transaction isolation level", system_utils::captureCallStack()));
         }
 
         std::string level = row[0];
-        mysql_free_result(result);
 
         // Convert the string value to the enum
         TransactionIsolationLevel isolationResult;
@@ -161,7 +169,12 @@ namespace cpp_dbc::MySQL
         [[maybe_unused]] auto closeRsResult = closeAllActiveResultSets(std::nothrow);
         [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
 
-        // Sleep for 25ms to avoid problems with concurrency
+        // 2026-03-07T00:00:00Z
+        // Bug: Destroying the MYSQL handle immediately after closing all statements and result
+        // sets can race with in-flight MySQL C API calls on other threads that still reference
+        // the handle, causing use-after-free crashes.
+        // Solution: A 25ms delay gives in-flight operations time to complete before the handle
+        // is destroyed. This is a pragmatic workaround pending a refcount-based solution.
         std::this_thread::sleep_for(std::chrono::milliseconds(25));
 
         m_mysql.reset();

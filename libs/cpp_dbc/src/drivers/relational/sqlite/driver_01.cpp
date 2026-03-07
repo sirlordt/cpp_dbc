@@ -106,7 +106,7 @@ namespace cpp_dbc::SQLite
         }
     }
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     std::shared_ptr<RelationalDBConnection> SQLiteDBDriver::connectRelational(const std::string &url,
                                                                               [[maybe_unused]] const std::string &user,
                                                                               [[maybe_unused]] const std::string &password,
@@ -119,24 +119,44 @@ namespace cpp_dbc::SQLite
         }
         return *result;
     }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
-    bool SQLiteDBDriver::acceptsURL(const std::string &url) noexcept
-    {
-        return url.starts_with("cpp_dbc:sqlite://");
-    }
 
-    bool SQLiteDBDriver::parseURL(const std::string &url, std::string &database)
+    cpp_dbc::expected<std::map<std::string, std::string>, DBException> SQLiteDBDriver::parseURI(
+        std::nothrow_t, const std::string &uri) noexcept
     {
-        // Parse URL of format: cpp_dbc:sqlite:/path/to/database.db or cpp_dbc:sqlite::memory:
-        if (!acceptsURL(url))
+        if (!uri.starts_with("cpp_dbc:sqlite://"))
         {
-            return false;
+            return cpp_dbc::unexpected(DBException("5RHF8WK03IZG",
+                                                   "Invalid SQLite URI: " + uri,
+                                                   system_utils::captureCallStack()));
         }
 
+        // SQLite has no network — host is empty, port is 0
         // Extract database path (prefix "cpp_dbc:sqlite://" is 17 chars)
-        database = url.substr(17);
-        return true;
+        std::map<std::string, std::string> result;
+        result["host"] = "";
+        result["port"] = "0";
+        result["database"] = uri.substr(17);
+        return result;
+    }
+
+    cpp_dbc::expected<std::string, DBException> SQLiteDBDriver::buildURI(
+        std::nothrow_t,
+        const std::string & /*host*/,
+        int /*port*/,
+        const std::string &database,
+        const std::map<std::string, std::string> & /*options*/) noexcept
+    {
+        if (database.empty())
+        {
+            return cpp_dbc::unexpected(DBException("HLME1TRN0JA8",
+                                                   "Cannot build SQLite URI: database path is empty",
+                                                   system_utils::captureCallStack()));
+        }
+
+        // SQLite ignores host and port — URI is always cpp_dbc:sqlite://path
+        return "cpp_dbc:sqlite://" + database;
     }
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> SQLiteDBDriver::connectRelational(
@@ -148,31 +168,21 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            std::string database;
-
-            if (acceptsURL(url))
+            auto parseResult = parseURI(std::nothrow, url);
+            if (!parseResult.has_value())
             {
-                if (!parseURL(url, database))
-                {
-                    return cpp_dbc::unexpected(DBException("SLEN4O5P6Q7R", "Invalid SQLite connection URL: " + url,
-                                                           system_utils::captureCallStack()));
-                }
-            }
-            else
-            {
-                size_t dbStart = url.find("://");
-                if (dbStart != std::string::npos)
-                {
-                    database = url.substr(dbStart + 3);
-                }
-                else
-                {
-                    return cpp_dbc::unexpected(DBException("SLFO5P6Q7R8S", "Invalid SQLite connection URL: " + url,
-                                                           system_utils::captureCallStack()));
-                }
+                return cpp_dbc::unexpected(parseResult.error());
             }
 
-            auto connection = std::make_shared<SQLiteDBConnection>(database, options);
+            const auto &parsed = parseResult.value();
+            auto dbIt = parsed.find("database");
+            if (dbIt == parsed.end() || dbIt->second.empty())
+            {
+                return cpp_dbc::unexpected(DBException("SLEN4O5P6Q7R", "Invalid SQLite connection URL: " + url,
+                                                       system_utils::captureCallStack()));
+            }
+
+            auto connection = std::make_shared<SQLiteDBConnection>(dbIt->second, options);
             return std::shared_ptr<RelationalDBConnection>(connection);
         }
         catch (const DBException &ex)
@@ -185,7 +195,7 @@ namespace cpp_dbc::SQLite
                                                    std::string("connectRelational failed: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("CR1A1B2C3D4F",
                                                    "connectRelational failed: unknown error",
@@ -196,6 +206,11 @@ namespace cpp_dbc::SQLite
     std::string SQLiteDBDriver::getName() const noexcept
     {
         return "sqlite";
+    }
+
+    std::string SQLiteDBDriver::getURIScheme() const noexcept
+    {
+        return "cpp_dbc:sqlite://<path>";
     }
 
 } // namespace cpp_dbc::SQLite

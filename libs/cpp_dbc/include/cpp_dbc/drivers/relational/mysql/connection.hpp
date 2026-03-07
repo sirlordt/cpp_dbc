@@ -40,7 +40,6 @@ namespace cpp_dbc::MySQL
         friend class MySQLDBResultSet;
         friend class MySQLBlob;
 
-    private:
         /**
          * @brief Private tag for the passkey idiom — enables std::make_shared
          * from static factory methods while keeping the constructor
@@ -146,7 +145,7 @@ namespace cpp_dbc::MySQL
          *
          * Holds the DBException that would have been thrown, for deferred delivery.
          */
-        DBException m_initError{"OSCL5DIWRKWK", "", {}};
+        std::unique_ptr<DBException> m_initError{nullptr};
 
         // ── Private helper methods ────────────────────────────────────────────
 
@@ -310,13 +309,15 @@ namespace cpp_dbc::MySQL
                const std::string &password,
                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
         {
-            // The nothrow constructor stores init errors in m_initFailed/m_initError
-            // rather than throwing, so no try/catch is needed here.
+            // No try/catch: std::make_shared can only throw std::bad_alloc, which is a
+            // death-sentence exception — the heap is exhausted and no meaningful recovery
+            // is possible. Catching it would hide a catastrophic failure as a silent error
+            // return. Letting std::terminate fire is safer and more debuggable.
             auto obj = std::make_shared<MySQLDBConnection>(
                 PrivateCtorTag{}, std::nothrow, host, port, database, user, password, options);
             if (obj->m_initFailed)
             {
-                return cpp_dbc::unexpected(obj->m_initError);
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
             }
             return obj;
         }

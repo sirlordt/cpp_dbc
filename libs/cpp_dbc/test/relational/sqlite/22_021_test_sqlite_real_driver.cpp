@@ -19,6 +19,7 @@
 */
 
 #include <string>
+#include <map>
 #include <memory>
 
 #include <catch2/catch_test_macros.hpp>
@@ -35,44 +36,66 @@ TEST_CASE("SQLite driver tests", "[22_021_01_sqlite_real_driver]")
         cpp_dbc::SQLite::SQLiteDBDriver driver;
 
         // Check that it accepts SQLite URLs
-        REQUIRE(driver.acceptsURL("cpp_dbc:sqlite://:memory:"));
-        REQUIRE(driver.acceptsURL("cpp_dbc:sqlite://test.db"));
-        REQUIRE(driver.acceptsURL("cpp_dbc:sqlite:///path/to/database.db"));
+        REQUIRE(driver.acceptURI("cpp_dbc:sqlite://:memory:"));
+        REQUIRE(driver.acceptURI("cpp_dbc:sqlite://test.db"));
+        REQUIRE(driver.acceptURI("cpp_dbc:sqlite:///path/to/database.db"));
 
         // Check that it rejects non-SQLite URLs
-        REQUIRE_FALSE(driver.acceptsURL("cpp_dbc:mysql://localhost:3306/testdb"));
-        REQUIRE_FALSE(driver.acceptsURL("cpp_dbc:postgresql://localhost:5432/testdb"));
-        REQUIRE_FALSE(driver.acceptsURL("jdbc:sqlite://test.db"));
-        REQUIRE_FALSE(driver.acceptsURL("sqlite://test.db"));
+        REQUIRE_FALSE(driver.acceptURI("cpp_dbc:mysql://localhost:3306/testdb"));
+        REQUIRE_FALSE(driver.acceptURI("cpp_dbc:postgresql://localhost:5432/testdb"));
+        REQUIRE_FALSE(driver.acceptURI("jdbc:sqlite://test.db"));
+        REQUIRE_FALSE(driver.acceptURI("sqlite://test.db"));
     }
 
-    SECTION("SQLite driver parseURL - valid URLs")
+    SECTION("SQLite driver parseURI - valid URLs")
     {
         cpp_dbc::SQLite::SQLiteDBDriver driver;
-        std::string database;
 
         // In-memory database
-        REQUIRE(driver.parseURL("cpp_dbc:sqlite://:memory:", database));
-        REQUIRE(database == ":memory:");
+        auto result1 = driver.parseURI("cpp_dbc:sqlite://:memory:");
+        REQUIRE(result1.at("host").empty());
+        REQUIRE(result1.at("port") == "0");
+        REQUIRE(result1.at("database") == ":memory:");
 
         // Simple file path
-        REQUIRE(driver.parseURL("cpp_dbc:sqlite://test.db", database));
-        REQUIRE(database == "test.db");
+        auto result2 = driver.parseURI("cpp_dbc:sqlite://test.db");
+        REQUIRE(result2.at("database") == "test.db");
 
         // Absolute file path
-        REQUIRE(driver.parseURL("cpp_dbc:sqlite:///path/to/database.db", database));
-        REQUIRE(database == "/path/to/database.db");
+        auto result3 = driver.parseURI("cpp_dbc:sqlite:///path/to/database.db");
+        REQUIRE(result3.at("database") == "/path/to/database.db");
     }
 
-    SECTION("SQLite driver parseURL - invalid URLs")
+    SECTION("SQLite driver parseURI - invalid URLs")
     {
         cpp_dbc::SQLite::SQLiteDBDriver driver;
-        std::string database;
 
-        // Wrong scheme
-        REQUIRE_FALSE(driver.parseURL("cpp_dbc:mysql://localhost:3306/testdb", database));
-        REQUIRE_FALSE(driver.parseURL("jdbc:sqlite://test.db", database));
-        REQUIRE_FALSE(driver.parseURL("sqlite://test.db", database));
+        // Wrong scheme — returns unexpected (not accepted)
+        auto r1 = driver.parseURI(std::nothrow, "cpp_dbc:mysql://localhost:3306/testdb");
+        REQUIRE_FALSE(r1.has_value());
+
+        auto r2 = driver.parseURI(std::nothrow, "jdbc:sqlite://test.db");
+        REQUIRE_FALSE(r2.has_value());
+
+        auto r3 = driver.parseURI(std::nothrow, "sqlite://test.db");
+        REQUIRE_FALSE(r3.has_value());
+    }
+
+    SECTION("SQLite driver buildURI")
+    {
+        cpp_dbc::SQLite::SQLiteDBDriver driver;
+
+        // Build an in-memory URL
+        auto uri = driver.buildURI("", 0, ":memory:");
+        REQUIRE(uri == "cpp_dbc:sqlite://:memory:");
+
+        // Build a file path URL
+        auto uri2 = driver.buildURI("", 0, "/path/to/database.db");
+        REQUIRE(uri2 == "cpp_dbc:sqlite:///path/to/database.db");
+
+        // Roundtrip: buildURI -> parseURI
+        auto parsed = driver.parseURI(uri);
+        REQUIRE(parsed.at("database") == ":memory:");
     }
 
     SECTION("SQLite driver connection to in-memory database")
