@@ -1,6 +1,38 @@
 # Changelog
 
-## 2026-03-07 13:34:00 PST [Current]
+## 2026-03-08 00:21:00 PST [Current]
+
+### Convention refinements: PrivateCtorTag unification, violations checklist reorganization, MySQL code cleanup
+
+This release refines the project conventions and applies code cleanup to the MySQL driver. The PrivateCtorTag pattern replaces the old `ConstructorTag` naming throughout convention docs, the violations checklist is reorganized into categorized sections, and MySQL driver code receives Allman brace formatting, explicit destructors, Spanish-to-English comment translation, and a stub fix. Total: **9 files changed, +137/-69 lines**.
+
+#### Convention Rules — PrivateCtorTag Unification (`.claude/rules/cpp_dbc_conventions.md`)
+
+- **`ConstructorTag` renamed to `PrivateCtorTag`** throughout: pool class variant now uses `PrivateCtorTag` (was `ConstructorTag`), matching the per-class pattern used by driver classes
+- **Private constructors explicitly forbidden**: New rule — all constructors must be public, guarded by `PrivateCtorTag`; migration rule added for existing private constructors
+- **Class layout updated**: Header template now shows `PrivateCtorTag` struct + construction state variables (`m_initFailed`, `m_initError`) in private section, public constructor with `PrivateCtorTag` as first parameter
+- **Source file distribution updated**: `_01.cpp` template now documents "Public nothrow constructor (PrivateCtorTag)" instead of "Private constructor"
+- **Factory pattern updated**: Nothrow `::create` now uses `PrivateCtorTag{}` + `m_initFailed` check instead of `initialize(std::nothrow)` call
+- **Comparison table updated**: "Per-class vs Base class PrivateCtorTag" replaces old "Private constructor vs ConstructorTag" table
+
+#### Convention Violations Checklist — Reorganized (`.claude/rules/cpp_dbc_conventions_violations_how_report_them.md`)
+
+- **Categorized sections**: Checklist reorganized from flat list into 6 named sections: Error Codes & Formatting, Unused Parameters, Memory Safety, Atomics & Thread Safety, Input Validation, Error Handling, Class Layout & Patterns, Naming Conventions
+- **New checklist items**: Added checks for RAII handles, null checks, smart pointers, C++17 constructs, ranges, member initialization, `std::scoped_lock`/`std::recursive_mutex` preferences, pool mutex exception, infallible helpers, prefer nothrow variants, no private constructors, construction state variables, base class PrivateCtorTag, `std::move` in factory error paths, namespace/class/header/umbrella naming
+
+#### MySQL Driver — Code Cleanup
+
+- **`MySQLBlob`**: Added `~MySQLBlob() override = default` explicit destructor
+- **`MySQLInputStream`**: Added `~MySQLInputStream() override = default` explicit destructor
+- **`MySQLDBConnection`**: Reformatted `isResetting()` to Allman brace style
+- **`MySQLDBDriver` stub**: Fixed `connectRelational()` to delegate to nothrow overload instead of returning `nullptr`
+- **`connection_01.cpp`**: Reformatted 3 lambda bodies from K&R to Allman brace style
+- **`connection_02.cpp`**: Translated 2 Spanish comments to English
+- **`mysql_internal.hpp`**: Reformatted `isAcquired()` and `operator bool()` from single-line to Allman brace style
+
+---
+
+## 2026-03-07 13:34:00 PST
 
 ### Unified URI API in DBDriver Base, PrivateCtorTag for MySQLBlob/InputStream, Expanded Convention Rules, and Convention Violations Reporting
 

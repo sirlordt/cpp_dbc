@@ -357,7 +357,10 @@ namespace cpp_dbc::MySQL
          *
          * Used by ResultSet/PreparedStatement to avoid unregister deadlock during closeAll*()
          */
-        bool isResetting() const noexcept { return m_resetting.load(std::memory_order_acquire); }
+        bool isResetting() const noexcept
+        {
+            return m_resetting.load(std::memory_order_acquire);
+        }
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;
         cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> executeQuery(std::nothrow_t, const std::string &sql) noexcept override;

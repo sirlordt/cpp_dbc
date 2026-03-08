@@ -865,70 +865,82 @@ This applies only to new or modified class/struct definitions. Pre-existing defi
 class MyClass
 {
     // ── private ────────────────────────────────────────────────────────────────
-    // 1. Member variables
+    // 1. PrivateCtorTag (prevents external construction; see PrivateCtorTag Pattern)
+    struct PrivateCtorTag
+    {
+        explicit PrivateCtorTag() = default;
+    };
+
+    // 2. Member variables
     std::string      m_host;
     int              m_port{0};
 
-    // 2. Private nothrow constructor (std::nothrow_t makes the intent explicit)
-    explicit MyClass(std::nothrow_t, std::string host, int port) noexcept;
+    // 3. Construction state variables (for deferred error delivery)
+    bool m_initFailed{false};
+    std::unique_ptr<DBException> m_initError{nullptr};
 
-    // 3. Private helper functions (noexcept, return std::expected)
-    //    initialize() is optional — only present when construction requires fallible steps
-    std::expected<void, DBException> initialize(std::nothrow_t) noexcept;
+    // 4. Private helper functions (noexcept, return std::expected)
     std::expected<void, DBException> helperFoo(std::nothrow_t) noexcept;
 
 protected:
     // ── protected (optional — only when the class is designed for inheritance) ─
-    // 4. Protected member variables (if any)
+    // 5. Protected member variables (if any)
     int m_retryCount{3};
 
-    // 5. Protected nothrow helper methods (noexcept, return std::expected)
+    // 6. Protected nothrow helper methods (noexcept, return std::expected)
     std::expected<void, DBException> retryInternal(std::nothrow_t) noexcept;
 
 public:
     // ── public ─────────────────────────────────────────────────────────────────
-    // 6. Destructor (override when inheriting from an interface)
+    // 7. Public nothrow constructor (guarded by PrivateCtorTag)
+    MyClass(PrivateCtorTag, std::nothrow_t, std::string host, int port) noexcept;
+
+    // 8. Destructor (override when inheriting from an interface)
     ~MyClass() override;
 
-    // 7. Deleted copy/move operators (when the class is non-copyable/non-movable)
+    // 9. Deleted copy/move operators (when the class is non-copyable/non-movable)
     MyClass(const MyClass &)            = delete;
     MyClass &operator=(const MyClass &) = delete;
 
 #ifdef __cpp_exceptions
-    // 8. Throwing static factory (only compiled when exceptions are enabled)
+    // 10. Throwing static factory (only compiled when exceptions are enabled)
     static std::shared_ptr<MyClass> create(std::string host, int port);
 
-    // 9. Throwing public methods
+    // 11. Throwing public methods
     void   connect();
     Result query(const std::string &sql);
 #endif
 
-    // 10. Nothrow static factory (always compiled)
+    // 12. Nothrow static factory (always compiled)
     static std::expected<std::shared_ptr<MyClass>, DBException>
     create(std::nothrow_t, std::string host, int port) noexcept;
 
-    // 11. Nothrow public methods (always compiled)
+    // 13. Nothrow public methods (always compiled)
     std::expected<void,   DBException> connect(std::nothrow_t) noexcept;
     std::expected<Result, DBException> query(std::nothrow_t, const std::string &sql) noexcept;
 };
 ```
 
+**Private constructors are forbidden.** All constructors must be **public** and guarded by `PrivateCtorTag`. For driver classes, `PrivateCtorTag` is defined as a private struct in the class itself. For pool classes, `PrivateCtorTag` is defined in the abstract base class and referenced by derived classes. The tag name is always `PrivateCtorTag` — never `ConstructorTag` or any other name. This ensures compatibility with `std::make_shared` and `std::enable_shared_from_this`, and makes the construction path uniform across the entire codebase.
+
+**Migration rule**: If an existing class has a private constructor, it **must** be migrated to the PrivateCtorTag pattern: add a `PrivateCtorTag` private struct, move the constructor to `public`, and add `PrivateCtorTag` as the first parameter. The constructor remains `noexcept` and takes `std::nothrow_t` as the second parameter. All call sites (typically only in `::create` factories) must be updated to pass `PrivateCtorTag{}` as the first argument.
+
 The `protected` section follows the same internal pattern as `private`: **members first, then nothrow methods**. There is no throwing API in `protected` — protected methods are internal implementation helpers and must be `noexcept`, returning `std::expected<T, DBException>` with `std::nothrow_t` as their first parameter, identical to private helpers.
 
-### ConstructorTag Variant — `std::make_shared` + `enable_shared_from_this`
+### Base Class PrivateCtorTag Variant — Pool Classes
 
-When a class uses `std::enable_shared_from_this`, the constructor **must** be accessible to `std::make_shared`. A private constructor prevents this. The **ConstructorTag** pattern solves the problem: the constructor is public, but requires a tag type that only the class (or its factory) can create — preventing accidental direct construction.
+Pool classes (`*DBConnectionPool`, `*PooledDBConnection`) use a variant where the `PrivateCtorTag` is defined in the **base class** rather than in each derived class. The derived class references the base class tag (e.g. `DBConnectionPool::PrivateCtorTag`). This avoids duplicating the tag struct in every pool subclass while maintaining the same protection guarantees.
 
-**When to use this variant instead of the private `std::nothrow_t` constructor**:
-- The class inherits from `std::enable_shared_from_this`
-- The nothrow factory uses `std::make_shared<MyClass>(...)` (which requires a public or friend-accessible constructor)
+**When to use the base class variant instead of a per-class PrivateCtorTag**:
+- The class is a connection pool or pooled connection wrapper
+- A common abstract base class defines `PrivateCtorTag` once for all derived classes
 
-**Key differences from the standard pattern**:
-1. The constructor is **public**, not private
-2. The first parameter is `ConstructorTag` (a private tag type from the base class or the class itself), **not** `std::nothrow_t` — `ConstructorTag` already signals "do not call directly"
+**Key differences from the per-class PrivateCtorTag pattern**:
+1. The tag comes from the **base class** (`DBConnectionPool::PrivateCtorTag`), not a private struct in the derived class
+2. The first parameter is `PrivateCtorTag` — **`std::nothrow_t` is not needed** as the second parameter because `PrivateCtorTag` already signals "do not call directly"
 3. The constructor is still `noexcept` — no fallible work happens in it
 
-**Header layout with ConstructorTag** — the access specifier order remains **`private` → `protected` → `public`**, but the public section gains a new item (ConstructorTag constructors) that comes **before** the destructor:
+**Header layout with base class PrivateCtorTag** — the access specifier order remains **`private` → `protected` → `public`**, but the public section gains a new item (PrivateCtorTag constructors) that comes **before** the destructor:
 
 ```cpp
 class MyPool : public DBConnectionPool, public std::enable_shared_from_this<MyPool>
@@ -949,11 +961,11 @@ protected:
 
 public:
     // ── public ─────────────────────────────────────────────────────────────────
-    // 4. ConstructorTag constructors (public, but uncallable without the tag)
-    //    No std::nothrow_t needed — ConstructorTag already prevents misuse.
-    MyPool(DBConnectionPool::ConstructorTag,
+    // 4. PrivateCtorTag constructors (public, but uncallable without the tag)
+    //    No std::nothrow_t needed — PrivateCtorTag already prevents misuse.
+    MyPool(DBConnectionPool::PrivateCtorTag,
            const std::string &url, int maxSize) noexcept;
-    explicit MyPool(DBConnectionPool::ConstructorTag,
+    explicit MyPool(DBConnectionPool::PrivateCtorTag,
                     const config::DBConnectionPoolConfig &config) noexcept;
 
     // 5. Destructor
@@ -982,13 +994,13 @@ public:
 };
 ```
 
-**Why ConstructorTag constructors come before the destructor**: they are the primary construction interface — the factory calls them directly. Placing them first makes the construction path immediately visible when reading the class.
+**Why PrivateCtorTag constructors come before the destructor**: they are the primary construction interface — the factory calls them directly. Placing them first makes the construction path immediately visible when reading the class.
 
-**ConstructorTag source** — `ConstructorTag` is typically defined as a private struct in the base class (e.g. `DBConnectionPool::ConstructorTag`). The factory method creates an instance of the tag inline:
+**PrivateCtorTag source** — `PrivateCtorTag` is defined as a private struct in the base class (e.g. `DBConnectionPool::PrivateCtorTag`). The factory method creates an instance of the tag inline:
 
 ```cpp
 // In the nothrow factory:
-auto pool = std::make_shared<MyPool>(DBConnectionPool::ConstructorTag{}, url, maxSize);
+auto pool = std::make_shared<MyPool>(DBConnectionPool::PrivateCtorTag{}, url, maxSize);
 auto initResult = pool->initializePool(std::nothrow);
 if (!initResult.has_value())
 {
@@ -997,16 +1009,16 @@ if (!initResult.has_value())
 return pool;
 ```
 
-**Choosing between patterns**:
+**Choosing between per-class and base class PrivateCtorTag**:
 
-| Criterion | Private `std::nothrow_t` constructor | Public `ConstructorTag` constructor |
-|-----------|--------------------------------------|-------------------------------------|
-| `enable_shared_from_this` | Not compatible with `make_shared` | Compatible — constructor is public |
-| Protection against misuse | Private access | Tag type is private in base class |
-| `std::nothrow_t` first param | Required | Not needed — `ConstructorTag` serves the same role |
-| Fallible initialization | `initialize(std::nothrow)` called by factory | `initializePool(std::nothrow)` called by factory |
+| Criterion | Per-class `PrivateCtorTag` | Base class `PrivateCtorTag` |
+|-----------|----------------------------|------------------------------|
+| Tag location | Private struct in the class itself | Private struct in the abstract base class |
+| `std::nothrow_t` second param | Required | Not needed — `PrivateCtorTag` alone prevents misuse |
+| Construction state | `m_initFailed` + `m_initError` in the class | `initializePool(std::nothrow)` called by factory |
+| Used by | Driver classes (Connection, PreparedStatement, ResultSet, Blob, InputStream, Cursor, Collection, Document) | Pool classes (`*DBConnectionPool`, `*PooledDBConnection`) |
 
-**Classes that use this variant**: all connection pool classes (`*DBConnectionPool`) and their pooled connection wrappers (`*PooledDBConnection`).
+**Migration rule**: If existing pool classes use a tag named `ConstructorTag`, it **must** be renamed to `PrivateCtorTag`. The tag name must be uniform across the entire codebase — always `PrivateCtorTag`, never `ConstructorTag`.
 
 ### PrivateCtorTag Pattern — Driver Classes (Creational Pattern)
 
@@ -1249,11 +1261,11 @@ public:
 
 Implementations are split across multiple `.cpp` files to keep compilation units focused and to cleanly separate exception-dependent code from exception-free code. The distribution follows this fixed pattern:
 
-**`myclass_01.cpp`** — Private constructor + private helpers + destructor + first `#ifdef __cpp_exceptions` group:
+**`myclass_01.cpp`** — Public nothrow constructor (PrivateCtorTag) + private helpers + destructor + first `#ifdef __cpp_exceptions` group:
 
 ```cpp
-// ── Private nothrow constructor ───────────────────────────────────────────────
-MyClass::MyClass(std::nothrow_t, std::string host, int port) noexcept
+// ── Public nothrow constructor (PrivateCtorTag) ───────────────────────────────
+MyClass::MyClass(PrivateCtorTag, std::nothrow_t, std::string host, int port) noexcept
     : m_host(std::move(host)), m_port(port)
 {
 }
@@ -1322,11 +1334,10 @@ Result MyClass::query(const std::string &sql)
 std::expected<std::shared_ptr<MyClass>, DBException>
 MyClass::create(std::nothrow_t, std::string host, int port) noexcept
 {
-    auto obj  = std::make_shared<MyClass>(std::nothrow, std::move(host), port);
-    auto init = obj->initialize(std::nothrow);
-    if (!init.has_value())
+    auto obj = std::make_shared<MyClass>(PrivateCtorTag{}, std::nothrow, std::move(host), port);
+    if (obj->m_initFailed)
     {
-        return std::unexpected(init.error());
+        return cpp_dbc::unexpected(std::move(*obj->m_initError));
     }
     return obj;
 }
@@ -1366,7 +1377,7 @@ std::expected<Result, DBException> MyClass::query(std::nothrow_t, const std::str
 
 3. **Ordering within a `.cpp` file**: When a `.cpp` file contains both throwing and nothrow methods, the `#ifdef __cpp_exceptions` block always comes first, followed by the nothrow implementations. This mirrors the declaration order in the header.
 
-4. **Nothrow factory uses the private nothrow constructor**: `create(std::nothrow_t, ...)` allocates the object through the private constructor — which performs only trivially safe initialization — and then calls `initialize(std::nothrow)` for all fallible setup. This keeps the constructor itself safe under all conditions.
+4. **Nothrow factory uses the public PrivateCtorTag constructor**: `create(std::nothrow_t, ...)` allocates the object via `std::make_shared` using the `PrivateCtorTag`-guarded public constructor. For driver classes, fallible initialization happens inside the constructor itself (errors captured in `m_initFailed` / `m_initError`). For pool classes, trivially safe initialization happens in the constructor, and fallible setup is deferred to `initializePool(std::nothrow)` called by the factory after construction.
 
 5. **Sections absent when there is nothing to put in them**: If the class has no throwing methods at all, the `#ifdef __cpp_exceptions` block is omitted entirely from every file. If all methods fit in two `.cpp` files, a third file is not created.
 

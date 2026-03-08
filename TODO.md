@@ -12,6 +12,12 @@
 
 ## Completed Tasks
 
+- Convention refinements: PrivateCtorTag unification, violations checklist reorganization, MySQL code cleanup (2026-03-08):
+  - `ConstructorTag` → `PrivateCtorTag` throughout convention docs; private constructors explicitly forbidden with migration rule
+  - Violations checklist reorganized into 6 categorized sections with ~20 new items
+  - MySQL: explicit destructors for `MySQLBlob`/`MySQLInputStream`, Allman brace formatting, stub `connectRelational()` fixed, Spanish → English comments
+  - 9 files changed, +137/-69 lines
+
 - Unified URI API in DBDriver Base, PrivateCtorTag for MySQLBlob/InputStream, Expanded Conventions (2026-03-07):
   - `DBDriver` base class: `acceptsURL()` → `acceptURI()`, new `parseURI()` + `buildURI()` + `getURIScheme()` pure virtuals
   - All 7 drivers updated to implement new URI pure virtuals; private helpers removed from family driver bases (-130 lines)

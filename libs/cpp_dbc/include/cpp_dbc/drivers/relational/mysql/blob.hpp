@@ -120,6 +120,8 @@ namespace cpp_dbc::MySQL
             // Intentionally empty — all initialization done by the member initializer list
         }
 
+        ~MySQLBlob() override = default;
+
         // ====================================================================
         // THROWING API - Exception-based (requires __cpp_exceptions)
         // ====================================================================

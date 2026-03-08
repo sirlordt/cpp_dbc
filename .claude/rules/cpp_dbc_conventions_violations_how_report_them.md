@@ -128,6 +128,7 @@ This section is mandatory. It proves the analysis was thorough and not just a se
 
 When performing a full compliance analysis, check each of the following. This list mirrors the sections in `cpp_dbc_conventions.md`:
 
+### Error Codes & Formatting
 - [ ] **DBException error codes**: 12-char uppercase alphanumeric, unique, random
 - [ ] **Indentation**: 4 spaces, no tabs
 - [ ] **Preprocessor directives**: Always flush left (column 0), no indentation
@@ -137,27 +138,59 @@ When performing a full compliance analysis, check each of the following. This li
 - [ ] **NOSONAR comments**: Must include rule ID in parentheses and explanation
 - [ ] **Bug-fix comments**: ISO 8601 timestamp + `Bug:` + `Solution:` structure
 - [ ] **Namespace style**: C++17 nested syntax (`namespace cpp_dbc::MySQL`)
+
+### Unused Parameters
+- [ ] **No `(void)` cast**: Use unnamed parameter or `[[maybe_unused]]` instead of `(void)param;`
+
+### Memory Safety
+- [ ] **RAII handles**: Used for external C library resources (`BsonHandle`, `RedisReplyHandle`, etc.)
+- [ ] **Null checks**: Defensively check for nulls before dereferencing pointers from external libraries
+- [ ] **Smart pointers**: Avoid raw pointers; use `shared_ptr`, `unique_ptr`, `weak_ptr` in member/class variables
+- [ ] **C++17 constructs**: Use C++17-style constructs and functions for more secure code
+- [ ] **Ranges over index loops**: Prefer ranges, avoid index loops where possible
+- [ ] **Member initialization**: Prefer in-class initializers over constructor body
+
+### Atomics & Thread Safety
 - [ ] **`std::atomic` reads**: Always `.load(std::memory_order_acquire)`
 - [ ] **`std::atomic` writes**: Always `.store(..., std::memory_order_release)`
+- [ ] **Thread safety macros**: `DB_DRIVER_LOCK_GUARD(m_mutex)` for conditional locking; non-thread-safe variants still check `m_closed`
+- [ ] **`std::scoped_lock` preference**: Prefer `std::scoped_lock` over `lock_guard`/`unique_lock` wherever it makes sense
+- [ ] **`std::recursive_mutex` preference**: Prefer `std::recursive_mutex` over other mutex types for re-entrant locking
+- [ ] **Connection pool mutex exception**: Pool classes must use `std::mutex` (not `recursive_mutex`) because `std::condition_variable` requires it
+
+### Input Validation
+- [ ] **Database identifier validation**: Validate keyspace/database names against injection (only alphanumeric + underscores)
+
+### Error Handling
 - [ ] **`std::expected` / `std::optional`**: Always `.has_value()` for checks
 - [ ] **Private/protected methods**: Nothrow only (`std::nothrow_t` + `noexcept` + `std::expected`), no throwing variant
+- [ ] **Infallible private/protected helpers**: May return natural type (`void`, `bool`, etc.) instead of `std::expected` when provably infallible; still require `std::nothrow_t` + `noexcept`
+- [ ] **Prefer nothrow variants**: When both throwing and nothrow overloads exist, always call the nothrow one
 - [ ] **Nothrow methods call nothrow overloads**: No throwing inner calls from nothrow methods
-- [ ] **No redundant try/catch**: Dead catch blocks removed when all inner calls are nothrow
+- [ ] **No redundant try/catch**: Dead catch blocks removed when all inner calls are nothrow (death-sentence exceptions do NOT justify try/catch)
 - [ ] **`catch(...)` preceded by `catch(const std::exception &ex)`**: Always
 - [ ] **Catch variable naming**: Always `ex` (or `ex1`, `ex2` for nested)
+
+### Class Layout & Patterns
 - [ ] **Redundant `private:` in `class`**: Must be omitted (required in `struct`)
-- [ ] **Member initialization**: Prefer in-class initializers over constructor body
 - [ ] **Class layout**: Correct access specifier order (`private` -> `protected` -> `public`)
-- [ ] **PrivateCtorTag pattern**: Correctly implemented where required
-- [ ] **DBDriver variant**: Double-checked locking with `std::atomic` + `std::mutex`
-- [ ] **Static factory `::create`**: Throwing delegates to nothrow; `#ifdef __cpp_exceptions` guards
-- [ ] **Source file distribution**: `_01.cpp` / `_02.cpp` / `_03.cpp` pattern followed
-- [ ] **`#ifdef __cpp_exceptions`**: All throwing code properly guarded
-- [ ] **RAII handles**: Used for external C library resources
-- [ ] **Thread safety macros**: Non-thread-safe variants still check `m_closed`
-- [ ] **`std::move` in factory error paths**: `std::move(*obj->m_initError)` not a copy
 - [ ] **Header layout ordering**: Throwing API before nothrow methods in public section
+- [ ] **No private constructors**: All constructors must be public, guarded by `PrivateCtorTag`; private constructors must be migrated
+- [ ] **PrivateCtorTag pattern (per-class)**: Correctly implemented in driver classes (Connection, PreparedStatement, ResultSet, Blob, InputStream, Cursor, Collection, Document); tag defined as private struct in the class itself
+- [ ] **Construction state variables**: `bool m_initFailed{false}` + `std::unique_ptr<DBException> m_initError{nullptr}` in per-class PrivateCtorTag classes
+- [ ] **PrivateCtorTag pattern (base class)**: Used for pool classes (`*DBConnectionPool`, `*PooledDBConnection`); tag defined in base class, no `std::nothrow_t` needed; tag must be named `PrivateCtorTag` (not `ConstructorTag`)
+- [ ] **DBDriver variant**: Double-checked locking with `std::atomic` + `std::mutex` for C library init
+- [ ] **Static factory `::create`**: Throwing delegates to nothrow; `#ifdef __cpp_exceptions` guards
+- [ ] **`std::move` in factory error paths**: `std::move(*obj->m_initError)` not a copy
+- [ ] **`#ifdef __cpp_exceptions`**: All throwing code properly guarded
 - [ ] **Public methods**: Dual API pattern (throwing + nothrow) where required
+- [ ] **Source file distribution**: `_01.cpp` / `_02.cpp` / `_03.cpp` pattern followed
+
+### Naming Conventions
+- [ ] **Namespace naming**: Nested under `cpp_dbc` with brand's official casing (`cpp_dbc::MySQL`, `cpp_dbc::PostgreSQL`, etc.)
+- [ ] **Class naming**: `<BrandName><RoleSuffix>` pattern; "DB" not doubled when brand already contains it (`MongoDBDriver`, not `MongoDBDBDriver`)
+- [ ] **Header file naming**: Lowercase names (`connection.hpp`, `driver.hpp`, `prepared_statement.hpp`, etc.)
+- [ ] **Umbrella header**: `driver_<lowercase_name>.hpp` with `#ifndef` include guard and `#if USE_<DRIVER>` conditional
 
 ---
 

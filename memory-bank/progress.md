@@ -2,7 +2,29 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. The `DBDriver` base class now provides a unified URI API (`acceptURI`, `parseURI`, `buildURI`, `getURIScheme`) replacing the old family-specific `acceptsURL`/`parseURL`/`buildURL` private helpers (2026-03-07). `MySQLBlob` and `MySQLInputStream` have been upgraded to the PrivateCtorTag creational pattern. The project conventions document has been significantly expanded with 8 new sections, and a structured convention violations reporting document has been added. `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). The connection pool system is fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
+The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. The `DBDriver` base class now provides a unified URI API (`acceptURI`, `parseURI`, `buildURI`, `getURIScheme`) replacing the old family-specific `acceptsURL`/`parseURL`/`buildURL` private helpers (2026-03-07). `MySQLBlob` and `MySQLInputStream` have been upgraded to the PrivateCtorTag creational pattern. The PrivateCtorTag naming is now unified across the entire codebase — `ConstructorTag` has been renamed to `PrivateCtorTag` everywhere, and private constructors are explicitly forbidden (2026-03-08). The project conventions document has been significantly expanded with 8 new sections, and a structured convention violations reporting document has been reorganized into categorized sections. `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). The connection pool system is fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
+
+### Recent Improvements (2026-03-08 00:21 PST)
+
+**Convention refinements: PrivateCtorTag unification, violations checklist reorganization, MySQL code cleanup:**
+
+1. **Convention Rules — PrivateCtorTag Unification:**
+   - `ConstructorTag` renamed to `PrivateCtorTag` throughout convention docs (pool class variant now matches driver class pattern)
+   - Private constructors explicitly forbidden — all constructors must be public, guarded by `PrivateCtorTag`
+   - Class layout template updated with `PrivateCtorTag` struct + construction state variables + public constructor
+   - Factory pattern updated: `PrivateCtorTag{}` + `m_initFailed` check instead of `initialize(std::nothrow)` call
+
+2. **Violations Checklist Reorganized:**
+   - Flat checklist → 6 categorized sections: Error Codes & Formatting, Memory Safety, Atomics & Thread Safety, Error Handling, Class Layout & Patterns, Naming Conventions
+   - ~20 new checklist items added (RAII handles, null checks, smart pointers, infallible helpers, namespace/class naming, etc.)
+
+3. **MySQL Driver — Code Cleanup:**
+   - `MySQLBlob`/`MySQLInputStream`: added `override = default` destructors
+   - Allman brace formatting: `isResetting()`, lambda bodies in `connection_01.cpp`, `isAcquired()`/`operator bool()` in `mysql_internal.hpp`
+   - `MySQLDBDriver` stub: `connectRelational()` now delegates to nothrow overload (was returning `nullptr`)
+   - Spanish comments → English in `connection_02.cpp`
+
+4. **Impact:** 9 files changed, +137/-69 lines
 
 ### Recent Improvements (2026-03-07 13:34 PST)
 
@@ -890,9 +912,9 @@ Based on the current state of the project, potential areas for enhancement inclu
      - Bug: `m_closed` was reset to `false` AFTER `returnConnection()` completed
      - Fix: Reset `m_closed` to `false` BEFORE calling `returnConnection()`
      - Added catch-all exception handlers to ensure correct state on any exception
-   - **Connection Pool ConstructorTag Pattern (PassKey Idiom):**
-     - Added `DBConnectionPool::ConstructorTag` struct to enable `std::make_shared` while enforcing factory pattern
-     - Updated all connection pool classes to use ConstructorTag
+   - **Connection Pool PrivateCtorTag Pattern (PassKey Idiom):**
+     - Added `DBConnectionPool::PrivateCtorTag` struct to enable `std::make_shared` while enforcing factory pattern
+     - Updated all connection pool classes to use PrivateCtorTag
      - Enables single memory allocation with `std::make_shared`
    - **SonarCloud Code Quality Fixes:**
      - Added NOSONAR comments with explanations for intentional code patterns

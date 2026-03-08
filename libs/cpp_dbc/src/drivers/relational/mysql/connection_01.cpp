@@ -57,7 +57,9 @@ namespace cpp_dbc::MySQL
         if (m_activeStatements.size() > 50)
         {
             std::erase_if(m_activeStatements, [](const auto &w)
-                          { return w.expired(); });
+            {
+                return w.expired();
+            });
         }
         m_activeStatements.insert(stmt);
         return {};
@@ -83,9 +85,10 @@ namespace cpp_dbc::MySQL
         // Remove expired weak_ptrs and the specified one
         auto stmtLocked = stmt.lock();
         std::erase_if(m_activeStatements, [&stmtLocked](const auto &w)
-                      {
+        {
             auto locked = w.lock();
-            return !locked || (stmtLocked && locked.get() == stmtLocked.get()); });
+            return !locked || (stmtLocked && locked.get() == stmtLocked.get());
+        });
         return {};
     }
 
@@ -141,7 +144,9 @@ namespace cpp_dbc::MySQL
         if (m_activeResultSets.size() > 50)
         {
             std::erase_if(m_activeResultSets, [](const auto &w)
-                          { return w.expired(); });
+            {
+                return w.expired();
+            });
         }
         m_activeResultSets.insert(rs);
         return {};

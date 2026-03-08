@@ -37,7 +37,13 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Unified URI API in DBDriver Base, PrivateCtorTag for MySQLBlob/InputStream, Expanded Conventions** (2026-03-07 13:34 PST):
+1. **Convention refinements: PrivateCtorTag unification, violations checklist reorganization, MySQL code cleanup** (2026-03-08 00:21 PST):
+   - **PrivateCtorTag naming unified:** `ConstructorTag` → `PrivateCtorTag` throughout convention docs; private constructors explicitly forbidden with migration rule
+   - **Violations checklist reorganized:** Flat list → 6 categorized sections (Error Codes, Memory Safety, Atomics, Error Handling, Class Layout, Naming); ~20 new checklist items added
+   - **MySQL code cleanup:** Added explicit destructors to `MySQLBlob`/`MySQLInputStream`; Allman brace formatting for `isResetting()`, lambdas in `connection_01.cpp`, and `mysql_internal.hpp` methods; fixed `connectRelational()` stub to delegate to nothrow; translated Spanish comments to English
+   - 9 files changed, +137/-69 lines
+
+2. **Unified URI API in DBDriver Base, PrivateCtorTag for MySQLBlob/InputStream, Expanded Conventions** (2026-03-07 13:34 PST):
    - **DBDriver base class refactored:** `acceptsURL()` → `acceptURI()` (throwing + nothrow); new `parseURI()`, `buildURI()`, `getURIScheme()` pure virtuals — all with default `acceptURI` using `parseURI`
    - **Family driver bases cleaned:** Removed `acceptsURL()`, `parseURL()`, `buildURL()` private helpers from `ColumnarDBDriver`, `DocumentDBDriver`, `KVDBDriver` (-130 lines)
    - **All 7 drivers updated:** Implement new URI pure virtuals; all tests updated for `acceptURI`/`parseURI`/`buildURI`
@@ -369,9 +375,9 @@ Recent changes to the codebase include:
      - Bug: `m_closed` was reset to `false` AFTER `returnConnection()` completed
      - Fix: Reset `m_closed` to `false` BEFORE calling `returnConnection()`
      - Added catch-all exception handlers to ensure correct state on any exception
-   - **Connection Pool ConstructorTag Pattern (PassKey Idiom):**
-     - Added `DBConnectionPool::ConstructorTag` struct to enable `std::make_shared` while enforcing factory pattern
-     - Updated all connection pool classes to use ConstructorTag
+   - **Connection Pool PrivateCtorTag Pattern (PassKey Idiom):**
+     - Added `DBConnectionPool::PrivateCtorTag` struct to enable `std::make_shared` while enforcing factory pattern
+     - Updated all connection pool classes to use PrivateCtorTag
      - Enables single memory allocation with `std::make_shared`
    - **SonarCloud Code Quality Fixes:**
      - Added NOSONAR comments with explanations for intentional code patterns

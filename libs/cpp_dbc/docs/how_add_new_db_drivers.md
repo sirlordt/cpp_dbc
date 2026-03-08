@@ -388,12 +388,12 @@ namespace cpp_dbc::SQLServer
     class SQLServerConnectionPool final : public RelationalDBConnectionPool
     {
     public:
-        SQLServerConnectionPool(DBConnectionPool::ConstructorTag,
+        SQLServerConnectionPool(DBConnectionPool::PrivateCtorTag,
                                 const std::string &url,
                                 const std::string &username,
                                 const std::string &password) noexcept;
 
-        explicit SQLServerConnectionPool(DBConnectionPool::ConstructorTag,
+        explicit SQLServerConnectionPool(DBConnectionPool::PrivateCtorTag,
                                          const config::DBConnectionPoolConfig &config) noexcept;
 
         ~SQLServerConnectionPool() override = default;
@@ -425,18 +425,18 @@ Add the constructors and factory methods at the bottom of the family pool `.cpp`
 // In pool/relational/relational_db_connection_pool.cpp
 namespace cpp_dbc::SQLServer
 {
-    SQLServerConnectionPool::SQLServerConnectionPool(DBConnectionPool::ConstructorTag,
+    SQLServerConnectionPool::SQLServerConnectionPool(DBConnectionPool::PrivateCtorTag,
                                                      const std::string &url,
                                                      const std::string &username,
                                                      const std::string &password)
-        : RelationalDBConnectionPool(DBConnectionPool::ConstructorTag{}, url, username, password)
+        : RelationalDBConnectionPool(DBConnectionPool::PrivateCtorTag{}, url, username, password)
     {
         // Driver-specific initialization if needed
     }
 
-    SQLServerConnectionPool::SQLServerConnectionPool(DBConnectionPool::ConstructorTag,
+    SQLServerConnectionPool::SQLServerConnectionPool(DBConnectionPool::PrivateCtorTag,
                                                      const config::DBConnectionPoolConfig &config) noexcept
-        : RelationalDBConnectionPool(DBConnectionPool::ConstructorTag{}, config)
+        : RelationalDBConnectionPool(DBConnectionPool::PrivateCtorTag{}, config)
     {
         // Driver-specific initialization if needed
     }
@@ -465,7 +465,7 @@ namespace cpp_dbc::SQLServer
                                     const std::string &password) noexcept
     {
         auto pool = std::make_shared<SQLServerConnectionPool>(
-            DBConnectionPool::ConstructorTag{}, url, username, password);
+            DBConnectionPool::PrivateCtorTag{}, url, username, password);
         auto initResult = pool->initializePool(std::nothrow);
         if (!initResult.has_value())
         {
@@ -479,7 +479,7 @@ namespace cpp_dbc::SQLServer
                                     const config::DBConnectionPoolConfig &config) noexcept
     {
         auto pool = std::make_shared<SQLServerConnectionPool>(
-            DBConnectionPool::ConstructorTag{}, config);
+            DBConnectionPool::PrivateCtorTag{}, config);
         auto initResult = pool->initializePool(std::nothrow);
         if (!initResult.has_value())
         {

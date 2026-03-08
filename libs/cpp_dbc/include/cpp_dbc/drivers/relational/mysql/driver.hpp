@@ -117,12 +117,17 @@ namespace cpp_dbc::MySQL
         using DBDriver::parseURI;
         using DBDriver::buildURI;
 
-        std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
-                                                                  const std::string &,
-                                                                  const std::string &,
-                                                                  const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
+        std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
+                                                                  const std::string &user,
+                                                                  const std::string &password,
+                                                                  const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
         {
-            return nullptr;
+            auto r = connectRelational(std::nothrow, url, user, password, options);
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
+            return r.value();
         }
 #endif // __cpp_exceptions
 

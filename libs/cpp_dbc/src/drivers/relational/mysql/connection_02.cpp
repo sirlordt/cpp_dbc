@@ -161,7 +161,7 @@ namespace cpp_dbc::MySQL
         {
             if (autoCommitFlag)
             {
-                // Habilitar autocommit (1) y desactivar transacciones
+                // Enable autocommit (1) and deactivate transactions
                 std::string query = "SET autocommit=1";
                 if (mysql_query(m_mysql.get(), query.c_str()) != 0)
                 {
@@ -173,7 +173,7 @@ namespace cpp_dbc::MySQL
             }
             else
             {
-                // Si estamos desactivando autocommit, usar beginTransaction para iniciar la transacción
+                // If disabling autocommit, use beginTransaction to start a new transaction
                 auto beginResult = beginTransaction(std::nothrow);
                 if (!beginResult.has_value())
                 {

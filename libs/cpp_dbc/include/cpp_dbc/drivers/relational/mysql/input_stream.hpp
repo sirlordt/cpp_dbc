@@ -79,6 +79,8 @@ namespace cpp_dbc::MySQL
             }
         }
 
+        ~MySQLInputStream() override = default;
+
         // ====================================================================
         // THROWING API - Exception-based (requires __cpp_exceptions)
         // ====================================================================

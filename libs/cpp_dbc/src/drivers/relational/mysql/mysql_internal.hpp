@@ -153,8 +153,15 @@ namespace cpp_dbc::MySQL
             m_acquired = true;
         }
 
-        bool isAcquired() const { return m_acquired; }
-        explicit operator bool() const { return m_acquired; }
+        bool isAcquired() const
+        {
+            return m_acquired;
+        }
+
+        explicit operator bool() const
+        {
+            return m_acquired;
+        }
     };
 
 } // namespace cpp_dbc::MySQL
