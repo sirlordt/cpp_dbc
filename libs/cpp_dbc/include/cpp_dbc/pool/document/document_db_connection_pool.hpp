@@ -164,6 +164,8 @@ namespace cpp_dbc
         std::string getURL() const override { return this->getURLThrow(); }
         void reset() override { this->resetThrow(); }
         bool ping() override { return this->pingThrow(); }
+        std::string getServerVersion() override { return this->getServerVersionThrow(); }
+        std::map<std::string, std::string> getServerInfo() override { return this->getServerInfoThrow(); }
 
         // ── Document-specific throwing methods ──
         std::string getDatabaseName() const override;
@@ -181,7 +183,7 @@ namespace cpp_dbc
         std::shared_ptr<DocumentDBData> createDocument() override;
         std::shared_ptr<DocumentDBData> createDocument(const std::string &json) override;
         std::shared_ptr<DocumentDBData> runCommand(const std::string &command) override;
-        std::shared_ptr<DocumentDBData> getServerInfo() override;
+        std::shared_ptr<DocumentDBData> getServerInfoAsDocument() override;
         std::shared_ptr<DocumentDBData> getServerStatus() override;
 
         std::string startSession() override;
@@ -206,6 +208,8 @@ namespace cpp_dbc
         expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override { return this->isPooledImpl(std::nothrow); }
         expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override { return this->getURLImpl(std::nothrow); }
         expected<bool, DBException> ping(std::nothrow_t) noexcept override { return this->pingImpl(std::nothrow); }
+        expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override { return this->getServerVersionImpl(std::nothrow); }
+        expected<std::map<std::string, std::string>, DBException> getServerInfo(std::nothrow_t) noexcept override { return this->getServerInfoImpl(std::nothrow); }
 
         // ── Document-specific nothrow methods ──
         expected<std::string, DBException> getDatabaseName(std::nothrow_t) const noexcept override;
@@ -229,7 +233,7 @@ namespace cpp_dbc
         expected<bool, DBException> databaseExists(std::nothrow_t, const std::string &databaseName) noexcept override;
         expected<void, DBException> useDatabase(std::nothrow_t, const std::string &databaseName) noexcept override;
         expected<bool, DBException> collectionExists(std::nothrow_t, const std::string &collectionName) noexcept override;
-        expected<std::shared_ptr<DocumentDBData>, DBException> getServerInfo(std::nothrow_t) noexcept override;
+        expected<std::shared_ptr<DocumentDBData>, DBException> getServerInfoAsDocument(std::nothrow_t) noexcept override;
         expected<std::shared_ptr<DocumentDBData>, DBException> getServerStatus(std::nothrow_t) noexcept override;
         expected<std::string, DBException> startSession(std::nothrow_t) noexcept override;
         expected<void, DBException> endSession(std::nothrow_t, const std::string &sessionId) noexcept override;

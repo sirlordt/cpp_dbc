@@ -205,6 +205,13 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
   - `getURIScheme()` pure virtual — returns human-readable URI template (e.g., `"cpp_dbc:mysql://<host>:<port>/<database>"`)
   - Default `acceptURI(std::nothrow_t)` implementation uses `parseURI()`: successful parse = accepted
   - Private helpers (`acceptsURL`, `parseURL`, `buildURL`) removed from `ColumnarDBDriver`, `DocumentDBDriver`, `KVDBDriver` — logic now in concrete drivers
+- **Unified Version/Info API in Base Classes (2026-03-08):**
+  - `DBDriver::getDriverVersion()` pure virtual — returns C/C++ client library version string
+  - `DBConnection::getServerVersion()` pure virtual (throwing + nothrow) — returns database server version
+  - `DBConnection::getServerInfo()` pure virtual (throwing + nothrow) — returns `std::map<std::string, std::string>` with `"ServerVersion"` + driver-specific metadata
+  - `BlobStream::isConnectionValid()` pure virtual — checks underlying connection liveness
+  - `getDriverVersion()` consolidated from family driver bases into `DBDriver`; `getServerInfo()` removed from `KVDBConnection` (inherited from `DBConnection`)
+  - MongoDB: `getServerInfo()` renamed to `getServerInfoAsDocument()` to avoid base class collision
 - Member variables prefixed with `m_` to avoid shadowing issues in exception handling
 
 ### Connection Pooling

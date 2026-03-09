@@ -157,6 +157,7 @@ namespace cpp_dbc::Firebird
 
         std::string getName() const noexcept override;
         std::string getURIScheme() const noexcept override;
+        std::string getDriverVersion() const noexcept override;
     };
 
     // ============================================================================
@@ -288,6 +289,11 @@ namespace cpp_dbc::Firebird
         std::string getURIScheme() const noexcept override
         {
             return "cpp_dbc:firebird://<host>:<port>/<database_server_path>";
+        }
+
+        std::string getDriverVersion() const noexcept override
+        {
+            return "unknown";
         }
     };
 } // namespace cpp_dbc::Firebird

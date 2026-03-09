@@ -640,6 +640,26 @@ namespace cpp_dbc::Firebird
         return result.value();
     }
 
+    std::string FirebirdDBConnection::getServerVersion()
+    {
+        auto result = getServerVersion(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::map<std::string, std::string> FirebirdDBConnection::getServerInfo()
+    {
+        auto result = getServerInfo(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
 #endif // __cpp_exceptions
 
 } // namespace cpp_dbc::Firebird

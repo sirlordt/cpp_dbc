@@ -51,6 +51,7 @@ This project provides a C++ Database Connectivity library inspired by JDBC, with
 - **YAML Configuration**: Optional support for loading database configurations from YAML files
 - **BLOB Support**: Complete implementation of Binary Large Object (BLOB) support for all database drivers, including image file storage and retrieval
 - **JSON Support**: Native handling of JSON data types in MySQL and PostgreSQL with comprehensive query capabilities
+- **Version/Info API**: Unified `getServerVersion()`, `getServerInfo()`, and `getDriverVersion()` across all 7 drivers for runtime introspection of database server and client library versions
 
 ## Database Support
 

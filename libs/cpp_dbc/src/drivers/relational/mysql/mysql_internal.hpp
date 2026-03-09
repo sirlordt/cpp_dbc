@@ -141,7 +141,7 @@ namespace cpp_dbc::MySQL
             }
 
             // Acquire the connection's mutex (connection stays alive via m_conn)
-            m_lock = std::unique_lock<std::recursive_mutex>(m_conn->getConnectionMutex());
+            m_lock = std::unique_lock<std::recursive_mutex>(m_conn->getConnectionMutex(std::nothrow));
 
             // SECOND CHECK: another thread could have closed between first check and lock
             if (closed.load(std::memory_order_acquire))
@@ -153,12 +153,12 @@ namespace cpp_dbc::MySQL
             m_acquired = true;
         }
 
-        bool isAcquired() const
+        bool isAcquired() const noexcept
         {
             return m_acquired;
         }
 
-        explicit operator bool() const
+        explicit operator bool() const noexcept
         {
             return m_acquired;
         }

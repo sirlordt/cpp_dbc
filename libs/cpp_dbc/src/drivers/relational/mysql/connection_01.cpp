@@ -23,6 +23,7 @@
 #if USE_MYSQL
 
 #include <array>
+#include <charconv>
 #include <cstring>
 #include <sstream>
 #include <iostream>
@@ -205,107 +206,106 @@ namespace cpp_dbc::MySQL
     {
         MYSQL_DEBUG("MySQLConnection::constructor(nothrow) - Creating connection to %s:%d/%s", host.c_str(), port, database.c_str());
 
-        try
+        // Create shared_ptr with custom deleter for MYSQL*
+        m_mysql = makeMySQLHandle(mysql_init(nullptr));
+        if (!m_mysql)
         {
-            // Create shared_ptr with custom deleter for MYSQL*
-            m_mysql = makeMySQLHandle(mysql_init(nullptr));
-            if (!m_mysql)
-            {
-                m_initFailed = true;
-                m_initError = std::make_unique<DBException>("N3Z4A5B6C7D8", "Failed to initialize MySQL connection", system_utils::captureCallStack());
-                return;
-            }
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>("FGGYHVGN7UGO", "Failed to initialize MySQL connection", system_utils::captureCallStack());
+            return;
+        }
 
-            // Force TCP/IP connection
-            unsigned int protocol = MYSQL_PROTOCOL_TCP;
-            mysql_options(m_mysql.get(), MYSQL_OPT_PROTOCOL, &protocol);
+        // Force TCP/IP connection
+        unsigned int protocol = MYSQL_PROTOCOL_TCP;
+        mysql_options(m_mysql.get(), MYSQL_OPT_PROTOCOL, &protocol);
 
-            // Apply connection options from the map
-            for (const auto &[key, value] : options)
+        // Apply connection options from the map
+        for (const auto &[key, value] : options)
+        {
+            if (key == "connect_timeout")
             {
-                if (key == "connect_timeout")
+                unsigned int timeout = 0;
+                auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), timeout);
+                if (ec == std::errc{})
                 {
-                    unsigned int timeout = std::stoi(value);
                     mysql_options(m_mysql.get(), MYSQL_OPT_CONNECT_TIMEOUT, &timeout);
                 }
-                else if (key == "read_timeout")
+            }
+            else if (key == "read_timeout")
+            {
+                unsigned int timeout = 0;
+                auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), timeout);
+                if (ec == std::errc{})
                 {
-                    unsigned int timeout = std::stoi(value);
                     mysql_options(m_mysql.get(), MYSQL_OPT_READ_TIMEOUT, &timeout);
                 }
-                else if (key == "write_timeout")
+            }
+            else if (key == "write_timeout")
+            {
+                unsigned int timeout = 0;
+                auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), timeout);
+                if (ec == std::errc{})
                 {
-                    unsigned int timeout = std::stoi(value);
                     mysql_options(m_mysql.get(), MYSQL_OPT_WRITE_TIMEOUT, &timeout);
                 }
-                else if (key == "charset")
-                {
-                    mysql_options(m_mysql.get(), MYSQL_SET_CHARSET_NAME, value.c_str());
-                }
-                else if (key == "auto_reconnect" && value == "true")
-                {
-                    bool reconnect = true;
-                    mysql_options(m_mysql.get(), MYSQL_OPT_RECONNECT, &reconnect);
-                }
             }
-
-            // Connect to the database
-            if (!mysql_real_connect(m_mysql.get(), host.c_str(), user.c_str(), password.c_str(),
-                                    nullptr, port, nullptr, 0))
+            else if (key == "charset")
             {
-                std::string error = mysql_error(m_mysql.get());
-                m_mysql.reset();
-                m_initFailed = true;
-                m_initError = std::make_unique<DBException>("N4Z5A6B7C8D9", "Failed to connect to MySQL: " + error, system_utils::captureCallStack());
-                return;
+                mysql_options(m_mysql.get(), MYSQL_SET_CHARSET_NAME, value.c_str());
             }
-
-            // Select the database if provided
-            if (!database.empty() && mysql_select_db(m_mysql.get(), database.c_str()) != 0)
+            else if (key == "auto_reconnect" && value == "true")
             {
-                std::string error = mysql_error(m_mysql.get());
-                m_mysql.reset();
-                m_initFailed = true;
-                m_initError = std::make_unique<DBException>("N5Z6A7B8C9D0", "Failed to select database: " + error, system_utils::captureCallStack());
-                return;
+                bool reconnect = true;
+                mysql_options(m_mysql.get(), MYSQL_OPT_RECONNECT, &reconnect);
             }
-
-            // Enable auto-commit by default using the C API directly
-            // (cannot call setAutoCommit() during construction — virtual dispatch not safe)
-            if (mysql_autocommit(m_mysql.get(), true) != 0)
-            {
-                std::string error = mysql_error(m_mysql.get());
-                m_mysql.reset();
-                m_initFailed = true;
-                m_initError = std::make_unique<DBException>("WNZ2VGHWVLBA", "Failed to enable auto-commit: " + error, system_utils::captureCallStack());
-                return;
-            }
-            m_autoCommit = true;
-
-            // Initialize URL string once
-            std::stringstream urlBuilder;
-            urlBuilder << "cpp_dbc:mysql://" << host << ":" << port;
-            if (!database.empty())
-            {
-                urlBuilder << "/" << database;
-            }
-            m_url = urlBuilder.str();
-
-            // Mark connection as open
-            m_closed.store(false, std::memory_order_release);
-
-            MYSQL_DEBUG("MySQLConnection::constructor(nothrow) - Done, connected to %s", m_url.c_str());
         }
-        catch (const std::exception &ex)
+
+        // Connect to the database
+        if (!mysql_real_connect(m_mysql.get(), host.c_str(), user.c_str(), password.c_str(),
+                                nullptr, port, nullptr, 0))
         {
+            std::string error = mysql_error(m_mysql.get());
+            m_mysql.reset();
             m_initFailed = true;
-            m_initError = std::make_unique<DBException>("2OAN8D02QDY4", std::string("Exception during MySQL connection setup: ") + ex.what(), system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("UEE2T50Q196S", "Failed to connect to MySQL: " + error, system_utils::captureCallStack());
+            return;
         }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
+
+        // Select the database if provided
+        if (!database.empty() && mysql_select_db(m_mysql.get(), database.c_str()) != 0)
         {
+            std::string error = mysql_error(m_mysql.get());
+            m_mysql.reset();
             m_initFailed = true;
-            m_initError = std::make_unique<DBException>("R0BKZLIW5HEU", "Unknown exception during MySQL connection setup", system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("6I07T2DQL8XH", "Failed to select database: " + error, system_utils::captureCallStack());
+            return;
         }
+
+        // Enable auto-commit by default using the C API directly
+        // (cannot call setAutoCommit() during construction — virtual dispatch not safe)
+        if (mysql_autocommit(m_mysql.get(), true) != 0)
+        {
+            std::string error = mysql_error(m_mysql.get());
+            m_mysql.reset();
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>("WNZ2VGHWVLBA", "Failed to enable auto-commit: " + error, system_utils::captureCallStack());
+            return;
+        }
+        m_autoCommit = true;
+
+        // Initialize URL string once
+        std::stringstream urlBuilder;
+        urlBuilder << "cpp_dbc:mysql://" << host << ":" << port;
+        if (!database.empty())
+        {
+            urlBuilder << "/" << database;
+        }
+        m_url = urlBuilder.str();
+
+        // Mark connection as open
+        m_closed.store(false, std::memory_order_release);
+
+        MYSQL_DEBUG("MySQLConnection::constructor(nothrow) - Done, connected to %s", m_url.c_str());
     }
 
     MySQLDBConnection::~MySQLDBConnection()
@@ -486,6 +486,26 @@ namespace cpp_dbc::MySQL
     bool MySQLDBConnection::ping()
     {
         auto result = ping(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::string MySQLDBConnection::getServerVersion()
+    {
+        auto result = getServerVersion(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::map<std::string, std::string> MySQLDBConnection::getServerInfo()
+    {
+        auto result = getServerInfo(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();

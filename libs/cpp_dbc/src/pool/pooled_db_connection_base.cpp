@@ -419,6 +419,34 @@ namespace cpp_dbc
         return m_conn->prepareForBorrow(std::nothrow);
     }
 
+    template <typename Derived, typename ConnType, typename PoolType>
+    cpp_dbc::expected<std::string, DBException>
+    PooledDBConnectionBase<Derived, ConnType, PoolType>::getServerVersionImpl(std::nothrow_t) noexcept
+    {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("RF2BGR41KWNQ",
+                                                   "Connection is closed",
+                                                   system_utils::captureCallStack()));
+        }
+        updateLastUsedTime(std::nothrow);
+        return m_conn->getServerVersion(std::nothrow);
+    }
+
+    template <typename Derived, typename ConnType, typename PoolType>
+    cpp_dbc::expected<std::map<std::string, std::string>, DBException>
+    PooledDBConnectionBase<Derived, ConnType, PoolType>::getServerInfoImpl(std::nothrow_t) noexcept
+    {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("FMEIGLV08OZS",
+                                                   "Connection is closed",
+                                                   system_utils::captureCallStack()));
+        }
+        updateLastUsedTime(std::nothrow);
+        return m_conn->getServerInfo(std::nothrow);
+    }
+
     // ── Throwing helpers ──────────────────────────────────────────────────────
 
 #ifdef __cpp_exceptions
@@ -490,6 +518,28 @@ namespace cpp_dbc
     bool PooledDBConnectionBase<Derived, ConnType, PoolType>::pingThrow()
     {
         auto result = pingImpl(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    template <typename Derived, typename ConnType, typename PoolType>
+    std::string PooledDBConnectionBase<Derived, ConnType, PoolType>::getServerVersionThrow()
+    {
+        auto result = getServerVersionImpl(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    template <typename Derived, typename ConnType, typename PoolType>
+    std::map<std::string, std::string> PooledDBConnectionBase<Derived, ConnType, PoolType>::getServerInfoThrow()
+    {
+        auto result = getServerInfoImpl(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();

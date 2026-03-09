@@ -229,6 +229,84 @@ namespace cpp_dbc::ScyllaDB
         return {};
     }
 
+    cpp_dbc::expected<std::string, DBException> ScyllaDBConnection::getServerVersion(std::nothrow_t) noexcept
+    {
+        auto queryResult = executeQuery(std::nothrow, "SELECT release_version FROM system.local");
+        if (!queryResult.has_value())
+        {
+            return cpp_dbc::unexpected(queryResult.error());
+        }
+
+        auto &rs = queryResult.value();
+        auto nextResult = rs->next(std::nothrow);
+        if (!nextResult.has_value() || !nextResult.value())
+        {
+            return cpp_dbc::unexpected(DBException(
+                "X1Z9CGTWP1HA",
+                "Failed to retrieve ScyllaDB server version",
+                system_utils::captureCallStack()));
+        }
+
+        auto versionResult = rs->getString(std::nothrow, 1);
+        if (!versionResult.has_value())
+        {
+            return cpp_dbc::unexpected(versionResult.error());
+        }
+
+        return versionResult.value();
+    }
+
+    cpp_dbc::expected<std::map<std::string, std::string>, DBException> ScyllaDBConnection::getServerInfo(std::nothrow_t) noexcept
+    {
+        std::map<std::string, std::string> info;
+
+        auto queryResult = executeQuery(std::nothrow,
+            "SELECT release_version, cluster_name, data_center, rack, partitioner, cql_version "
+            "FROM system.local");
+        if (!queryResult.has_value())
+        {
+            return cpp_dbc::unexpected(queryResult.error());
+        }
+
+        auto &rs = queryResult.value();
+        auto nextResult = rs->next(std::nothrow);
+        if (nextResult.has_value() && nextResult.value())
+        {
+            auto releaseVersion = rs->getString(std::nothrow, 1);
+            if (releaseVersion.has_value())
+            {
+                info["ServerVersion"] = releaseVersion.value();
+            }
+            auto clusterName = rs->getString(std::nothrow, 2);
+            if (clusterName.has_value())
+            {
+                info["ClusterName"] = clusterName.value();
+            }
+            auto dataCenter = rs->getString(std::nothrow, 3);
+            if (dataCenter.has_value())
+            {
+                info["DataCenter"] = dataCenter.value();
+            }
+            auto rack = rs->getString(std::nothrow, 4);
+            if (rack.has_value())
+            {
+                info["Rack"] = rack.value();
+            }
+            auto partitioner = rs->getString(std::nothrow, 5);
+            if (partitioner.has_value())
+            {
+                info["Partitioner"] = partitioner.value();
+            }
+            auto cqlVersion = rs->getString(std::nothrow, 6);
+            if (cqlVersion.has_value())
+            {
+                info["CQLVersion"] = cqlVersion.value();
+            }
+        }
+
+        return info;
+    }
+
 } // namespace cpp_dbc::ScyllaDB
 
 #endif // USE_SCYLLADB

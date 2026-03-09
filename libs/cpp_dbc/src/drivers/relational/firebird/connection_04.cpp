@@ -235,6 +235,83 @@ namespace cpp_dbc::Firebird
         return {};
     }
 
+    cpp_dbc::expected<std::string, DBException> FirebirdDBConnection::getServerVersion(std::nothrow_t) noexcept
+    {
+        auto queryResult = executeQuery(std::nothrow,
+            "SELECT RDB$GET_CONTEXT('SYSTEM', 'ENGINE_VERSION') FROM RDB$DATABASE");
+        if (!queryResult.has_value())
+        {
+            return cpp_dbc::unexpected(queryResult.error());
+        }
+
+        auto &rs = queryResult.value();
+        auto nextResult = rs->next(std::nothrow);
+        if (!nextResult.has_value() || !nextResult.value())
+        {
+            auto closeResult = rs->close(std::nothrow);
+            return cpp_dbc::unexpected(DBException(
+                "J23T9D56C0OJ",
+                "Failed to retrieve Firebird server version",
+                system_utils::captureCallStack()));
+        }
+
+        auto versionResult = rs->getString(std::nothrow, 0);
+        auto closeResult = rs->close(std::nothrow);
+
+        if (!versionResult.has_value())
+        {
+            return cpp_dbc::unexpected(versionResult.error());
+        }
+
+        return versionResult.value();
+    }
+
+    cpp_dbc::expected<std::map<std::string, std::string>, DBException> FirebirdDBConnection::getServerInfo(std::nothrow_t) noexcept
+    {
+        std::map<std::string, std::string> info;
+
+        auto versionResult = getServerVersion(std::nothrow);
+        if (versionResult.has_value())
+        {
+            info["ServerVersion"] = versionResult.value();
+        }
+
+        auto queryResult = executeQuery(std::nothrow,
+            "SELECT MON$ODS_MAJOR, MON$ODS_MINOR, MON$PAGE_SIZE, MON$SQL_DIALECT "
+            "FROM MON$DATABASE");
+        if (queryResult.has_value())
+        {
+            auto &rs = queryResult.value();
+            auto nextResult = rs->next(std::nothrow);
+            if (nextResult.has_value() && nextResult.value())
+            {
+                auto odsMajor = rs->getString(std::nothrow, 0);
+                if (odsMajor.has_value())
+                {
+                    info["ODSMajorVersion"] = odsMajor.value();
+                }
+                auto odsMinor = rs->getString(std::nothrow, 1);
+                if (odsMinor.has_value())
+                {
+                    info["ODSMinorVersion"] = odsMinor.value();
+                }
+                auto pageSize = rs->getString(std::nothrow, 2);
+                if (pageSize.has_value())
+                {
+                    info["PageSize"] = pageSize.value();
+                }
+                auto sqlDialect = rs->getString(std::nothrow, 3);
+                if (sqlDialect.has_value())
+                {
+                    info["SQLDialect"] = sqlDialect.value();
+                }
+            }
+            [[maybe_unused]] auto closeResult = rs->close(std::nothrow);
+        }
+
+        return info;
+    }
+
 } // namespace cpp_dbc::Firebird
 
 #endif // USE_FIREBIRD

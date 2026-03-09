@@ -197,6 +197,9 @@ namespace cpp_dbc::Firebird
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
 
+        std::string getServerVersion() override;
+        std::map<std::string, std::string> getServerInfo() override;
+
 #endif // __cpp_exceptions
 
         // ====================================================================
@@ -272,6 +275,8 @@ namespace cpp_dbc::Firebird
         cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
         cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(std::nothrow_t) noexcept override;
     };
 
 } // namespace cpp_dbc::Firebird

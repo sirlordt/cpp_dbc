@@ -37,13 +37,22 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Convention refinements: PrivateCtorTag unification, violations checklist reorganization, MySQL code cleanup** (2026-03-08 00:21 PST):
+1. **Unified version/info API across all drivers, MySQL code hardening, BlobStream connection validation** (2026-03-08 17:25 PST):
+   - **Unified version/info API:** `getDriverVersion()` moved from family driver bases to `DBDriver` base; `getServerVersion()` + `getServerInfo()` (throwing + nothrow) added to `DBConnection` base; all 7 drivers implement with driver-specific metadata
+   - **API naming:** MongoDB `getServerInfo()` → `getServerInfoAsDocument()` to avoid base class collision; `getServerInfo()` removed from `KVDBConnection` (now inherited from `DBConnection`)
+   - **BlobStream:** `isConnectionValid()` pure virtual added; all blob classes override with `const noexcept`
+   - **MySQL hardening:** ~60 error codes regenerated, `std::stoi` → `std::from_chars`, `memset` → aggregate init, index loop → `std::span`, constructor try/catch removed, SQL injection prevention via `validateIdentifier()` in blob, internal helpers renamed with `std::nothrow_t`
+   - **Pool:** version/info API delegated through all 4 family pooled connection wrappers via CRTP helpers
+   - **Tests:** New version/info test cases for all 7 drivers
+   - 66 files changed, +1760/-235 lines
+
+2. **Convention refinements: PrivateCtorTag unification, violations checklist reorganization, MySQL code cleanup** (2026-03-08 00:21 PST):
    - **PrivateCtorTag naming unified:** `ConstructorTag` → `PrivateCtorTag` throughout convention docs; private constructors explicitly forbidden with migration rule
    - **Violations checklist reorganized:** Flat list → 6 categorized sections (Error Codes, Memory Safety, Atomics, Error Handling, Class Layout, Naming); ~20 new checklist items added
    - **MySQL code cleanup:** Added explicit destructors to `MySQLBlob`/`MySQLInputStream`; Allman brace formatting for `isResetting()`, lambdas in `connection_01.cpp`, and `mysql_internal.hpp` methods; fixed `connectRelational()` stub to delegate to nothrow; translated Spanish comments to English
    - 9 files changed, +137/-69 lines
 
-2. **Unified URI API in DBDriver Base, PrivateCtorTag for MySQLBlob/InputStream, Expanded Conventions** (2026-03-07 13:34 PST):
+3. **Unified URI API in DBDriver Base, PrivateCtorTag for MySQLBlob/InputStream, Expanded Conventions** (2026-03-07 13:34 PST):
    - **DBDriver base class refactored:** `acceptsURL()` → `acceptURI()` (throwing + nothrow); new `parseURI()`, `buildURI()`, `getURIScheme()` pure virtuals — all with default `acceptURI` using `parseURI`
    - **Family driver bases cleaned:** Removed `acceptsURL()`, `parseURL()`, `buildURL()` private helpers from `ColumnarDBDriver`, `DocumentDBDriver`, `KVDBDriver` (-130 lines)
    - **All 7 drivers updated:** Implement new URI pure virtuals; all tests updated for `acceptURI`/`parseURI`/`buildURI`

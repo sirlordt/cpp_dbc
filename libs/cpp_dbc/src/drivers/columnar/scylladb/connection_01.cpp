@@ -258,6 +258,26 @@ namespace cpp_dbc::ScyllaDB
         return result.value();
     }
 
+    std::string ScyllaDBConnection::getServerVersion()
+    {
+        auto result = getServerVersion(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::map<std::string, std::string> ScyllaDBConnection::getServerInfo()
+    {
+        auto result = getServerInfo(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
     #endif // __cpp_exceptions
 
 } // namespace cpp_dbc::ScyllaDB

@@ -246,6 +246,9 @@ namespace cpp_dbc::PostgreSQL
         /** @brief Generate a unique name for server-side prepared statements */
         std::string generateStatementName();
 
+        std::string getServerVersion() override;
+        std::map<std::string, std::string> getServerInfo() override;
+
 #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
@@ -269,6 +272,8 @@ namespace cpp_dbc::PostgreSQL
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(std::nothrow_t) noexcept override;
     };
 
 } // namespace cpp_dbc::PostgreSQL

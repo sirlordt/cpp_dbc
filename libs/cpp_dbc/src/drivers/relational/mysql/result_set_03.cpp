@@ -80,7 +80,7 @@ namespace cpp_dbc::MySQL
 
         if (columnIndex < 1 || columnIndex > m_fieldCount)
         {
-            return cpp_dbc::unexpected(DBException("V3W4X5Y6Z7A8", "Invalid column index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("JKKVY2RU82PU", "Invalid column index", system_utils::captureCallStack()));
         }
 
         size_t idx = columnIndex - 1;

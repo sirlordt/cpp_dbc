@@ -417,3 +417,76 @@ TEST_CASE("Redis server operations", "[24_041_09_redis_real_connection]")
     SKIP("Redis support is not enabled");
 #endif
 }
+
+TEST_CASE("Redis getServerVersion and getServerInfo", "[24_041_10_redis_real_connection]")
+{
+#if USE_REDIS
+    auto conn = redis_test_helpers::getRedisDBConnection();
+    if (!conn)
+    {
+        SKIP("Redis connection failed");
+        return;
+    }
+
+    SECTION("getServerVersion returns non-empty version string")
+    {
+        auto version = conn->getServerVersion();
+        CHECK_FALSE(version.empty());
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Redis server version: " + version);
+    }
+
+    SECTION("getServerInfo contains ServerVersion key")
+    {
+        auto info = conn->getServerInfo();
+        CHECK_FALSE(info.empty());
+        CHECK(info.count("ServerVersion") == 1);
+        CHECK_FALSE(info.at("ServerVersion").empty());
+
+        // Log a selection of info entries
+        for (const auto &[key, value] : info)
+        {
+            if (key == "ServerVersion" || key == "redis_version" || key == "redis_mode" ||
+                key == "os" || key == "tcp_port" || key == "uptime_in_seconds")
+            {
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Redis ServerInfo [" + key + "] = " + value);
+            }
+        }
+
+        // redis_version should also be present (raw Redis key)
+        CHECK(info.count("redis_version") == 1);
+    }
+
+    SECTION("getServerVersion matches ServerVersion in getServerInfo")
+    {
+        auto version = conn->getServerVersion();
+        auto info = conn->getServerInfo();
+
+        CHECK(version == info.at("ServerVersion"));
+        CHECK(version == info.at("redis_version"));
+    }
+
+    // Clean up
+    if (!conn->isClosed())
+    {
+        conn->close();
+    }
+#else
+    SKIP("Redis support is not enabled");
+#endif
+}
+
+TEST_CASE("Redis getDriverVersion", "[24_041_11_redis_real_connection]")
+{
+#if USE_REDIS
+    auto driver = redis_test_helpers::getRedisDBDriver();
+
+    SECTION("getDriverVersion returns non-empty version string")
+    {
+        auto version = driver->getDriverVersion();
+        CHECK_FALSE(version.empty());
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Redis driver version: " + version);
+    }
+#else
+    SKIP("Redis support is not enabled");
+#endif
+}

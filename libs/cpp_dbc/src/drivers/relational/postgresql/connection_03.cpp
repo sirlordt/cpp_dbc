@@ -467,6 +467,118 @@ namespace cpp_dbc::PostgreSQL
         return {};
     }
 
+    cpp_dbc::expected<std::string, DBException> PostgreSQLDBConnection::getServerVersion(std::nothrow_t) noexcept
+    {
+        try
+        {
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+            if (m_closed || !m_conn)
+            {
+                return cpp_dbc::unexpected(DBException(
+                    "36M3T260UN4J",
+                    "Connection is closed",
+                    system_utils::captureCallStack()));
+            }
+
+            int version = PQserverVersion(m_conn.get());
+            // PQserverVersion returns e.g. 160004 for 16.0.4
+            int major = version / 10000;
+            int minor = (version / 100) % 100;
+            int patch = version % 100;
+
+            return std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(patch);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException(
+                "ZNYMYKN2VEMU",
+                std::string("Exception in getServerVersion: ") + ex.what(),
+                system_utils::captureCallStack()));
+        }
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
+        {
+            return cpp_dbc::unexpected(DBException(
+                "TYFNEDKFKXKK",
+                "Unknown exception in getServerVersion",
+                system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<std::map<std::string, std::string>, DBException> PostgreSQLDBConnection::getServerInfo(std::nothrow_t) noexcept
+    {
+        try
+        {
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+            if (m_closed || !m_conn)
+            {
+                return cpp_dbc::unexpected(DBException(
+                    "IB9HNOSWLXD7",
+                    "Connection is closed",
+                    system_utils::captureCallStack()));
+            }
+
+            std::map<std::string, std::string> info;
+
+            int version = PQserverVersion(m_conn.get());
+            int major = version / 10000;
+            int minor = (version / 100) % 100;
+            int patch = version % 100;
+            info["ServerVersion"] = std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(patch);
+            info["ServerVersionNumeric"] = std::to_string(version);
+
+            int protocolVersion = PQprotocolVersion(m_conn.get());
+            info["ProtocolVersion"] = std::to_string(protocolVersion);
+
+            const char *serverEncoding = PQparameterStatus(m_conn.get(), "server_encoding");
+            if (serverEncoding)
+            {
+                info["ServerEncoding"] = serverEncoding;
+            }
+
+            const char *clientEncoding = PQparameterStatus(m_conn.get(), "client_encoding");
+            if (clientEncoding)
+            {
+                info["ClientEncoding"] = clientEncoding;
+            }
+
+            const char *timeZone = PQparameterStatus(m_conn.get(), "TimeZone");
+            if (timeZone)
+            {
+                info["TimeZone"] = timeZone;
+            }
+
+            const char *intDateTimes = PQparameterStatus(m_conn.get(), "integer_datetimes");
+            if (intDateTimes)
+            {
+                info["IntegerDatetimes"] = intDateTimes;
+            }
+
+            const char *stdConformingStrings = PQparameterStatus(m_conn.get(), "standard_conforming_strings");
+            if (stdConformingStrings)
+            {
+                info["StandardConformingStrings"] = stdConformingStrings;
+            }
+
+            return info;
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException(
+                "865FHWXNK6H6",
+                std::string("Exception in getServerInfo: ") + ex.what(),
+                system_utils::captureCallStack()));
+        }
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
+        {
+            return cpp_dbc::unexpected(DBException(
+                "XYCXRRI4WCIH",
+                "Unknown exception in getServerInfo",
+                system_utils::captureCallStack()));
+        }
+    }
+
 } // namespace cpp_dbc::PostgreSQL
 
 #endif // USE_POSTGRESQL

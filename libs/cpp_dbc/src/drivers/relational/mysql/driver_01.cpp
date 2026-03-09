@@ -52,7 +52,7 @@ namespace cpp_dbc::MySQL
         }
 
         // Slow path: take lock and check again (double-checked locking)
-        std::lock_guard<std::mutex> lock(s_initMutex);
+        std::scoped_lock lock(s_initMutex);
         if (s_initialized.load(std::memory_order_acquire))
         {
             return true;
@@ -90,7 +90,7 @@ namespace cpp_dbc::MySQL
 
     void MySQLDBDriver::cleanup()
     {
-        std::lock_guard<std::mutex> lock(s_initMutex);
+        std::scoped_lock lock(s_initMutex);
         if (s_initialized.load(std::memory_order_acquire))
         {
             mysql_library_end();
@@ -226,6 +226,11 @@ namespace cpp_dbc::MySQL
     std::string MySQLDBDriver::getURIScheme() const noexcept
     {
         return "cpp_dbc:mysql://<host>:<port>/<database>";
+    }
+
+    std::string MySQLDBDriver::getDriverVersion() const noexcept
+    {
+        return mysql_get_client_info();
     }
 
 } // namespace cpp_dbc::MySQL

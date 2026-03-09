@@ -177,7 +177,32 @@ Todas las implementaciones de BLOB utilizan punteros inteligentes (`std::weak_pt
 - **PostgreSQLBlob**: Usa `weak_ptr<PGconn>` con el método auxiliar `getPGConnection()`
 - **SQLiteBlob**: Usa `weak_ptr<sqlite3>` con el método auxiliar `getSQLiteConnection()`
 
-Todas las clases BLOB tienen un método `isConnectionValid()` para verificar si la conexión sigue siendo válida. Las operaciones lanzan `DBException` si la conexión ha sido cerrada, previniendo errores de uso después de liberación (use-after-free).
+Todas las clases BLOB tienen un método `isConnectionValid()` para verificar si la conexión sigue siendo válida. Las operaciones lanzan `DBException` si la conexión ha sido cerrada, previniendo errores de uso después de liberación (use-after-free). La clase base `BlobStream` declara `isConnectionValid()` como virtual puro, y `MemoryBlob` (BLOBs en memoria sin conexión a base de datos) siempre retorna `true`.
+
+### API de Versión e Información
+
+Todos los drivers exponen una API unificada de introspección de versión/información a través de las clases base:
+
+**`DBDriver` (clase base):**
+- `getDriverVersion()`: Retorna la versión de la biblioteca cliente C/C++ subyacente (ej., `mysql_get_client_info()`, `PQlibVersion()`, `sqlite3_libversion()`)
+
+**`DBConnection` (clase base):**
+- `getServerVersion()` / `getServerVersion(std::nothrow_t)`: Retorna la versión del servidor de base de datos
+- `getServerInfo()` / `getServerInfo(std::nothrow_t)`: Retorna `std::map<std::string, std::string>` con al menos `"ServerVersion"` más claves de metadatos específicas del driver
+
+**Claves de metadatos por driver:**
+
+| Driver | Claves en `getServerInfo()` |
+|--------|--------------------------|
+| MySQL | ServerVersion, ServerVersionNumeric, HostInfo, ProtocolVersion, CharacterSet, ThreadId, ServerStatus |
+| PostgreSQL | ServerVersion, ServerVersionNumeric, ProtocolVersion, ServerEncoding, ClientEncoding, TimeZone, IntegerDatetimes, StandardConformingStrings |
+| SQLite | ServerVersion, ServerVersionNumeric, SourceId, ThreadSafe |
+| Firebird | ServerVersion, ODSMajorVersion, ODSMinorVersion, PageSize, SQLDialect |
+| MongoDB | ServerVersion, GitVersion, SysInfo, Allocator, JavascriptEngine, Bits, MaxBsonObjectSize |
+| Redis | ServerVersion + todos los campos de la respuesta INFO |
+| ScyllaDB | ServerVersion, ClusterName, DataCenter, Rack, Partitioner, CQLVersion |
+
+**Nota:** MongoDB también proporciona `getServerInfoAsDocument()` que retorna la respuesta completa de buildInfo como un objeto documento enriquecido, separado del `getServerInfo()` basado en `std::map`.
 
 ### Clases Base
 

@@ -209,6 +209,7 @@ namespace cpp_dbc::Redis
                                    const std::vector<std::string> &args = {}) override;
         bool flushDB(bool async = false) override;
         bool ping() override;
+        std::string getServerVersion() override;
         std::map<std::string, std::string> getServerInfo() override;
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
@@ -380,6 +381,7 @@ namespace cpp_dbc::Redis
 
         cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
 
+        cpp_dbc::expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override;
         cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(
             std::nothrow_t) noexcept override;
 

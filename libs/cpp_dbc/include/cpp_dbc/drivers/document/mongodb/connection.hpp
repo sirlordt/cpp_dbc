@@ -212,8 +212,10 @@ namespace cpp_dbc::MongoDB
 
         std::shared_ptr<DocumentDBData> runCommand(const std::string &command) override;
 
-        std::shared_ptr<DocumentDBData> getServerInfo() override;
+        std::shared_ptr<DocumentDBData> getServerInfoAsDocument() override;
         std::shared_ptr<DocumentDBData> getServerStatus() override;
+        std::string getServerVersion() override;
+        std::map<std::string, std::string> getServerInfo() override;
         bool ping() override;
 
         std::string startSession() override;
@@ -325,8 +327,10 @@ namespace cpp_dbc::MongoDB
             std::nothrow_t, const std::string &json) noexcept override;
         expected<std::shared_ptr<DocumentDBData>, DBException> runCommand(
             std::nothrow_t, const std::string &command) noexcept override;
-        expected<std::shared_ptr<DocumentDBData>, DBException> getServerInfo(std::nothrow_t) noexcept override;
+        expected<std::shared_ptr<DocumentDBData>, DBException> getServerInfoAsDocument(std::nothrow_t) noexcept override;
         expected<std::shared_ptr<DocumentDBData>, DBException> getServerStatus(std::nothrow_t) noexcept override;
+        expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override;
+        expected<std::map<std::string, std::string>, DBException> getServerInfo(std::nothrow_t) noexcept override;
         expected<bool, DBException> ping(std::nothrow_t) noexcept override;
         expected<std::string, DBException> startSession(std::nothrow_t) noexcept override;
         expected<void, DBException> endSession(

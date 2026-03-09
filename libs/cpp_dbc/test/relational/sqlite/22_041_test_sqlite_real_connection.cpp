@@ -194,6 +194,93 @@ TEST_CASE("SQLite in-memory database test", "[22_041_02_sqlite_real_connection]"
         }
     }
 }
+TEST_CASE("SQLite getServerVersion and getServerInfo", "[22_041_04_sqlite_real_connection]")
+{
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+
+    SECTION("getServerVersion returns non-empty version string")
+    {
+        try
+        {
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection("cpp_dbc:sqlite://:memory:", "", ""));
+            REQUIRE(conn != nullptr);
+
+            auto version = conn->getServerVersion();
+            CHECK_FALSE(version.empty());
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "SQLite server version: " + version);
+
+            conn->close();
+        }
+        catch (const cpp_dbc::DBException &ex)
+        {
+            FAIL("SQLite getServerVersion failed: " + std::string(ex.what_s()));
+        }
+    }
+
+    SECTION("getServerInfo returns map with ServerVersion key")
+    {
+        try
+        {
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection("cpp_dbc:sqlite://:memory:", "", ""));
+            REQUIRE(conn != nullptr);
+
+            auto info = conn->getServerInfo();
+            CHECK_FALSE(info.empty());
+            CHECK(info.count("ServerVersion") == 1);
+            CHECK_FALSE(info.at("ServerVersion").empty());
+
+            for (const auto &[key, value] : info)
+            {
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "  SQLite ServerInfo [" + key + "] = " + value);
+            }
+
+            // Verify some SQLite-specific keys
+            CHECK(info.count("SourceId") == 1);
+            CHECK(info.count("ThreadSafe") == 1);
+
+            conn->close();
+        }
+        catch (const cpp_dbc::DBException &ex)
+        {
+            FAIL("SQLite getServerInfo failed: " + std::string(ex.what_s()));
+        }
+    }
+
+    SECTION("getServerVersion matches ServerVersion in getServerInfo")
+    {
+        try
+        {
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection("cpp_dbc:sqlite://:memory:", "", ""));
+            REQUIRE(conn != nullptr);
+
+            auto version = conn->getServerVersion();
+            auto info = conn->getServerInfo();
+
+            CHECK(version == info.at("ServerVersion"));
+
+            conn->close();
+        }
+        catch (const cpp_dbc::DBException &ex)
+        {
+            FAIL("SQLite version consistency test failed: " + std::string(ex.what_s()));
+        }
+    }
+}
+TEST_CASE("SQLite getDriverVersion", "[22_041_05_sqlite_real_connection]")
+{
+    auto driver = std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>();
+
+    SECTION("getDriverVersion returns non-empty version string")
+    {
+        auto version = driver->getDriverVersion();
+        CHECK_FALSE(version.empty());
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "SQLite driver version: " + version);
+    }
+}
+
 #else
 // Skip this test if SQLite support is not enabled
 TEST_CASE("SQLite connection test (skipped)", "[22_041_03_sqlite_real_connection]")

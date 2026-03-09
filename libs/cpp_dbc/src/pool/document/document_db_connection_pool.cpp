@@ -352,9 +352,9 @@ namespace cpp_dbc
         return result.value();
     }
 
-    std::shared_ptr<DocumentDBData> DocumentPooledDBConnection::getServerInfo()
+    std::shared_ptr<DocumentDBData> DocumentPooledDBConnection::getServerInfoAsDocument()
     {
-        auto result = getServerInfo(std::nothrow);
+        auto result = getServerInfoAsDocument(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();
@@ -613,14 +613,14 @@ namespace cpp_dbc
         return getConn(std::nothrow)->runCommand(std::nothrow, command);
     }
 
-    cpp_dbc::expected<std::shared_ptr<DocumentDBData>, DBException> DocumentPooledDBConnection::getServerInfo(std::nothrow_t) noexcept
+    cpp_dbc::expected<std::shared_ptr<DocumentDBData>, DBException> DocumentPooledDBConnection::getServerInfoAsDocument(std::nothrow_t) noexcept
     {
         if (isLocalClosed(std::nothrow))
         {
             return cpp_dbc::unexpected(DBException("VC47QN01W5WH", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
-        return getConn(std::nothrow)->getServerInfo(std::nothrow);
+        return getConn(std::nothrow)->getServerInfoAsDocument(std::nothrow);
     }
 
     cpp_dbc::expected<std::shared_ptr<DocumentDBData>, DBException> DocumentPooledDBConnection::getServerStatus(std::nothrow_t) noexcept

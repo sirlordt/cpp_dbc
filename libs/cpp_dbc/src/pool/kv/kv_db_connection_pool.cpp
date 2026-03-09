@@ -565,16 +565,6 @@ namespace cpp_dbc
         return result.value();
     }
 
-    std::map<std::string, std::string> KVPooledDBConnection::getServerInfo()
-    {
-        auto result = getServerInfo(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
     void KVPooledDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
     {
         auto result = setTransactionIsolation(std::nothrow, level);
@@ -978,17 +968,6 @@ namespace cpp_dbc
         }
         updateLastUsedTime(std::nothrow);
         return getConn(std::nothrow)->flushDB(std::nothrow, async);
-    }
-
-    cpp_dbc::expected<std::map<std::string, std::string>, DBException> KVPooledDBConnection::getServerInfo(
-        std::nothrow_t) noexcept
-    {
-        if (isLocalClosed(std::nothrow))
-        {
-            return cpp_dbc::unexpected(DBException("Q4UUV0ULFRE4", "Connection is closed", system_utils::captureCallStack()));
-        }
-        updateLastUsedTime(std::nothrow);
-        return getConn(std::nothrow)->getServerInfo(std::nothrow);
     }
 
     cpp_dbc::expected<void, DBException>

@@ -80,6 +80,7 @@ namespace cpp_dbc::SQLite
 
         std::string getName() const noexcept override;
         std::string getURIScheme() const noexcept override;
+        std::string getDriverVersion() const noexcept override;
     };
 
 } // namespace cpp_dbc::SQLite
@@ -157,6 +158,11 @@ namespace cpp_dbc::SQLite
         std::string getURIScheme() const noexcept override
         {
             return "cpp_dbc:sqlite://<path>";
+        }
+
+        std::string getDriverVersion() const noexcept override
+        {
+            return "unknown";
         }
     };
 } // namespace cpp_dbc::SQLite

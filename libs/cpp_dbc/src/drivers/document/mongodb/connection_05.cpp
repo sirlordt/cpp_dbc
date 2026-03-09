@@ -121,9 +121,163 @@ namespace cpp_dbc::MongoDB
         return std::static_pointer_cast<DocumentDBData>(docResult.value());
     }
 
-    expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::getServerInfo(std::nothrow_t) noexcept
+    expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::getServerInfoAsDocument(std::nothrow_t) noexcept
     {
         return runCommand(std::nothrow, "{\"buildInfo\": 1}");
+    }
+
+    expected<std::string, DBException> MongoDBConnection::getServerVersion(std::nothrow_t) noexcept
+    {
+        auto infoResult = getServerInfoAsDocument(std::nothrow);
+        if (!infoResult.has_value())
+        {
+            return cpp_dbc::unexpected(infoResult.error());
+        }
+
+        auto jsonResult = infoResult.value()->toJson(std::nothrow);
+        if (!jsonResult.has_value())
+        {
+            return cpp_dbc::unexpected(DBException(
+                "J1RQ2VIMGJKT",
+                "Failed to convert buildInfo to JSON",
+                system_utils::captureCallStack()));
+        }
+
+        // Parse "version" field from buildInfo JSON
+        // buildInfo response contains: { "version": "x.y.z", ... }
+        const auto &json = jsonResult.value();
+        auto versionPos = json.find("\"version\"");
+        if (versionPos == std::string::npos)
+        {
+            return cpp_dbc::unexpected(DBException(
+                "TWYLCN2CBFA1",
+                "buildInfo response does not contain 'version' field",
+                system_utils::captureCallStack()));
+        }
+
+        auto colonPos = json.find(':', versionPos);
+        if (colonPos == std::string::npos)
+        {
+            return cpp_dbc::unexpected(DBException(
+                "58TNO5XZPFEX",
+                "Malformed buildInfo: no colon after 'version' key",
+                system_utils::captureCallStack()));
+        }
+
+        auto quoteStart = json.find('"', colonPos + 1);
+        auto quoteEnd = json.find('"', quoteStart + 1);
+        if (quoteStart == std::string::npos || quoteEnd == std::string::npos)
+        {
+            return cpp_dbc::unexpected(DBException(
+                "SP5ODWC0F7DS",
+                "Malformed buildInfo: cannot extract version string",
+                system_utils::captureCallStack()));
+        }
+
+        return json.substr(quoteStart + 1, quoteEnd - quoteStart - 1);
+    }
+
+    expected<std::map<std::string, std::string>, DBException> MongoDBConnection::getServerInfo(std::nothrow_t) noexcept
+    {
+        auto infoResult = getServerInfoAsDocument(std::nothrow);
+        if (!infoResult.has_value())
+        {
+            return cpp_dbc::unexpected(infoResult.error());
+        }
+
+        auto jsonResult = infoResult.value()->toJson(std::nothrow);
+        if (!jsonResult.has_value())
+        {
+            return cpp_dbc::unexpected(DBException(
+                "FVBU9EJNANCK",
+                "Failed to convert buildInfo to JSON",
+                system_utils::captureCallStack()));
+        }
+
+        // Parse top-level string fields from the buildInfo JSON into a flat map.
+        // MongoDB buildInfo contains: version, gitVersion, sysInfo, allocator, modules, etc.
+        std::map<std::string, std::string> info;
+        const auto &json = jsonResult.value();
+
+        // Helper lambda to extract a string value for a given key
+        auto extractField = [&json](const std::string &key) -> std::string
+        {
+            auto keyStr = "\"" + key + "\"";
+            auto keyPos = json.find(keyStr);
+            if (keyPos == std::string::npos)
+            {
+                return "";
+            }
+            auto colonPos = json.find(':', keyPos + keyStr.size());
+            if (colonPos == std::string::npos)
+            {
+                return "";
+            }
+            // Skip whitespace after colon
+            auto valueStart = json.find_first_not_of(" \t\n\r", colonPos + 1);
+            if (valueStart == std::string::npos)
+            {
+                return "";
+            }
+            if (json[valueStart] == '"')
+            {
+                // String value
+                auto valueEnd = json.find('"', valueStart + 1);
+                if (valueEnd == std::string::npos)
+                {
+                    return "";
+                }
+                return json.substr(valueStart + 1, valueEnd - valueStart - 1);
+            }
+            // Numeric or boolean value — read until comma, brace, or bracket
+            auto valueEnd = json.find_first_of(",}]", valueStart);
+            if (valueEnd == std::string::npos)
+            {
+                return "";
+            }
+            auto val = json.substr(valueStart, valueEnd - valueStart);
+            // Trim trailing whitespace
+            while (!val.empty() && (val.back() == ' ' || val.back() == '\t' || val.back() == '\n' || val.back() == '\r'))
+            {
+                val.pop_back();
+            }
+            return val;
+        };
+
+        // Extract known buildInfo fields
+        info["ServerVersion"] = extractField("version");
+        auto gitVersion = extractField("gitVersion");
+        if (!gitVersion.empty())
+        {
+            info["GitVersion"] = gitVersion;
+        }
+        auto sysInfo = extractField("sysInfo");
+        if (!sysInfo.empty())
+        {
+            info["SysInfo"] = sysInfo;
+        }
+        auto allocator = extractField("allocator");
+        if (!allocator.empty())
+        {
+            info["Allocator"] = allocator;
+        }
+        auto javascriptEngine = extractField("javascriptEngine");
+        if (!javascriptEngine.empty())
+        {
+            info["JavascriptEngine"] = javascriptEngine;
+        }
+        auto bits = extractField("bits");
+        if (!bits.empty())
+        {
+            info["Bits"] = bits;
+        }
+        auto maxBsonObjectSize = extractField("maxBsonObjectSize");
+        if (!maxBsonObjectSize.empty())
+        {
+            info["MaxBsonObjectSize"] = maxBsonObjectSize;
+        }
+
+        return info;
     }
 
     expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::getServerStatus(std::nothrow_t) noexcept

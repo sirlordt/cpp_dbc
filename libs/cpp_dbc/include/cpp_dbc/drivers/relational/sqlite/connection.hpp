@@ -176,6 +176,9 @@ namespace cpp_dbc::SQLite
         std::string getURL() const override;
         bool ping() override;
 
+        std::string getServerVersion() override;
+        std::map<std::string, std::string> getServerInfo() override;
+
 #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
@@ -199,6 +202,8 @@ namespace cpp_dbc::SQLite
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(std::nothrow_t) noexcept override;
     };
 
 } // namespace cpp_dbc::SQLite

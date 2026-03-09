@@ -1,6 +1,56 @@
 # Changelog
 
-## 2026-03-08 00:21:00 PST [Current]
+## 2026-03-08 17:25:00 PST [Current]
+
+### Unified version/info API across all drivers, MySQL code hardening, and BlobStream connection validation
+
+This release adds `getServerVersion()`, `getServerInfo()`, and `getDriverVersion()` to the base classes and implements them across all 7 database drivers. The API consolidation moves `getDriverVersion()` from family driver bases up to `DBDriver`, and standardizes `getServerInfo()` as a `std::map<std::string, std::string>` at the `DBConnection` level. MongoDB's document-returning method is renamed to `getServerInfoAsDocument()` to avoid collision. MySQL driver receives further code hardening: ~60 error codes regenerated, `std::stoi` replaced with `std::from_chars`, `memset` replaced with aggregate initialization, index loops replaced with `std::span` ranges, constructor try/catch removed, and SQL injection prevention added to blob operations. Total: **66 files changed, +1760/-235 lines**.
+
+#### Core/Base Class — Unified Version and Info API
+
+- **`DBDriver::getDriverVersion()`**: New pure virtual in `DBDriver` base — returns the version of the underlying C/C++ client library (e.g., `mysql_get_client_info()`, `PQlibVersion()`, `sqlite3_libversion()`)
+- **`DBConnection::getServerVersion()`**: New pure virtual (throwing + nothrow) — returns the database server's version string
+- **`DBConnection::getServerInfo()`**: New pure virtual (throwing + nothrow) — returns `std::map<std::string, std::string>` with at least `"ServerVersion"` plus driver-specific metadata
+- **`BlobStream::isConnectionValid()`**: New pure virtual — checks if the underlying database connection is still alive; `MemoryBlob` returns `true`
+- **`getDriverVersion()` removed from `ColumnarDBDriver`, `DocumentDBDriver`, `KVDBDriver`** — consolidated into `DBDriver` base
+- **`getServerInfo()` removed from `KVDBConnection`** — now inherited from `DBConnection`
+- **`DocumentDBConnection::getServerInfo()` renamed to `getServerInfoAsDocument()`** — avoids name collision with new `std::map`-returning base class method
+
+#### All 7 Drivers — Version/Info Implementation
+
+- **MySQL**: `getDriverVersion()` via `mysql_get_client_info()`; `getServerVersion()` via `mysql_get_server_info()`; `getServerInfo()` returns ServerVersion, ServerVersionNumeric, HostInfo, ProtocolVersion, CharacterSet, ThreadId, ServerStatus
+- **PostgreSQL**: `getDriverVersion()` via `PQlibVersion()` (formatted as major.minor.patch); `getServerVersion()` via `PQserverVersion()`; `getServerInfo()` returns ServerVersion, ServerVersionNumeric, ProtocolVersion, ServerEncoding, ClientEncoding, TimeZone, IntegerDatetimes, StandardConformingStrings
+- **SQLite**: `getDriverVersion()` via `sqlite3_libversion()`; `getServerVersion()` same; `getServerInfo()` returns ServerVersion, ServerVersionNumeric, SourceId, ThreadSafe
+- **Firebird**: `getDriverVersion()` via `FB_API_VER`; `getServerVersion()` via `RDB$GET_CONTEXT('SYSTEM', 'ENGINE_VERSION')`; `getServerInfo()` returns ServerVersion, ODSMajorVersion, ODSMinorVersion, PageSize, SQLDialect
+- **MongoDB**: `getDriverVersion()` via `mongoc_get_version()`; `getServerVersion()` from buildInfo `"version"` field; `getServerInfo()` returns ServerVersion, GitVersion, SysInfo, Allocator, JavascriptEngine, Bits, MaxBsonObjectSize; `getServerInfoAsDocument()` replaces old `getServerInfo()`
+- **Redis**: `getDriverVersion()` returns hiredis version; `getServerVersion()` extracts `redis_version` from INFO; `getServerInfo()` now also includes `"ServerVersion"` key
+- **ScyllaDB**: `getDriverVersion()` via Cassandra CPP driver version; `getServerVersion()` queries `system.local`; `getServerInfo()` returns ServerVersion, ClusterName, DataCenter, Rack, Partitioner, CQLVersion
+
+#### Pool — Version/Info Delegation
+
+- **`PooledDBConnectionBase`**: New `getServerVersionImpl(std::nothrow_t)` and `getServerInfoImpl(std::nothrow_t)` CRTP helpers
+- **All 4 family pools**: `getServerVersion()` and `getServerInfo()` (throwing + nothrow) delegated through pooled connection wrappers
+- **Document pool**: `getServerInfo()` → `getServerInfoAsDocument()` rename applied
+
+#### MySQL Driver — Code Hardening
+
+- **~60 DBException error codes regenerated** with properly randomized 12-char codes across all MySQL `.cpp` files
+- **`std::stoi()` → `std::from_chars()`**: Nothrow, locale-independent timeout option parsing
+- **`memset` → aggregate initialization**: `MYSQL_BIND bind{}` replaces `memset(&bind, 0, sizeof(bind))`
+- **Index loop → `std::span` range**: `for (const auto &field : std::span(fields, m_fieldCount))` in result set
+- **Constructor try/catch removed**: Direct error checking replaces outer try/catch (no exceptions possible from MySQL C API)
+- **SQL injection prevention**: New `validateIdentifier()` in `MySQLBlob` validates table/column names before SQL construction
+- **Internal helpers renamed**: `getMySQLNativeHandle()` → `getMySQLNativeHandle(std::nothrow_t)`, `getConnectionMutex()` → `getConnectionMutex(std::nothrow_t)`, `isResetting()` → `isResetting(std::nothrow_t)`
+- **`std::lock_guard` → `std::scoped_lock`** in `MySQLDBDriver::initialize()` and `cleanup()`
+- **`isConnectionValid()` promoted** to `const noexcept override` across all blob classes (MySQL, PostgreSQL, SQLite, Firebird)
+
+#### Tests — New Version/Info Test Cases
+
+- **All 7 drivers**: New test cases verifying `getServerVersion()` returns non-empty string, `getServerInfo()` contains `"ServerVersion"` plus driver-specific keys, consistency check between `getServerVersion()` and `info["ServerVersion"]`, and `getDriverVersion()` returns non-empty string
+
+---
+
+## 2026-03-08 00:21:00 PST
 
 ### Convention refinements: PrivateCtorTag unification, violations checklist reorganization, MySQL code cleanup
 

@@ -73,7 +73,7 @@ namespace cpp_dbc::MySQL
         const unsigned long *lengths = mysql_fetch_lengths(m_result.get());
         if (!lengths)
         {
-            return cpp_dbc::unexpected(DBException("Q0Z1A2B3C4D5", "Failed to get BLOB data length", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("8P8KDB7HDBNE", "Failed to get BLOB data length", system_utils::captureCallStack()));
         }
 
         // Create a new BLOB object with the data
@@ -99,7 +99,7 @@ namespace cpp_dbc::MySQL
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
-            return cpp_dbc::unexpected(DBException("Q1Z2A3B4C5D6", "Column not found: " + columnName, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("MDWX3TY3ZNN4", "Column not found: " + columnName, system_utils::captureCallStack()));
         }
         return getBlob(std::nothrow, it->second + 1); // +1 because getBlob(int) is 1-based
     }
@@ -116,7 +116,7 @@ namespace cpp_dbc::MySQL
 
         if (columnIndex < 1 || columnIndex > m_fieldCount)
         {
-            return cpp_dbc::unexpected(DBException("Q2Z3A4B5C6D7", "Invalid column index for getBinaryStream", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("BARSF3FXQ52P", "Invalid column index for getBinaryStream", system_utils::captureCallStack()));
         }
 
         // MySQL column indexes are 0-based, but our API is 1-based (like JDBC)
@@ -136,7 +136,7 @@ namespace cpp_dbc::MySQL
         const unsigned long *lengths = mysql_fetch_lengths(m_result.get());
         if (!lengths)
         {
-            return cpp_dbc::unexpected(DBException("Q3Z4A5B6C7D8", "Failed to get BLOB data length", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("MKQTE8BTZAJY", "Failed to get BLOB data length", system_utils::captureCallStack()));
         }
 
         // Create a new input stream with the data
@@ -153,7 +153,7 @@ namespace cpp_dbc::MySQL
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
-            return cpp_dbc::unexpected(DBException("Q4Z5A6B7C8D9", "Column not found: " + columnName, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("0WMIY8KYPYQA", "Column not found: " + columnName, system_utils::captureCallStack()));
         }
         return getBinaryStream(std::nothrow, it->second + 1); // +1 because getBinaryStream(int) is 1-based
     }
@@ -170,7 +170,7 @@ namespace cpp_dbc::MySQL
 
         if (columnIndex < 1 || columnIndex > m_fieldCount)
         {
-            return cpp_dbc::unexpected(DBException("Q5Z6A7B8C9D0", "Invalid column index for getBytes", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("3XVHIXH3HKXS", "Invalid column index for getBytes", system_utils::captureCallStack()));
         }
 
         // MySQL column indexes are 0-based, but our API is 1-based (like JDBC)
@@ -184,7 +184,7 @@ namespace cpp_dbc::MySQL
         const unsigned long *lengths = mysql_fetch_lengths(m_result.get());
         if (!lengths)
         {
-            return cpp_dbc::unexpected(DBException("Q6Z7A8B9C0D1", "Failed to get BLOB data length", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("9KU99I1V16QW", "Failed to get BLOB data length", system_utils::captureCallStack()));
         }
 
         // Create a vector with the data
@@ -203,7 +203,7 @@ namespace cpp_dbc::MySQL
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
-            return cpp_dbc::unexpected(DBException("X5Y6Z7A8B9C0", "Column not found: " + columnName, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("5DB9EL8OWXMD", "Column not found: " + columnName, system_utils::captureCallStack()));
         }
         return getBytes(std::nothrow, it->second + 1); // +1 because getBytes(int) is 1-based
     }

@@ -179,6 +179,8 @@ namespace cpp_dbc
         std::string getURL() const override { return this->getURLThrow(); }
         void reset() override { this->resetThrow(); }
         bool ping() override { return this->pingThrow(); }
+        std::string getServerVersion() override { return this->getServerVersionThrow(); }
+        std::map<std::string, std::string> getServerInfo() override { return this->getServerInfoThrow(); }
 
         // ── Columnar-specific throwing methods ──
         std::shared_ptr<ColumnarDBPreparedStatement> prepareStatement(const std::string &query) override;
@@ -205,6 +207,8 @@ namespace cpp_dbc
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override { return this->isPooledImpl(std::nothrow); }
         cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override { return this->getURLImpl(std::nothrow); }
         cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override { return this->pingImpl(std::nothrow); }
+        cpp_dbc::expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override { return this->getServerVersionImpl(std::nothrow); }
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(std::nothrow_t) noexcept override { return this->getServerInfoImpl(std::nothrow); }
 
         // ── Columnar-specific nothrow methods ──
         cpp_dbc::expected<std::shared_ptr<ColumnarDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &query) noexcept override;

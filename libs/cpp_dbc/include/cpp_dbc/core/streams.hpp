@@ -229,6 +229,16 @@ namespace cpp_dbc
         virtual cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, size_t pos, const uint8_t *bytes, size_t length) noexcept = 0;
         virtual cpp_dbc::expected<void, DBException> truncate(std::nothrow_t, size_t len) noexcept = 0;
         virtual cpp_dbc::expected<void, DBException> free(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Check if the underlying database connection is still valid
+         *
+         * For database-backed BLOBs, returns whether the connection that owns the
+         * data is still alive. For in-memory BLOBs (MemoryBlob), always returns true.
+         *
+         * @return true if the connection is valid (or the BLOB is purely in-memory)
+         */
+        virtual bool isConnectionValid() const = 0;
     };
 
 } // namespace cpp_dbc

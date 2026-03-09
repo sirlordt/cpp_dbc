@@ -42,7 +42,7 @@ namespace cpp_dbc::MySQL
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
-            return cpp_dbc::unexpected(DBException("O2Z3A4B5C6D7", "Invalid parameter index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("E16M4JUNOAHM", "Invalid parameter index", system_utils::captureCallStack()));
         }
 
         int idx = parameterIndex - 1;
@@ -66,7 +66,7 @@ namespace cpp_dbc::MySQL
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
-            return cpp_dbc::unexpected(DBException("O3Z4A5B6C7D8", "Invalid parameter index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("Y4ZEGZLYZA27", "Invalid parameter index", system_utils::captureCallStack()));
         }
 
         int idx = parameterIndex - 1;
@@ -90,7 +90,7 @@ namespace cpp_dbc::MySQL
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
-            return cpp_dbc::unexpected(DBException("O4Z5A6B7C8D9", "Invalid parameter index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("2K605E0TY9OX", "Invalid parameter index", system_utils::captureCallStack()));
         }
 
         int idx = parameterIndex - 1;
@@ -114,7 +114,7 @@ namespace cpp_dbc::MySQL
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
-            return cpp_dbc::unexpected(DBException("O5Z6A7B8C9D0", "Invalid parameter index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("RTG84I3JPWSJ", "Invalid parameter index", system_utils::captureCallStack()));
         }
 
         int idx = parameterIndex - 1;
@@ -147,7 +147,7 @@ namespace cpp_dbc::MySQL
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
-            return cpp_dbc::unexpected(DBException("O6Z7A8B9C0D1", "Invalid parameter index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("YTAFKAN8YTXG", "Invalid parameter index", system_utils::captureCallStack()));
         }
 
         int idx = parameterIndex - 1;
@@ -171,7 +171,7 @@ namespace cpp_dbc::MySQL
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
-            return cpp_dbc::unexpected(DBException("O7Z8A9B0C1D2", "Invalid parameter index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("Q2HCVDXEOEIS", "Invalid parameter index", system_utils::captureCallStack()));
         }
 
         int idx = parameterIndex - 1;
@@ -245,7 +245,7 @@ namespace cpp_dbc::MySQL
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
-            return cpp_dbc::unexpected(DBException("O8Z9A0B1C2D3", "Invalid parameter index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("B9M03QK7H9LB", "Invalid parameter index", system_utils::captureCallStack()));
         }
 
         int idx = parameterIndex - 1;
@@ -270,7 +270,7 @@ namespace cpp_dbc::MySQL
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
-            return cpp_dbc::unexpected(DBException("O9Z0A1B2C3D4", "Invalid parameter index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("UHH8Y0JTPFNO", "Invalid parameter index", system_utils::captureCallStack()));
         }
 
         int idx = parameterIndex - 1;
@@ -295,7 +295,7 @@ namespace cpp_dbc::MySQL
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
-            return cpp_dbc::unexpected(DBException("P0A1B2C3D4E5", "Invalid parameter index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("LXZFRSP3CRQ5", "Invalid parameter index", system_utils::captureCallStack()));
         }
 
         int idx = parameterIndex - 1;

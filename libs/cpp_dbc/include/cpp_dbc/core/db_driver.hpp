@@ -294,6 +294,17 @@ namespace cpp_dbc
          * @return The driver name (e.g., "mysql", "postgresql", "mongodb")
          */
         virtual std::string getName() const noexcept = 0;
+
+        /**
+         * @brief Get the version of the underlying C/C++ client library
+         *
+         * Returns the version string of the native library that this driver wraps
+         * (e.g., libmysqlclient, libpq, sqlite3, hiredis, libmongoc, cpp-driver).
+         *
+         * @return The driver library version string (e.g., "8.0.36", "16.0", "3.45.1"),
+         *         or "unknown" if version information is not available
+         */
+        virtual std::string getDriverVersion() const noexcept = 0;
     };
 
 } // namespace cpp_dbc

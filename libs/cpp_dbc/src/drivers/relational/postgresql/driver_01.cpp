@@ -156,6 +156,18 @@ namespace cpp_dbc::PostgreSQL
         return "cpp_dbc:postgresql://<host>:<port>/<database>";
     }
 
+    std::string PostgreSQLDBDriver::getDriverVersion() const noexcept
+    {
+        // PQlibVersion() returns an integer like 160003 for 16.0.3
+        int ver = PQlibVersion();
+        int major = ver / 10000;
+        int minor = (ver / 100) % 100;
+        int patch = ver % 100;
+        return std::to_string(major) + "." +
+               std::to_string(minor) + "." +
+               std::to_string(patch);
+    }
+
 } // namespace cpp_dbc::PostgreSQL
 
 #endif // USE_POSTGRESQL

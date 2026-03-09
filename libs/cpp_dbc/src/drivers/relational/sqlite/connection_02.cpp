@@ -618,6 +618,23 @@ namespace cpp_dbc::SQLite
         return {};
     }
 
+    cpp_dbc::expected<std::string, DBException> SQLiteDBConnection::getServerVersion(std::nothrow_t) noexcept
+    {
+        return std::string(sqlite3_libversion());
+    }
+
+    cpp_dbc::expected<std::map<std::string, std::string>, DBException> SQLiteDBConnection::getServerInfo(std::nothrow_t) noexcept
+    {
+        std::map<std::string, std::string> info;
+
+        info["ServerVersion"] = sqlite3_libversion();
+        info["ServerVersionNumeric"] = std::to_string(sqlite3_libversion_number());
+        info["SourceId"] = sqlite3_sourceid();
+        info["ThreadSafe"] = std::to_string(sqlite3_threadsafe());
+
+        return info;
+    }
+
 } // namespace cpp_dbc::SQLite
 
 #endif // USE_SQLITE

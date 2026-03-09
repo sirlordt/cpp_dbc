@@ -42,6 +42,8 @@
 
 #include "cpp_dbc/pool/db_connection_pooled.hpp"
 #include <atomic>
+#include <map>
+#include <string>
 
 namespace cpp_dbc
 {
@@ -91,6 +93,8 @@ namespace cpp_dbc
         cpp_dbc::expected<void, DBException> prepareForPoolReturnImpl(
             std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept;
         cpp_dbc::expected<void, DBException> prepareForBorrowImpl(std::nothrow_t) noexcept;
+        cpp_dbc::expected<std::string, DBException> getServerVersionImpl(std::nothrow_t) noexcept;
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfoImpl(std::nothrow_t) noexcept;
 
 #ifdef __cpp_exceptions
         // Throwing helper implementations — called by derived throwing delegators
@@ -101,6 +105,8 @@ namespace cpp_dbc
         std::string getURLThrow() const;
         void resetThrow();
         bool pingThrow();
+        std::string getServerVersionThrow();
+        std::map<std::string, std::string> getServerInfoThrow();
 #endif
 
     public:

@@ -84,6 +84,99 @@ TEST_CASE("MongoDB connection test", "[25_041_01_mongodb_real_connection]")
         CHECK(conn->isClosed());
     }
 }
+TEST_CASE("MongoDB getServerVersion and getServerInfo", "[25_041_03_mongodb_real_connection]")
+{
+    if (!mongodb_test_helpers::canConnectToMongoDB())
+    {
+        SKIP("Cannot connect to MongoDB database");
+        return;
+    }
+
+    auto driver = mongodb_test_helpers::getMongoDBDriver();
+    auto dbConfig = mongodb_test_helpers::getMongoDBConfig("dev_mongodb");
+    std::string connStr = mongodb_test_helpers::buildMongoDBConnectionString(dbConfig);
+    std::string username = dbConfig.getUsername();
+    std::string password = dbConfig.getPassword();
+
+    SECTION("getServerVersion returns non-empty version string")
+    {
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBConnection>(
+            driver->connectDocument(connStr, username, password));
+        REQUIRE(conn != nullptr);
+
+        auto version = conn->getServerVersion();
+        CHECK_FALSE(version.empty());
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "MongoDB server version: " + version);
+
+        // Version should look like a semver (contain at least one dot)
+        CHECK(version.find('.') != std::string::npos);
+
+        conn->close();
+    }
+
+    SECTION("getServerInfo returns map with ServerVersion key")
+    {
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBConnection>(
+            driver->connectDocument(connStr, username, password));
+        REQUIRE(conn != nullptr);
+
+        auto info = conn->getServerInfo();
+        CHECK_FALSE(info.empty());
+        CHECK(info.count("ServerVersion") == 1);
+        CHECK_FALSE(info.at("ServerVersion").empty());
+
+        for (const auto &[key, value] : info)
+        {
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "  MongoDB ServerInfo [" + key + "] = " + value);
+        }
+
+        conn->close();
+    }
+
+    SECTION("getServerVersion matches ServerVersion in getServerInfo")
+    {
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBConnection>(
+            driver->connectDocument(connStr, username, password));
+        REQUIRE(conn != nullptr);
+
+        auto version = conn->getServerVersion();
+        auto info = conn->getServerInfo();
+
+        CHECK(version == info.at("ServerVersion"));
+
+        conn->close();
+    }
+
+    SECTION("getServerInfoAsDocument still works")
+    {
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBConnection>(
+            driver->connectDocument(connStr, username, password));
+        REQUIRE(conn != nullptr);
+
+        auto doc = conn->getServerInfoAsDocument();
+        REQUIRE(doc != nullptr);
+
+        auto json = doc->toJson();
+        CHECK_FALSE(json.empty());
+        CHECK(json.find("version") != std::string::npos);
+
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "MongoDB getServerInfoAsDocument JSON length: " + std::to_string(json.size()));
+
+        conn->close();
+    }
+}
+TEST_CASE("MongoDB getDriverVersion", "[25_041_04_mongodb_real_connection]")
+{
+    auto driver = mongodb_test_helpers::getMongoDBDriver();
+
+    SECTION("getDriverVersion returns non-empty version string")
+    {
+        auto version = driver->getDriverVersion();
+        CHECK_FALSE(version.empty());
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "MongoDB driver version: " + version);
+    }
+}
+
 #else
 // Skip this test if MongoDB support is not enabled
 TEST_CASE("MongoDB connection test (skipped)", "[25_041_02_mongodb_real_connection]")

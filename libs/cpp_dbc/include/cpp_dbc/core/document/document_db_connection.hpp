@@ -189,10 +189,14 @@ namespace cpp_dbc
 
         // Server information
         /**
-         * @brief Get server information
+         * @brief Get server information as a document
+         *
+         * Returns the full server information as a rich document structure.
+         * For a flat key-value representation, use getServerInfo() from DBConnection.
+         *
          * @return Server information as a document
          */
-        virtual std::shared_ptr<DocumentDBData> getServerInfo() = 0;
+        virtual std::shared_ptr<DocumentDBData> getServerInfoAsDocument() = 0;
 
         /**
          * @brief Get server status
@@ -295,7 +299,7 @@ namespace cpp_dbc
         virtual expected<std::shared_ptr<DocumentDBData>, DBException> runCommand(
             std::nothrow_t, const std::string &command) noexcept = 0;
 
-        virtual expected<std::shared_ptr<DocumentDBData>, DBException> getServerInfo(std::nothrow_t) noexcept = 0;
+        virtual expected<std::shared_ptr<DocumentDBData>, DBException> getServerInfoAsDocument(std::nothrow_t) noexcept = 0;
 
         virtual expected<std::shared_ptr<DocumentDBData>, DBException> getServerStatus(std::nothrow_t) noexcept = 0;
 

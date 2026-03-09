@@ -5,6 +5,7 @@
 
 #if USE_MYSQL
 #include <mysql/mysql.h>
+#include <cctype>
 #include <memory>
 #include <cstring>
 
@@ -75,6 +76,34 @@ namespace cpp_dbc::MySQL
                 return cpp_dbc::unexpected(DBException("SWUSJLDWXH53", "Connection has been closed", system_utils::captureCallStack()));
             }
             return mysql.get();
+        }
+
+        /**
+         * @brief Validate that a database identifier contains only safe characters
+         * @param identifier The identifier to validate (table name, column name)
+         * @return unexpected(DBException) if the identifier contains disallowed characters
+         *
+         * Only alphanumeric characters (A-Z, a-z, 0-9) and underscores are allowed.
+         * This prevents SQL injection when identifiers are used in query construction.
+         */
+        static cpp_dbc::expected<void, DBException> validateIdentifier(std::nothrow_t, const std::string &identifier) noexcept
+        {
+            if (identifier.empty())
+            {
+                return cpp_dbc::unexpected(DBException("I9E7DCOTY7BD",
+                    "Empty database identifier",
+                    system_utils::captureCallStack()));
+            }
+            for (char c : identifier)
+            {
+                if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_')
+                {
+                    return cpp_dbc::unexpected(DBException("BHE48KWWQ1GO",
+                        "Invalid database identifier: contains disallowed characters (only alphanumeric and underscores allowed)",
+                        system_utils::captureCallStack()));
+                }
+            }
+            return {};
         }
 
     public:
@@ -320,9 +349,14 @@ namespace cpp_dbc::MySQL
          * @brief Check if the connection is still valid
          * @return true if the connection is still valid
          */
-        bool isConnectionValid() const noexcept
+        bool isConnectionValid(std::nothrow_t) const noexcept
         {
             return !m_mysql.expired();
+        }
+
+        bool isConnectionValid() const noexcept override
+        {
+            return isConnectionValid(std::nothrow);
         }
 
         /**
@@ -343,6 +377,18 @@ namespace cpp_dbc::MySQL
                 return cpp_dbc::unexpected(mysqlResult.error());
             }
             MYSQL *mysql = mysqlResult.value();
+
+            // Validate identifiers before SQL construction to prevent injection
+            auto colValid = validateIdentifier(std::nothrow, m_columnName);
+            if (!colValid.has_value())
+            {
+                return cpp_dbc::unexpected(colValid.error());
+            }
+            auto tblValid = validateIdentifier(std::nothrow, m_tableName);
+            if (!tblValid.has_value())
+            {
+                return cpp_dbc::unexpected(tblValid.error());
+            }
 
             std::string query = "SELECT " + m_columnName + " FROM " + m_tableName;
             if (!m_whereClause.empty())
@@ -419,6 +465,18 @@ namespace cpp_dbc::MySQL
             }
             MYSQL *mysql = mysqlResult.value();
 
+            // Validate identifiers before SQL construction to prevent injection
+            auto tblValid = validateIdentifier(std::nothrow, m_tableName);
+            if (!tblValid.has_value())
+            {
+                return cpp_dbc::unexpected(tblValid.error());
+            }
+            auto colValid = validateIdentifier(std::nothrow, m_columnName);
+            if (!colValid.has_value())
+            {
+                return cpp_dbc::unexpected(colValid.error());
+            }
+
             std::string query = "UPDATE " + m_tableName + " SET " + m_columnName + " = ? WHERE " + m_whereClause;
             MySQLStmtHandle stmtHandle(mysql_stmt_init(mysql));
             if (!stmtHandle)
@@ -430,8 +488,7 @@ namespace cpp_dbc::MySQL
                 std::string error = mysql_stmt_error(stmtHandle.get());
                 return cpp_dbc::unexpected(DBException("1M7I6MJ8UHON", "Failed to prepare statement for BLOB update: " + error, system_utils::captureCallStack()));
             }
-            MYSQL_BIND bind;
-            memset(&bind, 0, sizeof(bind));
+            MYSQL_BIND bind{};
             bind.buffer_type = MYSQL_TYPE_BLOB;
             bind.buffer = m_data.data();
             bind.buffer_length = m_data.size();

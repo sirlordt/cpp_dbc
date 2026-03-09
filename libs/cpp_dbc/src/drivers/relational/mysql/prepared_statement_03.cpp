@@ -40,7 +40,7 @@ namespace cpp_dbc::MySQL
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
-            return cpp_dbc::unexpected(DBException("D1E2F3G4H5I6", "Invalid parameter index for setBlob", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("I81HBMMW7EY7", "Invalid parameter index for setBlob", system_utils::captureCallStack()));
         }
 
         int idx = parameterIndex - 1;
@@ -92,7 +92,7 @@ namespace cpp_dbc::MySQL
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
-            return cpp_dbc::unexpected(DBException("J7K8L9M0N1O2", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("W32D7KYC25JV", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack()));
         }
 
         int idx = parameterIndex - 1;
@@ -148,7 +148,7 @@ namespace cpp_dbc::MySQL
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
-            return cpp_dbc::unexpected(DBException("P3Q4R5S6T7U8", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("R6XHTB2M1HXD", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack()));
         }
 
         int idx = parameterIndex - 1;
@@ -212,7 +212,7 @@ namespace cpp_dbc::MySQL
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
-            return cpp_dbc::unexpected(DBException("B5C6D7E8F9G0", "Invalid parameter index for setBytes", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("EZPZDJ1XBAUF", "Invalid parameter index for setBytes", system_utils::captureCallStack()));
         }
 
         int idx = parameterIndex - 1;
@@ -248,7 +248,7 @@ namespace cpp_dbc::MySQL
 
         if (!m_stmt)
         {
-            return cpp_dbc::unexpected(DBException("P1Z2A3B4C5D6", "Statement is not initialized", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("8S667IDQSV9B", "Statement is not initialized", system_utils::captureCallStack()));
         }
 
         // Get the MySQL connection safely
@@ -275,13 +275,13 @@ namespace cpp_dbc::MySQL
         // Execute the reconstructed query using the regular connection interface
         if (mysql_query(mysqlPtr, finalQuery.c_str()) != 0)
         {
-            return cpp_dbc::unexpected(DBException("P2Z3A4B5C6D7", std::string("Query failed: ") + mysql_error(mysqlPtr), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("FL569QH5RBCX", std::string("Query failed: ") + mysql_error(mysqlPtr), system_utils::captureCallStack()));
         }
 
         MYSQL_RES *result = mysql_store_result(mysqlPtr);
         if (!result && mysql_field_count(mysqlPtr) > 0)
         {
-            return cpp_dbc::unexpected(DBException("H1I2J3K4L5M6", std::string("Failed to get result set: ") + mysql_error(mysqlPtr), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("K3VGPEZ7KWZQ", std::string("Failed to get result set: ") + mysql_error(mysqlPtr), system_utils::captureCallStack()));
         }
 
         // Lock the connection to pass it to the ResultSet and register it
@@ -331,19 +331,19 @@ namespace cpp_dbc::MySQL
 
         if (!m_stmt)
         {
-            return cpp_dbc::unexpected(DBException("P3Z4A5B6C7D8", "Statement is not initialized", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("7QNIVNSAGDYI", "Statement is not initialized", system_utils::captureCallStack()));
         }
 
         // Bind parameters
         if (!m_binds.empty() && mysql_stmt_bind_param(m_stmt.get(), m_binds.data()) != 0)
         {
-            return cpp_dbc::unexpected(DBException("P4Z5A6B7C8D9", std::string("Failed to bind parameters: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("MTD6DPBV993Q", std::string("Failed to bind parameters: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
         }
 
         // Execute the query
         if (mysql_stmt_execute(m_stmt.get()) != 0)
         {
-            return cpp_dbc::unexpected(DBException("P5Z6A7B8C9D0", std::string("Failed to execute statement: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("FIMP48JEJJHM", std::string("Failed to execute statement: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
         }
 
         // Return whether there's a result set

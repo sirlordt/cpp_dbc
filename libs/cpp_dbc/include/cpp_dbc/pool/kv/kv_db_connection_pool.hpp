@@ -164,6 +164,8 @@ namespace cpp_dbc
         std::string getURL() const override { return this->getURLThrow(); }
         void reset() override { this->resetThrow(); }
         bool ping() override { return this->pingThrow(); }
+        std::string getServerVersion() override { return this->getServerVersionThrow(); }
+        std::map<std::string, std::string> getServerInfo() override { return this->getServerInfoThrow(); }
 
         // ── KV-specific throwing methods ──
         bool setString(const std::string &key, const std::string &value,
@@ -201,7 +203,6 @@ namespace cpp_dbc
         std::vector<std::string> scanKeys(const std::string &pattern, int64_t count = 10) override;
         std::string executeCommand(const std::string &command, const std::vector<std::string> &args = {}) override;
         bool flushDB(bool async = false) override;
-        std::map<std::string, std::string> getServerInfo() override;
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
 
@@ -219,6 +220,8 @@ namespace cpp_dbc
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override { return this->isPooledImpl(std::nothrow); }
         cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override { return this->getURLImpl(std::nothrow); }
         cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override { return this->pingImpl(std::nothrow); }
+        cpp_dbc::expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override { return this->getServerVersionImpl(std::nothrow); }
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(std::nothrow_t) noexcept override { return this->getServerInfoImpl(std::nothrow); }
 
         // ── KV-specific nothrow methods ──
         cpp_dbc::expected<bool, DBException> setString(
@@ -331,8 +334,6 @@ namespace cpp_dbc
         cpp_dbc::expected<bool, DBException> flushDB(
             std::nothrow_t, bool async = false) noexcept override;
 
-        cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(
-            std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException>
         setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
         cpp_dbc::expected<TransactionIsolationLevel, DBException>

@@ -161,11 +161,6 @@ namespace cpp_dbc
          */
         virtual bool supportsReplication() const noexcept = 0;
 
-        /**
-         * @brief Get the driver version
-         * @return The driver version string
-         */
-        virtual std::string getDriverVersion() const noexcept = 0;
     };
 
 } // namespace cpp_dbc

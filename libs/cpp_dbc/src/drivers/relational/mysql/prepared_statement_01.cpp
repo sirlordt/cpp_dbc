@@ -58,7 +58,7 @@ namespace cpp_dbc::MySQL
         if (!m_stmt)
         {
             m_initFailed = true;
-            m_initError = std::make_unique<DBException>("3Y4Z5A6B7C8D", "Failed to initialize statement", system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("SRFP76SJPDDG", "Failed to initialize statement", system_utils::captureCallStack());
             return;
         }
 
@@ -67,14 +67,13 @@ namespace cpp_dbc::MySQL
             std::string error = mysql_stmt_error(m_stmt.get());
             m_stmt.reset(); // Smart pointer will call mysql_stmt_close via deleter
             m_initFailed = true;
-            m_initError = std::make_unique<DBException>("P0Z1A2B3C4D5", "Failed to prepare statement: " + error, system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("CNJRP573F3R0", "Failed to prepare statement: " + error, system_utils::captureCallStack());
             return;
         }
 
         // Count parameters (question marks) in the SQL
         unsigned long paramCount = mysql_stmt_param_count(m_stmt.get());
         m_binds.resize(paramCount);
-        memset(m_binds.data(), 0, sizeof(MYSQL_BIND) * paramCount);
 
         // Initialize string values vector
         m_stringValues.resize(paramCount);
@@ -123,7 +122,7 @@ namespace cpp_dbc::MySQL
         {
             return cpp_dbc::unexpected(DBException("I45CI2CYTVOT", "MySQL connection has been closed", system_utils::captureCallStack()));
         }
-        return conn->getMySQLNativeHandle();
+        return conn->getMySQLNativeHandle(std::nothrow);
     }
 
     // ============================================================================

@@ -399,6 +399,27 @@ namespace cpp_dbc::PostgreSQL
         }
         return *result;
     }
+
+    std::string PostgreSQLDBConnection::getServerVersion()
+    {
+        auto result = getServerVersion(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::map<std::string, std::string> PostgreSQLDBConnection::getServerInfo()
+    {
+        auto result = getServerInfo(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
     #endif // __cpp_exceptions
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::ping(std::nothrow_t) noexcept

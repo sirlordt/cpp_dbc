@@ -80,6 +80,98 @@ TEST_CASE("PostgreSQL connection test", "[21_041_01_postgresql_real_connection]"
         }
     }
 }
+TEST_CASE("PostgreSQL getServerVersion and getServerInfo", "[21_041_03_postgresql_real_connection]")
+{
+    auto dbConfig = postgresql_test_helpers::getPostgreSQLConfig("dev_postgresql");
+    std::string username = dbConfig.getUsername();
+    std::string password = dbConfig.getPassword();
+    std::string connStr = dbConfig.createConnectionString();
+
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+
+    SECTION("getServerVersion returns non-empty version string")
+    {
+        try
+        {
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+            REQUIRE(conn != nullptr);
+
+            auto version = conn->getServerVersion();
+            CHECK_FALSE(version.empty());
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "PostgreSQL server version: " + version);
+
+            conn->close();
+        }
+        catch (const cpp_dbc::DBException &ex)
+        {
+            WARN("PostgreSQL getServerVersion test skipped: " + std::string(ex.what_s()));
+        }
+    }
+
+    SECTION("getServerInfo returns map with ServerVersion key")
+    {
+        try
+        {
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+            REQUIRE(conn != nullptr);
+
+            auto info = conn->getServerInfo();
+            CHECK_FALSE(info.empty());
+            CHECK(info.count("ServerVersion") == 1);
+            CHECK_FALSE(info.at("ServerVersion").empty());
+
+            for (const auto &[key, value] : info)
+            {
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "  PostgreSQL ServerInfo [" + key + "] = " + value);
+            }
+
+            // Verify some PostgreSQL-specific keys
+            CHECK(info.count("ProtocolVersion") == 1);
+            CHECK(info.count("ServerEncoding") == 1);
+
+            conn->close();
+        }
+        catch (const cpp_dbc::DBException &ex)
+        {
+            WARN("PostgreSQL getServerInfo test skipped: " + std::string(ex.what_s()));
+        }
+    }
+
+    SECTION("getServerVersion matches ServerVersion in getServerInfo")
+    {
+        try
+        {
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+            REQUIRE(conn != nullptr);
+
+            auto version = conn->getServerVersion();
+            auto info = conn->getServerInfo();
+
+            CHECK(version == info.at("ServerVersion"));
+
+            conn->close();
+        }
+        catch (const cpp_dbc::DBException &ex)
+        {
+            WARN("PostgreSQL version consistency test skipped: " + std::string(ex.what_s()));
+        }
+    }
+}
+TEST_CASE("PostgreSQL getDriverVersion", "[21_041_04_postgresql_real_connection]")
+{
+    auto driver = std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>();
+
+    SECTION("getDriverVersion returns non-empty version string")
+    {
+        auto version = driver->getDriverVersion();
+        CHECK_FALSE(version.empty());
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "PostgreSQL driver version: " + version);
+    }
+}
+
 #else
 // Skip this test if PostgreSQL support is not enabled
 TEST_CASE("PostgreSQL connection test (skipped)", "[21_041_02_postgresql_real_connection]")

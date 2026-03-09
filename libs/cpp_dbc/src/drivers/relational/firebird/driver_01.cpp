@@ -516,6 +516,15 @@ namespace cpp_dbc::Firebird
         return "cpp_dbc:firebird://<host>:<port>/<database_server_path>";
     }
 
+    std::string FirebirdDBDriver::getDriverVersion() const noexcept
+    {
+#if defined(FB_API_VER)
+        return std::to_string(FB_API_VER);
+#else
+        return "unknown";
+#endif
+    }
+
 } // namespace cpp_dbc::Firebird
 
 #endif // USE_FIREBIRD

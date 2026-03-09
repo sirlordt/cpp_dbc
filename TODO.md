@@ -12,6 +12,16 @@
 
 ## Completed Tasks
 
+- Unified version/info API across all drivers, MySQL code hardening, BlobStream connection validation (2026-03-08):
+  - `getDriverVersion()` moved from family driver bases to `DBDriver` base; implemented in all 7 drivers
+  - `getServerVersion()` + `getServerInfo()` (throwing + nothrow) added to `DBConnection` base; all 7 drivers return driver-specific metadata maps
+  - `BlobStream::isConnectionValid()` pure virtual added; all blob classes override with `const noexcept`
+  - MongoDB: `getServerInfo()` → `getServerInfoAsDocument()` to avoid base class collision
+  - MySQL: ~60 error codes regenerated, `std::stoi` → `std::from_chars`, `memset` → aggregate init, index loop → `std::span`, SQL injection prevention in blob
+  - Pool: version/info API delegated through all 4 family pooled connection wrappers
+  - Tests: new version/info test cases for all 7 drivers
+  - 66 files changed, +1760/-235 lines
+
 - Convention refinements: PrivateCtorTag unification, violations checklist reorganization, MySQL code cleanup (2026-03-08):
   - `ConstructorTag` → `PrivateCtorTag` throughout convention docs; private constructors explicitly forbidden with migration rule
   - Violations checklist reorganized into 6 categorized sections with ~20 new items

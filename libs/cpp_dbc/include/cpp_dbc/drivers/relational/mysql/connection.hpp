@@ -294,6 +294,9 @@ namespace cpp_dbc::MySQL
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
 
+        std::string getServerVersion() override;
+        std::map<std::string, std::string> getServerInfo() override;
+
 #endif // __cpp_exceptions
 
         // ====================================================================
@@ -322,46 +325,6 @@ namespace cpp_dbc::MySQL
             return obj;
         }
 
-        /**
-         * @brief Get the native MYSQL* handle for PreparedStatement operations
-         *
-         * Allows PreparedStatement to access the underlying MYSQL* connection handle
-         * via their weak_ptr<MySQLDBConnection>, without storing the handle directly.
-         *
-         * @return Raw MYSQL* pointer (may be nullptr if connection was closed)
-         */
-        MYSQL *getMySQLNativeHandle() const noexcept
-        {
-            return m_mysql.get();
-        }
-
-#if DB_DRIVER_THREAD_SAFE
-        /**
-         * @brief Get the connection mutex for PreparedStatement/ResultSet access
-         *
-         * Allows PreparedStatement and ResultSet to serialize their operations through
-         * the connection mutex via their weak_ptr<MySQLDBConnection>, without storing
-         * the mutex directly.
-         *
-         * @return Reference to the connection's recursive_mutex
-         */
-        std::recursive_mutex &getConnectionMutex() noexcept
-        {
-            return *m_connMutex;
-        }
-#endif
-
-        /**
-         * @brief Check if connection is currently in reset() operation
-         * @return true if reset() is active, false otherwise
-         *
-         * Used by ResultSet/PreparedStatement to avoid unregister deadlock during closeAll*()
-         */
-        bool isResetting() const noexcept
-        {
-            return m_resetting.load(std::memory_order_acquire);
-        }
-
         cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;
         cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> executeQuery(std::nothrow_t, const std::string &sql) noexcept override;
         cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t, const std::string &sql) noexcept override;
@@ -381,6 +344,50 @@ namespace cpp_dbc::MySQL
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(std::nothrow_t) noexcept override;
+
+        // MySQL-specific public helpers (used by PreparedStatement, ResultSet, MySQLConnectionLock)
+
+        /**
+         * @brief Get the native MYSQL* handle for PreparedStatement operations
+         *
+         * Allows PreparedStatement to access the underlying MYSQL* connection handle
+         * via their weak_ptr<MySQLDBConnection>, without storing the handle directly.
+         *
+         * @return Raw MYSQL* pointer (may be nullptr if connection was closed)
+         */
+        MYSQL *getMySQLNativeHandle(std::nothrow_t) const noexcept
+        {
+            return m_mysql.get();
+        }
+
+#if DB_DRIVER_THREAD_SAFE
+        /**
+         * @brief Get the connection mutex for PreparedStatement/ResultSet access
+         *
+         * Allows PreparedStatement and ResultSet to serialize their operations through
+         * the connection mutex via their weak_ptr<MySQLDBConnection>, without storing
+         * the mutex directly.
+         *
+         * @return Reference to the connection's recursive_mutex
+         */
+        std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
+        {
+            return *m_connMutex;
+        }
+#endif
+
+        /**
+         * @brief Check if connection is currently in reset() operation
+         * @return true if reset() is active, false otherwise
+         *
+         * Used by ResultSet/PreparedStatement to avoid unregister deadlock during closeAll*()
+         */
+        bool isResetting(std::nothrow_t) const noexcept
+        {
+            return m_resetting.load(std::memory_order_acquire);
+        }
     };
 
 } // namespace cpp_dbc::MySQL

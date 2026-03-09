@@ -623,6 +623,27 @@ namespace cpp_dbc::SQLite
         }
         return *result;
     }
+
+    std::string SQLiteDBConnection::getServerVersion()
+    {
+        auto result = getServerVersion(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::map<std::string, std::string> SQLiteDBConnection::getServerInfo()
+    {
+        auto result = getServerInfo(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
     #endif // __cpp_exceptions
 
     cpp_dbc::expected<bool, DBException> SQLiteDBConnection::ping(std::nothrow_t) noexcept

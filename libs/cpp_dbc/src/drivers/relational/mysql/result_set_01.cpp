@@ -26,6 +26,7 @@
 #include <cstring>
 #include <sstream>
 #include <iostream>
+#include <span>
 #include <thread>
 #include <chrono>
 #include "cpp_dbc/common/system_utils.hpp"
@@ -81,11 +82,12 @@ namespace cpp_dbc::MySQL
 
             // Store column names and create column name to index mapping
             const MYSQL_FIELD *fields = mysql_fetch_fields(m_result.get());
-            for (size_t i = 0; i < m_fieldCount; i++)
+            size_t idx = 0;
+            for (const auto &field : std::span(fields, m_fieldCount))
             {
-                std::string name = fields[i].name;
+                std::string name = field.name;
                 m_columnNames.push_back(name);
-                m_columnMap[name] = i;
+                m_columnMap[name] = idx++;
             }
         }
         else

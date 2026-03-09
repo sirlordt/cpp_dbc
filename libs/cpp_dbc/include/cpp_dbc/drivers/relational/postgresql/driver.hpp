@@ -75,6 +75,7 @@ namespace cpp_dbc::PostgreSQL
 
         std::string getName() const noexcept override;
         std::string getURIScheme() const noexcept override;
+        std::string getDriverVersion() const noexcept override;
     };
 
 } // namespace cpp_dbc::PostgreSQL
@@ -152,6 +153,11 @@ namespace cpp_dbc::PostgreSQL
         std::string getURIScheme() const noexcept override
         {
             return "cpp_dbc:postgresql://<host>:<port>/<database>";
+        }
+
+        std::string getDriverVersion() const noexcept override
+        {
+            return "unknown";
         }
     };
 } // namespace cpp_dbc::PostgreSQL

@@ -19,6 +19,7 @@
 #ifndef CPP_DBC_CORE_DB_CONNECTION_HPP
 #define CPP_DBC_CORE_DB_CONNECTION_HPP
 
+#include <map>
 #include <string>
 #include <new> // For std::nothrow_t
 #include "db_expected.hpp"
@@ -140,6 +141,28 @@ namespace cpp_dbc
          */
         virtual bool ping() = 0;
 
+        /**
+         * @brief Get the version of the database server
+         *
+         * Returns the version string of the server this connection is connected to.
+         * For embedded databases (e.g., SQLite), returns the library version.
+         *
+         * @return The server version string (e.g., "8.0.36", "16.3", "3.45.1")
+         * @throws DBException if the version cannot be retrieved
+         */
+        virtual std::string getServerVersion() = 0;
+
+        /**
+         * @brief Get server information as key-value pairs
+         *
+         * Returns a map containing at least `"ServerVersion"` and optionally
+         * other server-specific metadata (encoding, uptime, platform, etc.).
+         *
+         * @return Map of server information
+         * @throws DBException if the information cannot be retrieved
+         */
+        virtual std::map<std::string, std::string> getServerInfo() = 0;
+
 #endif // __cpp_exceptions
 
         // ====================================================================
@@ -197,6 +220,30 @@ namespace cpp_dbc
          * @return expected containing true if alive, or DBException on failure
          */
         virtual cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Get the version of the database server (nothrow version)
+         *
+         * For embedded databases (e.g., SQLite), returns the library version.
+         *
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing the server version string, or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Get server information as key-value pairs (nothrow version)
+         *
+         * Returns a map containing at least `"ServerVersion"` and optionally
+         * other driver-specific metadata (e.g., encoding, uptime, platform,
+         * connection id, protocol version, etc.). Each driver decides what
+         * information to include beyond the mandatory `"ServerVersion"` entry.
+         *
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing map of server information, or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::map<std::string, std::string>, DBException>
+            getServerInfo(std::nothrow_t) noexcept = 0;
 
         // ====================================================================
         // POOL LIFECYCLE - Methods used by connection pools

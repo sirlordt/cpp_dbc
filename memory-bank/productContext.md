@@ -29,6 +29,7 @@ CPP_DBC solves these problems by providing:
 13. **`-fno-exceptions` Compatibility**: All 7 drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) guard throwing methods with `#ifdef __cpp_exceptions`; nothrow API always compiles and available
 14. **Unified URI API**: All drivers implement a common `parseURI`/`buildURI`/`acceptURI`/`getURIScheme` interface in the `DBDriver` base class
 15. **Comprehensive Convention System**: Project conventions document with 20+ coding rules and structured violation reporting format
+16. **Version/Info Introspection**: Unified `getServerVersion()`, `getServerInfo()`, and `getDriverVersion()` across all 7 drivers for runtime introspection of database server and client library versions
 
 ## Target Users
 

@@ -432,12 +432,6 @@ namespace cpp_dbc
         virtual bool flushDB(bool async = false) = 0;
 
         /**
-         * @brief Get server information
-         * @return Map of server information
-         */
-        virtual std::map<std::string, std::string> getServerInfo() = 0;
-
-        /**
          * @brief Set the transaction isolation level
          * @param level The desired isolation level
          * @note For KV stores, this stores the level in-memory (no database command).
@@ -793,14 +787,6 @@ namespace cpp_dbc
          */
         virtual expected<bool, DBException> flushDB(
             std::nothrow_t, bool async = false) noexcept = 0;
-
-        /**
-         * @brief Get server information (nothrow version)
-         * @param nothrow std::nothrow tag to indicate exception-free operation
-         * @return expected containing map of server information, or DBException on failure
-         */
-        virtual expected<std::map<std::string, std::string>, DBException> getServerInfo(
-            std::nothrow_t) noexcept = 0;
 
         /**
          * @brief Set the transaction isolation level (nothrow version)

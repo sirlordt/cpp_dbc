@@ -213,6 +213,11 @@ namespace cpp_dbc::SQLite
         return "cpp_dbc:sqlite://<path>";
     }
 
+    std::string SQLiteDBDriver::getDriverVersion() const noexcept
+    {
+        return sqlite3_libversion();
+    }
+
 } // namespace cpp_dbc::SQLite
 
 #endif // USE_SQLITE

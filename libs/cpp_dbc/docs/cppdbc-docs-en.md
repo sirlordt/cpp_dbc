@@ -59,7 +59,32 @@ All BLOB implementations use smart pointers (`std::weak_ptr`) for safe connectio
 - **PostgreSQLBlob**: Uses `weak_ptr<PGconn>` with `getPGConnection()` helper
 - **SQLiteBlob**: Uses `weak_ptr<sqlite3>` with `getSQLiteConnection()` helper
 
-All BLOB classes have an `isConnectionValid()` method to check if the connection is still valid. Operations throw `DBException` if the connection has been closed, preventing use-after-free errors.
+All BLOB classes have an `isConnectionValid()` method to check if the connection is still valid. Operations throw `DBException` if the connection has been closed, preventing use-after-free errors. The `BlobStream` base class declares `isConnectionValid()` as a pure virtual, and `MemoryBlob` (in-memory BLOBs with no database connection) always returns `true`.
+
+### Version and Info API
+
+All drivers expose a unified version/info introspection API through the base classes:
+
+**`DBDriver` (base class):**
+- `getDriverVersion()`: Returns the version string of the underlying C/C++ client library (e.g., `mysql_get_client_info()`, `PQlibVersion()`, `sqlite3_libversion()`)
+
+**`DBConnection` (base class):**
+- `getServerVersion()` / `getServerVersion(std::nothrow_t)`: Returns the database server's version string
+- `getServerInfo()` / `getServerInfo(std::nothrow_t)`: Returns `std::map<std::string, std::string>` with at least `"ServerVersion"` plus driver-specific metadata keys
+
+**Driver-specific metadata keys:**
+
+| Driver | Keys in `getServerInfo()` |
+|--------|--------------------------|
+| MySQL | ServerVersion, ServerVersionNumeric, HostInfo, ProtocolVersion, CharacterSet, ThreadId, ServerStatus |
+| PostgreSQL | ServerVersion, ServerVersionNumeric, ProtocolVersion, ServerEncoding, ClientEncoding, TimeZone, IntegerDatetimes, StandardConformingStrings |
+| SQLite | ServerVersion, ServerVersionNumeric, SourceId, ThreadSafe |
+| Firebird | ServerVersion, ODSMajorVersion, ODSMinorVersion, PageSize, SQLDialect |
+| MongoDB | ServerVersion, GitVersion, SysInfo, Allocator, JavascriptEngine, Bits, MaxBsonObjectSize |
+| Redis | ServerVersion + all INFO response fields |
+| ScyllaDB | ServerVersion, ClusterName, DataCenter, Rack, Partitioner, CQLVersion |
+
+**Note:** MongoDB also provides `getServerInfoAsDocument()` which returns the full buildInfo response as a rich document object, separate from the `std::map`-based `getServerInfo()`.
 
 ### TransactionIsolationLevel Enum
 Represents transaction isolation levels following the JDBC standard.

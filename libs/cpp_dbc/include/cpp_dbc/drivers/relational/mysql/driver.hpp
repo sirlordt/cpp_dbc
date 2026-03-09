@@ -86,6 +86,7 @@ namespace cpp_dbc::MySQL
 
         std::string getName() const noexcept override;
         std::string getURIScheme() const noexcept override;
+        std::string getDriverVersion() const noexcept override;
 
         static void cleanup();
     };
@@ -170,6 +171,11 @@ namespace cpp_dbc::MySQL
         std::string getURIScheme() const noexcept override
         {
             return "cpp_dbc:mysql://<host>:<port>/<database>";
+        }
+
+        std::string getDriverVersion() const noexcept override
+        {
+            return "unknown";
         }
     };
 } // namespace cpp_dbc::MySQL

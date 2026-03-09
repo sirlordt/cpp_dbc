@@ -115,7 +115,7 @@ namespace cpp_dbc::MySQL
 
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
-                return cpp_dbc::unexpected(DBException("7O8P9Q0R1S2T", "Invalid column index", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("DYVPR8BITRGA", "Invalid column index", system_utils::captureCallStack()));
             }
 
             // MySQL column indexes are 0-based, but our API is 1-based (like JDBC)
@@ -150,7 +150,7 @@ namespace cpp_dbc::MySQL
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
-            return cpp_dbc::unexpected(DBException("P9Z0A1B2C3D4", "Column not found: " + columnName, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("MUF6UPVRIYQT", "Column not found: " + columnName, system_utils::captureCallStack()));
         }
         return getInt(std::nothrow, it->second + 1); // +1 because getInt(int) is 1-based
     }
@@ -171,7 +171,7 @@ namespace cpp_dbc::MySQL
 
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
-                return cpp_dbc::unexpected(DBException("P7Z8A9B0C1D2", "Invalid column index", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("SV0U7Y3LYTDK", "Invalid column index", system_utils::captureCallStack()));
             }
 
             size_t idx = columnIndex - 1;
@@ -205,7 +205,7 @@ namespace cpp_dbc::MySQL
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
-            return cpp_dbc::unexpected(DBException("5G6H7I8J9K0L", "Column not found: " + columnName, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("A5XKD4KSD5US", "Column not found: " + columnName, system_utils::captureCallStack()));
         }
         return getLong(std::nothrow, it->second + 1);
     }
@@ -226,7 +226,7 @@ namespace cpp_dbc::MySQL
 
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
-                return cpp_dbc::unexpected(DBException("P8Z9A0B1C2D3", "Invalid column index", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("KTP04IOWI9DS", "Invalid column index", system_utils::captureCallStack()));
             }
 
             size_t idx = columnIndex - 1;

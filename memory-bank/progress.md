@@ -2,7 +2,46 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. The `DBDriver` base class now provides a unified URI API (`acceptURI`, `parseURI`, `buildURI`, `getURIScheme`) replacing the old family-specific `acceptsURL`/`parseURL`/`buildURL` private helpers (2026-03-07). `MySQLBlob` and `MySQLInputStream` have been upgraded to the PrivateCtorTag creational pattern. The PrivateCtorTag naming is now unified across the entire codebase — `ConstructorTag` has been renamed to `PrivateCtorTag` everywhere, and private constructors are explicitly forbidden (2026-03-08). The project conventions document has been significantly expanded with 8 new sections, and a structured convention violations reporting document has been reorganized into categorized sections. `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). The connection pool system is fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
+The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. The `DBDriver` base class provides a unified URI API (`acceptURI`, `parseURI`, `buildURI`, `getURIScheme`) and a unified `getDriverVersion()` method. The `DBConnection` base class provides `getServerVersion()` and `getServerInfo()` for runtime introspection of database server versions and metadata across all drivers (2026-03-08). `MySQLBlob` and `MySQLInputStream` have been upgraded to the PrivateCtorTag creational pattern. The PrivateCtorTag naming is unified across the entire codebase. `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). The connection pool system is fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
+
+### Recent Improvements (2026-03-08 17:25 PST)
+
+**Unified version/info API across all drivers, MySQL code hardening, BlobStream connection validation:**
+
+1. **Core/Base Class — Unified Version and Info API:**
+   - `DBDriver::getDriverVersion()` pure virtual — returns underlying C/C++ client library version
+   - `DBConnection::getServerVersion()` + `getServerInfo()` pure virtuals (throwing + nothrow) — server version string and metadata map
+   - `BlobStream::isConnectionValid()` pure virtual — checks if underlying connection is alive
+   - `getDriverVersion()` removed from `ColumnarDBDriver`, `DocumentDBDriver`, `KVDBDriver` (consolidated into `DBDriver`)
+   - `getServerInfo()` removed from `KVDBConnection` (now inherited from `DBConnection`)
+   - MongoDB: `getServerInfo()` renamed to `getServerInfoAsDocument()` to avoid collision
+
+2. **All 7 Drivers — Version/Info Implementation:**
+   - MySQL: ServerVersion, ServerVersionNumeric, HostInfo, ProtocolVersion, CharacterSet, ThreadId, ServerStatus
+   - PostgreSQL: ServerVersion, ServerVersionNumeric, ProtocolVersion, ServerEncoding, ClientEncoding, TimeZone
+   - SQLite: ServerVersion, ServerVersionNumeric, SourceId, ThreadSafe
+   - Firebird: ServerVersion, ODSMajorVersion, ODSMinorVersion, PageSize, SQLDialect
+   - MongoDB: ServerVersion, GitVersion, SysInfo, Allocator, JavascriptEngine, Bits, MaxBsonObjectSize
+   - Redis: ServerVersion (from redis_version) + all INFO fields
+   - ScyllaDB: ServerVersion, ClusterName, DataCenter, Rack, Partitioner, CQLVersion
+
+3. **MySQL Driver — Code Hardening:**
+   - ~60 error codes regenerated with random 12-char codes
+   - `std::stoi()` → `std::from_chars()` (nothrow, locale-independent)
+   - `memset` → aggregate initialization (`MYSQL_BIND bind{}`)
+   - Index loop → `std::span` range in result set
+   - Constructor outer try/catch removed (MySQL C API never throws)
+   - SQL injection prevention: `validateIdentifier()` in `MySQLBlob`
+   - Internal helpers renamed with `std::nothrow_t` parameter
+   - `std::lock_guard` → `std::scoped_lock` in driver init/cleanup
+
+4. **Pool — Version/Info Delegation:**
+   - `PooledDBConnectionBase`: new `getServerVersionImpl` + `getServerInfoImpl` CRTP helpers
+   - All 4 family pools delegate through pooled connection wrappers
+
+5. **Tests:** New version/info test cases for all 7 drivers
+
+6. **Impact:** 66 files changed, +1760/-235 lines
 
 ### Recent Improvements (2026-03-08 00:21 PST)
 
