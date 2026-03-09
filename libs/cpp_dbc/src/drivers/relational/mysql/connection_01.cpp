@@ -178,7 +178,7 @@ namespace cpp_dbc::MySQL
             m_activeResultSets.clear();
         }
 
-        for (auto &rs : resultSetsToClose)
+        for (const auto &rs : resultSetsToClose)
         {
             // notifyConnClosing(std::nothrow) marks the ResultSet as closed
             // This matches the pattern used by closeAllStatements() with PreparedStatements

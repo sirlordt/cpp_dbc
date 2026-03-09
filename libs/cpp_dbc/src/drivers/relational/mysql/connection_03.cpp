@@ -188,7 +188,7 @@ namespace cpp_dbc::MySQL
 
         // RAII guard to set m_resetting flag during reset operation
         // This prevents ResultSet/PreparedStatement from calling unregister during closeAll*()
-        cpp_dbc::system_utils::AtomicGuard<bool> resettingGuard(m_resetting, true, false);
+        cpp_dbc::system_utils::AtomicGuard resettingGuard(m_resetting, true, false);
 
         // Close all active result sets and statements
         [[maybe_unused]] auto closeRsResult = closeAllActiveResultSets(std::nothrow);

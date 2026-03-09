@@ -118,7 +118,7 @@ namespace cpp_dbc::MySQL
          * @param mysql Shared pointer to the MySQL connection handle
          */
         MySQLBlob(PrivateCtorTag, std::nothrow_t, std::shared_ptr<MYSQL> mysql) noexcept
-            : m_mysql(std::move(mysql)), m_loaded(true)
+            : m_mysql(mysql), m_loaded(true)
         {
             // Intentionally empty — all initialization done by the member initializer list
         }
@@ -132,7 +132,7 @@ namespace cpp_dbc::MySQL
          */
         MySQLBlob(PrivateCtorTag, std::nothrow_t, std::shared_ptr<MYSQL> mysql, const std::string &tableName,
                   const std::string &columnName, const std::string &whereClause) noexcept
-            : m_mysql(std::move(mysql)), m_tableName(tableName), m_columnName(columnName),
+            : m_mysql(mysql), m_tableName(tableName), m_columnName(columnName),
               m_whereClause(whereClause)
         {
             // Intentionally empty — all initialization done by the member initializer list
@@ -144,7 +144,7 @@ namespace cpp_dbc::MySQL
          * @param initialData The initial data for the BLOB
          */
         MySQLBlob(PrivateCtorTag, std::nothrow_t, std::shared_ptr<MYSQL> mysql, const std::vector<uint8_t> &initialData) noexcept
-            : MemoryBlob(initialData), m_mysql(std::move(mysql)), m_loaded(true)
+            : MemoryBlob(initialData), m_mysql(mysql), m_loaded(true)
         {
             // Intentionally empty — all initialization done by the member initializer list
         }

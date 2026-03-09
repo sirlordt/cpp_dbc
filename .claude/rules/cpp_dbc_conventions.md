@@ -309,6 +309,51 @@ cpp_dbc::expected<std::string, DBException> ScyllaDBDriver::buildURI(
 
 This applies only to new or modified code. Pre-existing `(void)param;` casts do not need to be updated retroactively.
 
+## Shared Utilities and Constants — Centralization Rule
+
+All reusable functions and constants that are used (or could potentially be used) across multiple files in the library **must** be centralized in the common utilities:
+
+- **Functions** → `libs/cpp_dbc/include/cpp_dbc/common/system_utils.hpp` (header) / `libs/cpp_dbc/src/common/system_utils.cpp` (implementation)
+- **Constants** → `libs/cpp_dbc/include/cpp_dbc/common/system_constants.hpp` (header) / `libs/cpp_dbc/src/common/system_constants.cpp` (translation unit)
+
+**Namespaces**:
+- Functions live in `cpp_dbc::system_utils`
+- Constants live in `cpp_dbc::system_constants`
+
+**Before implementing any new utility function or constant**, you **must**:
+
+1. Check whether the function already exists in `system_utils.hpp` — avoid reimplementing what is already available.
+2. Check whether the constant already exists in `system_constants.hpp` — avoid defining local duplicates.
+3. If it does not exist and is potentially reusable, add it to the appropriate shared file instead of defining it locally.
+
+**Forbidden patterns**:
+
+```cpp
+// Incorrect — local constexpr that duplicates a shared constant
+constexpr std::string_view CPP_DBC_PREFIX = "cpp_dbc:";  // WRONG: use system_constants::URI_PREFIX
+
+// Incorrect — inline utility function defined locally in a driver file
+static std::string sanitize(const std::string &s) { ... }  // WRONG: belongs in system_utils if reusable
+
+// Incorrect — magic literal instead of shared constant
+if (url.starts_with("cpp_dbc:"))  // WRONG: use system_constants::URI_PREFIX
+```
+
+**Correct usage**:
+
+```cpp
+#include "cpp_dbc/common/system_constants.hpp"
+#include "cpp_dbc/common/system_utils.hpp"
+
+// From within namespace cpp_dbc or a sub-namespace:
+if (url.starts_with(cpp_dbc::system_constants::URI_PREFIX))
+{
+    url = url.substr(cpp_dbc::system_constants::URI_PREFIX.size());
+}
+```
+
+This applies only to new or modified code. Pre-existing local duplicates do not need to be updated retroactively.
+
 ## Memory Safety
 
 - Use RAII handles for external resources (BsonHandle, RedisReplyHandle, etc.)

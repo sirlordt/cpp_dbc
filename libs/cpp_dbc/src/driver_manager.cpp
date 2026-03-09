@@ -19,6 +19,7 @@
 */
 
 #include "cpp_dbc/cpp_dbc.hpp"
+#include "cpp_dbc/common/system_constants.hpp"
 #include "cpp_dbc/config/database_config.hpp"
 #include <iostream>
 
@@ -94,13 +95,12 @@ namespace cpp_dbc
     {
         // Parse the URL to determine which driver to use
         // URL format: cpp_dbc:driverName://host:port/database
-        size_t prefixPos = url.find("cpp_dbc:");
-        if (prefixPos != 0)
+        if (!url.starts_with(system_constants::URI_PREFIX))
         {
             return cpp_dbc::unexpected(DBException("1S2T3U4V5W6X", "Invalid URL format. Expected cpp_dbc:driverName://host:port/database", system_utils::captureCallStack()));
         }
 
-        size_t driverEndPos = url.find("://", 7);
+        size_t driverEndPos = url.find("://", system_constants::URI_PREFIX.size());
         if (driverEndPos == std::string::npos)
         {
             return cpp_dbc::unexpected(DBException("7Y8Z9A0B1C2D", "Invalid URL format. Expected cpp_dbc:driverName://host:port/database", system_utils::captureCallStack()));

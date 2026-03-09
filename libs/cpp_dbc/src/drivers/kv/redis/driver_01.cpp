@@ -24,6 +24,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <regex>
+#include "cpp_dbc/common/system_constants.hpp"
 #include "cpp_dbc/common/system_utils.hpp"
 #include "cpp_dbc/core/db_exception.hpp"
 
@@ -163,9 +164,9 @@ namespace cpp_dbc::Redis
             }
 
             std::string redisUrl = url;
-            if (url.starts_with("cpp_dbc:"))
+            if (url.starts_with(cpp_dbc::system_constants::URI_PREFIX))
             {
-                redisUrl = url.substr(8);
+                redisUrl = url.substr(cpp_dbc::system_constants::URI_PREFIX.size());
             }
 
             auto connResult = RedisDBConnection::create(std::nothrow, redisUrl, user, password, options);

@@ -73,7 +73,7 @@ namespace cpp_dbc::MySQL
     // ── PrivateCtorTag Constructor ──────────────────────────────────────────
 
     MySQLDBResultSet::MySQLDBResultSet(PrivateCtorTag, std::nothrow_t, MYSQL_RES *res, std::shared_ptr<MySQLDBConnection> conn) noexcept
-        : m_result(res), m_connection(std::move(conn))
+        : m_result(res), m_connection(conn)
     {
         if (m_result)
         {

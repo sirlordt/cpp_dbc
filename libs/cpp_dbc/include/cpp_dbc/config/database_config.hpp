@@ -21,6 +21,7 @@
 #ifndef CPP_DBC_DATABASE_CONFIG_HPP
 #define CPP_DBC_DATABASE_CONFIG_HPP
 
+#include <cpp_dbc/common/system_constants.hpp>
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <string>
 #include <string_view>
@@ -221,11 +222,11 @@ namespace cpp_dbc::config
                 // SQLite connection strings are different - they don't have host/port
                 if (m_host.empty() || m_port == 0)
                 {
-                    return "cpp_dbc:" + m_type + "://" + m_database;
+                    return std::string(cpp_dbc::system_constants::URI_PREFIX) + m_type + "://" + m_database;
                 }
                 else
                 {
-                    return "cpp_dbc:" + m_type + "://" + m_host + ":" + std::to_string(m_port) + "/" + m_database;
+                    return std::string(cpp_dbc::system_constants::URI_PREFIX) + m_type + "://" + m_host + ":" + std::to_string(m_port) + "/" + m_database;
                 }
             }
 

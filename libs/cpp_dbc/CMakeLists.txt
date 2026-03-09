@@ -64,6 +64,7 @@ add_library(cpp_dbc
     src/driver_manager.cpp
     src/config/database_config.cpp
     src/common/system_utils.cpp
+    src/common/system_constants.cpp
 )
 
 # Conditionally add YAML config loader and database config implementation

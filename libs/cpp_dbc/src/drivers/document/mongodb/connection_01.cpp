@@ -27,6 +27,7 @@
 #include <ranges>
 #include <sstream>
 #include <stdexcept>
+#include "cpp_dbc/common/system_constants.hpp"
 #include "cpp_dbc/common/system_utils.hpp"
 #include "mongodb_internal.hpp"
 
@@ -71,11 +72,10 @@ namespace cpp_dbc::MongoDB
     {
         MONGODB_DEBUG("MongoDBConnection::constructor(nothrow) - Connecting to: " << uri);
         // Strip cpp_dbc: prefix — mongoc expects native mongodb:// URIs
-        constexpr std::string_view CPP_DBC_PREFIX = "cpp_dbc:";
         std::string connectionUri = uri;
-        if (connectionUri.substr(0, CPP_DBC_PREFIX.size()) == CPP_DBC_PREFIX)
+        if (connectionUri.starts_with(system_constants::URI_PREFIX))
         {
-            connectionUri = connectionUri.substr(CPP_DBC_PREFIX.size());
+            connectionUri = connectionUri.substr(system_constants::URI_PREFIX.size());
         }
 
         // If user/password provided and not in URI, add them

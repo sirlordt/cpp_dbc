@@ -200,7 +200,7 @@ namespace cpp_dbc::MongoDB
         const auto &json = jsonResult.value();
 
         // Helper lambda to extract a string value for a given key
-        auto extractField = [&json](const std::string &key) -> std::string
+        auto extractField = [&json](const std::string &key) -> std::string // NOSONAR(cpp:S1188) — simple linear JSON field extractor, splitting would reduce readability
         {
             auto keyStr = "\"" + key + "\"";
             auto keyPos = json.find(keyStr);

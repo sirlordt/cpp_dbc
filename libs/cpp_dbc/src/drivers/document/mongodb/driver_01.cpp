@@ -20,6 +20,7 @@
 
 #include <iostream>
 #include <sstream>
+#include "cpp_dbc/common/system_constants.hpp"
 #include "cpp_dbc/common/system_utils.hpp"
 #include "mongodb_internal.hpp"
 
@@ -129,11 +130,10 @@ namespace cpp_dbc::MongoDB
     bool MongoDBDriver::validateURI(const std::string &uri)
     {
         // Strip cpp_dbc: prefix — mongoc expects native mongodb:// URIs
-        constexpr std::string_view CPP_DBC_PREFIX = "cpp_dbc:";
         std::string nativeUri = uri;
-        if (nativeUri.substr(0, CPP_DBC_PREFIX.size()) == CPP_DBC_PREFIX)
+        if (nativeUri.starts_with(cpp_dbc::system_constants::URI_PREFIX))
         {
-            nativeUri = nativeUri.substr(CPP_DBC_PREFIX.size());
+            nativeUri = nativeUri.substr(cpp_dbc::system_constants::URI_PREFIX.size());
         }
         bson_error_t error;
         mongoc_uri_t *mongoUri = mongoc_uri_new_with_error(nativeUri.c_str(), &error);
@@ -174,9 +174,9 @@ namespace cpp_dbc::MongoDB
 
         // Strip the 'cpp_dbc:' prefix if present
         std::string mongoUrl = url;
-        if (url.starts_with("cpp_dbc:"))
+        if (url.starts_with(cpp_dbc::system_constants::URI_PREFIX))
         {
-            mongoUrl = url.substr(8);
+            mongoUrl = url.substr(cpp_dbc::system_constants::URI_PREFIX.size());
         }
 
         auto connResult = MongoDBConnection::create(std::nothrow, mongoUrl, user, password, options);
@@ -194,14 +194,13 @@ namespace cpp_dbc::MongoDB
         std::nothrow_t, const std::string &uri) noexcept
     {
         // Require cpp_dbc: prefix and strip it before passing to mongoc
-        constexpr std::string_view PREFIX = "cpp_dbc:";
-        if (uri.substr(0, PREFIX.size()) != PREFIX)
+        if (!uri.starts_with(cpp_dbc::system_constants::URI_PREFIX))
         {
             return unexpected<DBException>(DBException(
                 "1C2D3E4F5A6B",
                 "Invalid MongoDB URL: " + uri));
         }
-        std::string nativeUri = uri.substr(PREFIX.size());
+        std::string nativeUri = uri.substr(cpp_dbc::system_constants::URI_PREFIX.size());
 
         std::map<std::string, std::string> result;
 

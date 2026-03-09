@@ -36,7 +36,7 @@ namespace cpp_dbc::MySQL
 {
 
     // Static member initialization
-    std::atomic<bool> MySQLDBDriver::s_initialized{false};
+    std::atomic<bool> MySQLDBDriver::s_initialized{false}; // NOSONAR(cpp:S6012) — out-of-line static member definition must match header declaration type
     std::mutex MySQLDBDriver::s_initMutex;
 
     // ============================================================================
@@ -82,11 +82,9 @@ namespace cpp_dbc::MySQL
         }
     }
 
-    MySQLDBDriver::~MySQLDBDriver()
-    {
-        // Intentionally empty — cleanup is done via the static cleanup() method
-        // to allow re-initialization after driver destruction.
-    }
+    // Intentionally defaulted — cleanup is done via the static cleanup() method
+    // to allow re-initialization after driver destruction.
+    MySQLDBDriver::~MySQLDBDriver() = default;
 
     void MySQLDBDriver::cleanup()
     {
