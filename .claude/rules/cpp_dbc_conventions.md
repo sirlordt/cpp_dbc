@@ -363,6 +363,61 @@ This applies only to new or modified code. Pre-existing local duplicates do not 
 - Always try to use C++17-style constructs and functions for more secure code.
 - Use ranges and avoid index loops where possible.
 
+### `const_cast` — Avoid at All Costs
+
+`const_cast` to remove `const` qualification from a pointer or reference can lead to **undefined behavior** if the underlying object was originally declared `const`. It also defeats the compiler's ability to enforce immutability, making the code fragile and harder to reason about.
+
+`const_cast` must be avoided in the codebase. Before resorting to it, exhaust every alternative:
+
+1. **Fix the API**: If a function takes a non-const pointer but does not modify the object, change its signature to accept `const`.
+2. **Use `mutable`**: If a member needs to be modified in a `const` method (e.g. a cache or mutex), declare it `mutable`.
+3. **Redesign the data flow**: If `const_cast` seems necessary, it usually indicates a design flaw — the const-correctness chain is broken somewhere upstream.
+
+`const_cast` is permitted **only** as a last resort when interfacing with a third-party C or C++ API that has an incorrect signature (takes non-const but guarantees no mutation), and only with a comment explaining why it is safe:
+
+```cpp
+// Correct — last resort, documented justification
+// legacy_api_read() takes char* but is documented as read-only (does not modify the buffer).
+// The library does not provide a const-correct overload.
+legacy_api_read(const_cast<char *>(data.c_str()), data.size());
+
+// Incorrect — const_cast without justification
+auto *mutablePtr = const_cast<MyClass *>(constPtr);
+mutablePtr->setValue(42);  // UB if constPtr points to a const object
+
+// Incorrect — const_cast to work around own API
+const auto &ref = getConfig();
+const_cast<Config &>(ref).setDebug(true);  // WRONG: fix getConfig() or setDebug() instead
+```
+
+**Real-world example — MySQL ResultSet materialized mode** (SonarQube cpp:S859):
+
+`MYSQL_ROW` is a MySQL C API typedef for `char**` (non-const). In materialized mode, row data lives in `std::vector<std::optional<std::string>>`, and `std::string::c_str()` returns `const char*`. The `const_cast` bridges the const mismatch to reuse the same `m_currentRow` (`MYSQL_ROW`) interface for both native and materialized rows:
+
+```cpp
+// Problematic — const_cast to satisfy MYSQL_ROW (char**) interface
+const auto &row = m_materializedRows[m_rowPosition];
+for (size_t i = 0; i < m_fieldCount; ++i)
+{
+    if (row[i].has_value())
+    {
+        // c_str() returns const char*, but MYSQL_ROW expects char*
+        m_currentRowPtrs[i] = const_cast<char *>(row[i].value().c_str());  // SonarQube cpp:S859
+        m_currentLengths[i] = static_cast<unsigned long>(row[i].value().size());
+    }
+}
+m_currentRow = m_currentRowPtrs.data();  // MYSQL_ROW = char**
+
+// Better — change m_currentRowPtrs to const char* and avoid const_cast entirely
+std::vector<const char *> m_currentRowPtrs;  // const-correct pointer storage
+// ...
+m_currentRowPtrs[i] = row[i].value().c_str();  // no cast needed
+```
+
+The preferred fix is to redesign the internal storage to use `const char*` instead of `char*`, eliminating the need for `const_cast` altogether. The `const_cast` is only acceptable as a temporary measure when the third-party typedef cannot be changed and all access through those pointers is provably read-only.
+
+This applies only to new or modified code. Pre-existing uses of `const_cast` should be migrated when encountered and the case applies.
+
 ### Member Initialization — Prefer In-Class Initializers Over Constructor Body
 
 When possible, initialize member variables with in-class default member initializers (`= value` or `{value}`) rather than assigning them in the constructor body. This eliminates redundant constructor code, ensures consistent initialization across all constructors, and makes the class definition self-documenting.
@@ -455,6 +510,81 @@ int port = std::atoi(portStr.c_str());  // WRONG: silent failure on invalid inpu
 ```
 
 This applies only to new or modified code. Pre-existing uses of `std::stoi`/`std::atoi` do not need to be updated retroactively.
+
+### String Containment — Prefer `contains()` Over `find()`
+
+When checking whether a `std::string` (or `std::string_view`) contains a substring, always use `.contains()` (C++23). It expresses intent directly and avoids the error-prone `!= std::string::npos` idiom:
+
+```cpp
+// Correct — clear intent, no magic constant
+if (url.contains("://"))
+{
+    // ...
+}
+
+if (!errorMsg.contains("timeout"))
+{
+    // ...
+}
+
+// Incorrect — find() + npos comparison for a simple containment check
+if (url.find("://") != std::string::npos)  // WRONG: use .contains()
+{
+    // ...
+}
+
+if (errorMsg.find("timeout") == std::string::npos)  // WRONG: use !.contains()
+{
+    // ...
+}
+```
+
+**When `find()` is still appropriate**: Use `find()` only when you need the **position** of the substring (e.g. to extract or split around it). If you only need a boolean yes/no answer, `.contains()` is the correct choice.
+
+**Migration**: Pre-existing uses of `find()` for containment checks must be migrated to `.contains()` when encountered and the case applies. Pre-existing uses of `find()`/`substr()`/`rfind()`/`compare()` for prefix/suffix checks must be migrated to `.starts_with()` / `.ends_with()` when encountered and the case applies (see next section).
+
+### String Prefix/Suffix — Prefer `starts_with()` / `ends_with()` Over `find()` or `substr()`
+
+When checking whether a `std::string` (or `std::string_view`) starts or ends with a specific prefix or suffix, always use `.starts_with()` / `.ends_with()` (C++20). They are `noexcept`, express intent clearly, and avoid off-by-one errors and unnecessary temporaries:
+
+```cpp
+// Correct — starts_with / ends_with
+if (url.starts_with("cpp_dbc:"))
+{
+    // ...
+}
+
+if (filename.ends_with(".cpp"))
+{
+    // ...
+}
+
+// Incorrect — find() for prefix check
+if (url.find("cpp_dbc:") == 0)  // WRONG: use .starts_with()
+{
+    // ...
+}
+
+// Incorrect — substr() for prefix check
+if (url.substr(0, 8) == "cpp_dbc:")  // WRONG: use .starts_with(); substr creates a temporary
+{
+    // ...
+}
+
+// Incorrect — rfind() + length arithmetic for suffix check
+if (filename.rfind(".cpp") == filename.size() - 4)  // WRONG: use .ends_with()
+{
+    // ...
+}
+
+// Incorrect — compare() with length arithmetic for suffix check
+if (filename.compare(filename.size() - 4, 4, ".cpp") == 0)  // WRONG: use .ends_with()
+{
+    // ...
+}
+```
+
+**Migration**: Pre-existing uses of `find()`/`substr()`/`rfind()`/`compare()` for prefix/suffix checks must be migrated to `.starts_with()` / `.ends_with()` when encountered and the case applies. Pre-existing uses of `find()` for containment checks must be migrated to `.contains()` when encountered and the case applies.
 
 ## Thread Safety
 
@@ -1159,22 +1289,25 @@ public:
                    const std::map<std::string, std::string> &options) noexcept;
 ```
 
-The constructor wraps all fallible initialization in try/catch and stores errors in `m_initFailed` / `m_initError` instead of throwing:
+The constructor wraps fallible initialization in try/catch **only when the body contains calls that can throw recoverable C++ exceptions** (e.g. C++ library APIs like the MySQL Connector/C++ or mongocxx that throw on connection failure). The try/catch captures errors in `m_initFailed` / `m_initError` instead of letting them escape. A comment above the `try` must list the specific recoverable exceptions being caught:
 
 ```cpp
-MyDBConnection::MyDBConnection(PrivateCtorTag,
-                               std::nothrow_t,
-                               const std::string &host,
-                               int port,
-                               const std::string &database,
-                               const std::string &user,
-                               const std::string &password,
-                               const std::map<std::string, std::string> &options) noexcept
+MySQLDBConnection::MySQLDBConnection(PrivateCtorTag,
+                                     std::nothrow_t,
+                                     const std::string &host,
+                                     int port,
+                                     const std::string &database,
+                                     const std::string &user,
+                                     const std::string &password,
+                                     const std::map<std::string, std::string> &options) noexcept
 {
+    // sql::mysql::get_mysql_driver_instance() and driver->connect() are C++ APIs
+    // that throw sql::SQLException on authentication/network failure — recoverable.
     try
     {
-        m_handle = c_api_connect(host, port, database, user, password);
-        if (!m_handle)
+        auto *driver = sql::mysql::get_mysql_driver_instance();
+        m_conn.reset(driver->connect("tcp://" + host + ":" + std::to_string(port), user, password));
+        if (!m_conn)
         {
             m_initFailed = true;
             m_initError = std::make_unique<DBException>(
@@ -1182,6 +1315,7 @@ MyDBConnection::MyDBConnection(PrivateCtorTag,
                 system_utils::captureCallStack());
             return;
         }
+        m_conn->setSchema(database);
         m_closed.store(false, std::memory_order_release);
     }
     catch (const std::exception &ex)
@@ -1201,7 +1335,43 @@ MyDBConnection::MyDBConnection(PrivateCtorTag,
 }
 ```
 
-If a class has multiple constructors (e.g. different parameter sets), each one follows this same pattern — public, `noexcept`, `PrivateCtorTag` first, `std::nothrow_t` second, errors captured in `m_initFailed` / `m_initError`.
+**When the constructor body contains only nothrow operations** (atomic stores, member assignments, calls to nothrow methods) and/or operations that can only throw death-sentence exceptions (`std::bad_alloc`, mutex `std::system_error`), the try/catch **must be omitted** — it would be dead code per the [No Redundant try/catch](#no-redundant-trycatch-in-nothrow-methods) rule:
+
+```cpp
+// Correct — no try/catch: constructor body is entirely nothrow
+// (std::make_shared in the factory may throw bad_alloc, but that is a
+// death sentence handled outside the constructor)
+MyDBPreparedStatement::MyDBPreparedStatement(PrivateCtorTag,
+                                             std::nothrow_t,
+                                             std::weak_ptr<MyDBConnection> conn,
+                                             const std::string &sql) noexcept
+    : m_connection(std::move(conn)), m_sql(sql)
+{
+    m_closed.store(false, std::memory_order_release);
+}
+
+// Incorrect — try/catch is dead code; no recoverable exceptions possible
+MyDBPreparedStatement::MyDBPreparedStatement(PrivateCtorTag,
+                                             std::nothrow_t,
+                                             std::weak_ptr<MyDBConnection> conn,
+                                             const std::string &sql) noexcept
+    : m_connection(std::move(conn)), m_sql(sql)
+{
+    try
+    {
+        m_closed.store(false, std::memory_order_release);
+    }
+    catch (const std::exception &ex)  // UNREACHABLE — no recoverable throw above
+    {
+        m_initFailed = true;
+        m_initError = std::make_unique<DBException>(...);
+    }
+}
+```
+
+**Rule of thumb**: Before writing a try/catch in a PrivateCtorTag constructor, walk every statement in the body using the [Diagnostic Checklist](#diagnostic-checklist--is-the-trycatch-dead-code). If no statement can throw a recoverable exception, omit the try/catch entirely.
+
+If a class has multiple constructors (e.g. different parameter sets), each one follows this same pattern — public, `noexcept`, `PrivateCtorTag` first, `std::nothrow_t` second, errors captured in `m_initFailed` / `m_initError` only when recoverable exceptions are possible.
 
 #### Static Factory `::create`
 

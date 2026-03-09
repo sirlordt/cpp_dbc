@@ -159,7 +159,7 @@ namespace cpp_dbc::MySQL
         {
             uri << "localhost";
         }
-        else if (host.find(':') != std::string::npos &&
+        else if (host.contains(':') &&
                  !(host.front() == '[' && host.back() == ']'))
         {
             // Bracket raw IPv6 hosts (e.g. "::1" → "[::1]")

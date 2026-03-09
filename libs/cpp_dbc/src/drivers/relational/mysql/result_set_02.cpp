@@ -86,8 +86,8 @@ namespace cpp_dbc::MySQL
             {
                 if (row[i].has_value())
                 {
-                    m_currentRowPtrs[i] = const_cast<char *>(row[i].value().c_str());
-                    m_currentLengths[i] = static_cast<unsigned long>(row[i].value().size());
+                    m_currentRowPtrs[i] = const_cast<char *>(row[i].value().c_str()); // NOSONAR(cpp:S859) — MYSQL_ROW is char**; materialized row data is read-only through m_currentRow
+                    m_currentLengths[i] = row[i].value().size();
                 }
                 else
                 {

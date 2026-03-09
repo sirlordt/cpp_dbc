@@ -266,7 +266,7 @@ namespace cpp_dbc::MongoDB
         {
             uri << "localhost";
         }
-        else if (host.find(':') != std::string::npos &&
+        else if (host.contains(':') &&
                  !(host.front() == '[' && host.back() == ']'))
         {
             uri << "[" << host << "]";

@@ -376,6 +376,78 @@ TEST_CASE("MySQL PreparedStatement::executeQuery() — materialized mode", "[20_
         REQUIRE(rs->getString("notes") == largeText);
     }
 
+    SECTION("String parameter containing question mark — proves mysql_stmt API is used")
+    {
+        // If the old string-concatenation path were still in use, the '?' inside
+        // the data would be mistaken for a placeholder by finalQuery.find('?')
+        // and replaced, corrupting the query or causing a parameter count mismatch.
+        auto ins = conn->prepareStatement(
+            "INSERT INTO test_pstmt_eq (id, name) VALUES (?, ?)");
+        ins->setInt(1, 1);
+        ins->setString(2, "Is this a question? Yes it is? Really?");
+        ins->executeUpdate();
+
+        auto sel = conn->prepareStatement(
+            "SELECT name FROM test_pstmt_eq WHERE id = ?");
+        sel->setInt(1, 1);
+        auto rs = sel->executeQuery();
+        REQUIRE(rs != nullptr);
+        REQUIRE(rs->next());
+        REQUIRE(rs->getString("name") == "Is this a question? Yes it is? Really?");
+        REQUIRE_FALSE(rs->next());
+    }
+
+    SECTION("SQL injection attempt — proves parameterized queries prevent injection")
+    {
+        // Insert a legitimate row
+        conn->executeUpdate("INSERT INTO test_pstmt_eq (id, name) VALUES (1, 'Legit')");
+
+        // Attempt SQL injection via a parameter — the old string-concatenation
+        // path would execute the DROP TABLE as a second statement
+        auto sel = conn->prepareStatement(
+            "SELECT id, name FROM test_pstmt_eq WHERE name = ?");
+        sel->setString(1, "'; DROP TABLE test_pstmt_eq; --");
+        auto rs = sel->executeQuery();
+        REQUIRE(rs != nullptr);
+        // Should find no rows (the injection string is not a real name)
+        REQUIRE_FALSE(rs->next());
+
+        // Verify the table still exists and the original row is intact
+        auto verify = conn->executeQuery("SELECT COUNT(*) AS cnt FROM test_pstmt_eq");
+        REQUIRE(verify->next());
+        REQUIRE(verify->getInt("cnt") == 1);
+    }
+
+    SECTION("Binary data with explicit null bytes — proves no C-string truncation")
+    {
+        // Build a 1000-byte buffer with \0 at known positions
+        std::vector<uint8_t> blobData(1000, 0x41); // fill with 'A'
+        blobData[0]   = 0x00; // null at start
+        blobData[100] = 0x00;
+        blobData[500] = 0x00;
+        blobData[999] = 0x00; // null at end
+
+        auto ins = conn->prepareStatement(
+            "INSERT INTO test_pstmt_eq (id, name, bin_data) VALUES (?, ?, ?)");
+        ins->setInt(1, 1);
+        ins->setString(2, "Null bytes");
+        ins->setBytes(3, blobData);
+        ins->executeUpdate();
+
+        // Retrieve via PreparedStatement::executeQuery (materialized path)
+        auto sel = conn->prepareStatement(
+            "SELECT bin_data FROM test_pstmt_eq WHERE id = ?");
+        sel->setInt(1, 1);
+        auto rs = sel->executeQuery();
+        REQUIRE(rs != nullptr);
+        REQUIRE(rs->next());
+
+        auto retrieved = rs->getBytes("bin_data");
+        REQUIRE(retrieved.size() == 1000);
+        REQUIRE(common_test_helpers::compareBinaryData(blobData, retrieved));
+        REQUIRE_FALSE(rs->next());
+    }
+
     // Clean up
     conn->executeUpdate("DROP TABLE IF EXISTS test_pstmt_eq");
     conn->close();

@@ -107,7 +107,7 @@ namespace cpp_dbc::PostgreSQL
         int effectivePort = (port <= 0) ? DEFAULT_POSTGRESQL_PORT : port;
         // Bracket raw IPv6 hosts (e.g. "::1" → "[::1]")
         std::string effectiveHost = host;
-        if (host.find(':') != std::string::npos &&
+        if (host.contains(':') &&
             !(host.front() == '[' && host.back() == ']'))
         {
             effectiveHost = "[" + host + "]";

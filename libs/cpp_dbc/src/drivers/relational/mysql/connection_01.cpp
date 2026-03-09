@@ -241,9 +241,15 @@ namespace cpp_dbc::MySQL
                     return;
                 }
 
-                mysql_option opt = (key == "connect_timeout") ? MYSQL_OPT_CONNECT_TIMEOUT
-                                 : (key == "read_timeout")    ? MYSQL_OPT_READ_TIMEOUT
-                                                              : MYSQL_OPT_WRITE_TIMEOUT;
+                mysql_option opt = MYSQL_OPT_WRITE_TIMEOUT;
+                if (key == "connect_timeout")
+                {
+                    opt = MYSQL_OPT_CONNECT_TIMEOUT;
+                }
+                else if (key == "read_timeout")
+                {
+                    opt = MYSQL_OPT_READ_TIMEOUT;
+                }
                 if (mysql_options(m_mysql.get(), opt, &timeout) != 0)
                 {
                     m_initFailed = true;
