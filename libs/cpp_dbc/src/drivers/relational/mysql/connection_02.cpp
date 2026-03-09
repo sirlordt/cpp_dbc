@@ -128,13 +128,13 @@ namespace cpp_dbc::MySQL
         }
         catch (const std::exception &ex)
         {
-            return cpp_dbc::unexpected(DBException("C5D1E7F3A0BE",
+            return cpp_dbc::unexpected(DBException("8RBHAJMYREPU",
                                                    std::string("executeQuery failed: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
         catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
-            return cpp_dbc::unexpected(DBException("C5D1E7F3A0BF",
+            return cpp_dbc::unexpected(DBException("8T29618FJ2VI",
                                                    "executeQuery failed: unknown error",
                                                    system_utils::captureCallStack()));
         }

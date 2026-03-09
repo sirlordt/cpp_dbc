@@ -49,6 +49,7 @@ namespace cpp_dbc::MySQL
             m_rowCount = 0;
             m_fieldCount = 0;
         }
+        m_closed.store(true, std::memory_order_release);
         return {};
     }
 
@@ -133,13 +134,13 @@ namespace cpp_dbc::MySQL
         }
         catch (const std::exception &ex)
         {
-            return cpp_dbc::unexpected(DBException("F2A8B4C0D7E4",
+            return cpp_dbc::unexpected(DBException("B5BCKFSM2AZ2",
                                                    std::string("getInt failed: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
         catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
-            return cpp_dbc::unexpected(DBException("F2A8B4C0D7E5",
+            return cpp_dbc::unexpected(DBException("S2XCDH3EWGUV",
                                                    "getInt failed: unknown error",
                                                    system_utils::captureCallStack()));
         }
@@ -188,13 +189,13 @@ namespace cpp_dbc::MySQL
         }
         catch (const std::exception &ex)
         {
-            return cpp_dbc::unexpected(DBException("A3B9C5D1E8F6",
+            return cpp_dbc::unexpected(DBException("WXI2DXO5WKVH",
                                                    std::string("getLong failed: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
         catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
-            return cpp_dbc::unexpected(DBException("A3B9C5D1E8F7",
+            return cpp_dbc::unexpected(DBException("VF6MRJ2YCBHH",
                                                    "getLong failed: unknown error",
                                                    system_utils::captureCallStack()));
         }
@@ -243,13 +244,13 @@ namespace cpp_dbc::MySQL
         }
         catch (const std::exception &ex)
         {
-            return cpp_dbc::unexpected(DBException("B4C0D6E2F9A7",
+            return cpp_dbc::unexpected(DBException("YJ4N8TJ9LG63",
                                                    std::string("getDouble failed: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
         catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
-            return cpp_dbc::unexpected(DBException("B4C0D6E2F9A8",
+            return cpp_dbc::unexpected(DBException("89VXK2NQV96C",
                                                    "getDouble failed: unknown error",
                                                    system_utils::captureCallStack()));
         }

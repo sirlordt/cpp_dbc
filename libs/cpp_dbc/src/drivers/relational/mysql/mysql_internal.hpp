@@ -168,8 +168,8 @@ namespace cpp_dbc::MySQL
 
 // Macro for nothrow PreparedStatement/ResultSet methods - returns unexpected if lock fails
 #define MYSQL_STMT_LOCK_OR_RETURN(mark, msg)                                                \
-    cpp_dbc::MySQL::MySQLConnectionLock __lock(this, m_closed);                             \
-    if (!__lock)                                                                            \
+    cpp_dbc::MySQL::MySQLConnectionLock mysql_conn_lock_(this, m_closed);                             \
+    if (!mysql_conn_lock_)                                                                            \
     {                                                                                       \
         return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",            \
                                                cpp_dbc::system_utils::captureCallStack())); \
@@ -177,16 +177,16 @@ namespace cpp_dbc::MySQL
 
 // Macro for throwing PreparedStatement/ResultSet methods - throws if lock fails
 #define MYSQL_STMT_LOCK_OR_THROW(mark, msg)                                                             \
-    cpp_dbc::MySQL::MySQLConnectionLock __lock(this, m_closed);                                         \
-    if (!__lock)                                                                                        \
+    cpp_dbc::MySQL::MySQLConnectionLock mysql_conn_lock_(this, m_closed);                                         \
+    if (!mysql_conn_lock_)                                                                                        \
     {                                                                                                   \
         throw DBException(mark, msg " (connection closed)", cpp_dbc::system_utils::captureCallStack()); \
     }
 
 // Macro for close() methods - returns success if already closed (idempotent)
 #define MYSQL_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()                \
-    cpp_dbc::MySQL::MySQLConnectionLock __lock(this, m_closed);      \
-    if (!__lock)                                                     \
+    cpp_dbc::MySQL::MySQLConnectionLock mysql_conn_lock_(this, m_closed);      \
+    if (!mysql_conn_lock_)                                                     \
     {                                                                \
         return {}; /* Already closed or connection lost = success */ \
     }

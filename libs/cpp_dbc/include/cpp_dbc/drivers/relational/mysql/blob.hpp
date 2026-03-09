@@ -21,8 +21,6 @@ namespace cpp_dbc::MySQL
      */
     class MySQLBlob : public MemoryBlob
     {
-        using MemoryBlob::copyFrom; // Unhide base-class copyFrom overloads (cpp:S1242)
-
         /**
          * @brief Private tag for the passkey idiom — enables std::make_shared
          * from static factory methods while keeping the constructor
@@ -32,6 +30,8 @@ namespace cpp_dbc::MySQL
         {
             explicit PrivateCtorTag() = default;
         };
+
+        using MemoryBlob::copyFrom; // Unhide base-class copyFrom overloads (cpp:S1242)
 
         // ── Member variables ──────────────────────────────────────────────────
 
