@@ -67,9 +67,9 @@ namespace cpp_dbc::MongoDB
         std::string m_databaseName;
 
         /**
-         * @brief The connection URL
+         * @brief The connection URI
          */
-        std::string m_url;
+        std::string m_uri;
 
         /**
          * @brief Flag indicating if the connection is closed
@@ -190,7 +190,7 @@ namespace cpp_dbc::MongoDB
         bool isClosed() const override;
         void returnToPool() override;
         bool isPooled() const override;
-        std::string getURL() const override;
+        std::string getURI() const override;
         void reset() override;
 
         std::string getDatabaseName() const override;
@@ -301,7 +301,7 @@ namespace cpp_dbc::MongoDB
         expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
         expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
         expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
-        expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        expected<std::string, DBException> getURI(std::nothrow_t) const noexcept override;
 
         expected<std::string, DBException> getDatabaseName(std::nothrow_t) const noexcept override;
         expected<std::vector<std::string>, DBException> listDatabases(std::nothrow_t) noexcept override;

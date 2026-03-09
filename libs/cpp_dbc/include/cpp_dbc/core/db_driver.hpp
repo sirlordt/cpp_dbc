@@ -64,7 +64,7 @@ namespace cpp_dbc
         /**
          * @brief Connect to a database
          *
-         * @param url The database URL (e.g., "cpp_dbc:mysql://host:port/database")
+         * @param uri The database URI (e.g., "cpp_dbc:mysql://host:port/database")
          * @param user The username for authentication
          * @param password The password for authentication
          * @param options Additional connection options
@@ -78,7 +78,7 @@ namespace cpp_dbc
          * ```
          */
         virtual std::shared_ptr<DBConnection> connect(
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) = 0;
@@ -118,16 +118,16 @@ namespace cpp_dbc
         }
 
         /**
-         * @brief Check if this driver accepts the given URL
+         * @brief Check if this driver accepts the given URI
          *
-         * @param url The database URL to check
-         * @return true if this driver can handle the URL
-         * @return false if this driver cannot handle the URL
+         * @param uri The database URI to check
+         * @return true if this driver can handle the URI
+         * @return false if this driver cannot handle the URI
          * @throws DBException on error
          */
-        virtual bool acceptURI(const std::string &url)
+        virtual bool acceptURI(const std::string &uri)
         {
-            auto result = acceptURI(std::nothrow, url);
+            auto result = acceptURI(std::nothrow, uri);
             if (!result.has_value())
             {
                 throw result.error();
@@ -186,7 +186,7 @@ namespace cpp_dbc
          * @brief Connect to a database (nothrow version)
          *
          * @param nothrow std::nothrow tag to indicate exception-free operation
-         * @param url The database URL
+         * @param uri The database URI
          * @param user The username for authentication
          * @param password The password for authentication
          * @param options Additional connection options
@@ -194,19 +194,19 @@ namespace cpp_dbc
          */
         virtual cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> connect(
             std::nothrow_t,
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept = 0;
 
         /**
-         * @brief Check if this driver accepts the given URL (nothrow version)
+         * @brief Check if this driver accepts the given URI (nothrow version)
          *
-         * Each driver recognizes a specific URL scheme (e.g., "cpp_dbc:mysql://", "cpp_dbc:postgresql://").
+         * Each driver recognizes a specific URI scheme (e.g., "cpp_dbc:mysql://", "cpp_dbc:postgresql://").
          *
          * @param nothrow std::nothrow tag to indicate exception-free operation
-         * @param url The database URL to check
-         * @return expected containing true if this driver can handle the URL, false otherwise
+         * @param uri The database URI to check
+         * @return expected containing true if this driver can handle the URI, false otherwise
          *
          * ```cpp
          * auto driver = std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>();
@@ -215,9 +215,9 @@ namespace cpp_dbc
          * ```
          */
         virtual cpp_dbc::expected<bool, DBException> acceptURI(
-            std::nothrow_t, const std::string &url) noexcept
+            std::nothrow_t, const std::string &uri) noexcept
         {
-            return parseURI(std::nothrow, url).has_value();
+            return parseURI(std::nothrow, uri).has_value();
         }
 
         /**

@@ -70,7 +70,7 @@ TEST_CASE("Real Firebird connection pool tests", "[23_141_01_firebird_real_conne
     {
         // Create a connection pool configuration
         cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
-        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUri(connStr);
         poolConfigLocal.setUsername(username);
         poolConfigLocal.setPassword(password);
         poolConfigLocal.setInitialSize(5);
@@ -212,7 +212,7 @@ TEST_CASE("Real Firebird connection pool tests", "[23_141_01_firebird_real_conne
     {
         // Create a connection pool configuration with testOnReturn enabled
         cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
-        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUri(connStr);
         poolConfigLocal.setUsername(username);
         poolConfigLocal.setPassword(password);
         poolConfigLocal.setInitialSize(5);

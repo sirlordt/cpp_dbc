@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
         auto scyllaConn = scyllaConfig.createDBConnection();
         logOk("Connected");
 
-        logData("ScyllaDB Connection URL: " + scyllaConn->getURL());
+        logData("ScyllaDB Connection URI: " + scyllaConn->getURI());
 
         // Cast to ColumnarDBConnection for additional queries
         auto colConn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(scyllaConn);

@@ -78,6 +78,7 @@ namespace cpp_dbc::MySQL
             if (m_rowPosition >= m_rowCount)
             {
                 m_currentRow = nullptr;
+                m_rowPosition = m_rowCount + 1; // ensure isAfterLast() returns true
                 return false;
             }
 
@@ -102,7 +103,8 @@ namespace cpp_dbc::MySQL
 
         if (!m_result || m_rowPosition >= m_rowCount)
         {
-            m_currentRow = nullptr; // Ensure currentRow is invalidated
+            m_currentRow = nullptr;
+            m_rowPosition = m_rowCount + 1; // ensure isAfterLast() returns true
             return false;
         }
 
@@ -113,6 +115,7 @@ namespace cpp_dbc::MySQL
             return true;
         }
 
+        m_rowPosition = m_rowCount + 1; // ensure isAfterLast() returns true
         return false;
     }
 

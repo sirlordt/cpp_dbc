@@ -64,7 +64,7 @@ namespace cpp_dbc
          *
          * This is the typed version that returns a DocumentDBConnection.
          *
-         * @param url The database URL (e.g., "mongodb://host:port/database")
+         * @param uri The database URI (e.g., "mongodb://host:port/database")
          * @param user The username for authentication (may be empty if auth is in URL)
          * @param password The password for authentication (may be empty if auth is in URL)
          * @param options Additional connection options
@@ -72,7 +72,7 @@ namespace cpp_dbc
          * @throws DBException if the connection fails
          */
         virtual std::shared_ptr<DocumentDBConnection> connectDocument(
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) = 0;
@@ -83,12 +83,12 @@ namespace cpp_dbc
          * This method delegates to connectDocument(nothrow) and rethrows on error.
          */
         std::shared_ptr<DBConnection> connect(
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
         {
-            auto result = connectDocument(std::nothrow, url, user, password, options);
+            auto result = connectDocument(std::nothrow, uri, user, password, options);
             if (!result.has_value())
             {
                 throw result.error();
@@ -118,7 +118,7 @@ namespace cpp_dbc
          */
         virtual expected<std::shared_ptr<DocumentDBConnection>, DBException> connectDocument(
             std::nothrow_t,
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept = 0;
@@ -130,12 +130,12 @@ namespace cpp_dbc
          */
         expected<std::shared_ptr<DBConnection>, DBException> connect(
             std::nothrow_t,
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override
         {
-            auto result = connectDocument(std::nothrow, url, user, password, options);
+            auto result = connectDocument(std::nothrow, uri, user, password, options);
             if (!result.has_value())
             {
                 return cpp_dbc::unexpected(result.error());

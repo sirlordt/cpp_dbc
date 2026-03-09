@@ -68,7 +68,7 @@ namespace cpp_dbc::MongoDB
                                          const std::string &user,
                                          const std::string &password,
                                          const std::map<std::string, std::string> &options)
-        : m_url(uri)
+        : m_uri(uri)
     {
         MONGODB_DEBUG("MongoDBConnection::constructor(nothrow) - Connecting to: " << uri);
         // Strip cpp_dbc: prefix — mongoc expects native mongodb:// URIs
@@ -168,6 +168,10 @@ namespace cpp_dbc::MongoDB
         }
 
         m_closed.store(false, std::memory_order_release);
+
+        // Track live connection for safe cleanup() guard
+        MongoDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
+
         MONGODB_DEBUG("MongoDBConnection::constructor(nothrow) - Connected successfully");
     }
 
@@ -215,9 +219,9 @@ namespace cpp_dbc::MongoDB
         return m_pooled;
     }
 
-    std::string MongoDBConnection::getURL() const
+    std::string MongoDBConnection::getURI() const
     {
-        return m_url;
+        return m_uri;
     }
 
     void MongoDBConnection::reset()

@@ -466,7 +466,7 @@ Implementation of DocumentDBConnection for MongoDB. Uses static factory pattern 
 
 **Methods:**
 Same as DocumentDBConnection, plus:
-- `getURL()`: Returns the connection URL.
+- `getURI()`: Returns the connection URI.
 
 **Smart Pointer Usage:**
 - Uses smart pointers for proper resource management
@@ -592,7 +592,7 @@ Wraps a physical connection to provide pooling functionality. All family-specifi
 - `m_poolAlive`: Shared flag to check if pool is still alive (`shared_ptr<atomic<bool>>`)
 - `m_creationTime`, `m_lastUsedTimeNs` (atomic int64_t), `m_active` (atomic bool), `m_closed` (atomic bool)
 
-**Diamond-Resolving Impl Methods:** `closeImpl`, `returnToPoolImpl`, `isClosedImpl`, `isPooledImpl`, `getURLImpl`, `resetImpl`, `pingImpl`, `prepareForPoolReturnImpl`, `prepareForBorrowImpl`
+**Diamond-Resolving Impl Methods:** `closeImpl`, `returnToPoolImpl`, `isClosedImpl`, `isPooledImpl`, `getURIImpl`, `resetImpl`, `pingImpl`, `prepareForPoolReturnImpl`, `prepareForBorrowImpl`
 
 **DBConnectionPooled Interface Methods:**
 - `getCreationTime(std::nothrow_t)`: Returns the creation time of the connection.

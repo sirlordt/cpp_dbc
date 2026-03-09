@@ -53,6 +53,12 @@ namespace cpp_dbc::Redis
             REDIS_DEBUG("RedisDBConnection::close(nothrow) - Closing connection");
             m_context.reset();
             m_closed.store(true, std::memory_order_release);
+
+            // Release live connection count for cleanup() guard.
+            // Safe against double-decrement: the m_closed check above
+            // returns early if already closed, so this line executes exactly once.
+            RedisDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+
             REDIS_DEBUG("RedisDBConnection::close(nothrow) - Connection closed");
             return {};
         }
@@ -95,22 +101,22 @@ namespace cpp_dbc::Redis
         return false;
     }
 
-    cpp_dbc::expected<std::string, DBException> RedisDBConnection::getURL(std::nothrow_t) const noexcept
+    cpp_dbc::expected<std::string, DBException> RedisDBConnection::getURI(std::nothrow_t) const noexcept
     {
         try
         {
-            return m_url;
+            return m_uri;
         }
         catch (const std::exception &ex)
         {
             return cpp_dbc::unexpected(DBException("LE7RHOIPQSA5",
-                std::string("Exception in getURL: ") + ex.what(),
+                std::string("Exception in getURI: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
         {
             return cpp_dbc::unexpected(DBException("JKHJGVFHTG27",
-                "Unknown exception in getURL",
+                "Unknown exception in getURI",
                 system_utils::captureCallStack()));
         }
     }

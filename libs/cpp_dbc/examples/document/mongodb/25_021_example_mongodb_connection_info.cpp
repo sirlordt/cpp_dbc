@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
         auto mongoConn = mongoConfig.createDBConnection();
         logOk("Connected");
 
-        logData("MongoDB Connection URL: " + mongoConn->getURL());
+        logData("MongoDB Connection URI: " + mongoConn->getURI());
 
         // Cast to DocumentDBConnection for additional info
         auto docConn = std::dynamic_pointer_cast<cpp_dbc::DocumentDBConnection>(mongoConn);

@@ -97,7 +97,7 @@ namespace common_benchmark_helpers
         // Check if this is a PostgreSQL connection
         // Check if this is a PostgreSQL connection based on table name
         bool isPostgreSQL = false;
-        if (conn->getURL().find("postgresql") != std::string::npos)
+        if (conn->getURI().find("postgresql") != std::string::npos)
         {
             isPostgreSQL = true;
         }

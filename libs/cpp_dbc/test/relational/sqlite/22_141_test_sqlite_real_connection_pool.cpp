@@ -70,7 +70,7 @@ TEST_CASE("Real SQLite connection pool tests", "[22_141_01_sqlite_real_connectio
 
     // Create a connection pool configuration
     cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-    poolConfig.setUrl(connStr);
+    poolConfig.setUri(connStr);
     poolConfig.setUsername(username);
     poolConfig.setPassword(password);
 
@@ -175,7 +175,7 @@ TEST_CASE("Real SQLite connection pool tests", "[22_141_01_sqlite_real_connectio
     {
         // Create a connection pool configuration with testOnReturn enabled
         cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
-        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUri(connStr);
         poolConfigLocal.setUsername(username);
         poolConfigLocal.setPassword(password);
         poolConfigLocal.setInitialSize(5);

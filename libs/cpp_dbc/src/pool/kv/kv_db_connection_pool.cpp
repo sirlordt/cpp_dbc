@@ -35,7 +35,7 @@ namespace cpp_dbc
     // ── Constructors (delegate to base) ─────────────────────────────────────
 
     KVDBConnectionPool::KVDBConnectionPool(DBConnectionPool::ConstructorTag,
-                                           const std::string &url,
+                                           const std::string &uri,
                                            const std::string &username,
                                            const std::string &password,
                                            const std::map<std::string, std::string> &options,
@@ -49,7 +49,7 @@ namespace cpp_dbc
                                            bool testOnBorrow,
                                            bool testOnReturn,
                                            TransactionIsolationLevel transactionIsolation) noexcept
-        : DBConnectionPoolBase(DBConnectionPool::ConstructorTag{}, url, username, password, options,
+        : DBConnectionPoolBase(DBConnectionPool::ConstructorTag{}, uri, username, password, options,
                                initialSize, maxSize, minIdle, maxWaitMillis, validationTimeoutMillis,
                                idleTimeoutMillis, maxLifetimeMillis, testOnBorrow, testOnReturn,
                                transactionIsolation)
@@ -73,7 +73,7 @@ namespace cpp_dbc
     cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException>
     KVDBConnectionPool::createDBConnection(std::nothrow_t) const noexcept
     {
-        auto dbConnResult = DriverManager::getDBConnection(std::nothrow, getUrl(), getUsername(), getPassword(), getOptions());
+        auto dbConnResult = DriverManager::getDBConnection(std::nothrow, getUri(), getUsername(), getPassword(), getOptions());
         if (!dbConnResult.has_value())
         {
             return cpp_dbc::unexpected(dbConnResult.error());
@@ -128,7 +128,7 @@ namespace cpp_dbc
     // ── Static factories ────────────────────────────────────────────────────
 
     cpp_dbc::expected<std::shared_ptr<KVDBConnectionPool>, DBException> KVDBConnectionPool::create(std::nothrow_t,
-                                                                                                   const std::string &url,
+                                                                                                   const std::string &uri,
                                                                                                    const std::string &username,
                                                                                                    const std::string &password,
                                                                                                    const std::map<std::string, std::string> &options,
@@ -144,7 +144,7 @@ namespace cpp_dbc
                                                                                                    TransactionIsolationLevel transactionIsolation) noexcept
     {
         auto pool = std::make_shared<KVDBConnectionPool>(
-            DBConnectionPool::ConstructorTag{}, url, username, password, options, initialSize, maxSize, minIdle,
+            DBConnectionPool::ConstructorTag{}, uri, username, password, options, initialSize, maxSize, minIdle,
             maxWaitMillis, validationTimeoutMillis, idleTimeoutMillis, maxLifetimeMillis,
             testOnBorrow, testOnReturn, transactionIsolation);
 
@@ -999,10 +999,10 @@ namespace cpp_dbc
 namespace cpp_dbc::Redis
 {
     RedisDBConnectionPool::RedisDBConnectionPool(DBConnectionPool::ConstructorTag,
-                                                 const std::string &url,
+                                                 const std::string &uri,
                                                  const std::string &username,
                                                  const std::string &password) noexcept
-        : KVDBConnectionPool(DBConnectionPool::ConstructorTag{}, url, username, password, {}, 5, 20, 3, 5000, 5000, 300000, 1800000, true, false)
+        : KVDBConnectionPool(DBConnectionPool::ConstructorTag{}, uri, username, password, {}, 5, 20, 3, 5000, 5000, 300000, 1800000, true, false)
     {
     }
 
@@ -1014,11 +1014,11 @@ namespace cpp_dbc::Redis
 
 #ifdef __cpp_exceptions
 
-    std::shared_ptr<RedisDBConnectionPool> RedisDBConnectionPool::create(const std::string &url,
+    std::shared_ptr<RedisDBConnectionPool> RedisDBConnectionPool::create(const std::string &uri,
                                                                          const std::string &username,
                                                                          const std::string &password)
     {
-        auto result = create(std::nothrow, url, username, password);
+        auto result = create(std::nothrow, uri, username, password);
         if (!result.has_value())
         {
             throw result.error();
@@ -1039,11 +1039,11 @@ namespace cpp_dbc::Redis
 #endif // __cpp_exceptions
 
     cpp_dbc::expected<std::shared_ptr<RedisDBConnectionPool>, DBException> RedisDBConnectionPool::create(std::nothrow_t,
-                                                                                                         const std::string &url,
+                                                                                                         const std::string &uri,
                                                                                                          const std::string &username,
                                                                                                          const std::string &password) noexcept
     {
-        auto pool = std::make_shared<RedisDBConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
+        auto pool = std::make_shared<RedisDBConnectionPool>(DBConnectionPool::ConstructorTag{}, uri, username, password);
         auto initResult = pool->initializePool(std::nothrow);
         if (!initResult.has_value())
         {

@@ -179,6 +179,12 @@ namespace cpp_dbc::MySQL
 
         m_mysql.reset();
         m_closed.store(true, std::memory_order_release);
+
+        // Release live connection count for cleanup() guard.
+        // Safe against double-decrement: MYSQL_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED
+        // above returns early if already closed, so this line executes exactly once.
+        MySQLDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+
         return {};
     }
 
@@ -233,9 +239,9 @@ namespace cpp_dbc::MySQL
         return false;
     }
 
-    cpp_dbc::expected<std::string, DBException> MySQLDBConnection::getURL(std::nothrow_t) const noexcept
+    cpp_dbc::expected<std::string, DBException> MySQLDBConnection::getURI(std::nothrow_t) const noexcept
     {
-        return m_url;
+        return m_uri;
     }
 
     cpp_dbc::expected<void, DBException> MySQLDBConnection::prepareForPoolReturn(

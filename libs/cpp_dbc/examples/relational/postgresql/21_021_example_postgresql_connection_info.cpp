@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
         auto pgConn = pgConfig.createDBConnection();
         logOk("Connected");
 
-        logData("PostgreSQL Connection URL: " + pgConn->getURL());
+        logData("PostgreSQL Connection URI: " + pgConn->getURI());
 
         logStep("Closing connection...");
         pgConn->close();

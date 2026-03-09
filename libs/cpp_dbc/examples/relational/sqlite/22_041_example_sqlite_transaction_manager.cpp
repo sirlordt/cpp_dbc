@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
         // Create connection pool configuration
         logStep("Creating connection pool configuration...");
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(sqliteConfig.createConnectionString());
+        poolConfig.setUri(sqliteConfig.createConnectionString());
         poolConfig.setUsername(sqliteConfig.getUsername());
         poolConfig.setPassword(sqliteConfig.getPassword());
         poolConfig.setInitialSize(3);

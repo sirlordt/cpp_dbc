@@ -34,9 +34,12 @@ namespace cpp_dbc::MySQL
         // Also, std::call_once can throw std::system_error, which is incompatible
         // with -fno-exceptions builds.
         static std::atomic<bool> s_initialized;
+        static std::atomic<size_t> s_liveConnectionCount;
         static std::mutex s_initMutex;
 
         static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
+
+        friend class MySQLDBConnection;
 
     public:
         MySQLDBDriver();
@@ -56,7 +59,7 @@ namespace cpp_dbc::MySQL
         using DBDriver::parseURI;
         using DBDriver::buildURI;
 
-        std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
+        std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &uri,
                                                                   const std::string &user,
                                                                   const std::string &password,
                                                                   const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
@@ -79,7 +82,7 @@ namespace cpp_dbc::MySQL
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
             std::nothrow_t,
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
@@ -89,6 +92,7 @@ namespace cpp_dbc::MySQL
         std::string getDriverVersion() const noexcept override;
 
         static void cleanup();
+        static size_t getConnectionAlive() noexcept { return s_liveConnectionCount.load(std::memory_order_acquire); }
     };
 
 } // namespace cpp_dbc::MySQL
@@ -118,12 +122,12 @@ namespace cpp_dbc::MySQL
         using DBDriver::parseURI;
         using DBDriver::buildURI;
 
-        std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
+        std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &uri,
                                                                   const std::string &user,
                                                                   const std::string &password,
                                                                   const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
         {
-            auto r = connectRelational(std::nothrow, url, user, password, options);
+            auto r = connectRelational(std::nothrow, uri, user, password, options);
             if (!r.has_value())
             {
                 throw r.error();
@@ -155,7 +159,7 @@ namespace cpp_dbc::MySQL
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
             std::nothrow_t,
-            const std::string & /*url*/,
+            const std::string & /*uri*/,
             const std::string & /*user*/,
             const std::string & /*password*/,
             const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override

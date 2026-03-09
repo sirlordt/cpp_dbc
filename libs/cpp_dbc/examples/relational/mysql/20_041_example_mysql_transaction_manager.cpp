@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
         // Create connection pool configuration
         logStep("Creating connection pool configuration...");
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(mysqlConfig.createConnectionString());
+        poolConfig.setUri(mysqlConfig.createConnectionString());
         poolConfig.setUsername(mysqlConfig.getUsername());
         poolConfig.setPassword(mysqlConfig.getPassword());
         poolConfig.setInitialSize(5);

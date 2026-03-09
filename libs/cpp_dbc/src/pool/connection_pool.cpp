@@ -31,7 +31,7 @@ namespace cpp_dbc
     // ── Constructors ──────────────────────────────────────────────────────────
 
     DBConnectionPoolBase::DBConnectionPoolBase(DBConnectionPool::ConstructorTag,
-                                               const std::string &url,
+                                               const std::string &uri,
                                                const std::string &username,
                                                const std::string &password,
                                                const std::map<std::string, std::string> &options,
@@ -45,7 +45,7 @@ namespace cpp_dbc
                                                bool testOnBorrow,
                                                bool testOnReturn,
                                                TransactionIsolationLevel transactionIsolation) noexcept
-        : m_url(url),
+        : m_uri(uri),
           m_username(username),
           m_password(password),
           m_options(options),
@@ -64,7 +64,7 @@ namespace cpp_dbc
     }
 
     DBConnectionPoolBase::DBConnectionPoolBase(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config) noexcept
-        : m_url(config.getUrl()),
+        : m_uri(config.getUri()),
           m_username(config.getUsername()),
           m_password(config.getPassword()),
           m_options(config.getOptions()),

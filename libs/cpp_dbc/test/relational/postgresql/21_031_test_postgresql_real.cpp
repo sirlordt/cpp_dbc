@@ -159,7 +159,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
     {
         // Create a connection pool configuration with shorter timeouts for tests
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
+        poolConfig.setUri(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
         poolConfig.setInitialSize(3);
@@ -323,7 +323,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
     {
         // Create a connection pool configuration
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
+        poolConfig.setUri(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
         poolConfig.setInitialSize(5);

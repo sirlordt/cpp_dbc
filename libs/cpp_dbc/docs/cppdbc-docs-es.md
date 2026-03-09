@@ -704,7 +704,7 @@ Implementación de DocumentDBConnection para MongoDB. Usa patrón de fábrica es
 
 **Métodos:**
 Los mismos que DocumentDBConnection, más:
-- `getURL()`: Devuelve la URL de conexión.
+- `getURI()`: Devuelve la URI de conexión.
 
 **Uso de Punteros Inteligentes:**
 - Usa punteros inteligentes para una gestión adecuada de recursos
@@ -833,7 +833,7 @@ Envuelve una conexión física para proporcionar funcionalidad de agrupamiento. 
 - `m_poolAlive`: Bandera compartida para verificar si el pool sigue vivo (`shared_ptr<atomic<bool>>`)
 - `m_creationTime`, `m_lastUsedTimeNs` (atomic int64_t), `m_active` (atomic bool), `m_closed` (atomic bool)
 
-**Métodos Impl para resolución de diamante:** `closeImpl`, `returnToPoolImpl`, `isClosedImpl`, `isPooledImpl`, `getURLImpl`, `resetImpl`, `pingImpl`, `prepareForPoolReturnImpl`, `prepareForBorrowImpl`
+**Métodos Impl para resolución de diamante:** `closeImpl`, `returnToPoolImpl`, `isClosedImpl`, `isPooledImpl`, `getURIImpl`, `resetImpl`, `pingImpl`, `prepareForPoolReturnImpl`, `prepareForBorrowImpl`
 
 **Métodos de interfaz DBConnectionPooled:**
 - `getCreationTime(std::nothrow_t)`: Devuelve el tiempo de creación.

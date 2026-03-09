@@ -25,7 +25,6 @@
 #include <array>
 #include <charconv>
 #include <cstring>
-#include <sstream>
 #include <iostream>
 #include <thread>
 #include <chrono>
@@ -58,9 +57,7 @@ namespace cpp_dbc::MySQL
         if (m_activeStatements.size() > 50)
         {
             std::erase_if(m_activeStatements, [](const auto &w)
-            {
-                return w.expired();
-            });
+                          { return w.expired(); });
         }
         m_activeStatements.insert(stmt);
         return {};
@@ -86,10 +83,9 @@ namespace cpp_dbc::MySQL
         // Remove expired weak_ptrs and the specified one
         auto stmtLocked = stmt.lock();
         std::erase_if(m_activeStatements, [&stmtLocked](const auto &w)
-        {
+                      {
             auto locked = w.lock();
-            return !locked || (stmtLocked && locked.get() == stmtLocked.get());
-        });
+            return !locked || (stmtLocked && locked.get() == stmtLocked.get()); });
         return {};
     }
 
@@ -145,9 +141,7 @@ namespace cpp_dbc::MySQL
         if (m_activeResultSets.size() > 50)
         {
             std::erase_if(m_activeResultSets, [](const auto &w)
-            {
-                return w.expired();
-            });
+                          { return w.expired(); });
         }
         m_activeResultSets.insert(rs);
         return {};
@@ -221,7 +215,7 @@ namespace cpp_dbc::MySQL
         {
             m_initFailed = true;
             m_initError = std::make_unique<DBException>("VIH8G12GION4",
-                "Failed to set MYSQL_OPT_PROTOCOL", system_utils::captureCallStack());
+                                                        "Failed to set MYSQL_OPT_PROTOCOL", system_utils::captureCallStack());
             return;
         }
 
@@ -236,8 +230,8 @@ namespace cpp_dbc::MySQL
                 {
                     m_initFailed = true;
                     m_initError = std::make_unique<DBException>("0SYTWMSWWZZD",
-                        "Invalid numeric value for option '" + key + "': " + value,
-                        system_utils::captureCallStack());
+                                                                "Invalid numeric value for option '" + key + "': " + value,
+                                                                system_utils::captureCallStack());
                     return;
                 }
 
@@ -254,8 +248,8 @@ namespace cpp_dbc::MySQL
                 {
                     m_initFailed = true;
                     m_initError = std::make_unique<DBException>("6NO29VSVU60L",
-                        "mysql_options failed for '" + key + "'",
-                        system_utils::captureCallStack());
+                                                                "mysql_options failed for '" + key + "'",
+                                                                system_utils::captureCallStack());
                     return;
                 }
             }
@@ -265,8 +259,8 @@ namespace cpp_dbc::MySQL
                 {
                     m_initFailed = true;
                     m_initError = std::make_unique<DBException>("1PGUVACRCNF8",
-                        "mysql_options failed for charset: " + value,
-                        system_utils::captureCallStack());
+                                                                "mysql_options failed for charset: " + value,
+                                                                system_utils::captureCallStack());
                     return;
                 }
             }
@@ -310,19 +304,17 @@ namespace cpp_dbc::MySQL
         }
         m_autoCommit = true;
 
-        // Initialize URL string once
-        std::stringstream urlBuilder;
-        urlBuilder << "cpp_dbc:mysql://" << host << ":" << port;
-        if (!database.empty())
-        {
-            urlBuilder << "/" << database;
-        }
-        m_url = urlBuilder.str();
+        // Initialize URI string once (reuse centralized builder for IPv6 bracket handling)
+        constexpr int DEFAULT_MYSQL_PORT = 3306;
+        m_uri = system_utils::buildDBURI("cpp_dbc:mysql://", host, port, DEFAULT_MYSQL_PORT, database);
 
         // Mark connection as open
         m_closed.store(false, std::memory_order_release);
 
-        MYSQL_DEBUG("MySQLConnection::constructor(nothrow) - Done, connected to %s", m_url.c_str());
+        // Track live connection for safe cleanup() guard
+        MySQLDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
+
+        MYSQL_DEBUG("MySQLConnection::constructor(nothrow) - Done, connected to %s", m_uri.c_str());
     }
 
     MySQLDBConnection::~MySQLDBConnection()
@@ -384,9 +376,9 @@ namespace cpp_dbc::MySQL
         return result.value();
     }
 
-    std::string MySQLDBConnection::getURL() const
+    std::string MySQLDBConnection::getURI() const
     {
-        auto result = getURL(std::nothrow);
+        auto result = getURI(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();

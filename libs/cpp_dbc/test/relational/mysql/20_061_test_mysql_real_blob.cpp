@@ -359,6 +359,7 @@ TEST_CASE("MySQL BLOB operations", "[20_061_01_mysql_real_blob]")
             retrievedData.insert(retrievedData.end(), buffer, buffer + bytesRead);
         }
 
+        REQUIRE_FALSE(rs->next());
         REQUIRE(common_test_helpers::compareBinaryData(largeData, retrievedData));
     }
 

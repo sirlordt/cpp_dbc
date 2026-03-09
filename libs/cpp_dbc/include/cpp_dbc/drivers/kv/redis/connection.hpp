@@ -51,7 +51,7 @@ namespace cpp_dbc::Redis
         };
 
         std::shared_ptr<redisContext> m_context;
-        std::string m_url;
+        std::string m_uri;
         int m_dbIndex{0};
         std::atomic<bool> m_closed{false};
         mutable std::mutex m_mutex;
@@ -154,7 +154,7 @@ namespace cpp_dbc::Redis
         bool isClosed() const override;
         void returnToPool() override;
         bool isPooled() const override;
-        std::string getURL() const override;
+        std::string getURI() const override;
         void reset() override;
 
         // KVDBConnection interface implementation - Basic key-value operations
@@ -263,7 +263,7 @@ namespace cpp_dbc::Redis
         cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
-        cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<std::string, DBException> getURI(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<void, DBException>
             setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
         cpp_dbc::expected<TransactionIsolationLevel, DBException>

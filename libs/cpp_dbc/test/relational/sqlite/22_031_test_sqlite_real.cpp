@@ -341,7 +341,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
 
         // Create a connection pool configuration with shorter timeouts for tests
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
+        poolConfig.setUri(connStr);
         poolConfig.setUsername("");
         poolConfig.setPassword("");
         poolConfig.setInitialSize(3);

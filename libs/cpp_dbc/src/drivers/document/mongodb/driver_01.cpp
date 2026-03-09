@@ -33,6 +33,7 @@ namespace cpp_dbc::MongoDB
     // ============================================================================
 
     std::atomic<bool> MongoDBDriver::s_initialized{false}; // NOSONAR - Explicit template arg for clarity in static member definition
+    std::atomic<size_t> MongoDBDriver::s_liveConnectionCount{0};
     std::mutex MongoDBDriver::s_initMutex;
 
     // ============================================================================
@@ -75,12 +76,12 @@ namespace cpp_dbc::MongoDB
 
 #ifdef __cpp_exceptions
     std::shared_ptr<DocumentDBConnection> MongoDBDriver::connectDocument(
-        const std::string &url,
+        const std::string &uri,
         const std::string &user,
         const std::string &password,
         const std::map<std::string, std::string> &options)
     {
-        auto r = connectDocument(std::nothrow, url, user, password, options);
+        auto r = connectDocument(std::nothrow, uri, user, password, options);
         if (!r.has_value())
         {
             throw r.error();
@@ -116,6 +117,13 @@ namespace cpp_dbc::MongoDB
         MONGODB_DEBUG("MongoDBDriver::cleanup - Cleaning up MongoDB C driver");
         if (s_initialized.load(std::memory_order_acquire))
         {
+            if (s_liveConnectionCount.load(std::memory_order_acquire) > 0)
+            {
+                MONGODB_DEBUG("MongoDBDriver::cleanup - Skipped: "
+                              << s_liveConnectionCount.load(std::memory_order_acquire)
+                              << " live connection(s) still open");
+                return;
+            }
             mongoc_cleanup();
             s_initialized.store(false, std::memory_order_release);
             MONGODB_DEBUG("MongoDBDriver::cleanup - Done");
@@ -153,33 +161,29 @@ namespace cpp_dbc::MongoDB
 
     expected<std::shared_ptr<DocumentDBConnection>, DBException> MongoDBDriver::connectDocument(
         std::nothrow_t,
-        const std::string &url,
+        const std::string &uri,
         const std::string &user,
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
     {
-        MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connecting to: " << url);
+        MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connecting to: " << uri);
 
-        auto urlCheck = acceptURI(std::nothrow, url);
-        if (!urlCheck.has_value())
+        auto uriCheck = acceptURI(std::nothrow, uri);
+        if (!uriCheck.has_value())
         {
-            return unexpected<DBException>(urlCheck.error());
+            return unexpected<DBException>(uriCheck.error());
         }
-        if (!urlCheck.value())
+        if (!uriCheck.value())
         {
             return unexpected<DBException>(DBException(
                 "1C2D3E4F5A6B",
-                "Invalid MongoDB URL: " + url));
+                "Invalid MongoDB URI: " + uri));
         }
 
-        // Strip the 'cpp_dbc:' prefix if present
-        std::string mongoUrl = url;
-        if (url.starts_with(cpp_dbc::system_constants::URI_PREFIX))
-        {
-            mongoUrl = url.substr(cpp_dbc::system_constants::URI_PREFIX.size());
-        }
-
-        auto connResult = MongoDBConnection::create(std::nothrow, mongoUrl, user, password, options);
+        // Pass the full canonical URI — MongoDBConnection strips the cpp_dbc:
+        // prefix internally before calling mongoc, while preserving the
+        // canonical URI in m_uri.
+        auto connResult = MongoDBConnection::create(std::nothrow, uri, user, password, options);
         if (!connResult.has_value())
         {
             MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connection failed: " << connResult.error().what());
@@ -198,7 +202,7 @@ namespace cpp_dbc::MongoDB
         {
             return unexpected<DBException>(DBException(
                 "1C2D3E4F5A6B",
-                "Invalid MongoDB URL: " + uri));
+                "Invalid MongoDB URI: " + uri));
         }
         std::string nativeUri = uri.substr(cpp_dbc::system_constants::URI_PREFIX.size());
 

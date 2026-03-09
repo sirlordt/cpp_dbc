@@ -316,6 +316,11 @@ namespace cpp_dbc::PostgreSQL
                 // shared_ptr will automatically call PQfinish via PGconnDeleter
                 m_conn.reset();
                 m_closed = true;
+
+                // Release live connection count for cleanup() guard.
+                // Safe against double-decrement: the if (!m_closed && m_conn) guard
+                // above ensures this line executes exactly once.
+                PostgreSQLDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
             }
             return {};
         }
@@ -425,9 +430,9 @@ namespace cpp_dbc::PostgreSQL
         return false;
     }
 
-    cpp_dbc::expected<std::string, DBException> PostgreSQLDBConnection::getURL(std::nothrow_t) const noexcept
+    cpp_dbc::expected<std::string, DBException> PostgreSQLDBConnection::getURI(std::nothrow_t) const noexcept
     {
-        return m_url;
+        return m_uri;
     }
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::prepareForPoolReturn(

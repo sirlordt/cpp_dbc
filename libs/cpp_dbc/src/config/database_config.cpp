@@ -68,7 +68,7 @@ namespace cpp_dbc::config
             const auto &dbConfig = dbConfigOpt->get();
             const auto &poolConfig = poolConfigOpt->get();
             cpp_dbc::config::DBConnectionPoolConfig config = poolConfig;
-            config.setUrl(dbConfig.createConnectionString());
+            config.setUri(dbConfig.createConnectionString());
             config.setUsername(dbConfig.getUsername());
             config.setPassword(dbConfig.getPassword());
 

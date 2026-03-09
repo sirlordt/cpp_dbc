@@ -61,9 +61,12 @@ namespace cpp_dbc::ScyllaDB
         // Also, std::call_once can throw std::system_error, which is incompatible
         // with -fno-exceptions builds.
         static std::atomic<bool> s_initialized;
+        static std::atomic<size_t> s_liveConnectionCount;
         static std::mutex s_initMutex;
 
         static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
+
+        friend class ScyllaDBConnection;
 
     public:
         ScyllaDBDriver();
@@ -78,7 +81,7 @@ namespace cpp_dbc::ScyllaDB
         using DBDriver::buildURI;
 
         std::shared_ptr<ColumnarDBConnection> connectColumnar(
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
@@ -97,7 +100,7 @@ namespace cpp_dbc::ScyllaDB
 
         cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException> connectColumnar(
             std::nothrow_t,
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
@@ -110,6 +113,9 @@ namespace cpp_dbc::ScyllaDB
             int port,
             const std::string &database,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
+
+        static void cleanup();
+        static size_t getConnectionAlive() noexcept { return s_liveConnectionCount.load(std::memory_order_acquire); }
     };
 } // namespace cpp_dbc::ScyllaDB
 

@@ -205,7 +205,7 @@ int main(int argc, char *argv[])
         // Create connection pool configuration
         logStep("Creating connection pool configuration...");
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(pgConfig.createConnectionString());
+        poolConfig.setUri(pgConfig.createConnectionString());
         poolConfig.setUsername(pgConfig.getUsername());
         poolConfig.setPassword(pgConfig.getPassword());
         poolConfig.setInitialSize(5);

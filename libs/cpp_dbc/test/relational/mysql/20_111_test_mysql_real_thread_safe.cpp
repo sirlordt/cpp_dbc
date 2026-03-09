@@ -196,7 +196,7 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
     {
         // Create connection pool
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
+        poolConfig.setUri(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
         poolConfig.setInitialSize(5);
@@ -274,7 +274,7 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
     {
         // Create connection pool
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
+        poolConfig.setUri(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
         poolConfig.setInitialSize(5);
@@ -371,7 +371,7 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
     {
         // Create connection pool for stress test
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
+        poolConfig.setUri(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
         poolConfig.setInitialSize(5);

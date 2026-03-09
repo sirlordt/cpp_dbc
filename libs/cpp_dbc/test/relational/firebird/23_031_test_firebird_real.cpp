@@ -163,7 +163,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
     {
         // Create a connection pool configuration with shorter timeouts for tests
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
+        poolConfig.setUri(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
         poolConfig.setInitialSize(3);
@@ -248,7 +248,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
     {
         // Create a connection pool configuration with shorter timeouts for tests
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
+        poolConfig.setUri(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
         poolConfig.setInitialSize(2);           // Reduced for tests
@@ -489,7 +489,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
     {
         // Create a connection pool configuration with shorter timeouts for tests
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
+        poolConfig.setUri(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
         poolConfig.setInitialSize(3);           // Reduced for tests

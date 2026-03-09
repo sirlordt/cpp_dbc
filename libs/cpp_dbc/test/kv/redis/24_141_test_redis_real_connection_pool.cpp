@@ -58,7 +58,7 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
     {
         // Create a connection pool configuration
         cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
-        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUri(connStr);
         poolConfigLocal.setUsername(username);
         poolConfigLocal.setPassword(password);
         poolConfigLocal.setInitialSize(5);
@@ -123,7 +123,7 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
     {
         // Create a connection pool configuration with testOnReturn enabled
         cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
-        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUri(connStr);
         poolConfigLocal.setUsername(username);
         poolConfigLocal.setPassword(password);
         poolConfigLocal.setInitialSize(5);

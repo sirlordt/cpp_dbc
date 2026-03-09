@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file connection_02.cpp
- @brief Firebird database driver implementation - FirebirdDBConnection nothrow methods (group 1: close, reset, isClosed, returnToPool, isPooled, getURL, ping)
+ @brief Firebird database driver implementation - FirebirdDBConnection nothrow methods (group 1: close, reset, isClosed, returnToPool, isPooled, getURI, ping)
 
 */
 
@@ -36,7 +36,7 @@ namespace cpp_dbc::Firebird
 {
 
     // ============================================================================
-    // NOTHROW API — group 1: close, reset, isClosed, returnToPool, isPooled, getURL, ping
+    // NOTHROW API — group 1: close, reset, isClosed, returnToPool, isPooled, getURI, ping
     // ============================================================================
 
     cpp_dbc::expected<void, cpp_dbc::DBException> FirebirdDBConnection::close(std::nothrow_t) noexcept
@@ -58,6 +58,11 @@ namespace cpp_dbc::Firebird
         m_db.reset();
 
         m_closed.store(true, std::memory_order_release);
+
+        // Release live connection count for cleanup() guard.
+        // Safe against double-decrement: FIREBIRD_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED
+        // above returns early if already closed, so this line executes exactly once.
+        FirebirdDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
 
         FIREBIRD_DEBUG("FirebirdConnection::close - Done");
 
@@ -147,9 +152,9 @@ namespace cpp_dbc::Firebird
     }
 
     cpp_dbc::expected<std::string, DBException>
-    FirebirdDBConnection::getURL(std::nothrow_t) const noexcept
+    FirebirdDBConnection::getURI(std::nothrow_t) const noexcept
     {
-        return m_url;
+        return m_uri;
     }
 
     cpp_dbc::expected<bool, DBException> FirebirdDBConnection::ping(std::nothrow_t) noexcept

@@ -60,8 +60,8 @@ namespace cpp_dbc::SQLite
         std::atomic<bool> m_transactionActive{false};
         TransactionIsolationLevel m_isolationLevel;
 
-        // Cached URL
-        std::string m_url;
+        // Cached URI
+        std::string m_uri;
 
         // Normalized database file path
         std::string m_dbPath;
@@ -172,8 +172,8 @@ namespace cpp_dbc::SQLite
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
 
-        // Get the connection URL
-        std::string getURL() const override;
+        // Get the connection URI
+        std::string getURI() const override;
         bool ping() override;
 
         std::string getServerVersion() override;
@@ -200,7 +200,7 @@ namespace cpp_dbc::SQLite
         cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
-        cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<std::string, DBException> getURI(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
         cpp_dbc::expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override;
         cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(std::nothrow_t) noexcept override;

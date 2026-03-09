@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
         auto firebirdConn = firebirdConfig.createDBConnection();
         logOk("Connected");
 
-        logData("Firebird Connection URL: " + firebirdConn->getURL());
+        logData("Firebird Connection URI: " + firebirdConn->getURI());
 
         // Get server information
         logMsg("");

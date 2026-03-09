@@ -24,7 +24,6 @@
 #include <cctype>
 #include <cstring>
 #include <algorithm>
-#include <sstream>
 #include <iostream>
 #include <thread>
 #include <chrono>
@@ -86,9 +85,8 @@ namespace cpp_dbc::ScyllaDB
         {
             // Validate keyspace name to prevent CQL injection.
             // Keyspace names should only contain alphanumeric characters and underscores.
-            bool isValidKeyspace = std::ranges::all_of(keyspace, [](unsigned char c) {
-                return std::isalnum(c) || c == '_';
-            });
+            bool isValidKeyspace = std::ranges::all_of(keyspace, [](unsigned char c)
+                                                       { return std::isalnum(c) || c == '_'; });
             if (!isValidKeyspace)
             {
                 m_initFailed = true;
@@ -110,11 +108,13 @@ namespace cpp_dbc::ScyllaDB
         }
 
         m_closed = false;
-        // Cache the full URL including the cpp_dbc: prefix.
-        // Append the keyspace only when non-empty to avoid a trailing slash
-        // on connections that don't select a keyspace (e.g. "cpp_dbc:scylladb://host:port").
-        m_url = "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) +
-                (keyspace.empty() ? "" : "/" + keyspace);
+
+        // Track live connection for safe cleanup() guard
+        ScyllaDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
+
+        // Cache the full URI including the cpp_dbc: prefix (reuse centralized builder for IPv6 bracket handling)
+        constexpr int DEFAULT_SCYLLADB_PORT = 9042;
+        m_uri = system_utils::buildDBURI("cpp_dbc:scylladb://", host, port, DEFAULT_SCYLLADB_PORT, keyspace);
         SCYLLADB_DEBUG("ScyllaDBConnection::constructor(nothrow) - Connection established");
     }
 
@@ -124,7 +124,7 @@ namespace cpp_dbc::ScyllaDB
         ScyllaDBConnection::close(std::nothrow);
     }
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     // DBConnection interface — throwing wrappers
 
     void ScyllaDBConnection::close()
@@ -155,9 +155,9 @@ namespace cpp_dbc::ScyllaDB
         return false;
     }
 
-    std::string ScyllaDBConnection::getURL() const
+    std::string ScyllaDBConnection::getURI() const
     {
-        return m_url;
+        return m_uri;
     }
 
     void ScyllaDBConnection::reset()
@@ -278,7 +278,7 @@ namespace cpp_dbc::ScyllaDB
         return *result;
     }
 
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::ScyllaDB
 

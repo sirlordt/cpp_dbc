@@ -67,7 +67,7 @@ namespace cpp_dbc::Firebird
         bool m_autoCommit{true};
         bool m_transactionActive{false};
         TransactionIsolationLevel m_isolationLevel;
-        std::string m_url;
+        std::string m_uri;
 
         // Registry of active prepared statements and result sets
         std::set<std::weak_ptr<FirebirdDBPreparedStatement>, std::owner_less<std::weak_ptr<FirebirdDBPreparedStatement>>> m_activeStatements;
@@ -181,7 +181,7 @@ namespace cpp_dbc::Firebird
         bool isClosed() const override;
         void returnToPool() override;
         bool isPooled() const override;
-        std::string getURL() const override;
+        std::string getURI() const override;
         bool ping() override;
 
         std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) override;
@@ -255,7 +255,7 @@ namespace cpp_dbc::Firebird
         cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
-        cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<std::string, DBException> getURI(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException>

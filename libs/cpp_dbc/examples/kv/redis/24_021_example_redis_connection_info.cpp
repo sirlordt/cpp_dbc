@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
         auto redisConn = redisConfig.createDBConnection();
         logOk("Connected");
 
-        logData("Redis Connection URL: " + redisConn->getURL());
+        logData("Redis Connection URI: " + redisConn->getURI());
 
         logMsg("");
         logMsg("--- Server Connectivity ---");

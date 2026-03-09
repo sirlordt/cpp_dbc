@@ -72,7 +72,7 @@ TEST_CASE("Real MySQL connection pool tests", "[20_141_01_mysql_real_connection_
     {
         // Create a connection pool configuration
         cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
-        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUri(connStr);
         // poolConfigLocal.setPort(port);
         poolConfigLocal.setUsername(username);
         poolConfigLocal.setPassword(password);
@@ -149,7 +149,7 @@ TEST_CASE("Real MySQL connection pool tests", "[20_141_01_mysql_real_connection_
     {
         // Create a connection pool configuration with testOnReturn enabled
         cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
-        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUri(connStr);
         poolConfigLocal.setUsername(username);
         poolConfigLocal.setPassword(password);
         poolConfigLocal.setInitialSize(5);

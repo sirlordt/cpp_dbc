@@ -43,6 +43,7 @@ namespace cpp_dbc::Redis
     // ============================================================================
 
     std::atomic<bool> RedisDBDriver::s_initialized{false}; // NOSONAR - Must match declaration in header
+    std::atomic<size_t> RedisDBDriver::s_liveConnectionCount{0};
     std::mutex RedisDBDriver::s_initMutex;
 
     // ============================================================================
@@ -85,12 +86,12 @@ namespace cpp_dbc::Redis
 
 #ifdef __cpp_exceptions
     std::shared_ptr<KVDBConnection> RedisDBDriver::connectKV(
-        const std::string &url,
+        const std::string &uri,
         const std::string &user,
         const std::string &password,
         const std::map<std::string, std::string> &options)
     {
-        auto result = connectKV(std::nothrow, url, user, password, options);
+        auto result = connectKV(std::nothrow, uri, user, password, options);
         if (!result.has_value())
         {
             throw result.error();
@@ -132,6 +133,13 @@ namespace cpp_dbc::Redis
     void RedisDBDriver::cleanup()
     {
         REDIS_DEBUG("RedisDBDriver::cleanup - Cleaning up Redis driver");
+        if (s_liveConnectionCount.load(std::memory_order_acquire) > 0)
+        {
+            REDIS_DEBUG("RedisDBDriver::cleanup - Skipped: "
+                        << s_liveConnectionCount.load(std::memory_order_acquire)
+                        << " live connection(s) still open");
+            return;
+        }
         // No specific cleanup needed for hiredis
         s_initialized.store(false, std::memory_order_release);
         REDIS_DEBUG("RedisDBDriver::cleanup - Done");
@@ -143,33 +151,33 @@ namespace cpp_dbc::Redis
 
     cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> RedisDBDriver::connectKV(
         std::nothrow_t,
-        const std::string &url,
+        const std::string &uri,
         const std::string &user,
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
     {
         try
         {
-            REDIS_DEBUG("RedisDBDriver::connectKV(nothrow) - Connecting to: " << url);
+            REDIS_DEBUG("RedisDBDriver::connectKV(nothrow) - Connecting to: " << uri);
 
-            auto urlCheck = acceptURI(std::nothrow, url);
-            if (!urlCheck.has_value())
+            auto uriCheck = acceptURI(std::nothrow, uri);
+            if (!uriCheck.has_value())
             {
-                return cpp_dbc::unexpected(urlCheck.error());
+                return cpp_dbc::unexpected(uriCheck.error());
             }
-            if (!urlCheck.value())
+            if (!uriCheck.value())
             {
-                return cpp_dbc::unexpected(DBException("A93B8C7D2E1F", "Invalid Redis URL: " + url,
+                return cpp_dbc::unexpected(DBException("A93B8C7D2E1F", "Invalid Redis URI: " + uri,
                                                        system_utils::captureCallStack()));
             }
 
-            std::string redisUrl = url;
-            if (url.starts_with(cpp_dbc::system_constants::URI_PREFIX))
+            std::string redisUri = uri;
+            if (uri.starts_with(cpp_dbc::system_constants::URI_PREFIX))
             {
-                redisUrl = url.substr(cpp_dbc::system_constants::URI_PREFIX.size());
+                redisUri = uri.substr(cpp_dbc::system_constants::URI_PREFIX.size());
             }
 
-            auto connResult = RedisDBConnection::create(std::nothrow, redisUrl, user, password, options);
+            auto connResult = RedisDBConnection::create(std::nothrow, redisUri, user, password, options);
             if (!connResult.has_value())
             {
                 return cpp_dbc::unexpected(connResult.error());
@@ -295,9 +303,15 @@ namespace cpp_dbc::Redis
             uri << ":" << port;
         }
 
-        // Add database index
+        // Add database index — must be numeric to match parseURI's ([0-9]+) rule
         if (!database.empty() && database != "0")
         {
+            if (!std::ranges::all_of(database, [](char c) { return c >= '0' && c <= '9'; }))
+            {
+                return cpp_dbc::unexpected(DBException("W4HP038OBTED",
+                    "Cannot build Redis URI: database must be a numeric index, got: " + database,
+                    system_utils::captureCallStack()));
+            }
             uri << "/" << database;
         }
 

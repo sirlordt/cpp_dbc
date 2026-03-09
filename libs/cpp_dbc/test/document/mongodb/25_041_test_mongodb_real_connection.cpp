@@ -64,20 +64,13 @@ TEST_CASE("MongoDB connection test", "[25_041_01_mongodb_real_connection]")
         // Execute a ping to verify the connection
         REQUIRE(conn->ping() == true);
 
-        // Verify connection state and URL
+        // Verify connection state and URI
         CHECK_FALSE(conn->isClosed());
 
-        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URL: " + conn->getURL());
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URI: " + conn->getURI());
 
-        // The driver strips the "cpp_dbc:" prefix when storing the URL
-        if (connStr.substr(0, 8) == "cpp_dbc:")
-        {
-            CHECK(conn->getURL() == connStr.substr(8));
-        }
-        else
-        {
-            CHECK(conn->getURL() == connStr);
-        }
+        // The connection preserves the full canonical URI including the cpp_dbc: prefix
+        CHECK(conn->getURI() == connStr);
 
         // Close the connection
         conn->close();

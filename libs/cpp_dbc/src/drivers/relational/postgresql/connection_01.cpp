@@ -60,7 +60,8 @@ namespace cpp_dbc::PostgreSQL
         std::scoped_lock lock(m_statementsMutex);
         if (m_activeStatements.size() > 50)
         {
-            std::erase_if(m_activeStatements, [](const auto &w) { return w.expired(); });
+            std::erase_if(m_activeStatements, [](const auto &w)
+                          { return w.expired(); });
         }
         m_activeStatements.insert(stmt);
         return {};
@@ -85,10 +86,9 @@ namespace cpp_dbc::PostgreSQL
         // Remove expired weak_ptrs and the specified one
         auto stmtLocked = stmt.lock();
         std::erase_if(m_activeStatements, [&stmtLocked](const auto &w)
-        {
+                      {
             auto locked = w.lock();
-            return !locked || (stmtLocked && locked.get() == stmtLocked.get());
-        });
+            return !locked || (stmtLocked && locked.get() == stmtLocked.get()); });
         return {};
     }
 
@@ -145,7 +145,7 @@ namespace cpp_dbc::PostgreSQL
         return {};
     }
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
 
     // Constructor
     PostgreSQLDBConnection::PostgreSQLDBConnection(const std::string &host,
@@ -199,14 +199,12 @@ namespace cpp_dbc::PostgreSQL
         // Set auto-commit mode
         setAutoCommit(true);
 
-        // Initialize URL string once
-        std::stringstream urlBuilder;
-        urlBuilder << "cpp_dbc:postgresql://" << host << ":" << port;
-        if (!database.empty())
-        {
-            urlBuilder << "/" << database;
-        }
-        m_url = urlBuilder.str();
+        // Initialize URI string once (reuse centralized builder for IPv6 bracket handling)
+        constexpr int DEFAULT_POSTGRESQL_PORT = 5432;
+        m_uri = system_utils::buildDBURI("cpp_dbc:postgresql://", host, port, DEFAULT_POSTGRESQL_PORT, database);
+
+        // Track live connection for safe cleanup() guard
+        PostgreSQLDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
     }
 
     // Destructor
@@ -264,9 +262,9 @@ namespace cpp_dbc::PostgreSQL
         return result.value();
     }
 
-    std::string PostgreSQLDBConnection::getURL() const
+    std::string PostgreSQLDBConnection::getURI() const
     {
-        auto result = getURL(std::nothrow);
+        auto result = getURI(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();
@@ -420,7 +418,7 @@ namespace cpp_dbc::PostgreSQL
         return *result;
     }
 
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::ping(std::nothrow_t) noexcept
     {

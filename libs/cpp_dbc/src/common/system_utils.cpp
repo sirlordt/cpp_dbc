@@ -202,10 +202,10 @@ namespace cpp_dbc::system_utils
         }
     }
 
-    bool parseDBURL(std::string_view url,
+    bool parseDBURI(std::string_view uri,
                     std::string_view expectedPrefix,
                     int defaultPort,
-                    ParsedDBURL &result,
+                    ParsedDBURI &result,
                     bool allowLocalConnection,
                     bool requireDatabase) noexcept
     {
@@ -218,13 +218,13 @@ namespace cpp_dbc::system_utils
             result.isLocal = false;
 
             // Check prefix
-            if (!url.starts_with(expectedPrefix))
+            if (!uri.starts_with(expectedPrefix))
             {
                 return false;
             }
 
             // Extract the part after the prefix
-            std::string rest{url.substr(expectedPrefix.length())};
+            std::string rest{uri.substr(expectedPrefix.length())};
 
             // Check for empty rest
             if (rest.empty())
@@ -367,6 +367,57 @@ namespace cpp_dbc::system_utils
         {
             // Catch any unexpected exceptions - noexcept guarantee
             return false;
+        }
+    }
+
+    std::string buildDBURI(std::string_view prefix,
+                           std::string_view host,
+                           int port,
+                           int /* defaultPort */,
+                           std::string_view database) noexcept
+    {
+        try
+        {
+            std::string uri;
+            uri.reserve(prefix.size() + host.size() + 32);
+            uri.append(prefix);
+
+            if (host.empty())
+            {
+                uri.append("localhost");
+            }
+            else if (host.contains(':') &&
+                     !(host.front() == '[' && host.back() == ']'))
+            {
+                // Bracket raw IPv6 hosts (e.g. "::1" → "[::1]")
+                uri.push_back('[');
+                uri.append(host);
+                uri.push_back(']');
+            }
+            else
+            {
+                uri.append(host);
+            }
+
+            if (port > 0)
+            {
+                uri.push_back(':');
+                uri.append(std::to_string(port));
+            }
+
+            if (!database.empty())
+            {
+                uri.push_back('/');
+                uri.append(database);
+            }
+
+            return uri;
+        }
+        catch (...)
+        {
+            // noexcept guarantee — std::string allocation failure is a death sentence,
+            // but we return an empty string rather than terminate
+            return {};
         }
     }
 

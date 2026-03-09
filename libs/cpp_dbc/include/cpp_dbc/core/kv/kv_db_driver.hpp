@@ -64,7 +64,7 @@ namespace cpp_dbc
          *
          * This is the typed version that returns a KVDBConnection.
          *
-         * @param url The database URL (e.g., "redis://host:port")
+         * @param uri The database URI (e.g., "redis://host:port")
          * @param user The username for authentication (may be empty if auth is in URL or not required)
          * @param password The password for authentication (may be empty if auth is in URL or not required)
          * @param options Additional connection options
@@ -72,7 +72,7 @@ namespace cpp_dbc
          * @throws DBException if the connection fails
          */
         virtual std::shared_ptr<KVDBConnection> connectKV(
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) = 0;
@@ -83,12 +83,12 @@ namespace cpp_dbc
          * This method delegates to connectKV(nothrow) and rethrows on error.
          */
         std::shared_ptr<DBConnection> connect(
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
         {
-            auto result = connectKV(std::nothrow, url, user, password, options);
+            auto result = connectKV(std::nothrow, uri, user, password, options);
             if (!result.has_value())
             {
                 throw result.error();
@@ -114,7 +114,7 @@ namespace cpp_dbc
         /**
          * @brief Connect to a key-value database (nothrow version)
          * @param nothrow std::nothrow tag to indicate exception-free operation
-         * @param url The database URL
+         * @param uri The database URI
          * @param user The username for authentication
          * @param password The password for authentication
          * @param options Additional connection options
@@ -122,7 +122,7 @@ namespace cpp_dbc
          */
         virtual expected<std::shared_ptr<KVDBConnection>, DBException> connectKV(
             std::nothrow_t,
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept = 0;
@@ -134,12 +134,12 @@ namespace cpp_dbc
          */
         expected<std::shared_ptr<DBConnection>, DBException> connect(
             std::nothrow_t,
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override
         {
-            auto result = connectKV(std::nothrow, url, user, password, options);
+            auto result = connectKV(std::nothrow, uri, user, password, options);
             if (!result.has_value())
             {
                 return cpp_dbc::unexpected(result.error());

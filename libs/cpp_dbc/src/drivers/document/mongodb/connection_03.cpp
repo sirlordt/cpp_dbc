@@ -13,7 +13,7 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file connection_03.cpp
- * @brief MongoDB MongoDBConnection - Part 3 (nothrow API: close, reset, isClosed, returnToPool, isPooled, getURL)
+ * @brief MongoDB MongoDBConnection - Part 3 (nothrow API: close, reset, isClosed, returnToPool, isPooled, getURI)
  */
 
 #include "cpp_dbc/drivers/document/driver_mongodb.hpp"
@@ -34,7 +34,7 @@ namespace cpp_dbc::MongoDB
 {
 
     // ====================================================================
-    // NOTHROW API - close, reset, isClosed, returnToPool, isPooled, getURL (real implementations)
+    // NOTHROW API - close, reset, isClosed, returnToPool, isPooled, getURI (real implementations)
     // ====================================================================
 
     expected<void, DBException> MongoDBConnection::close(std::nothrow_t) noexcept
@@ -73,6 +73,11 @@ namespace cpp_dbc::MongoDB
 
             m_client.reset();
             m_closed.store(true, std::memory_order_release);
+
+            // Release live connection count for cleanup() guard.
+            // Safe against double-decrement: the m_closed check above
+            // returns early if already closed, so this line executes exactly once.
+            MongoDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
 
             MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Connection closed");
             return {};
@@ -119,9 +124,9 @@ namespace cpp_dbc::MongoDB
         return m_pooled;
     }
 
-    expected<std::string, DBException> MongoDBConnection::getURL(std::nothrow_t) const noexcept
+    expected<std::string, DBException> MongoDBConnection::getURI(std::nothrow_t) const noexcept
     {
-        return m_url;
+        return m_uri;
     }
 
 } // namespace cpp_dbc::MongoDB

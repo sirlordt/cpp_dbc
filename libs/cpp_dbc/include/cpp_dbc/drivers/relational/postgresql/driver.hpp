@@ -4,6 +4,7 @@
 
 #if USE_POSTGRESQL
 
+#include <atomic>
 #include <map>
 #include <string>
 #include <memory>
@@ -27,6 +28,10 @@ namespace cpp_dbc::PostgreSQL
      */
     class PostgreSQLDBDriver final : public RelationalDBDriver
     {
+        static std::atomic<size_t> s_liveConnectionCount;
+
+        friend class PostgreSQLDBConnection;
+
     public:
         PostgreSQLDBDriver();
         ~PostgreSQLDBDriver() override;
@@ -45,7 +50,7 @@ namespace cpp_dbc::PostgreSQL
         using DBDriver::parseURI;
         using DBDriver::buildURI;
 
-        std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
+        std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &uri,
                                                                   const std::string &user,
                                                                   const std::string &password,
                                                                   const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
@@ -68,7 +73,7 @@ namespace cpp_dbc::PostgreSQL
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
             std::nothrow_t,
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
@@ -76,6 +81,9 @@ namespace cpp_dbc::PostgreSQL
         std::string getName() const noexcept override;
         std::string getURIScheme() const noexcept override;
         std::string getDriverVersion() const noexcept override;
+
+        static void cleanup();
+        static size_t getConnectionAlive() noexcept { return s_liveConnectionCount.load(std::memory_order_acquire); }
     };
 
 } // namespace cpp_dbc::PostgreSQL
@@ -137,7 +145,7 @@ namespace cpp_dbc::PostgreSQL
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
             std::nothrow_t,
-            const std::string & /*url*/,
+            const std::string & /*uri*/,
             const std::string & /*user*/,
             const std::string & /*password*/,
             const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override

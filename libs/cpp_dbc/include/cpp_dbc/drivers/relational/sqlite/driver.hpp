@@ -36,7 +36,10 @@ namespace cpp_dbc::SQLite
     private:
         // Static members to ensure SQLite is configured only once
         static std::atomic<bool> s_initialized;
+        static std::atomic<size_t> s_liveConnectionCount;
         static std::mutex s_initMutex;
+
+        friend class SQLiteDBConnection;
 
     public:
         SQLiteDBDriver();
@@ -50,7 +53,7 @@ namespace cpp_dbc::SQLite
         using DBDriver::parseURI;
         using DBDriver::buildURI;
 
-        std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
+        std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &uri,
                                                                   const std::string &user,
                                                                   const std::string &password,
                                                                   const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
@@ -73,7 +76,7 @@ namespace cpp_dbc::SQLite
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
             std::nothrow_t,
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
@@ -81,6 +84,9 @@ namespace cpp_dbc::SQLite
         std::string getName() const noexcept override;
         std::string getURIScheme() const noexcept override;
         std::string getDriverVersion() const noexcept override;
+
+        static void cleanup();
+        static size_t getConnectionAlive() noexcept { return s_liveConnectionCount.load(std::memory_order_acquire); }
     };
 
 } // namespace cpp_dbc::SQLite
@@ -142,7 +148,7 @@ namespace cpp_dbc::SQLite
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
             std::nothrow_t,
-            const std::string & /*url*/,
+            const std::string & /*uri*/,
             const std::string & /*user*/,
             const std::string & /*password*/,
             const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override

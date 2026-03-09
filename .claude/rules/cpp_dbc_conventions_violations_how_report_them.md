@@ -150,6 +150,7 @@ When performing a full compliance analysis, check each of the following. This li
 - [ ] **No `const_cast`**: Avoid `const_cast` to remove const; only permitted as last resort with third-party APIs and documented justification
 - [ ] **Ranges over index loops**: Prefer ranges, avoid index loops where possible
 - [ ] **Member initialization**: Prefer in-class initializers over constructor body
+- [ ] **Empty constructors**: Prefer `= default` over empty braces `{}`
 - [ ] **String-to-number conversion**: Always `std::from_chars`; never `std::stoi`/`std::atoi`/`std::strtol`/`std::sscanf`
 - [ ] **String containment**: Always `.contains()` for substring checks; never `find() != npos` for boolean containment
 - [ ] **String prefix/suffix**: Always `.starts_with()` / `.ends_with()`; never `find() == 0`, `substr()`, `rfind()`, or `compare()` for prefix/suffix checks
@@ -183,7 +184,7 @@ When performing a full compliance analysis, check each of the following. This li
 - [ ] **PrivateCtorTag pattern (per-class)**: Correctly implemented in driver classes (Connection, PreparedStatement, ResultSet, Blob, InputStream, Cursor, Collection, Document); tag defined as private struct in the class itself
 - [ ] **Construction state variables**: `bool m_initFailed{false}` + `std::unique_ptr<DBException> m_initError{nullptr}` in per-class PrivateCtorTag classes
 - [ ] **PrivateCtorTag constructor try/catch**: Only present when body contains recoverable C++ exceptions; comment above `try` listing which exceptions are caught; omitted when body is entirely nothrow or only death-sentence exceptions
-- [ ] **PrivateCtorTag pattern (base class)**: Used for pool classes (`*DBConnectionPool`, `*PooledDBConnection`); tag defined in base class, no `std::nothrow_t` needed; tag must be named `PrivateCtorTag` (not `ConstructorTag`)
+- [ ] **Shared PrivateCtorTag (pool classes)**: Single `PrivateCtorTag` defined as `protected` in `DBConnectionPool` base class, shared across the entire pool hierarchy; no `std::nothrow_t` needed; tag must be named `PrivateCtorTag` (not `ConstructorTag`)
 - [ ] **DBDriver variant**: Double-checked locking with `std::atomic` + `std::mutex` for C library init
 - [ ] **Static factory `::create`**: Throwing delegates to nothrow; `#ifdef __cpp_exceptions` guards
 - [ ] **`std::move` in factory error paths**: `std::move(*obj->m_initError)` not a copy
@@ -203,7 +204,7 @@ When performing a full compliance analysis, check each of the following. This li
 
 Convention violation reports are saved to:
 
-```
+```text
 research/<driver_name>_improvements_<N>.md
 ```
 

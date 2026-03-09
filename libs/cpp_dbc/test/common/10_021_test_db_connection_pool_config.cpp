@@ -74,7 +74,7 @@ TEST_CASE("DBConnectionPoolConfig tests", "[10_021_01_connection_pool_config]")
             15, 100, 5, 20000, 120000, 30000, 3600000, false, true, "SELECT version()");
 
         REQUIRE(config.getName() == "full_pool");
-        REQUIRE(config.getUrl() == "cpp_dbc:mysql://localhost:3306/test");
+        REQUIRE(config.getUri() == "cpp_dbc:mysql://localhost:3306/test");
         REQUIRE(config.getUsername() == "user");
         REQUIRE(config.getPassword() == "pass");
         REQUIRE(config.getInitialSize() == 15);
@@ -95,7 +95,7 @@ TEST_CASE("DBConnectionPoolConfig tests", "[10_021_01_connection_pool_config]")
         cpp_dbc::config::DBConnectionPoolConfig config;
 
         config.setName("setter_test");
-        config.setUrl("cpp_dbc:postgresql://localhost:5432/test");
+        config.setUri("cpp_dbc:postgresql://localhost:5432/test");
         config.setUsername("postgres");
         config.setPassword("postgres");
         config.setInitialSize(8);
@@ -110,7 +110,7 @@ TEST_CASE("DBConnectionPoolConfig tests", "[10_021_01_connection_pool_config]")
         config.setValidationQuery("SELECT 2");
 
         REQUIRE(config.getName() == "setter_test");
-        REQUIRE(config.getUrl() == "cpp_dbc:postgresql://localhost:5432/test");
+        REQUIRE(config.getUri() == "cpp_dbc:postgresql://localhost:5432/test");
         REQUIRE(config.getUsername() == "postgres");
         REQUIRE(config.getPassword() == "postgres");
         REQUIRE(config.getInitialSize() == 8);
@@ -137,7 +137,7 @@ TEST_CASE("DBConnectionPoolConfig tests", "[10_021_01_connection_pool_config]")
         poolConfig.withDatabaseConfig(dbConfig);
 
         // Check that the database config values were applied
-        REQUIRE(poolConfig.getUrl() == "cpp_dbc:mysql://localhost:3306/testdb");
+        REQUIRE(poolConfig.getUri() == "cpp_dbc:mysql://localhost:3306/testdb");
         REQUIRE(poolConfig.getUsername() == "root");
         REQUIRE(poolConfig.getPassword() == "password");
     }

@@ -329,7 +329,7 @@ namespace cpp_dbc::SQLite
                                            const std::map<std::string, std::string> &options)
         : m_db(nullptr), m_closed(false), m_autoCommit(true), m_transactionActive(false),
           m_isolationLevel(TransactionIsolationLevel::TRANSACTION_SERIALIZABLE), // SQLite default
-          m_url("cpp_dbc:sqlite://" + database)
+          m_uri("cpp_dbc:sqlite://" + database)
     {
         try
         {
@@ -425,6 +425,9 @@ namespace cpp_dbc::SQLite
             }
 
             SQLITE_DEBUG("Connection created successfully");
+
+            // Track live connection for safe cleanup() guard
+            SQLiteDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
         }
         catch (const DBException &e)
         {
@@ -604,9 +607,9 @@ namespace cpp_dbc::SQLite
         return *result;
     }
 
-    std::string SQLiteDBConnection::getURL() const
+    std::string SQLiteDBConnection::getURI() const
     {
-        auto result = getURL(std::nothrow);
+        auto result = getURI(std::nothrow);
         if (!result)
         {
             throw result.error();

@@ -50,6 +50,11 @@ namespace cpp_dbc::ScyllaDB
         m_cluster.reset();
         m_closed.store(true, std::memory_order_release);
 
+        // Release live connection count for cleanup() guard.
+        // Safe against double-decrement: the m_closed check above returns early
+        // if already closed, so this line executes exactly once.
+        ScyllaDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+
         SCYLLADB_DEBUG("ScyllaDBConnection::close(nothrow) - Connection closed");
         return {};
     }
@@ -69,9 +74,9 @@ namespace cpp_dbc::ScyllaDB
         return false;
     }
 
-    cpp_dbc::expected<std::string, DBException> ScyllaDBConnection::getURL(std::nothrow_t) const noexcept
+    cpp_dbc::expected<std::string, DBException> ScyllaDBConnection::getURI(std::nothrow_t) const noexcept
     {
-        return m_url;
+        return m_uri;
     }
 
     cpp_dbc::expected<void, DBException> ScyllaDBConnection::reset(std::nothrow_t) noexcept

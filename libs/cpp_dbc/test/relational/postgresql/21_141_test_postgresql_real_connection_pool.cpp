@@ -72,7 +72,7 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[21_141_01_postgresql_real_c
     {
         // Create a connection pool configuration
         cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
-        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUri(connStr);
         poolConfigLocal.setUsername(username);
         poolConfigLocal.setPassword(password);
         poolConfigLocal.setInitialSize(5);
@@ -143,7 +143,7 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[21_141_01_postgresql_real_c
     {
         // Create a connection pool configuration with testOnReturn enabled
         cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
-        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUri(connStr);
         poolConfigLocal.setUsername(username);
         poolConfigLocal.setPassword(password);
         poolConfigLocal.setInitialSize(5);

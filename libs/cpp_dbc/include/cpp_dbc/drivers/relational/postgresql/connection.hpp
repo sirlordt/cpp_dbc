@@ -43,8 +43,8 @@ namespace cpp_dbc::PostgreSQL
         int m_statementCounter{0};
         TransactionIsolationLevel m_isolationLevel{TransactionIsolationLevel::TRANSACTION_READ_COMMITTED};
 
-        /// @brief Cached URL string for getURL() method
-        std::string m_url;
+        /// @brief Cached URI string for getURI() method
+        std::string m_uri;
 
         /**
          * @brief Registry of active prepared statements using weak_ptr
@@ -222,7 +222,7 @@ namespace cpp_dbc::PostgreSQL
         bool isClosed() const override;
         void returnToPool() override;
         bool isPooled() const override;
-        std::string getURL() const override;
+        std::string getURI() const override;
         bool ping() override;
 
         // RelationalDBConnection interface
@@ -270,7 +270,7 @@ namespace cpp_dbc::PostgreSQL
         cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
-        cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<std::string, DBException> getURI(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
         cpp_dbc::expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override;
         cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(std::nothrow_t) noexcept override;

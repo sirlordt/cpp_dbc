@@ -34,7 +34,7 @@ static void BM_SQLite_Select_Small_AllColumns(benchmark::State &state)
         state.SkipWithError("Cannot connect to SQLite database");
         return;
     }
-    // cpp_dbc::system_utils::logWithTimestampInfo("DB URL: " + conn->getURL());
+    // cpp_dbc::system_utils::logWithTimestampInfo("DB URI: " + conn->getURI());
     cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
 
     // Begin a transaction before the benchmark loop

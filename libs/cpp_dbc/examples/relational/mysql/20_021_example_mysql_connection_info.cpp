@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
         auto mysqlConn = mysqlConfig.createDBConnection();
         logOk("Connected");
 
-        logData("MySQL Connection URL: " + mysqlConn->getURL());
+        logData("MySQL Connection URI: " + mysqlConn->getURI());
 
         logStep("Closing connection...");
         mysqlConn->close();

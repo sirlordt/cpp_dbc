@@ -65,19 +65,19 @@ TEST_CASE("Redis connection test", "[24_041_01_redis_real_connection]")
             // Test basic connection functions
             CHECK_FALSE(conn->isClosed());
 
-            // Debug the URL values
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Original URL: " + connStr);
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URL: " + conn->getURL());
+            // Debug the URI values
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Original URI: " + connStr);
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URI: " + conn->getURI());
 
-            // In the RedisDBDriver::connectKV method, the URL gets the "cpp_dbc:" prefix stripped
+            // In the RedisDBDriver::connectKV method, the URI gets the "cpp_dbc:" prefix stripped
             // before being passed to the RedisDBConnection constructor
             if (connStr.substr(0, 8) == "cpp_dbc:")
             {
-                CHECK(conn->getURL() == connStr.substr(8)); // Compare with stripped prefix
+                CHECK(conn->getURI() == connStr.substr(8)); // Compare with stripped prefix
             }
             else
             {
-                CHECK(conn->getURL() == connStr); // Compare directly
+                CHECK(conn->getURI() == connStr); // Compare directly
             }
 
             // Close the connection

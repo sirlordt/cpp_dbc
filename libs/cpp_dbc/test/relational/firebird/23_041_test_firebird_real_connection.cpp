@@ -68,12 +68,12 @@ TEST_CASE("Firebird connection test", "[23_041_01_firebird_real_connection]")
             // Firebird returns column constants by index
             REQUIRE(resultSet->getInt(0) == 1);
 
-            // Verify connection state and URL
+            // Verify connection state and URI
             CHECK_FALSE(conn->isClosed());
 
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URL: " + conn->getURL());
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URI: " + conn->getURI());
 
-            CHECK(conn->getURL() == connStr);
+            CHECK(conn->getURI() == connStr);
 
             // Close the connection
             conn->close();

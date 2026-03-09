@@ -40,6 +40,7 @@ namespace cpp_dbc::SQLite
     // SQLiteDBDriver implementation
     // Static member variables to ensure SQLite is configured once
     std::atomic<bool> SQLiteDBDriver::s_initialized{false};
+    std::atomic<size_t> SQLiteDBDriver::s_liveConnectionCount{0};
     std::mutex SQLiteDBDriver::s_initMutex;
 
     SQLiteDBDriver::SQLiteDBDriver()
@@ -106,13 +107,30 @@ namespace cpp_dbc::SQLite
         }
     }
 
+    void SQLiteDBDriver::cleanup()
+    {
+        std::scoped_lock lock(s_initMutex);
+        if (s_initialized.load(std::memory_order_acquire))
+        {
+            if (s_liveConnectionCount.load(std::memory_order_acquire) > 0)
+            {
+                SQLITE_DEBUG("SQLiteDBDriver::cleanup - Skipped: %zu live connection(s) still open",
+                             s_liveConnectionCount.load(std::memory_order_acquire));
+                return;
+            }
+            // No global library cleanup needed for SQLite (sqlite3_shutdown is optional
+            // and already called in the destructor)
+            s_initialized.store(false, std::memory_order_release);
+        }
+    }
+
 #ifdef __cpp_exceptions
-    std::shared_ptr<RelationalDBConnection> SQLiteDBDriver::connectRelational(const std::string &url,
+    std::shared_ptr<RelationalDBConnection> SQLiteDBDriver::connectRelational(const std::string &uri,
                                                                               [[maybe_unused]] const std::string &user,
                                                                               [[maybe_unused]] const std::string &password,
                                                                               const std::map<std::string, std::string> &options)
     {
-        auto result = connectRelational(std::nothrow, url, user, password, options);
+        auto result = connectRelational(std::nothrow, uri, user, password, options);
         if (!result)
         {
             throw result.error();
@@ -169,14 +187,14 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> SQLiteDBDriver::connectRelational(
         std::nothrow_t,
-        const std::string &url,
+        const std::string &uri,
         [[maybe_unused]] const std::string &,
         [[maybe_unused]] const std::string &,
         const std::map<std::string, std::string> &options) noexcept
     {
         try
         {
-            auto parseResult = parseURI(std::nothrow, url);
+            auto parseResult = parseURI(std::nothrow, uri);
             if (!parseResult.has_value())
             {
                 return cpp_dbc::unexpected(parseResult.error());
@@ -186,7 +204,7 @@ namespace cpp_dbc::SQLite
             auto dbIt = parsed.find("database");
             if (dbIt == parsed.end() || dbIt->second.empty())
             {
-                return cpp_dbc::unexpected(DBException("SLEN4O5P6Q7R", "Invalid SQLite connection URL: " + url,
+                return cpp_dbc::unexpected(DBException("SLEN4O5P6Q7R", "Invalid SQLite connection URI: " + uri,
                                                        system_utils::captureCallStack()));
             }
 

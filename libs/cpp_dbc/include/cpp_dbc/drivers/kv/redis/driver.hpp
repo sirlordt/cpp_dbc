@@ -42,12 +42,15 @@ namespace cpp_dbc::Redis
         // Also, std::call_once can throw std::system_error, which is incompatible
         // with -fno-exceptions builds.
         static std::atomic<bool> s_initialized;
+        static std::atomic<size_t> s_liveConnectionCount;
         static std::mutex s_initMutex;
 
         /**
          * @brief Initialize Redis driver
          */
         static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
+
+        friend class RedisDBConnection;
 
     public:
         /**
@@ -69,7 +72,7 @@ namespace cpp_dbc::Redis
         using DBDriver::buildURI;
 
         std::shared_ptr<KVDBConnection> connectKV(
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
@@ -90,10 +93,11 @@ namespace cpp_dbc::Redis
          * @brief Clean up Redis driver resources
          */
         static void cleanup();
+        static size_t getConnectionAlive() noexcept { return s_liveConnectionCount.load(std::memory_order_acquire); }
 
         cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> connectKV(
             std::nothrow_t,
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
@@ -155,7 +159,7 @@ namespace cpp_dbc::Redis
 
         cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> connectKV(
             std::nothrow_t,
-            const std::string & /*url*/,
+            const std::string & /*uri*/,
             const std::string & /*user*/,
             const std::string & /*password*/,
             const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override

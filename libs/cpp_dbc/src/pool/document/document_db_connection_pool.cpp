@@ -35,7 +35,7 @@ namespace cpp_dbc
     // ── Constructors (delegate to base) ──────────────────────────────────
 
     DocumentDBConnectionPool::DocumentDBConnectionPool(DBConnectionPool::ConstructorTag,
-                                                       const std::string &url,
+                                                       const std::string &uri,
                                                        const std::string &username,
                                                        const std::string &password,
                                                        const std::map<std::string, std::string> &options,
@@ -49,7 +49,7 @@ namespace cpp_dbc
                                                        bool testOnBorrow,
                                                        bool testOnReturn,
                                                        TransactionIsolationLevel transactionIsolation) noexcept
-        : DBConnectionPoolBase(DBConnectionPool::ConstructorTag{}, url, username, password, options,
+        : DBConnectionPoolBase(DBConnectionPool::ConstructorTag{}, uri, username, password, options,
                                initialSize, maxSize, minIdle, maxWaitMillis, validationTimeoutMillis,
                                idleTimeoutMillis, maxLifetimeMillis, testOnBorrow, testOnReturn,
                                transactionIsolation)
@@ -73,7 +73,7 @@ namespace cpp_dbc
     cpp_dbc::expected<std::shared_ptr<DocumentDBConnection>, DBException>
     DocumentDBConnectionPool::createDBConnection(std::nothrow_t) const noexcept
     {
-        auto dbConnResult = DriverManager::getDBConnection(std::nothrow, getUrl(), getUsername(), getPassword(), getOptions());
+        auto dbConnResult = DriverManager::getDBConnection(std::nothrow, getUri(), getUsername(), getPassword(), getOptions());
         if (!dbConnResult.has_value())
         {
             return cpp_dbc::unexpected(dbConnResult.error());
@@ -128,7 +128,7 @@ namespace cpp_dbc
     // ── Static factories ─────────────────────────────────────────────────
 
     cpp_dbc::expected<std::shared_ptr<DocumentDBConnectionPool>, DBException> DocumentDBConnectionPool::create(std::nothrow_t,
-                                                                                                               const std::string &url,
+                                                                                                               const std::string &uri,
                                                                                                                const std::string &username,
                                                                                                                const std::string &password,
                                                                                                                const std::map<std::string, std::string> &options,
@@ -144,7 +144,7 @@ namespace cpp_dbc
                                                                                                                TransactionIsolationLevel transactionIsolation) noexcept
     {
         auto pool = std::make_shared<DocumentDBConnectionPool>(
-            DBConnectionPool::ConstructorTag{}, url, username, password, options, initialSize, maxSize, minIdle,
+            DBConnectionPool::ConstructorTag{}, uri, username, password, options, initialSize, maxSize, minIdle,
             maxWaitMillis, validationTimeoutMillis, idleTimeoutMillis, maxLifetimeMillis,
             testOnBorrow, testOnReturn, transactionIsolation);
 
@@ -704,10 +704,10 @@ namespace cpp_dbc
 namespace cpp_dbc::MongoDB
 {
     MongoDBConnectionPool::MongoDBConnectionPool(DBConnectionPool::ConstructorTag tag,
-                                                 const std::string &url,
+                                                 const std::string &uri,
                                                  const std::string &username,
                                                  const std::string &password) noexcept
-        : DocumentDBConnectionPool(tag, url, username, password)
+        : DocumentDBConnectionPool(tag, uri, username, password)
     {
         // MongoDB-specific initialization if needed
     }
@@ -720,11 +720,11 @@ namespace cpp_dbc::MongoDB
 
 #ifdef __cpp_exceptions
 
-    std::shared_ptr<MongoDBConnectionPool> MongoDBConnectionPool::create(const std::string &url,
+    std::shared_ptr<MongoDBConnectionPool> MongoDBConnectionPool::create(const std::string &uri,
                                                                           const std::string &username,
                                                                           const std::string &password)
     {
-        auto result = create(std::nothrow, url, username, password);
+        auto result = create(std::nothrow, uri, username, password);
         if (!result.has_value())
         {
             throw result.error();
@@ -745,11 +745,11 @@ namespace cpp_dbc::MongoDB
 #endif // __cpp_exceptions
 
     cpp_dbc::expected<std::shared_ptr<MongoDBConnectionPool>, DBException> MongoDBConnectionPool::create(std::nothrow_t,
-                                                                                                          const std::string &url,
+                                                                                                          const std::string &uri,
                                                                                                           const std::string &username,
                                                                                                           const std::string &password) noexcept
     {
-        auto pool = std::make_shared<MongoDBConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
+        auto pool = std::make_shared<MongoDBConnectionPool>(DBConnectionPool::ConstructorTag{}, uri, username, password);
         auto initResult = pool->initializePool(std::nothrow);
         if (!initResult.has_value())
         {

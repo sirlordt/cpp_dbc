@@ -86,7 +86,7 @@ These are the fundamental classes that all drivers inherit from:
 | File | Class | Description |
 |------|-------|-------------|
 | `core/db_driver.hpp` | `DBDriver` | Base class for all drivers. Defines `connect()`, `acceptURI()`, `getDBType()`, `getName()` |
-| `core/db_connection.hpp` | `DBConnection` | Base class for all connections. Defines `close()`, `isClosed()`, `returnToPool()`, `getURL()` |
+| `core/db_connection.hpp` | `DBConnection` | Base class for all connections. Defines `close()`, `isClosed()`, `returnToPool()`, `getURI()` |
 | `core/db_result_set.hpp` | `DBResultSet` | Base class for result sets. Defines `close()`, `isEmpty()` |
 | `core/db_exception.hpp` | `DBException` | Exception class with 12-char error codes and call stack capture |
 | `core/db_types.hpp` | `DBType`, `Types`, `TransactionIsolationLevel` | Core enums for database types, SQL types, and isolation levels |
@@ -117,7 +117,7 @@ Each database family has abstract interfaces in `libs/cpp_dbc/include/cpp_dbc/co
 
 | File | Description |
 |------|-------------|
-| `common/system_utils.hpp` | `captureCallStack()`, `parseDBURL()`, `safePrint()`, logging functions |
+| `common/system_utils.hpp` | `captureCallStack()`, `parseDBURI()`, `safePrint()`, logging functions |
 | `config/database_config.hpp` | Database configuration structures |
 | `config/yaml_config_loader.hpp` | YAML configuration file loader |
 | `blob.hpp` | BLOB type definitions |
@@ -564,7 +564,7 @@ namespace cpp_dbc
         bool isClosed() const override { return this->isClosedThrow(); }
         void returnToPool() final { this->returnToPoolThrow(); }
         bool isPooled() const override { return this->isPooledThrow(); }
-        std::string getURL() const override { return this->getURLThrow(); }
+        std::string getURI() const override { return this->getURIThrow(); }
         void reset() override { this->resetThrow(); }
         bool ping() override { return this->pingThrow(); }
 
@@ -602,7 +602,7 @@ namespace cpp_dbc
 } // namespace cpp_dbc
 ```
 
-> **Key point — Diamond inheritance**: Each `PooledDBConnection` has TWO `DBConnection` subobjects (one via `DBConnectionPooled`, one via the family connection class). The CRTP base overrides the `DBConnectionPooled` path directly, and provides `*Impl` methods for diamond-ambiguous methods (`close`, `isClosed`, `returnToPool`, `isPooled`, `getURL`, `reset`, `ping`, `prepareForPoolReturn`, `prepareForBorrow`). The derived class provides one-line inline delegators that forward to these `*Impl` methods, resolving the diamond.
+> **Key point — Diamond inheritance**: Each `PooledDBConnection` has TWO `DBConnection` subobjects (one via `DBConnectionPooled`, one via the family connection class). The CRTP base overrides the `DBConnectionPooled` path directly, and provides `*Impl` methods for diamond-ambiguous methods (`close`, `isClosed`, `returnToPool`, `isPooled`, `getURI`, `reset`, `ping`, `prepareForPoolReturn`, `prepareForBorrow`). The derived class provides one-line inline delegators that forward to these `*Impl` methods, resolving the diamond.
 
 ##### 3. Create the Family Pool Source File
 

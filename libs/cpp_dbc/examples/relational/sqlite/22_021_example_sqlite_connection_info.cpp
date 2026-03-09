@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
             auto sqliteConn = sqliteConfig.createDBConnection();
             logOk("Connected");
 
-            logData("SQLite Connection URL: " + sqliteConn->getURL());
+            logData("SQLite Connection URI: " + sqliteConn->getURI());
 
             logStep("Closing connection...");
             sqliteConn->close();
@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
             "", "");
         logOk("Connected to in-memory database");
 
-        logData("SQLite In-Memory Connection URL: " + sqliteMemConn->getURL());
+        logData("SQLite In-Memory Connection URI: " + sqliteMemConn->getURI());
 
         logStep("Closing connection...");
         sqliteMemConn->close();

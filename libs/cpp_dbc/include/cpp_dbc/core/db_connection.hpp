@@ -43,7 +43,7 @@ namespace cpp_dbc
      * // Obtain a connection and use it
      * auto conn = cpp_dbc::DriverManager::getDBConnection(
      *     "cpp_dbc:mysql://localhost:3306/mydb", "user", "pass");
-     * std::cout << "Connected to: " << conn->getURL() << std::endl;
+     * std::cout << "Connected to: " << conn->getURI() << std::endl;
      * // ... use paradigm-specific subclass methods ...
      * conn->close();
      * ```
@@ -109,14 +109,14 @@ namespace cpp_dbc
         virtual bool isPooled() const = 0;
 
         /**
-         * @brief Get the connection URL
+         * @brief Get the connection URI
          *
-         * Returns the URL used to establish this connection, including
+         * Returns the URI used to establish this connection, including
          * the connection type and parameters.
          *
-         * @return std::string The connection URL (e.g., "jdbc:mysql://localhost:3306/mydb")
+         * @return std::string The connection URI (e.g., "cpp_dbc:mysql://localhost:3306/mydb")
          */
-        virtual std::string getURL() const = 0;
+        virtual std::string getURI() const = 0;
 
         /**
          * @brief Reset the connection state
@@ -208,11 +208,11 @@ namespace cpp_dbc
         virtual cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept = 0;
 
         /**
-         * @brief Get the connection URL (nothrow version)
+         * @brief Get the connection URI (nothrow version)
          * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
-         * @return expected containing the connection URL string, or DBException on failure
+         * @return expected containing the connection URI string, or DBException on failure
          */
-        virtual cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept = 0;
+        virtual cpp_dbc::expected<std::string, DBException> getURI(std::nothrow_t) const noexcept = 0;
 
         /**
          * @brief Ping the server to verify the connection is alive (nothrow version)

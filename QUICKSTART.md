@@ -285,7 +285,7 @@ The test log analysis feature checks for:
 # Code examples for creating Redis connection pools:
 # Using configuration object:
 #   auto config = cpp_dbc::config::DBConnectionPoolConfig();
-#   config.setUrl("redis://localhost:6379");
+#   config.setUri("redis://localhost:6379");
 #   config.setUsername(""); // Optional
 #   config.setPassword(""); // Optional
 #   config.setInitialSize(5);
@@ -355,7 +355,7 @@ The test log analysis feature checks for:
 # Code examples for creating MongoDB connection pools:
 # Using configuration object:
 #   auto config = cpp_dbc::config::DBConnectionPoolConfig();
-#   config.setUrl("mongodb://localhost:27017/test");
+#   config.setUri("mongodb://localhost:27017/test");
 #   auto pool = cpp_dbc::MongoDB::MongoDBConnectionPool::create(config);
 #
 # Using direct parameters:
@@ -411,7 +411,7 @@ The test log analysis feature checks for:
 # Code examples for creating ScyllaDB connection pools:
 # Using configuration object:
 #   auto config = cpp_dbc::config::DBConnectionPoolConfig();
-#   config.setUrl("cpp_dbc:scylladb://localhost:9042/test_keyspace");
+#   config.setUri("cpp_dbc:scylladb://localhost:9042/test_keyspace");
 #   auto pool = cpp_dbc::Scylla::ScyllaConnectionPool::create(config);
 #
 # Using direct parameters:

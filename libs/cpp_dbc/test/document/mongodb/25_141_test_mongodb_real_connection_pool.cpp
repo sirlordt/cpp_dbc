@@ -62,7 +62,7 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
     {
         // Create a connection pool configuration
         cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
-        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUri(connStr);
         poolConfigLocal.setUsername(username);
         poolConfigLocal.setPassword(password);
         poolConfigLocal.setInitialSize(5);
@@ -151,7 +151,7 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
     {
         // Create a connection pool configuration with testOnReturn enabled
         cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
-        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUri(connStr);
         poolConfigLocal.setUsername(username);
         poolConfigLocal.setPassword(password);
         poolConfigLocal.setInitialSize(5);

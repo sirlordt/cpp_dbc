@@ -58,7 +58,10 @@ namespace cpp_dbc::Firebird
     {
     private:
         static std::atomic<bool> s_initialized;
+        static std::atomic<size_t> s_liveConnectionCount;
         static std::mutex s_initMutex;
+
+        friend class FirebirdDBConnection;
 
     public:
         // ── Constructor ───────────────────────────────────────────────────────
@@ -82,7 +85,7 @@ namespace cpp_dbc::Firebird
         using DBDriver::parseURI;
 
         std::shared_ptr<RelationalDBConnection> connectRelational(
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
@@ -92,7 +95,7 @@ namespace cpp_dbc::Firebird
          *
          * Supported commands:
          * - "create_database": Creates a new Firebird database
-         *   Required params: "url", "user", "password"
+         *   Required params: "uri", "user", "password"
          *   Optional params: "page_size" (default: "4096"), "charset" (default: "UTF8")
          *
          * @param params Command parameters as a map of string to std::any
@@ -107,7 +110,7 @@ namespace cpp_dbc::Firebird
          * This method creates a new database file using isc_dsql_execute_immediate.
          * It can be called without an existing connection.
          *
-         * @param url The database URL (cpp_dbc:firebird://host:port/path/to/database.fdb)
+         * @param uri The database URI (cpp_dbc:firebird://host:port/path/to/database.fdb)
          * @param user The database user (typically SYSDBA)
          * @param password The user's password
          * @param options Optional parameters:
@@ -116,7 +119,7 @@ namespace cpp_dbc::Firebird
          * @return true if database was created successfully
          * @throws DBException if database creation fails
          */
-        bool createDatabase(const std::string &url,
+        bool createDatabase(const std::string &uri,
                             const std::string &user,
                             const std::string &password,
                             const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
@@ -140,7 +143,7 @@ namespace cpp_dbc::Firebird
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>
         connectRelational(
             std::nothrow_t,
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
@@ -150,7 +153,7 @@ namespace cpp_dbc::Firebird
 
         [[nodiscard]] cpp_dbc::expected<bool, DBException>
         createDatabase(std::nothrow_t,
-                       const std::string &url,
+                       const std::string &uri,
                        const std::string &user,
                        const std::string &password,
                        const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept;
@@ -158,6 +161,9 @@ namespace cpp_dbc::Firebird
         std::string getName() const noexcept override;
         std::string getURIScheme() const noexcept override;
         std::string getDriverVersion() const noexcept override;
+
+        static void cleanup();
+        static size_t getConnectionAlive() noexcept { return s_liveConnectionCount.load(std::memory_order_acquire); }
     };
 
     // ============================================================================
@@ -257,7 +263,7 @@ namespace cpp_dbc::Firebird
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
             std::nothrow_t,
-            const std::string & /*url*/,
+            const std::string & /*uri*/,
             const std::string & /*user*/,
             const std::string & /*password*/,
             const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override

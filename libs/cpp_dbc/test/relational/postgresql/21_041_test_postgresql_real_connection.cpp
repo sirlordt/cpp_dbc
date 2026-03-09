@@ -58,12 +58,12 @@ TEST_CASE("PostgreSQL connection test", "[21_041_01_postgresql_real_connection]"
         REQUIRE(resultSet->next());
         REQUIRE(resultSet->getInt("test_value") == 1);
 
-        // Verify connection state and URL
+        // Verify connection state and URI
         CHECK_FALSE(conn->isClosed());
 
-        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URL: " + conn->getURL());
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URI: " + conn->getURI());
 
-        CHECK(conn->getURL() == connStr);
+        CHECK(conn->getURI() == connStr);
 
         // Close the connection
         conn->close();

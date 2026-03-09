@@ -345,7 +345,7 @@ namespace cpp_dbc
 
     template <typename Derived, typename ConnType, typename PoolType>
     cpp_dbc::expected<std::string, DBException>
-    PooledDBConnectionBase<Derived, ConnType, PoolType>::getURLImpl(std::nothrow_t) const noexcept
+    PooledDBConnectionBase<Derived, ConnType, PoolType>::getURIImpl(std::nothrow_t) const noexcept
     {
         if (m_closed.load(std::memory_order_acquire))
         {
@@ -353,7 +353,7 @@ namespace cpp_dbc
                                                    "Connection is closed",
                                                    system_utils::captureCallStack()));
         }
-        return m_conn->getURL(std::nothrow);
+        return m_conn->getURI(std::nothrow);
     }
 
     template <typename Derived, typename ConnType, typename PoolType>
@@ -494,9 +494,9 @@ namespace cpp_dbc
     }
 
     template <typename Derived, typename ConnType, typename PoolType>
-    std::string PooledDBConnectionBase<Derived, ConnType, PoolType>::getURLThrow() const
+    std::string PooledDBConnectionBase<Derived, ConnType, PoolType>::getURIThrow() const
     {
-        auto result = getURLImpl(std::nothrow);
+        auto result = getURIImpl(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();

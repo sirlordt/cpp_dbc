@@ -64,16 +64,16 @@ TEST_CASE("ScyllaDB connection test", "[26_041_01_scylladb_real_connection]")
             REQUIRE(resultSet->next());
             REQUIRE_FALSE(resultSet->getString("release_version").empty());
 
-            // Verify connection state and URL
+            // Verify connection state and URI
             CHECK_FALSE(conn->isClosed());
 
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URL: " + conn->getURL());
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URI: " + conn->getURI());
 
-            auto url = conn->getURL();
-            REQUIRE_FALSE(url.empty());
-            REQUIRE(url.find(type) != std::string::npos);
+            auto uri = conn->getURI();
+            REQUIRE_FALSE(uri.empty());
+            REQUIRE(uri.find(type) != std::string::npos);
 
-            CHECK(conn->getURL() == connStr);
+            CHECK(conn->getURI() == connStr);
 
             // Close the connection
             conn->close();

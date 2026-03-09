@@ -92,7 +92,7 @@ namespace cpp_dbc
         std::shared_ptr<std::atomic<bool>> m_poolAlive{std::make_shared<std::atomic<bool>>(true)};
 
         // Connection parameters
-        std::string m_url;
+        std::string m_uri;
         std::string m_username;
         std::string m_password;
         std::map<std::string, std::string> m_options;
@@ -189,7 +189,7 @@ namespace cpp_dbc
         // ACCESSORS — For use by derived classes in createPooledDBConnection()
         // ====================================================================
 
-        const std::string &getUrl() const noexcept { return m_url; }
+        const std::string &getUri() const noexcept { return m_uri; }
         const std::string &getUsername() const noexcept { return m_username; }
         const std::string &getPassword() const noexcept { return m_password; }
         const std::map<std::string, std::string> &getOptions() const noexcept { return m_options; }
@@ -204,7 +204,7 @@ namespace cpp_dbc
     public:
         // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
         DBConnectionPoolBase(DBConnectionPool::ConstructorTag,
-                             const std::string &url,
+                             const std::string &uri,
                              const std::string &username,
                              const std::string &password,
                              const std::map<std::string, std::string> &options = std::map<std::string, std::string>(),

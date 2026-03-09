@@ -122,11 +122,11 @@ TEST_CASE("MySQL driver tests", "[20_021_01_mysql_real_driver]")
     {
         cpp_dbc::MySQL::MySQLDBDriver driver;
 
-        // Build a standard URL
+        // Build a standard URI
         auto uri = driver.buildURI("localhost", 3306, "testdb");
-        REQUIRE(uri == "cpp_dbc:mysql://localhost/testdb");
+        REQUIRE(uri == "cpp_dbc:mysql://localhost:3306/testdb");
 
-        // Build URL without database
+        // Build URI without database
         auto uri2 = driver.buildURI("dbserver", 9999, "");
         REQUIRE(uri2 == "cpp_dbc:mysql://dbserver:9999");
 

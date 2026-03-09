@@ -106,7 +106,7 @@ namespace cpp_dbc::Redis
         const std::string &user,
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
-        : m_url(uri)
+        : m_uri(uri)
     {
         REDIS_DEBUG("RedisDBConnection::constructor(nothrow) - Connecting to: " << uri);
 
@@ -319,6 +319,9 @@ namespace cpp_dbc::Redis
             }
         }
 
+        // Track live connection for safe cleanup() guard
+        RedisDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
+
         REDIS_DEBUG("RedisDBConnection::constructor(nothrow) - Connected successfully");
     }
 
@@ -460,6 +463,7 @@ namespace cpp_dbc::Redis
                 std::scoped_lock lock_(m_mutex);
                 m_context.reset();
                 m_closed.store(true, std::memory_order_release);
+                RedisDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
@@ -504,9 +508,9 @@ namespace cpp_dbc::Redis
         return false;
     }
 
-    std::string RedisDBConnection::getURL() const
+    std::string RedisDBConnection::getURI() const
     {
-        return m_url;
+        return m_uri;
     }
 
     void RedisDBConnection::reset()

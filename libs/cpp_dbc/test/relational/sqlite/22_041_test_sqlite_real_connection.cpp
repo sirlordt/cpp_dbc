@@ -109,12 +109,12 @@ TEST_CASE("SQLite connection test", "[22_041_01_sqlite_real_connection]")
             REQUIRE(verifyResult->next());
             REQUIRE(verifyResult->getInt("count") == 1);
 
-            // Verify connection state and URL
+            // Verify connection state and URI
             CHECK_FALSE(conn->isClosed());
 
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URL: " + conn->getURL());
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URI: " + conn->getURI());
 
-            CHECK(conn->getURL() == connStr);
+            CHECK(conn->getURI() == connStr);
 
             // Close all result sets and statements before dropping the table
             verifyResult->close();

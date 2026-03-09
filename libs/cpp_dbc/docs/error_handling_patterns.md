@@ -193,7 +193,7 @@ Every driver must implement ALL of the following nothrow methods from `DBConnect
 - `isClosed(std::nothrow_t) const noexcept`
 - `returnToPool(std::nothrow_t) noexcept`
 - `isPooled(std::nothrow_t) const noexcept`
-- `getURL(std::nothrow_t) const noexcept`
+- `getURI(std::nothrow_t) const noexcept`
 
 Relational drivers additionally implement:
 - `prepareForPoolReturn(std::nothrow_t) noexcept`
@@ -350,7 +350,7 @@ NewDBDriver::connect(const std::string &url,
     }
 
     // Parse URL
-    auto parsed = system_utils::parseDBURL(url);
+    auto parsed = system_utils::parseDBURI(url);
     if (!parsed.valid)
     {
         throw DBException("B2C3D4E5F6A7",

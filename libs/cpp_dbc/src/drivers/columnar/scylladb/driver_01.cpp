@@ -40,6 +40,7 @@ namespace cpp_dbc::ScyllaDB
 
     // Static member initialization
     std::atomic<bool> ScyllaDBDriver::s_initialized{false}; // NOSONAR - Explicit template arg for clarity in static member definition
+    std::atomic<size_t> ScyllaDBDriver::s_liveConnectionCount{0};
     std::mutex ScyllaDBDriver::s_initMutex;
 
     cpp_dbc::expected<bool, DBException> ScyllaDBDriver::initialize(std::nothrow_t) noexcept
@@ -72,14 +73,30 @@ namespace cpp_dbc::ScyllaDB
         SCYLLADB_DEBUG("ScyllaDBDriver::constructor - Done");
     }
 
+    void ScyllaDBDriver::cleanup()
+    {
+        std::scoped_lock lock(s_initMutex);
+        if (s_initialized.load(std::memory_order_acquire))
+        {
+            if (s_liveConnectionCount.load(std::memory_order_acquire) > 0)
+            {
+                SCYLLADB_DEBUG("ScyllaDBDriver::cleanup - Skipped: "
+                               << s_liveConnectionCount.load(std::memory_order_acquire)
+                               << " live connection(s) still open");
+                return;
+            }
+            s_initialized.store(false, std::memory_order_release);
+        }
+    }
+
 #ifdef __cpp_exceptions
     std::shared_ptr<ColumnarDBConnection> ScyllaDBDriver::connectColumnar(
-        const std::string &url,
+        const std::string &uri,
         const std::string &user,
         const std::string &password,
         const std::map<std::string, std::string> &options)
     {
-        auto result = connectColumnar(std::nothrow, url, user, password, options);
+        auto result = connectColumnar(std::nothrow, uri, user, password, options);
         if (!result.has_value())
         {
             throw result.error();
@@ -124,14 +141,14 @@ namespace cpp_dbc::ScyllaDB
 
     cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException> ScyllaDBDriver::connectColumnar(
         std::nothrow_t,
-        const std::string &url,
+        const std::string &uri,
         const std::string &user,
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
     {
-        SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Connecting to " << url);
+        SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Connecting to " << uri);
 
-        auto params = parseURI(std::nothrow, url);
+        auto params = parseURI(std::nothrow, uri);
         if (!params.has_value())
         {
             SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Failed to parse URI");
@@ -154,15 +171,15 @@ namespace cpp_dbc::ScyllaDB
 
     cpp_dbc::expected<std::map<std::string, std::string>, DBException> ScyllaDBDriver::parseURI(std::nothrow_t, const std::string &uri) noexcept
     {
-        // Use centralized URL parsing from system_utils
-        // ScyllaDB URLs: cpp_dbc:scylladb://host:port/keyspace
+        // Use centralized URI parsing from system_utils
+        // ScyllaDB URIs: cpp_dbc:scylladb://host:port/keyspace
         // Also supports IPv6: cpp_dbc:scylladb://[::1]:port/keyspace
         SCYLLADB_DEBUG("ScyllaDBDriver::parseURI - Parsing URI: " << uri);
 
         constexpr int DEFAULT_SCYLLADB_PORT = 9042;
 
-        system_utils::ParsedDBURL parsed;
-        if (!system_utils::parseDBURL(uri, "cpp_dbc:scylladb://", DEFAULT_SCYLLADB_PORT, parsed,
+        system_utils::ParsedDBURI parsed;
+        if (!system_utils::parseDBURI(uri, "cpp_dbc:scylladb://", DEFAULT_SCYLLADB_PORT, parsed,
                                       false,  // allowLocalConnection
                                       false)) // requireDatabase (keyspace is optional)
         {
@@ -192,7 +209,7 @@ namespace cpp_dbc::ScyllaDB
         // Solution: Detect raw IPv6 and bracket it so the output is
         // "cpp_dbc:scylladb://[::1]:9042/ks".
         std::string effectiveHost = host;
-        if (host.find(':') != std::string::npos &&
+        if (host.contains(':') &&
             !(host.front() == '[' && host.back() == ']'))
         {
             effectiveHost = "[" + host + "]";

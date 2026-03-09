@@ -22,7 +22,6 @@
 
 #if USE_FIREBIRD
 
-#include <sstream>
 #include <algorithm>
 #include <chrono>
 #include <thread>
@@ -136,12 +135,20 @@ namespace cpp_dbc::Firebird
             // Create shared_ptr with custom deleter
             m_db = std::shared_ptr<isc_db_handle>(dbHandle, FirebirdDbDeleter{});
 
-            // Cache URL — database already starts with '/' (prepended by parseURL for remote connections),
-            // so no separator is added here to avoid a double slash (e.g. "localhost:3050//path").
-            const std::string sep = (!database.empty() && database[0] == '/') ? "" : "/";
-            m_url = "cpp_dbc:firebird://" + host + ":" + std::to_string(port) + sep + database;
+            // Cache URI — database may start with '/' (prepended by parseURI for remote connections).
+            // Strip leading '/' from database before passing to buildDBURI, which adds its own separator.
+            constexpr int DEFAULT_FIREBIRD_PORT = 3050;
+            std::string_view dbView = database;
+            if (!dbView.empty() && dbView.front() == '/')
+            {
+                dbView.remove_prefix(1);
+            }
+            m_uri = system_utils::buildDBURI("cpp_dbc:firebird://", host, port, DEFAULT_FIREBIRD_PORT, dbView);
 
             m_closed.store(false, std::memory_order_release);
+
+            // Track live connection for safe cleanup() guard
+            FirebirdDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
 
             // Start initial transaction if autocommit is enabled
             FIREBIRD_DEBUG("  m_autoCommit: %s", (m_autoCommit ? "true" : "false"));
@@ -514,9 +521,9 @@ namespace cpp_dbc::Firebird
         return result.value();
     }
 
-    std::string FirebirdDBConnection::getURL() const
+    std::string FirebirdDBConnection::getURI() const
     {
-        auto result = getURL(std::nothrow);
+        auto result = getURI(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();

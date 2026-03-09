@@ -69,7 +69,7 @@ namespace cpp_dbc::ScyllaDB
 
         std::shared_ptr<CassCluster> m_cluster; // Shared to keep cluster config alive if needed
         std::shared_ptr<CassSession> m_session; // Shared for PreparedStatement weak_ptr
-        std::string m_url;
+        std::string m_uri;
         std::atomic<bool> m_closed{true};
         bool m_initFailed{false};
         DBException m_initError{"0J9B2L099DS6", "", {}};
@@ -127,7 +127,7 @@ namespace cpp_dbc::ScyllaDB
         bool isClosed() const override;
         void returnToPool() override;
         bool isPooled() const override;
-        std::string getURL() const override;
+        std::string getURI() const override;
         void reset() override;
         bool ping() override;
 
@@ -176,7 +176,7 @@ namespace cpp_dbc::ScyllaDB
         cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
-        cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<std::string, DBException> getURI(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<void, DBException> reset(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
 
