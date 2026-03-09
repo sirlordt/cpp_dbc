@@ -149,6 +149,7 @@ When performing a full compliance analysis, check each of the following. This li
 - [ ] **C++17 constructs**: Use C++17-style constructs and functions for more secure code
 - [ ] **Ranges over index loops**: Prefer ranges, avoid index loops where possible
 - [ ] **Member initialization**: Prefer in-class initializers over constructor body
+- [ ] **String-to-number conversion**: Always `std::from_chars`; never `std::stoi`/`std::atoi`/`std::strtol`/`std::sscanf`
 
 ### Atomics & Thread Safety
 - [ ] **`std::atomic` reads**: Always `.load(std::memory_order_acquire)`

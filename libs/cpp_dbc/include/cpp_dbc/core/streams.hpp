@@ -238,7 +238,7 @@ namespace cpp_dbc
          *
          * @return true if the connection is valid (or the BLOB is purely in-memory)
          */
-        virtual bool isConnectionValid() const = 0;
+        virtual bool isConnectionValid() const noexcept = 0;
     };
 
 } // namespace cpp_dbc

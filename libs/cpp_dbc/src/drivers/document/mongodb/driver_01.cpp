@@ -261,8 +261,20 @@ namespace cpp_dbc::MongoDB
         // Start with scheme (cpp_dbc: prefix + native mongodb://)
         uri << "cpp_dbc:mongodb://";
 
-        // Add host
-        uri << (host.empty() ? "localhost" : host);
+        // Add host — bracket raw IPv6 (e.g. "::1" → "[::1]")
+        if (host.empty())
+        {
+            uri << "localhost";
+        }
+        else if (host.find(':') != std::string::npos &&
+                 !(host.front() == '[' && host.back() == ']'))
+        {
+            uri << "[" << host << "]";
+        }
+        else
+        {
+            uri << host;
+        }
 
         // Add port
         if (port > 0)

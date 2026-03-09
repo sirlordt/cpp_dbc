@@ -23,6 +23,7 @@
 
 #include "cpp_dbc/drivers/relational/driver_firebird.hpp"
 
+#include <charconv>
 #include <sstream>
 #include <algorithm>
 #include <cstring>
@@ -173,11 +174,20 @@ namespace cpp_dbc::Firebird
         }
 
         // Build: cpp_dbc:firebird://host:port/database
+        // Bracket raw IPv6 hosts (e.g. "::1" → "[::1]")
         constexpr int DEFAULT_FIREBIRD_PORT = 3050;
         std::string uri = "cpp_dbc:firebird://";
         if (!host.empty())
         {
-            uri += host;
+            if (host.find(':') != std::string::npos &&
+                !(host.front() == '[' && host.back() == ']'))
+            {
+                uri += "[" + host + "]";
+            }
+            else
+            {
+                uri += host;
+            }
             if (port != 0 && port != DEFAULT_FIREBIRD_PORT)
             {
                 uri += ":" + std::to_string(port);
@@ -207,7 +217,18 @@ namespace cpp_dbc::Firebird
         auto dbIt = parsed.find("database");
 
         std::string host = (hostIt != parsed.end()) ? hostIt->second : "";
-        int port = (portIt != parsed.end()) ? std::stoi(portIt->second) : 3050;
+        int port = 3050;
+        if (portIt != parsed.end())
+        {
+            const auto &portStr = portIt->second;
+            auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), port);
+            if (ec != std::errc{} || ptr != portStr.data() + portStr.size())
+            {
+                return cpp_dbc::unexpected(DBException("9NVVV6AC2H8A",
+                    "Invalid port number in Firebird URL: " + portStr,
+                    system_utils::captureCallStack()));
+            }
+        }
         std::string database = (dbIt != parsed.end()) ? dbIt->second : "";
 
         if (database.empty())
@@ -431,7 +452,18 @@ namespace cpp_dbc::Firebird
         auto dbIt = parsed.find("database");
 
         std::string host = (hostIt != parsed.end()) ? hostIt->second : "";
-        int port = (portIt != parsed.end()) ? std::stoi(portIt->second) : 3050;
+        int port = 3050;
+        if (portIt != parsed.end())
+        {
+            const auto &portStr = portIt->second;
+            auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), port);
+            if (ec != std::errc{} || ptr != portStr.data() + portStr.size())
+            {
+                return cpp_dbc::unexpected(DBException("BZ0N05YWKGJ4",
+                    "Invalid port number in Firebird URL: " + portStr,
+                    system_utils::captureCallStack()));
+            }
+        }
         std::string database = (dbIt != parsed.end()) ? dbIt->second : "";
 
         if (database.empty())

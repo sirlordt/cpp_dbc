@@ -134,10 +134,18 @@ namespace cpp_dbc::SQLite
 
         // SQLite has no network — host is empty, port is 0
         // Extract database path (prefix "cpp_dbc:sqlite://" is 17 chars)
+        std::string database = uri.substr(17);
+        if (database.empty())
+        {
+            return cpp_dbc::unexpected(DBException("5V9WQBTN67OL",
+                                                   "Invalid SQLite URI: database path is empty",
+                                                   system_utils::captureCallStack()));
+        }
+
         std::map<std::string, std::string> result;
         result["host"] = "";
         result["port"] = "0";
-        result["database"] = uri.substr(17);
+        result["database"] = std::move(database);
         return result;
     }
 

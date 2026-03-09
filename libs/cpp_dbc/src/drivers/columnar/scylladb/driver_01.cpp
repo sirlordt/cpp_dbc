@@ -186,9 +186,21 @@ namespace cpp_dbc::ScyllaDB
         const std::string &database,
         const std::map<std::string, std::string> & /*options*/) noexcept
     {
+        // 2026-03-08T22:00:00Z
+        // Bug: Raw IPv6 hosts (e.g. "::1") were concatenated without brackets,
+        // producing invalid URIs like "cpp_dbc:scylladb://::1:9042/ks".
+        // Solution: Detect raw IPv6 and bracket it so the output is
+        // "cpp_dbc:scylladb://[::1]:9042/ks".
+        std::string effectiveHost = host;
+        if (host.find(':') != std::string::npos &&
+            !(host.front() == '[' && host.back() == ']'))
+        {
+            effectiveHost = "[" + host + "]";
+        }
+
         // Append the database/keyspace only when non-empty to avoid a trailing slash
         // on URLs without a keyspace (e.g. "cpp_dbc:scylladb://host:port").
-        return "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) +
+        return "cpp_dbc:scylladb://" + effectiveHost + ":" + std::to_string(port) +
                (database.empty() ? "" : "/" + database);
     }
 

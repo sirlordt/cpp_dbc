@@ -382,12 +382,12 @@ namespace cpp_dbc::Redis
         }
 
         const auto &info = infoResult.value();
-        auto it = info.find("redis_version");
+        auto it = info.find("ServerVersion");
         if (it == info.end())
         {
             return cpp_dbc::unexpected(DBException(
                 "ECC2DGY7VHYU",
-                "Server INFO response does not contain 'redis_version'",
+                "Server INFO response does not contain 'ServerVersion'",
                 system_utils::captureCallStack()));
         }
 

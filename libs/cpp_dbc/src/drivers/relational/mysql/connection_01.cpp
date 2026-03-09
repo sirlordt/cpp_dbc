@@ -217,41 +217,52 @@ namespace cpp_dbc::MySQL
 
         // Force TCP/IP connection
         unsigned int protocol = MYSQL_PROTOCOL_TCP;
-        mysql_options(m_mysql.get(), MYSQL_OPT_PROTOCOL, &protocol);
+        if (mysql_options(m_mysql.get(), MYSQL_OPT_PROTOCOL, &protocol) != 0)
+        {
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>("VIH8G12GION4",
+                "Failed to set MYSQL_OPT_PROTOCOL", system_utils::captureCallStack());
+            return;
+        }
 
         // Apply connection options from the map
         for (const auto &[key, value] : options)
         {
-            if (key == "connect_timeout")
+            if (key == "connect_timeout" || key == "read_timeout" || key == "write_timeout")
             {
                 unsigned int timeout = 0;
                 auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), timeout);
-                if (ec == std::errc{})
+                if (ec != std::errc{} || ptr != value.data() + value.size())
                 {
-                    mysql_options(m_mysql.get(), MYSQL_OPT_CONNECT_TIMEOUT, &timeout);
+                    m_initFailed = true;
+                    m_initError = std::make_unique<DBException>("0SYTWMSWWZZD",
+                        "Invalid numeric value for option '" + key + "': " + value,
+                        system_utils::captureCallStack());
+                    return;
                 }
-            }
-            else if (key == "read_timeout")
-            {
-                unsigned int timeout = 0;
-                auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), timeout);
-                if (ec == std::errc{})
+
+                mysql_option opt = (key == "connect_timeout") ? MYSQL_OPT_CONNECT_TIMEOUT
+                                 : (key == "read_timeout")    ? MYSQL_OPT_READ_TIMEOUT
+                                                              : MYSQL_OPT_WRITE_TIMEOUT;
+                if (mysql_options(m_mysql.get(), opt, &timeout) != 0)
                 {
-                    mysql_options(m_mysql.get(), MYSQL_OPT_READ_TIMEOUT, &timeout);
-                }
-            }
-            else if (key == "write_timeout")
-            {
-                unsigned int timeout = 0;
-                auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), timeout);
-                if (ec == std::errc{})
-                {
-                    mysql_options(m_mysql.get(), MYSQL_OPT_WRITE_TIMEOUT, &timeout);
+                    m_initFailed = true;
+                    m_initError = std::make_unique<DBException>("6NO29VSVU60L",
+                        "mysql_options failed for '" + key + "'",
+                        system_utils::captureCallStack());
+                    return;
                 }
             }
             else if (key == "charset")
             {
-                mysql_options(m_mysql.get(), MYSQL_SET_CHARSET_NAME, value.c_str());
+                if (mysql_options(m_mysql.get(), MYSQL_SET_CHARSET_NAME, value.c_str()) != 0)
+                {
+                    m_initFailed = true;
+                    m_initError = std::make_unique<DBException>("1PGUVACRCNF8",
+                        "mysql_options failed for charset: " + value,
+                        system_utils::captureCallStack());
+                    return;
+                }
             }
             else if (key == "auto_reconnect" && value == "true")
             {

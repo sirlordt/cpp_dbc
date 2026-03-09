@@ -153,6 +153,20 @@ namespace cpp_dbc::MySQL
          */
         std::weak_ptr<MySQLDBConnection> m_connection;
 
+        /**
+         * @brief Materialized mode — true when row data was pre-fetched from a
+         * MYSQL_STMT (prepared statement executeQuery) instead of a MYSQL_RES*.
+         *
+         * In materialized mode m_result is nullptr. Row data lives in
+         * m_materializedRows. next() points m_currentRow at m_currentRowPtrs
+         * so that all existing getters work unchanged. Binary getters use
+         * m_currentLengths instead of mysql_fetch_lengths().
+         */
+        bool m_materialized{false};
+        std::vector<std::vector<std::optional<std::string>>> m_materializedRows;
+        std::vector<char *> m_currentRowPtrs;
+        std::vector<unsigned long> m_currentLengths;
+
 #if DB_DRIVER_THREAD_SAFE
         /**
          * @brief Independent mutex for thread-safe ResultSet operations
@@ -229,6 +243,20 @@ namespace cpp_dbc::MySQL
                          MYSQL_RES *res,
                          std::shared_ptr<MySQLDBConnection> conn) noexcept;
 
+        /**
+         * @brief Materialized-mode constructor — takes pre-fetched rows from a
+         * prepared statement executeQuery() instead of a MYSQL_RES*.
+         *
+         * In this mode m_result is nullptr and all data lives in
+         * m_materializedRows. next() populates m_currentRowPtrs and sets
+         * m_currentRow so that existing getters work unchanged.
+         */
+        MySQLDBResultSet(PrivateCtorTag,
+                         std::nothrow_t,
+                         std::vector<std::string> columnNames,
+                         std::vector<std::vector<std::optional<std::string>>> rows,
+                         std::shared_ptr<MySQLDBConnection> conn) noexcept;
+
         // ── Destructor ────────────────────────────────────────────────────────
         ~MySQLDBResultSet() override;
 
@@ -246,6 +274,19 @@ namespace cpp_dbc::MySQL
         static std::shared_ptr<MySQLDBResultSet> create(MYSQL_RES *res, std::shared_ptr<MySQLDBConnection> conn)
         {
             auto r = create(std::nothrow, res, std::move(conn));
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
+            return r.value();
+        }
+
+        static std::shared_ptr<MySQLDBResultSet> create(
+            std::vector<std::string> columnNames,
+            std::vector<std::vector<std::optional<std::string>>> rows,
+            std::shared_ptr<MySQLDBConnection> conn)
+        {
+            auto r = create(std::nothrow, std::move(columnNames), std::move(rows), std::move(conn));
             if (!r.has_value())
             {
                 throw r.error();
@@ -317,6 +358,22 @@ namespace cpp_dbc::MySQL
             // return. Letting std::terminate fire is safer and more debuggable.
             auto obj = std::make_shared<MySQLDBResultSet>(
                 PrivateCtorTag{}, std::nothrow, res, std::move(conn));
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            return obj;
+        }
+
+        static cpp_dbc::expected<std::shared_ptr<MySQLDBResultSet>, DBException>
+        create(std::nothrow_t,
+               std::vector<std::string> columnNames,
+               std::vector<std::vector<std::optional<std::string>>> rows,
+               std::shared_ptr<MySQLDBConnection> conn) noexcept
+        {
+            auto obj = std::make_shared<MySQLDBResultSet>(
+                PrivateCtorTag{}, std::nothrow,
+                std::move(columnNames), std::move(rows), std::move(conn));
             if (obj->m_initFailed)
             {
                 return cpp_dbc::unexpected(std::move(*obj->m_initError));

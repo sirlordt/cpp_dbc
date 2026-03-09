@@ -79,14 +79,19 @@ namespace cpp_dbc::MongoDB
         }
 
         // If user/password provided and not in URI, add them
-        if (!user.empty() && !uri.contains("@"))
+        // 2026-03-08T20:00:00Z
+        // Bug: Credential injection used the original `uri` (which may contain the
+        // "cpp_dbc:" prefix) instead of the already-stripped `connectionUri`,
+        // reintroducing the prefix and breaking mongoc_uri_new_with_error().
+        // Solution: Operate on `connectionUri` throughout so the stripped URI is preserved.
+        if (!user.empty() && !connectionUri.contains("@"))
         {
             // Parse the URI to insert credentials
-            size_t schemeEnd = uri.find("://");
+            size_t schemeEnd = connectionUri.find("://");
             if (schemeEnd != std::string::npos)
             {
-                std::string scheme = uri.substr(0, schemeEnd + 3);
-                std::string rest = uri.substr(schemeEnd + 3);
+                std::string scheme = connectionUri.substr(0, schemeEnd + 3);
+                std::string rest = connectionUri.substr(schemeEnd + 3);
                 connectionUri = scheme + user + ":" + password + "@" + rest;
             }
         }

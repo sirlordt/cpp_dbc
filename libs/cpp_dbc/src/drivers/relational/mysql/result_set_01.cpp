@@ -41,6 +41,16 @@ namespace cpp_dbc::MySQL
     {
         // Note: This is called from other methods that already hold the lock,
         // so we don't acquire the lock here.
+        if (m_materialized)
+        {
+            // In materialized mode, m_result is nullptr by design.
+            // The ResultSet is valid as long as it has not been closed.
+            if (m_closed.load(std::memory_order_acquire))
+            {
+                return cpp_dbc::unexpected(DBException("LXRZWNZ6SGFE", "ResultSet has been closed", system_utils::captureCallStack()));
+            }
+            return {};
+        }
         if (!m_result)
         {
             return cpp_dbc::unexpected(DBException("RUZI7TWB4Y3G", "ResultSet has been closed or is invalid", system_utils::captureCallStack()));
@@ -96,6 +106,30 @@ namespace cpp_dbc::MySQL
             m_fieldCount = 0;
         }
 
+        m_closed.store(false, std::memory_order_release);
+    }
+
+    // ── Materialized-mode Constructor ──────────────────────────────────────
+    MySQLDBResultSet::MySQLDBResultSet(PrivateCtorTag,
+                                       std::nothrow_t,
+                                       std::vector<std::string> columnNames,
+                                       std::vector<std::vector<std::optional<std::string>>> rows,
+                                       std::shared_ptr<MySQLDBConnection> conn) noexcept
+        : m_connection(conn), m_materialized(true),
+          m_materializedRows(std::move(rows))
+    {
+        m_columnNames = std::move(columnNames);
+        m_fieldCount = m_columnNames.size();
+        m_rowCount = m_materializedRows.size();
+
+        size_t idx = 0;
+        for (const auto &name : m_columnNames)
+        {
+            m_columnMap[name] = idx++;
+        }
+
+        m_currentRowPtrs.resize(m_fieldCount, nullptr);
+        m_currentLengths.resize(m_fieldCount, 0);
         m_closed.store(false, std::memory_order_release);
     }
 

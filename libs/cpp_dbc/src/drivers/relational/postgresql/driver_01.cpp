@@ -105,7 +105,14 @@ namespace cpp_dbc::PostgreSQL
     {
         constexpr int DEFAULT_POSTGRESQL_PORT = 5432;
         int effectivePort = (port <= 0) ? DEFAULT_POSTGRESQL_PORT : port;
-        return "cpp_dbc:postgresql://" + host + ":" + std::to_string(effectivePort) + "/" + database;
+        // Bracket raw IPv6 hosts (e.g. "::1" → "[::1]")
+        std::string effectiveHost = host;
+        if (host.find(':') != std::string::npos &&
+            !(host.front() == '[' && host.back() == ']'))
+        {
+            effectiveHost = "[" + host + "]";
+        }
+        return "cpp_dbc:postgresql://" + effectiveHost + ":" + std::to_string(effectivePort) + "/" + database;
     }
 
     // Nothrow API implementation
@@ -158,8 +165,22 @@ namespace cpp_dbc::PostgreSQL
 
     std::string PostgreSQLDBDriver::getDriverVersion() const noexcept
     {
-        // PQlibVersion() returns an integer like 160003 for 16.0.3
+        // 2026-03-08T19:00:00Z
+        // Bug: PQlibVersion() encoding changed in PostgreSQL 10+. Pre-10 uses
+        // major*10000 + minor*100 + patch (e.g. 9.6.3 → 90603). Post-10 uses
+        // major*10000 + minor (e.g. 16.3 → 160003). Old code always applied the
+        // pre-10 formula, producing "16.0.3" instead of "16.3".
+        // Solution: Detect the encoding by checking if ver >= 100000 (PostgreSQL 10+)
+        // and parse accordingly.
         int ver = PQlibVersion();
+        if (ver >= 100000)
+        {
+            // PostgreSQL 10+: major*10000 + minor
+            int major = ver / 10000;
+            int minor = ver % 10000;
+            return std::to_string(major) + "." + std::to_string(minor);
+        }
+        // Pre-10: major*10000 + minor*100 + patch
         int major = ver / 10000;
         int minor = (ver / 100) % 100;
         int patch = ver % 100;

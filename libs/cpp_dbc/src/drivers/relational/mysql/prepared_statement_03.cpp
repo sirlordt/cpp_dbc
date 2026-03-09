@@ -203,6 +203,19 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::setBytes(std::nothrow_t, int parameterIndex, const std::vector<uint8_t> &x) noexcept
     {
+        // 2026-03-08T19:10:00Z
+        // Bug: std::vector::data() may return nullptr for empty vectors
+        // (implementation-defined). The raw-pointer overload treats nullptr as
+        // SQL NULL, so setBytes(idx, emptyVector) stored NULL instead of a
+        // zero-length blob.
+        // Solution: Guard with x.empty() check — pass a non-null sentinel so the
+        // raw-pointer overload sees a valid pointer with length 0.
+        if (x.empty())
+        {
+            // Use a stack byte as non-null sentinel; length 0 means no data is copied
+            uint8_t sentinel = 0;
+            return setBytes(std::nothrow, parameterIndex, &sentinel, 0);
+        }
         return setBytes(std::nothrow, parameterIndex, x.data(), x.size());
     }
 
@@ -229,7 +242,10 @@ namespace cpp_dbc::MySQL
 
         // Store the data in our vector to keep it alive
         m_blobValues[idx].resize(length);
-        std::memcpy(m_blobValues[idx].data(), x, length);
+        if (length > 0)
+        {
+            std::memcpy(m_blobValues[idx].data(), x, length);
+        }
 
         m_binds[idx].buffer_type = MYSQL_TYPE_BLOB;
         m_binds[idx].buffer = m_blobValues[idx].data();
@@ -244,6 +260,13 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> MySQLDBPreparedStatement::executeQuery(std::nothrow_t) noexcept
     {
+        // 2026-03-08T18:30:00Z
+        // Bug: executeQuery() was using mysql_query() with reconstructed SQL instead of
+        // the mysql_stmt_* prepared statement API. This bypassed parameter binding, broke
+        // binary/blob parameters, and was vulnerable to SQL injection.
+        // Solution: Use mysql_stmt_bind_param() + mysql_stmt_execute() +
+        // mysql_stmt_store_result() and materialize all rows into a ResultSet that
+        // operates independently of the MYSQL_STMT handle.
         MYSQL_STMT_LOCK_OR_RETURN("LXJI5IP1RX5S", "executeQuery failed");
 
         if (!m_stmt)
@@ -251,42 +274,128 @@ namespace cpp_dbc::MySQL
             return cpp_dbc::unexpected(DBException("8S667IDQSV9B", "Statement is not initialized", system_utils::captureCallStack()));
         }
 
-        // Get the MySQL connection safely
-        auto mysqlResult = getMySQLConnection(std::nothrow);
-        if (!mysqlResult.has_value())
+        // Bind parameters
+        if (!m_binds.empty() && mysql_stmt_bind_param(m_stmt.get(), m_binds.data()) != 0)
         {
-            return cpp_dbc::unexpected(mysqlResult.error());
+            return cpp_dbc::unexpected(DBException("IBXPNGBMEO5Y",
+                std::string("Failed to bind parameters: ") + mysql_stmt_error(m_stmt.get()),
+                system_utils::captureCallStack()));
         }
-        MYSQL *mysqlPtr = mysqlResult.value();
 
-        // Reconstruct the query with bound parameters to avoid "Commands out of sync" issue
-        std::string finalQuery = m_sql;
-
-        // Replace each '?' with the corresponding parameter value
-        for (const auto &paramValue : m_parameterValues)
+        // Execute the prepared statement
+        if (mysql_stmt_execute(m_stmt.get()) != 0)
         {
-            size_t pos = finalQuery.find('?');
-            if (pos != std::string::npos)
+            return cpp_dbc::unexpected(DBException("B2LWZLJODUZC",
+                std::string("Failed to execute query: ") + mysql_stmt_error(m_stmt.get()),
+                system_utils::captureCallStack()));
+        }
+
+        // Get result metadata to discover column names and count
+        MySQLResHandle metadata(mysql_stmt_result_metadata(m_stmt.get()));
+        if (!metadata)
+        {
+            return cpp_dbc::unexpected(DBException("KVMVHI5T9YHO",
+                std::string("Failed to get result metadata: ") + mysql_stmt_error(m_stmt.get()),
+                system_utils::captureCallStack()));
+        }
+
+        unsigned int fieldCount = mysql_num_fields(metadata.get());
+
+        // Extract column names from metadata
+        std::vector<std::string> columnNames;
+        columnNames.reserve(fieldCount);
+        {
+            const MYSQL_FIELD *fields = mysql_fetch_fields(metadata.get());
+            for (unsigned int i = 0; i < fieldCount; ++i)
             {
-                finalQuery.replace(pos, 1, paramValue);
+                columnNames.emplace_back(fields[i].name);
             }
         }
 
-        // Execute the reconstructed query using the regular connection interface
-        if (mysql_query(mysqlPtr, finalQuery.c_str()) != 0)
+        // Enable STMT_ATTR_UPDATE_MAX_LENGTH for accurate buffer sizing
+        bool updateMaxLen = true;
+        mysql_stmt_attr_set(m_stmt.get(), STMT_ATTR_UPDATE_MAX_LENGTH, &updateMaxLen);
+
+        // Store all rows on the client side
+        if (mysql_stmt_store_result(m_stmt.get()) != 0)
         {
-            return cpp_dbc::unexpected(DBException("FL569QH5RBCX", std::string("Query failed: ") + mysql_error(mysqlPtr), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("R7REPR1DR4SC",
+                std::string("Failed to store result: ") + mysql_stmt_error(m_stmt.get()),
+                system_utils::captureCallStack()));
         }
 
-        MYSQL_RES *result = mysql_store_result(mysqlPtr);
-        if (!result && mysql_field_count(mysqlPtr) > 0)
+        // Re-fetch metadata fields to get max_length after store_result
+        const MYSQL_FIELD *fields = mysql_fetch_fields(metadata.get());
+
+        // Set up result binding buffers
+        std::vector<MYSQL_BIND> resultBinds(fieldCount);
+        std::vector<std::vector<char>> buffers(fieldCount);
+        std::vector<unsigned long> lengths(fieldCount, 0);
+        auto nullFlags = std::make_unique<bool[]>(fieldCount);
+        std::fill_n(nullFlags.get(), fieldCount, false);
+        std::memset(resultBinds.data(), 0, sizeof(MYSQL_BIND) * fieldCount);
+
+        for (unsigned int i = 0; i < fieldCount; ++i)
         {
-            return cpp_dbc::unexpected(DBException("K3VGPEZ7KWZQ", std::string("Failed to get result set: ") + mysql_error(mysqlPtr), system_utils::captureCallStack()));
+            // Use max_length + 1 for the buffer size (max_length is updated after store_result
+            // when STMT_ATTR_UPDATE_MAX_LENGTH is set). Minimum 256 bytes as fallback.
+            size_t bufSize = (fields[i].max_length > 0 ? fields[i].max_length : 256) + 1;
+            buffers[i].resize(bufSize, '\0');
+
+            resultBinds[i].buffer_type = MYSQL_TYPE_STRING;
+            resultBinds[i].buffer = buffers[i].data();
+            resultBinds[i].buffer_length = buffers[i].size();
+            resultBinds[i].length = &lengths[i];
+            resultBinds[i].is_null = &nullFlags[i];
         }
 
-        // Lock the connection to pass it to the ResultSet and register it
+        if (mysql_stmt_bind_result(m_stmt.get(), resultBinds.data()) != 0)
+        {
+            mysql_stmt_free_result(m_stmt.get());
+            return cpp_dbc::unexpected(DBException("MOQYKOLM4PBP",
+                std::string("Failed to bind result: ") + mysql_stmt_error(m_stmt.get()),
+                system_utils::captureCallStack()));
+        }
+
+        // Materialize all rows
+        std::vector<std::vector<std::optional<std::string>>> rows;
+        while (true)
+        {
+            int fetchRc = mysql_stmt_fetch(m_stmt.get());
+            if (fetchRc == MYSQL_NO_DATA)
+            {
+                break;
+            }
+            if (fetchRc == 1)
+            {
+                mysql_stmt_free_result(m_stmt.get());
+                return cpp_dbc::unexpected(DBException("XJXDLLYIVFDW",
+                    std::string("Failed to fetch row: ") + mysql_stmt_error(m_stmt.get()),
+                    system_utils::captureCallStack()));
+            }
+
+            std::vector<std::optional<std::string>> row(fieldCount);
+            for (unsigned int i = 0; i < fieldCount; ++i)
+            {
+                if (nullFlags[i] != 0)
+                {
+                    row[i] = std::nullopt;
+                }
+                else
+                {
+                    row[i] = std::string(buffers[i].data(), lengths[i]);
+                }
+            }
+            rows.push_back(std::move(row));
+        }
+
+        // Free the stmt result — rows are now materialized
+        mysql_stmt_free_result(m_stmt.get());
+
+        // Create a materialized ResultSet
         auto conn = m_connection.lock();
-        auto rsResult = MySQLDBResultSet::create(std::nothrow, result, conn);
+        auto rsResult = MySQLDBResultSet::create(
+            std::nothrow, std::move(columnNames), std::move(rows), conn);
         if (!rsResult.has_value())
         {
             return cpp_dbc::unexpected(rsResult.error());
@@ -295,7 +404,8 @@ namespace cpp_dbc::MySQL
         auto rs = rsResult.value();
         if (conn)
         {
-            [[maybe_unused]] auto regResult = conn->registerResultSet(std::nothrow, std::weak_ptr<MySQLDBResultSet>(rs));
+            [[maybe_unused]] auto regResult = conn->registerResultSet(
+                std::nothrow, std::weak_ptr<MySQLDBResultSet>(rs));
         }
 
         return std::shared_ptr<RelationalDBResultSet>(rs);

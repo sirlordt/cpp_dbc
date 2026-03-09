@@ -38,15 +38,11 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<bool, DBException> MySQLDBConnection::ping(std::nothrow_t) noexcept
     {
-        auto result = executeQuery(std::nothrow, "SELECT 1");
-        if (!result.has_value())
+        MYSQL_CONNECTION_LOCK_OR_RETURN("QRN556B0TNNX", "Cannot ping");
+
+        if (mysql_ping(m_mysql.get()) != 0)
         {
-            return cpp_dbc::unexpected(result.error());
-        }
-        auto closeResult = result.value()->close(std::nothrow);
-        if (!closeResult.has_value())
-        {
-            return cpp_dbc::unexpected(closeResult.error());
+            return false;
         }
         return true;
     }

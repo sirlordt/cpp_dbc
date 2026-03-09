@@ -163,8 +163,12 @@ namespace cpp_dbc::MySQL
             {
                 return {};
             }
+            // 2026-03-08T00:00:00Z
+            // Bug: m_position was reset to 0 instead of copying other.m_position,
+            // causing the copy to diverge for partially-consumed streams.
+            // Solution: Copy other.m_position to preserve the read position.
             m_data = other.m_data;
-            m_position = 0;
+            m_position = other.m_position;
             return {};
         }
 

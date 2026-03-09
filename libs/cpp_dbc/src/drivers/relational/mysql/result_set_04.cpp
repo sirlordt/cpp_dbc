@@ -70,7 +70,9 @@ namespace cpp_dbc::MySQL
         }
 
         // Get the length of the BLOB data
-        const unsigned long *lengths = mysql_fetch_lengths(m_result.get());
+        const unsigned long *lengths = m_materialized
+            ? m_currentLengths.data()
+            : mysql_fetch_lengths(m_result.get());
         if (!lengths)
         {
             return cpp_dbc::unexpected(DBException("8P8KDB7HDBNE", "Failed to get BLOB data length", system_utils::captureCallStack()));
@@ -133,7 +135,9 @@ namespace cpp_dbc::MySQL
         }
 
         // Get the length of the BLOB data
-        const unsigned long *lengths = mysql_fetch_lengths(m_result.get());
+        const unsigned long *lengths = m_materialized
+            ? m_currentLengths.data()
+            : mysql_fetch_lengths(m_result.get());
         if (!lengths)
         {
             return cpp_dbc::unexpected(DBException("MKQTE8BTZAJY", "Failed to get BLOB data length", system_utils::captureCallStack()));
@@ -181,7 +185,9 @@ namespace cpp_dbc::MySQL
         }
 
         // Get the length of the BLOB data
-        const unsigned long *lengths = mysql_fetch_lengths(m_result.get());
+        const unsigned long *lengths = m_materialized
+            ? m_currentLengths.data()
+            : mysql_fetch_lengths(m_result.get());
         if (!lengths)
         {
             return cpp_dbc::unexpected(DBException("9KU99I1V16QW", "Failed to get BLOB data length", system_utils::captureCallStack()));

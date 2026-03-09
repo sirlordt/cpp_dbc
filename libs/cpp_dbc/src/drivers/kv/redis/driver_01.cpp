@@ -198,10 +198,10 @@ namespace cpp_dbc::Redis
         {
             std::map<std::string, std::string> result;
             // Support both regular hosts and bracketed IPv6 addresses (e.g., cpp_dbc:redis://[::1]:6379)
-            std::regex uriRegex(R"(^cpp_dbc:redis://(\[[^\]]+\]|[^:/]+)(?::([0-9]+))?(?:/([0-9]+))?)");
+            std::regex uriRegex(R"(^cpp_dbc:redis://(\[[^\]]+\]|[^:/]+)(?::([0-9]+))?(?:/([0-9]+))?$)");
             std::smatch matches;
 
-            if (std::regex_search(uri, matches, uriRegex))
+            if (std::regex_match(uri, matches, uriRegex))
             {
                 if (matches.size() > 1 && matches[1].matched)
                 {
@@ -274,8 +274,20 @@ namespace cpp_dbc::Redis
         // Start with scheme (use cpp_dbc: prefix for consistency with acceptURI/connectKV)
         uri << "cpp_dbc:redis://";
 
-        // Add host
-        uri << (host.empty() ? "localhost" : host);
+        // Add host — bracket raw IPv6 (e.g. "::1" → "[::1]")
+        if (host.empty())
+        {
+            uri << "localhost";
+        }
+        else if (host.find(':') != std::string::npos &&
+                 !(host.front() == '[' && host.back() == ']'))
+        {
+            uri << "[" << host << "]";
+        }
+        else
+        {
+            uri << host;
+        }
 
         // Add port
         if (port > 0 && port != 6379)

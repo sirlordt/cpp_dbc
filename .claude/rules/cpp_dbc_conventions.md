@@ -423,6 +423,39 @@ if (m_running.load())  { }  // missing memory_order argument
 
 The only exception is `std::atomic::store()`, `exchange()`, and `compare_exchange_*()`, which use `std::memory_order_release` or `std::memory_order_acq_rel` as appropriate for write operations.
 
+### String-to-Number Conversion — Always Use `std::from_chars`
+
+When converting strings to numeric types (`int`, `long`, `double`, etc.), always use `std::from_chars` (C++17, `<charconv>`). It is `noexcept`, does not allocate, does not throw, and reports errors via `std::errc` — making it the only safe choice in `noexcept` methods and the preferred choice everywhere else.
+
+The following alternatives are **forbidden**:
+
+| Function | Why forbidden |
+|----------|---------------|
+| `std::stoi`, `std::stol`, `std::stod`, etc. | Throw `std::invalid_argument` or `std::out_of_range` — incompatible with `noexcept` and `-fno-exceptions` |
+| `std::atoi`, `std::atol`, `std::atof` | Undefined behavior on out-of-range input; no error reporting; C legacy |
+| `std::strtol`, `std::strtod` | Locale-dependent, requires `errno` checking, C legacy |
+| `std::sscanf` | Locale-dependent, format-string parsing overhead, C legacy |
+
+```cpp
+// Correct — std::from_chars, noexcept-safe, no locale, explicit error check
+int port = 0;
+auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), port);
+if (ec != std::errc{})
+{
+    return cpp_dbc::unexpected(DBException("XXXXXXXXXXXX",
+        "Invalid port number: " + portStr,
+        system_utils::captureCallStack()));
+}
+
+// Incorrect — std::stoi throws on invalid input
+int port = std::stoi(portStr);  // WRONG: throws std::invalid_argument or std::out_of_range
+
+// Incorrect — std::atoi has no error reporting, UB on overflow
+int port = std::atoi(portStr.c_str());  // WRONG: silent failure on invalid input
+```
+
+This applies only to new or modified code. Pre-existing uses of `std::stoi`/`std::atoi` do not need to be updated retroactively.
+
 ## Thread Safety
 
 - Use `DB_DRIVER_LOCK_GUARD(m_mutex)` macro for conditional locking
@@ -475,7 +508,7 @@ This eliminates hidden control flow, makes error propagation explicit, and preve
 
 **Private methods and non-override protected methods must only have the nothrow version.** A throwing variant for internal methods is unnecessary — there is no external caller that needs it, and it adds dead code. Internal callers always use the nothrow version and check `.has_value()`.
 
-**Migration rule**: If an existing private or non-override protected method is found with a throwing signature (no `std::nothrow_t`, no `noexcept`, may throw), it **must** be converted to the nothrow pattern: add `std::nothrow_t` as first parameter, declare `noexcept`, and return `std::expected<T, DBException>` if it contains fallible operations. The throwing version must be removed entirely — it is not kept for backwards compatibility. **All call sites must be updated** to reflect the new signature: pass `std::nothrow` as first argument and handle the `std::expected` return value via `.has_value()` / `.value()` / `.error()` instead of try/catch. After migration, if all inner calls at a call site are now nothrow and no code can throw exceptions other than death sentences (`std::bad_alloc`, mutex `std::system_error`), any surrounding try/catch blocks become dead code and **must be removed** — see [No Redundant try/catch in Nothrow Methods](#no-redundant-trycatch-in-nothrow-methods).
+**Migration rule**: If an existing private or non-override protected method is found with a throwing signature (no `std::nothrow_t`, no `noexcept`, may throw), it **must** be converted to the nothrow pattern: add `std::nothrow_t` as first parameter, declare `noexcept`, and return `std::expected<T, DBException>` if it contains fallible operations. The throwing version must be removed entirely — it is not kept for backwards compatibility. **All call sites must be updated** to reflect the new signature: pass `std::nothrow` as first argument and handle the `std::expected` return value via `.has_value()` and `.error()` instead of try/catch. Note: `.value()` throws `std::bad_expected_access` if the expected holds an error, so it must only be called after a preceding `.has_value()` check confirms success. After migration, if all inner calls at a call site are now nothrow and no code can throw exceptions other than death sentences (`std::bad_alloc`, mutex `std::system_error`), any surrounding try/catch blocks become dead code and **must be removed** — see [No Redundant try/catch in Nothrow Methods](#no-redundant-trycatch-in-nothrow-methods).
 
 ```cpp
 // Correct — private method exists ONLY as nothrow
@@ -681,7 +714,8 @@ Walk every statement inside the `try` block and ask: *"Can this expression throw
 | Expression pattern | Recoverable throw? | Reason |
 |--------------------|--------------------|--------|
 | `someMethod(std::nothrow)` | **NO** | Takes `std::nothrow_t`, declared `noexcept` |
-| `result.has_value()`, `result.value()`, `result.error()` | **NO** | `std::expected` accessors are `noexcept` |
+| `result.has_value()`, `result.error()` | **NO** | `std::expected` observers are `noexcept` |
+| `result.value()` (after `.has_value()` check) | **NO** | Throws `std::bad_expected_access` only if called without checking — programmer error, not a recoverable exception |
 | `m_flag.load(std::memory_order_acquire)` | **NO** | `std::atomic::load` is `noexcept` |
 | `return {}` / `return cpp_dbc::unexpected(DBException(...))` | **NO** | Value construction; failure is `std::terminate`, not a catchable exception |
 | Guard macros that expand to `return cpp_dbc::unexpected(...)` or `(void)0` | **NO** | The expansion contains only noexcept operations |

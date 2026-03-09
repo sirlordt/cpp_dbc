@@ -40,7 +40,17 @@ namespace cpp_dbc::MySQL
     {
         DB_DRIVER_LOCK_GUARD(m_mutex);
 
-        if (m_result)
+        if (m_materialized)
+        {
+            m_materializedRows.clear();
+            m_currentRowPtrs.clear();
+            m_currentLengths.clear();
+            m_currentRow = nullptr;
+            m_rowPosition = 0;
+            m_rowCount = 0;
+            m_fieldCount = 0;
+        }
+        else if (m_result)
         {
             // Smart pointer will automatically call mysql_free_result via MySQLResDeleter
             m_result.reset();
@@ -62,6 +72,33 @@ namespace cpp_dbc::MySQL
     cpp_dbc::expected<bool, DBException> MySQLDBResultSet::next(std::nothrow_t) noexcept
     {
         DB_DRIVER_LOCK_GUARD(m_mutex);
+
+        if (m_materialized)
+        {
+            if (m_rowPosition >= m_rowCount)
+            {
+                m_currentRow = nullptr;
+                return false;
+            }
+
+            const auto &row = m_materializedRows[m_rowPosition];
+            for (size_t i = 0; i < m_fieldCount; ++i)
+            {
+                if (row[i].has_value())
+                {
+                    m_currentRowPtrs[i] = const_cast<char *>(row[i].value().c_str());
+                    m_currentLengths[i] = static_cast<unsigned long>(row[i].value().size());
+                }
+                else
+                {
+                    m_currentRowPtrs[i] = nullptr;
+                    m_currentLengths[i] = 0;
+                }
+            }
+            m_currentRow = m_currentRowPtrs.data();
+            m_rowPosition++;
+            return true;
+        }
 
         if (!m_result || m_rowPosition >= m_rowCount)
         {
@@ -90,6 +127,10 @@ namespace cpp_dbc::MySQL
     {
         DB_DRIVER_LOCK_GUARD(m_mutex);
 
+        if (m_materialized)
+        {
+            return m_rowPosition > m_rowCount;
+        }
         return m_result && m_rowPosition > m_rowCount;
     }
 
