@@ -77,10 +77,10 @@ namespace cpp_dbc::MongoDB
             // Release live connection count for cleanup() guard.
             // Safe against double-decrement: the m_closed check above
             // returns early if already closed, so this line executes exactly once.
-            if (m_counterIncremented)
-            {
-                MongoDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
-            }
+            // if (m_counterIncremented)
+            //{
+            // MongoDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+            //}
 
             MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Connection closed");
             return {};
@@ -92,14 +92,14 @@ namespace cpp_dbc::MongoDB
         catch (const std::exception &ex)
         {
             return cpp_dbc::unexpected(DBException("7DGLQ7C4QX4R",
-                std::string("Exception in close: ") + ex.what(),
-                system_utils::captureCallStack()));
+                                                   std::string("Exception in close: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
         }
         catch (...)
         {
             return cpp_dbc::unexpected(DBException("VS3RNHCXXBMC",
-                "Unknown exception in close",
-                system_utils::captureCallStack()));
+                                                   "Unknown exception in close",
+                                                   system_utils::captureCallStack()));
         }
     }
 

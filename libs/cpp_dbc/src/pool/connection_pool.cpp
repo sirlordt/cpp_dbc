@@ -997,4 +997,134 @@ namespace cpp_dbc
         return m_running.load(std::memory_order_acquire);
     }
 
+    void DBConnectionPoolBase::setConnectionTimeout(std::nothrow_t, size_t millis) noexcept
+    {
+        m_maxWaitMillis = millis;
+    }
+
+    size_t DBConnectionPoolBase::getConnectionTimeout(std::nothrow_t) const noexcept
+    {
+        return m_maxWaitMillis;
+    }
+
+    void DBConnectionPoolBase::setIdleTimeout(std::nothrow_t, size_t millis) noexcept
+    {
+        m_idleTimeoutMillis = millis;
+    }
+
+    size_t DBConnectionPoolBase::getIdleTimeout(std::nothrow_t) const noexcept
+    {
+        return m_idleTimeoutMillis;
+    }
+
+    void DBConnectionPoolBase::setMaxLifetimeMillis(std::nothrow_t, size_t millis) noexcept
+    {
+        m_maxLifetimeMillis = millis;
+    }
+
+    size_t DBConnectionPoolBase::getMaxLifetimeMillis(std::nothrow_t) const noexcept
+    {
+        return m_maxLifetimeMillis;
+    }
+
+    void DBConnectionPoolBase::setTestOnBorrow(std::nothrow_t, bool enabled) noexcept
+    {
+        m_testOnBorrow = enabled;
+    }
+
+    bool DBConnectionPoolBase::getTestOnBorrow(std::nothrow_t) const noexcept
+    {
+        return m_testOnBorrow;
+    }
+
+    void DBConnectionPoolBase::setTestOnReturn(std::nothrow_t, bool enabled) noexcept
+    {
+        m_testOnReturn = enabled;
+    }
+
+    bool DBConnectionPoolBase::getTestOnReturn(std::nothrow_t) const noexcept
+    {
+        return m_testOnReturn;
+    }
+
+    cpp_dbc::expected<void, DBException> DBConnectionPoolBase::setMaxSize(std::nothrow_t, size_t size) noexcept
+    {
+        if (size == 0)
+        {
+            return cpp_dbc::unexpected(DBException("YN8DO1FJUKH8",
+                "maxSize must be greater than 0",
+                system_utils::captureCallStack()));
+        }
+
+        std::vector<std::shared_ptr<DBConnectionPooled>> toEvict;
+
+        {
+            std::scoped_lock lock(m_mutexPool);
+
+            if (size < m_minIdle)
+            {
+                m_minIdle = size;
+            }
+
+            m_maxSize = size;
+
+            // Evict excess idle connections
+            while (m_allConnections.size() > m_maxSize && !m_idleConnections.empty())
+            {
+                auto conn = m_idleConnections.front();
+                m_idleConnections.pop();
+                conn->markPoolClosed(std::nothrow, true);
+
+                // Remove from m_allConnections
+                auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
+                if (it != m_allConnections.end())
+                {
+                    m_allConnections.erase(it);
+                }
+
+                toEvict.push_back(conn);
+            }
+        }
+
+        // Close evicted connections outside lock (I/O)
+        for (auto &conn : toEvict)
+        {
+            auto closeResult = conn->getUnderlyingConnection(std::nothrow)->close(std::nothrow);
+            if (!closeResult.has_value())
+            {
+                CP_DEBUG("DBConnectionPoolBase::setMaxSize - close() on evicted connection failed: %s",
+                         closeResult.error().what_s().data());
+            }
+        }
+
+        return {};
+    }
+
+    size_t DBConnectionPoolBase::getMaxSize(std::nothrow_t) const noexcept
+    {
+        return m_maxSize;
+    }
+
+    cpp_dbc::expected<void, DBException> DBConnectionPoolBase::setMinIdle(std::nothrow_t, size_t size) noexcept
+    {
+        if (size > m_maxSize)
+        {
+            return cpp_dbc::unexpected(DBException("XLIRPO4B4K8S",
+                "minIdle (" + std::to_string(size) + ") cannot exceed maxSize (" + std::to_string(m_maxSize) + ")",
+                system_utils::captureCallStack()));
+        }
+
+        m_minIdle = size;
+
+        // Wake maintenance thread so it can replenish if needed
+        m_maintenanceCondition.notify_one();
+
+        return {};
+    }
+
+    size_t DBConnectionPoolBase::getMinIdle(std::nothrow_t) const noexcept
+    {
+        return m_minIdle;
+    }
+
 } // namespace cpp_dbc

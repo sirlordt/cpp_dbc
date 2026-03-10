@@ -170,7 +170,7 @@ namespace cpp_dbc::MongoDB
         m_closed.store(false, std::memory_order_release);
 
         // Track live connection for safe cleanup() guard
-        MongoDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
+        // MongoDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
         m_counterIncremented = true;
 
         MONGODB_DEBUG("MongoDBConnection::constructor(nothrow) - Connected successfully");
@@ -187,7 +187,7 @@ namespace cpp_dbc::MongoDB
         MONGODB_DEBUG("MongoDBConnection::destructor - Done");
     }
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     // ============================================================================
     // MongoDBConnection Implementation - DBConnection Interface
     // ============================================================================
@@ -285,7 +285,7 @@ namespace cpp_dbc::MongoDB
             throw result.error();
         }
     }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
     // ============================================================================
     // MongoDBConnection Implementation - Collection Registration (Public)
@@ -296,7 +296,8 @@ namespace cpp_dbc::MongoDB
         MONGODB_LOCK_GUARD(*m_connMutex);
         if (m_activeCollections.size() > 50)
         {
-            std::erase_if(m_activeCollections, [](const auto &w) { return w.expired(); });
+            std::erase_if(m_activeCollections, [](const auto &w)
+                          { return w.expired(); });
         }
         m_activeCollections.insert(std::move(collection));
         MONGODB_DEBUG("MongoDBConnection::registerCollection - Registered collection, total: " << m_activeCollections.size());
@@ -318,7 +319,8 @@ namespace cpp_dbc::MongoDB
         MONGODB_LOCK_GUARD(*m_connMutex);
         if (m_activeCursors.size() > 50)
         {
-            std::erase_if(m_activeCursors, [](const auto &w) { return w.expired(); });
+            std::erase_if(m_activeCursors, [](const auto &w)
+                          { return w.expired(); });
         }
         m_activeCursors.insert(std::move(cursor));
         MONGODB_DEBUG("MongoDBConnection::registerCursor - Registered cursor, total: " << m_activeCursors.size());

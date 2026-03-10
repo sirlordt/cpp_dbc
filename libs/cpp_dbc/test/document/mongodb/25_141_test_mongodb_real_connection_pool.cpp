@@ -341,6 +341,8 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
         // Test concurrent connections under load
         SECTION("Connection pool under load")
         {
+            pool->setConnectionTimeout(std::nothrow, 6000);
+
             const uint64_t numOperations = 40;
             std::atomic<int> successCount(0);
             std::atomic<int> failureCount(0);

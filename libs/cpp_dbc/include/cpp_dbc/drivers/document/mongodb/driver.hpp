@@ -42,15 +42,12 @@ namespace cpp_dbc::MongoDB
         // Also, std::call_once can throw std::system_error, which is incompatible
         // with -fno-exceptions builds.
         static std::atomic<bool> s_initialized;
-        static std::atomic<size_t> s_liveConnectionCount;
         static std::mutex s_initMutex;
 
         /**
          * @brief Initialize the MongoDB C driver library
          */
         static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
-
-        friend class MongoDBConnection;
 
     public:
         /**
@@ -84,7 +81,7 @@ namespace cpp_dbc::MongoDB
         using DBDriver::buildURI;
 
         std::shared_ptr<DocumentDBConnection> connectDocument(
-            const std::string &uri,
+            const std::string &url,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
@@ -94,7 +91,6 @@ namespace cpp_dbc::MongoDB
         // ====================================================================
         // NOTHROW API — exception-free, always available
         // ====================================================================
-
 
         std::string getURIScheme() const noexcept override;
         bool supportsReplicaSets() const noexcept override;
@@ -110,7 +106,6 @@ namespace cpp_dbc::MongoDB
          * After calling this, no more MongoDB operations should be performed.
          */
         static void cleanup();
-        static size_t getConnectionAlive() noexcept { return s_liveConnectionCount.load(std::memory_order_acquire); }
 
         /**
          * @brief Check if the MongoDB library has been initialized
@@ -127,7 +122,7 @@ namespace cpp_dbc::MongoDB
 
         expected<std::shared_ptr<DocumentDBConnection>, DBException> connectDocument(
             std::nothrow_t,
-            const std::string &uri,
+            const std::string &url,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
@@ -199,7 +194,7 @@ namespace cpp_dbc::MongoDB
 
         std::string getURIScheme() const noexcept override
         {
-            return "cpp_dbc:mongodb://<host>:<port>/<database>";
+            return "cpp_dbc:mongodb://";
         }
 
         bool supportsReplicaSets() const noexcept override
@@ -234,10 +229,10 @@ namespace cpp_dbc::MongoDB
             const std::string &,
             const std::map<std::string, std::string> & = std::map<std::string, std::string>()) noexcept override
         {
-            return cpp_dbc::unexpected(DBException("YW84QOLGYOK3", "MongoDB support is not enabled in this build"));
+            return cpp_dbc::unexpected(DBException("4JUTEUJPL254", "MongoDB support is not enabled in this build"));
         }
 
-        std::string getName() const noexcept override { return "mongodb/disabled"; }
+        std::string getName() const noexcept override { return "MongoDB (disabled)"; }
     };
 
 } // namespace cpp_dbc::MongoDB

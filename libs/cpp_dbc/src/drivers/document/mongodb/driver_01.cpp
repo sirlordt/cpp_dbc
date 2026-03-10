@@ -33,7 +33,6 @@ namespace cpp_dbc::MongoDB
     // ============================================================================
 
     std::atomic<bool> MongoDBDriver::s_initialized{false}; // NOSONAR - Explicit template arg for clarity in static member definition
-    std::atomic<size_t> MongoDBDriver::s_liveConnectionCount{0};
     std::mutex MongoDBDriver::s_initMutex;
 
     // ============================================================================
@@ -101,7 +100,6 @@ namespace cpp_dbc::MongoDB
 
 #endif // __cpp_exceptions
 
-
     std::string MongoDBDriver::getURIScheme() const noexcept
     {
         return "cpp_dbc:mongodb://<host>:<port>/<database>";
@@ -125,23 +123,12 @@ namespace cpp_dbc::MongoDB
     void MongoDBDriver::cleanup()
     {
         MONGODB_DEBUG("MongoDBDriver::cleanup - Cleaning up MongoDB C driver");
-        if (!s_initialized.load(std::memory_order_acquire))
+        if (s_initialized.load(std::memory_order_acquire))
         {
-            return;
+            mongoc_cleanup();
+            s_initialized.store(false, std::memory_order_release);
+            MONGODB_DEBUG("MongoDBDriver::cleanup - Done");
         }
-
-        auto liveCount = s_liveConnectionCount.load(std::memory_order_acquire);
-        if (liveCount > 0)
-        {
-            MONGODB_DEBUG("MongoDBDriver::cleanup - Skipped: "
-                          << liveCount
-                          << " live connection(s) still open");
-            return;
-        }
-
-        mongoc_cleanup();
-        s_initialized.store(false, std::memory_order_release);
-        MONGODB_DEBUG("MongoDBDriver::cleanup - Done");
     }
 
     bool MongoDBDriver::isInitialized()
