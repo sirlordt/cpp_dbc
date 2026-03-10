@@ -69,9 +69,19 @@ namespace cpp_dbc::MongoDB
         MONGODB_DEBUG("MongoDBDriver::constructor - Done");
     }
 
+    // Note: The destructor does NOT call cleanup() because mongoc_cleanup() is destructive
+    // and irreversible within the same process. It frees global handshake data that was
+    // allocated via pthread_once during library loading (_dl_init). After mongoc_cleanup()
+    // runs, that data cannot be re-initialized — pthread_once has already fired and will
+    // not run again, even if mongoc_init() is called. Any subsequent MongoDB operation
+    // (e.g. a new connection in the next test case) will read freed memory, causing Valgrind
+    // to report hundreds of "Invalid read" errors (use-after-free in
+    // _mongoc_handshake_build_doc_with_application). Use cleanup() explicitly only at
+    // process exit if needed.
     MongoDBDriver::~MongoDBDriver()
     {
         MONGODB_DEBUG("MongoDBDriver::destructor - Destroying driver");
+        // cleanup();
     }
 
 #ifdef __cpp_exceptions

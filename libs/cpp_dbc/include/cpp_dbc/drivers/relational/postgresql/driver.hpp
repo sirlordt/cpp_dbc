@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <map>
+#include <mutex>
 #include <string>
 #include <memory>
 
@@ -28,7 +29,14 @@ namespace cpp_dbc::PostgreSQL
      */
     class PostgreSQLDBDriver final : public RelationalDBDriver
     {
+        // Note: atomic<bool> + mutex instead of std::once_flag because
+        // std::once_flag cannot be reset, but we need cleanup() to allow
+        // re-initialization on subsequent driver construction.
+        // Also, std::call_once can throw std::system_error, which is incompatible
+        // with -fno-exceptions builds.
+        static std::atomic<bool> s_initialized;
         static std::atomic<size_t> s_liveConnectionCount;
+        static std::mutex s_initMutex;
 
         friend class PostgreSQLDBConnection;
 

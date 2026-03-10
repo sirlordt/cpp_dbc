@@ -70,7 +70,7 @@ namespace cpp_dbc::ScyllaDB
 
     public:
         ScyllaDBDriver();
-        ~ScyllaDBDriver() override = default;
+        ~ScyllaDBDriver() override;
 
         // ====================================================================
         // THROWING API — requires exception support

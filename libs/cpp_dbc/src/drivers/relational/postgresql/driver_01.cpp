@@ -38,23 +38,39 @@ namespace cpp_dbc::PostgreSQL
 {
 
     // Static member initialization
+    std::atomic<bool> PostgreSQLDBDriver::s_initialized{false};
     std::atomic<size_t> PostgreSQLDBDriver::s_liveConnectionCount{0};
+    std::mutex PostgreSQLDBDriver::s_initMutex;
 
     // PostgreSQLDBDriver implementation
-    PostgreSQLDBDriver::PostgreSQLDBDriver() = default;
+    PostgreSQLDBDriver::PostgreSQLDBDriver()
+    {
+        // PostgreSQL (libpq) does not require global library initialization,
+        // but we follow the same double-checked locking pattern for consistency.
+        if (!s_initialized.load(std::memory_order_acquire))
+        {
+            std::scoped_lock lock(s_initMutex);
+            if (!s_initialized.load(std::memory_order_acquire))
+            {
+                s_initialized.store(true, std::memory_order_release);
+            }
+        }
+    }
 
     PostgreSQLDBDriver::~PostgreSQLDBDriver()
     {
-        // Sleep a bit to ensure all resources are properly released
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        PG_DEBUG("PostgreSQLDBDriver::destructor - Destroying driver");
+        cleanup();
     }
 
     void PostgreSQLDBDriver::cleanup()
     {
-        // PostgreSQL (libpq) does not require global library init/cleanup like MySQL.
-        // Each PGconn is self-contained. This method exists for API symmetry with
-        // other drivers and to guard against premature driver destruction while
-        // connections are still alive.
+        std::scoped_lock lock(s_initMutex);
+        if (!s_initialized.load(std::memory_order_acquire))
+        {
+            return;
+        }
+
         auto liveCount = s_liveConnectionCount.load(std::memory_order_acquire);
         if (liveCount > 0)
         {
@@ -63,6 +79,10 @@ namespace cpp_dbc::PostgreSQL
                      << " live connection(s) still open");
             return;
         }
+
+        // Sleep a bit to ensure all resources are properly released
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        s_initialized.store(false, std::memory_order_release);
     }
 
 #ifdef __cpp_exceptions

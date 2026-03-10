@@ -73,6 +73,12 @@ namespace cpp_dbc::ScyllaDB
         SCYLLADB_DEBUG("ScyllaDBDriver::constructor - Done");
     }
 
+    ScyllaDBDriver::~ScyllaDBDriver()
+    {
+        SCYLLADB_DEBUG("ScyllaDBDriver::destructor - Destroying driver");
+        cleanup();
+    }
+
     void ScyllaDBDriver::cleanup()
     {
         std::scoped_lock lock(s_initMutex);

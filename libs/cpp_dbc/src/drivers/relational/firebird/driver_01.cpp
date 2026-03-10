@@ -46,11 +46,14 @@ namespace cpp_dbc::Firebird
 
     FirebirdDBDriver::FirebirdDBDriver()
     {
-        std::lock_guard<std::mutex> lock(s_initMutex);
         if (!s_initialized.load(std::memory_order_acquire))
         {
-            // Firebird doesn't require explicit initialization
-            s_initialized.store(true, std::memory_order_release);
+            std::scoped_lock lock(s_initMutex);
+            if (!s_initialized.load(std::memory_order_acquire))
+            {
+                // Firebird doesn't require explicit initialization
+                s_initialized.store(true, std::memory_order_release);
+            }
         }
     }
 
@@ -60,17 +63,27 @@ namespace cpp_dbc::Firebird
 
     FirebirdDBDriver::~FirebirdDBDriver()
     {
-        // Firebird doesn't require explicit cleanup
+        FIREBIRD_DEBUG("FirebirdDBDriver::destructor - Destroying driver");
+        cleanup();
     }
 
     void FirebirdDBDriver::cleanup()
     {
+        std::scoped_lock lock(s_initMutex);
+        if (!s_initialized.load(std::memory_order_acquire))
+        {
+            return;
+        }
+
         auto liveCount = s_liveConnectionCount.load(std::memory_order_acquire);
         if (liveCount > 0)
         {
             FIREBIRD_DEBUG("FirebirdDBDriver::cleanup - Skipped: %zu live connection(s) still open", liveCount);
             return;
         }
+
+        // Firebird doesn't require explicit library cleanup
+        s_initialized.store(false, std::memory_order_release);
     }
 
     // ============================================================================

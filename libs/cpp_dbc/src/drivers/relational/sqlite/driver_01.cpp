@@ -46,15 +46,10 @@ namespace cpp_dbc::SQLite
     SQLiteDBDriver::SQLiteDBDriver()
     {
         // Thread-safe single initialization pattern
-        bool alreadyInitialized = s_initialized.load(std::memory_order_acquire);
-        if (!alreadyInitialized)
+        if (!s_initialized.load(std::memory_order_acquire))
         {
-            // Use a mutex to ensure only one thread performs initialization
-            std::lock_guard<std::mutex> lock(s_initMutex);
-
-            // Double-check that initialization hasn't happened
-            // while we were waiting for the lock
-            if (!s_initialized.load(std::memory_order_relaxed))
+            std::scoped_lock lock(s_initMutex);
+            if (!s_initialized.load(std::memory_order_acquire))
             {
                 // Configure SQLite for thread safety before initialization
                 int configResult = sqlite3_config(SQLITE_CONFIG_SERIALIZED);
@@ -83,6 +78,25 @@ namespace cpp_dbc::SQLite
 
     SQLiteDBDriver::~SQLiteDBDriver()
     {
+        SQLITE_DEBUG("SQLiteDBDriver::destructor - Destroying driver");
+        cleanup();
+    }
+
+    void SQLiteDBDriver::cleanup()
+    {
+        std::scoped_lock lock(s_initMutex);
+        if (!s_initialized.load(std::memory_order_acquire))
+        {
+            return;
+        }
+
+        auto liveCount = s_liveConnectionCount.load(std::memory_order_acquire);
+        if (liveCount > 0)
+        {
+            SQLITE_DEBUG("SQLiteDBDriver::cleanup - Skipped: %zu live connection(s) still open", liveCount);
+            return;
+        }
+
         try
         {
             // Release as much memory as possible
@@ -101,29 +115,11 @@ namespace cpp_dbc::SQLite
             // Sleep a bit to ensure all resources are properly released
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
-        catch (const std::exception &e)
+        catch (const std::exception &ex)
         {
-            SQLITE_DEBUG("7W8X9Y0Z1A2B: Exception during SQLite driver shutdown: %s", e.what());
-        }
-    }
-
-    void SQLiteDBDriver::cleanup()
-    {
-        std::scoped_lock lock(s_initMutex);
-        if (!s_initialized.load(std::memory_order_acquire))
-        {
-            return;
+            SQLITE_DEBUG("7W8X9Y0Z1A2B: Exception during SQLite driver shutdown: %s", ex.what());
         }
 
-        auto liveCount = s_liveConnectionCount.load(std::memory_order_acquire);
-        if (liveCount > 0)
-        {
-            SQLITE_DEBUG("SQLiteDBDriver::cleanup - Skipped: %zu live connection(s) still open", liveCount);
-            return;
-        }
-
-        // No global library cleanup needed for SQLite (sqlite3_shutdown is optional
-        // and already called in the destructor)
         s_initialized.store(false, std::memory_order_release);
     }
 

@@ -24,8 +24,6 @@
 #include <charconv>
 #include <cstring>
 #include <iostream>
-#include <thread>
-#include <chrono>
 #include "cpp_dbc/common/system_utils.hpp"
 #include "mysql_internal.hpp"
 
@@ -35,29 +33,22 @@ namespace cpp_dbc::MySQL
 {
 
     // Static member initialization
-    std::atomic<bool> MySQLDBDriver::s_initialized{false}; // NOSONAR(cpp:S6012) — out-of-line static member definition must match header declaration type
     std::atomic<size_t> MySQLDBDriver::s_liveConnectionCount{0};
-    std::mutex MySQLDBDriver::s_initMutex;
 
     // ============================================================================
     // MySQLDBDriver Implementation - Private Static Initializer
     // ============================================================================
 
+    // Note: MySQL does NOT use the double-checked locking pattern (s_initialized + s_initMutex)
+    // that other drivers (MongoDB, ScyllaDB, Redis) use. The reason is that mysql_library_init()
+    // is idempotent (safe to call multiple times) and mysql_library_end() must be called
+    // unconditionally in the destructor for Valgrind to report zero leaks. When using
+    // double-checked locking, mysql_library_end() was guarded by s_initialized, which caused
+    // Valgrind to report 56 bytes "possibly lost" from mysql_server_init() — the internal
+    // allocation made by mysql_init() was not freed because the guard prevented
+    // mysql_library_end() from executing during static destruction.
     cpp_dbc::expected<bool, DBException> MySQLDBDriver::initialize(std::nothrow_t) noexcept
     {
-        // Fast path: already initialized (acquire load for visibility)
-        if (s_initialized.load(std::memory_order_acquire))
-        {
-            return true;
-        }
-
-        // Slow path: take lock and check again (double-checked locking)
-        std::scoped_lock lock(s_initMutex);
-        if (s_initialized.load(std::memory_order_acquire))
-        {
-            return true;
-        }
-
         if (mysql_library_init(0, nullptr, nullptr) != 0)
         {
             return cpp_dbc::unexpected(DBException("7PEJDIPGKZ1Q",
@@ -65,7 +56,6 @@ namespace cpp_dbc::MySQL
                                                    system_utils::captureCallStack()));
         }
 
-        s_initialized.store(true, std::memory_order_release);
         return true;
     }
 
@@ -82,27 +72,17 @@ namespace cpp_dbc::MySQL
         }
     }
 
-    // Intentionally defaulted — cleanup is done via the static cleanup() method
-    // to allow re-initialization after driver destruction.
-    MySQLDBDriver::~MySQLDBDriver() = default;
+    MySQLDBDriver::~MySQLDBDriver()
+    {
+        MYSQL_DEBUG("MySQLDBDriver::destructor - Destroying driver");
+        cleanup();
+    }
 
+    // See initialize() comment above for why cleanup() calls mysql_library_end()
+    // unconditionally without s_initialized guard.
     void MySQLDBDriver::cleanup()
     {
-        std::scoped_lock lock(s_initMutex);
-        if (!s_initialized.load(std::memory_order_acquire))
-        {
-            return;
-        }
-
-        auto liveCount = s_liveConnectionCount.load(std::memory_order_acquire);
-        if (liveCount > 0)
-        {
-            MYSQL_DEBUG("MySQLDBDriver::cleanup - Skipped: %zu live connection(s) still open", liveCount);
-            return;
-        }
-
         mysql_library_end();
-        s_initialized.store(false, std::memory_order_release);
     }
 
 #ifdef __cpp_exceptions
@@ -162,8 +142,8 @@ namespace cpp_dbc::MySQL
         if (host.empty())
         {
             return cpp_dbc::unexpected(DBException("619988OTKYA2",
-                                                    "Cannot build MySQL URI: host is required",
-                                                    system_utils::captureCallStack()));
+                                                   "Cannot build MySQL URI: host is required",
+                                                   system_utils::captureCallStack()));
         }
 
         return system_utils::buildDBURI("cpp_dbc:mysql://", host, port, database);

@@ -82,6 +82,7 @@ namespace cpp_dbc::Redis
     RedisDBDriver::~RedisDBDriver()
     {
         REDIS_DEBUG("RedisDBDriver::destructor - Destroying driver");
+        cleanup();
     }
 
 #ifdef __cpp_exceptions

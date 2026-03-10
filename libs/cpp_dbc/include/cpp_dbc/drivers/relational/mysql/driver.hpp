@@ -6,7 +6,6 @@
 
 #include <atomic>
 #include <map>
-#include <mutex>
 #include <string>
 #include <memory>
 
@@ -28,14 +27,10 @@ namespace cpp_dbc::MySQL
      */
     class MySQLDBDriver final : public RelationalDBDriver
     {
-        // Note: atomic<bool> + mutex instead of std::once_flag because
-        // std::once_flag cannot be reset, but we need cleanup() to allow
-        // re-initialization on subsequent driver construction.
-        // Also, std::call_once can throw std::system_error, which is incompatible
-        // with -fno-exceptions builds.
-        static std::atomic<bool> s_initialized;
+        // Note: MySQL does NOT use double-checked locking (s_initialized + s_initMutex)
+        // because mysql_library_end() must be called unconditionally for Valgrind-clean
+        // shutdown. See initialize() in driver_01.cpp for full explanation.
         static std::atomic<size_t> s_liveConnectionCount;
-        static std::mutex s_initMutex;
 
         static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
 
