@@ -13,11 +13,11 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file 25_021_example_mongodb_connection_info.cpp
- * @brief MongoDB-specific example demonstrating connection URL information
+ * @brief MongoDB-specific example demonstrating connection URI information
  *
  * This example demonstrates:
  * - Loading configuration from YAML file
- * - MongoDB connection URL information
+ * - MongoDB connection URI information
  * - Server ping and database listing
  *
  * Usage:
@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
     try
     {
         logMsg("");
-        logMsg("--- MongoDB Connection URL ---");
+        logMsg("--- MongoDB Connection URI ---");
 
         logStep("Getting MongoDB configuration...");
         auto mongoResult = getDbConfig(configManager, args.dbName, "mongodb");

@@ -276,7 +276,7 @@ Each family has different required components. **For exact `#include` dependenci
 
 #### Directory Structure
 
-```
+```text
 libs/cpp_dbc/src/drivers/relational/sqlserver/
 ├── driver_01.cpp                 # Driver factory implementation
 ├── connection_01.cpp             # Connection: constructor, destructor, basic ops
@@ -389,7 +389,7 @@ namespace cpp_dbc::SQLServer
     {
     public:
         SQLServerConnectionPool(DBConnectionPool::PrivateCtorTag,
-                                const std::string &url,
+                                const std::string &uri,
                                 const std::string &username,
                                 const std::string &password) noexcept;
 
@@ -403,13 +403,13 @@ namespace cpp_dbc::SQLServer
 
 #ifdef __cpp_exceptions
         static std::shared_ptr<SQLServerConnectionPool> create(
-            const std::string &url, const std::string &username, const std::string &password);
+            const std::string &uri, const std::string &username, const std::string &password);
         static std::shared_ptr<SQLServerConnectionPool> create(
             const config::DBConnectionPoolConfig &config);
 #endif
 
         static cpp_dbc::expected<std::shared_ptr<SQLServerConnectionPool>, DBException>
-        create(std::nothrow_t, const std::string &url, const std::string &username,
+        create(std::nothrow_t, const std::string &uri, const std::string &username,
                const std::string &password) noexcept;
         static cpp_dbc::expected<std::shared_ptr<SQLServerConnectionPool>, DBException>
         create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept;
@@ -426,10 +426,10 @@ Add the constructors and factory methods at the bottom of the family pool `.cpp`
 namespace cpp_dbc::SQLServer
 {
     SQLServerConnectionPool::SQLServerConnectionPool(DBConnectionPool::PrivateCtorTag,
-                                                     const std::string &url,
+                                                     const std::string &uri,
                                                      const std::string &username,
                                                      const std::string &password)
-        : RelationalDBConnectionPool(DBConnectionPool::PrivateCtorTag{}, url, username, password)
+        : RelationalDBConnectionPool(DBConnectionPool::PrivateCtorTag{}, uri, username, password)
     {
         // Driver-specific initialization if needed
     }
@@ -443,9 +443,9 @@ namespace cpp_dbc::SQLServer
 
 #ifdef __cpp_exceptions
     std::shared_ptr<SQLServerConnectionPool> SQLServerConnectionPool::create(
-        const std::string &url, const std::string &username, const std::string &password)
+        const std::string &uri, const std::string &username, const std::string &password)
     {
-        auto result = create(std::nothrow, url, username, password);
+        auto result = create(std::nothrow, uri, username, password);
         if (!result.has_value()) { throw result.error(); }
         return result.value();
     }
@@ -460,12 +460,12 @@ namespace cpp_dbc::SQLServer
 #endif
 
     cpp_dbc::expected<std::shared_ptr<SQLServerConnectionPool>, DBException>
-    SQLServerConnectionPool::create(std::nothrow_t, const std::string &url,
+    SQLServerConnectionPool::create(std::nothrow_t, const std::string &uri,
                                     const std::string &username,
                                     const std::string &password) noexcept
     {
         auto pool = std::make_shared<SQLServerConnectionPool>(
-            DBConnectionPool::PrivateCtorTag{}, url, username, password);
+            DBConnectionPool::PrivateCtorTag{}, uri, username, password);
         auto initResult = pool->initializePool(std::nothrow);
         if (!initResult.has_value())
         {
@@ -965,7 +965,7 @@ Create a `download_and_setup_<driver>.sh` script when:
 #### Script Location and Naming
 
 Place the script at:
-```
+```text
 libs/cpp_dbc/download_and_setup_<driver>_driver.sh
 ```
 
@@ -1312,7 +1312,7 @@ test/relational/sqlserver/27_141_test_sqlserver_real_connection_pool.cpp
 #### Key-Value Database Tests
 
 Redis-style tests (simpler, no JOINs):
-```
+```text
 24_001_test_redis_real_common.cpp
 24_021_test_redis_real_driver.cpp
 24_041_test_redis_real_connection.cpp
@@ -1322,7 +1322,7 @@ Redis-style tests (simpler, no JOINs):
 #### Document Database Tests
 
 MongoDB-style tests:
-```
+```text
 25_001_test_mongodb_real_common.cpp
 25_011_test_mongodb_real_db_config.cpp
 25_021_test_mongodb_real_driver.cpp
@@ -1341,7 +1341,7 @@ MongoDB-style tests:
 #### Columnar Database Tests
 
 ScyllaDB-style tests:
-```
+```text
 26_001_test_scylladb_real_common.cpp
 26_011_test_scylladb_real_db_config.cpp
 26_021_test_scylladb_real_driver.cpp
@@ -1456,7 +1456,7 @@ TEST_CASE("SQL Server Integration", "[10_061_07_sqlserver_integration]")
 ### Benchmark File Structure
 
 Benchmarks test CRUD operations:
-```
+```text
 benchmark_sqlserver_select.cpp
 benchmark_sqlserver_insert.cpp
 benchmark_sqlserver_update.cpp
@@ -2363,7 +2363,7 @@ The strictness level is determined by how the C API handles concurrent access:
 
 Firebird uses a **cursor-based** execution model. `isc_dsql_fetch()` communicates with the database handle for EACH row. All operations — connection, statement, and result set — must be serialized through a single mutex per connection.
 
-```
+```text
 Connection ─── m_connMutex (shared_ptr<recursive_mutex>)
   │
   ├── PreparedStatement ─── accesses mutex via m_connection.lock()->getConnectionMutex()
@@ -2375,7 +2375,7 @@ Connection ─── m_connMutex (shared_ptr<recursive_mutex>)
 
 SQLite has the same cursor-based model as Firebird, but adds a unique constraint: it is a **local file-based database**. Multiple connections to the **same database file** from different threads must also be serialized, because SQLite uses POSIX file locks internally for synchronization — which sanitizers (ThreadSanitizer, Helgrind) cannot detect.
 
-```
+```text
 FileMutexRegistry (singleton)
   │
   ├── "/path/to/db1.sqlite" ─── globalFileMutex_A (shared_ptr<recursive_mutex>)
@@ -2405,7 +2405,7 @@ MySQL and PostgreSQL use a **"store result"** model. `mysql_store_result()` / `P
 
 However, PreparedStatement operations (`mysql_stmt_prepare()`, `mysql_stmt_execute()`, `mysql_stmt_close()`) DO communicate with the connection handle. They must share the connection's mutex.
 
-```
+```text
 Connection ─── m_connMutex (shared_ptr<recursive_mutex>)
   │
   ├── PreparedStatement ─── accesses mutex via m_connection.lock()->getConnectionMutex()

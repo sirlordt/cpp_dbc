@@ -174,27 +174,21 @@ namespace cpp_dbc::MongoDB
         // ====================================================================
 
 #ifdef __cpp_exceptions
-        std::shared_ptr<DBConnection> connect(
-            const std::string &,
-            const std::string &,
-            const std::string &,
-            const std::map<std::string, std::string> & = {}) override
-        {
-            return nullptr;
-        }
+        using DBDriver::parseURI;
+        using DBDriver::buildURI;
 
         std::shared_ptr<DocumentDBConnection> connectDocument(
-            const std::string &,
-            const std::string &,
-            const std::string &,
-            const std::map<std::string, std::string> & = {}) override
+            const std::string &uri,
+            const std::string &user,
+            const std::string &password,
+            const std::map<std::string, std::string> &options = {}) override
         {
-            return nullptr;
-        }
-
-        std::map<std::string, std::string> parseURI(const std::string &) override
-        {
-            return {};
+            auto r = connectDocument(std::nothrow, uri, user, password, options);
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
+            return r.value();
         }
 
 #endif // __cpp_exceptions

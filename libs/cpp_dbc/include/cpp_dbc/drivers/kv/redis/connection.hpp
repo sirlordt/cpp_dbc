@@ -57,6 +57,7 @@ namespace cpp_dbc::Redis
         mutable std::mutex m_mutex;
         bool m_initFailed{false};
         std::optional<DBException> m_initError{std::nullopt};
+        bool m_counterIncremented{false};
         TransactionIsolationLevel m_transactionIsolation{TransactionIsolationLevel::TRANSACTION_NONE};
 
         /**

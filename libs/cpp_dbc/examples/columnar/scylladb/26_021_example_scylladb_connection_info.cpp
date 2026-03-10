@@ -13,11 +13,11 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file 26_021_example_scylladb_connection_info.cpp
- * @brief ScyllaDB-specific example demonstrating connection URL information
+ * @brief ScyllaDB-specific example demonstrating connection URI information
  *
  * This example demonstrates:
  * - Loading configuration from YAML file
- * - ScyllaDB connection URL information
+ * - ScyllaDB connection URI information
  * - Cluster and keyspace information retrieval
  *
  * Usage:
@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
     try
     {
         logMsg("");
-        logMsg("--- ScyllaDB Connection URL ---");
+        logMsg("--- ScyllaDB Connection URI ---");
 
         logStep("Getting ScyllaDB configuration...");
         auto scyllaResult = getDbConfig(configManager, args.dbName, "scylladb");

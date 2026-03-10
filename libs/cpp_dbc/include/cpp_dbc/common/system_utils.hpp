@@ -225,29 +225,28 @@ namespace cpp_dbc::system_utils
      *
      * Inverse of parseDBURI. Produces a round-trippable URI string from
      * individual components (prefix, host, port, database). Handles:
+     * - Empty host preserved as-is (produces "prefix:///database" for local URIs)
      * - IPv6 bracket notation: raw "::1" → "[::1]" (already-bracketed hosts are preserved)
-     * - Port always included when > 0 (ensures getURI() matches the original connection string)
+     * - Port included when host is non-empty and port > 0
      * - Optional database path: appended only when non-empty
      *
      * ```cpp
-     * auto uri = cpp_dbc::system_utils::buildDBURI("cpp_dbc:mysql://", "::1", 3306, 3306, "testdb");
+     * auto uri = cpp_dbc::system_utils::buildDBURI("cpp_dbc:mysql://", "::1", 3306, "testdb");
      * // uri = "cpp_dbc:mysql://[::1]:3306/testdb"
      *
-     * auto uri2 = cpp_dbc::system_utils::buildDBURI("cpp_dbc:mysql://", "localhost", 3307, 3306, "mydb");
-     * // uri2 = "cpp_dbc:mysql://localhost:3307/mydb"
+     * auto uri2 = cpp_dbc::system_utils::buildDBURI("cpp_dbc:firebird://", "", 0, "/opt/db.fdb");
+     * // uri2 = "cpp_dbc:firebird:///opt/db.fdb"
      * ```
      *
      * @param prefix The URI scheme prefix (e.g., "cpp_dbc:mysql://")
-     * @param host Host name or IP address (IPv6 may or may not have brackets)
-     * @param port Port number (always included in the URI when > 0)
-     * @param defaultPort Unused (kept for API compatibility)
+     * @param host Host name or IP address; empty for local/embedded URIs
+     * @param port Port number (included only when host is non-empty and port > 0)
      * @param database Database name or path (empty to omit)
      * @return The canonical URI string
      */
     std::string buildDBURI(std::string_view prefix,
                            std::string_view host,
                            int port,
-                           int defaultPort,
                            std::string_view database = "") noexcept;
 
     /**

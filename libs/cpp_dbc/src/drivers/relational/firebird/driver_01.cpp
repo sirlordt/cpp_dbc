@@ -65,10 +65,10 @@ namespace cpp_dbc::Firebird
 
     void FirebirdDBDriver::cleanup()
     {
-        if (s_liveConnectionCount.load(std::memory_order_acquire) > 0)
+        auto liveCount = s_liveConnectionCount.load(std::memory_order_acquire);
+        if (liveCount > 0)
         {
-            FIREBIRD_DEBUG("FirebirdDBDriver::cleanup - Skipped: %zu live connection(s) still open",
-                           s_liveConnectionCount.load(std::memory_order_acquire));
+            FIREBIRD_DEBUG("FirebirdDBDriver::cleanup - Skipped: %zu live connection(s) still open", liveCount);
             return;
         }
     }
@@ -300,10 +300,14 @@ namespace cpp_dbc::Firebird
             std::string uri, user, password;
             std::map<std::string, std::string> options;
 
-            auto uriIt = params.find("url");
+            auto uriIt = params.find("uri");
             if (uriIt == params.end())
             {
-                return cpp_dbc::unexpected(DBException("L3M9N5O1P7Q3", "Missing 'url' parameter for create_database",
+                uriIt = params.find("url");
+            }
+            if (uriIt == params.end())
+            {
+                return cpp_dbc::unexpected(DBException("L3M9N5O1P7Q3", "Missing 'uri' (or 'url') parameter for create_database",
                                                        system_utils::captureCallStack()));
             }
             try
@@ -313,19 +317,19 @@ namespace cpp_dbc::Firebird
             catch (const std::bad_any_cast &ex)
             {
                 return cpp_dbc::unexpected(DBException("M4N0O6P2Q8R4",
-                                                       std::string("Invalid 'url' parameter type: ") + ex.what(),
+                                                       std::string("Invalid 'uri'/'url' parameter type: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
             catch (const std::exception &ex)
             {
                 return cpp_dbc::unexpected(DBException("PDLWNXE5A7A0",
-                                                       std::string("Exception reading 'url' parameter: ") + ex.what(),
+                                                       std::string("Exception reading 'uri'/'url' parameter: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
             catch (...)
             {
                 // Intentionally silenced — unknown exception from std::any_cast
-                return cpp_dbc::unexpected(DBException("TT39UST5GNQV", "Unknown exception reading 'url' parameter",
+                return cpp_dbc::unexpected(DBException("TT39UST5GNQV", "Unknown exception reading 'uri'/'url' parameter",
                                                        system_utils::captureCallStack()));
             }
 

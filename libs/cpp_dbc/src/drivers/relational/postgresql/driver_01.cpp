@@ -55,10 +55,11 @@ namespace cpp_dbc::PostgreSQL
         // Each PGconn is self-contained. This method exists for API symmetry with
         // other drivers and to guard against premature driver destruction while
         // connections are still alive.
-        if (s_liveConnectionCount.load(std::memory_order_acquire) > 0)
+        auto liveCount = s_liveConnectionCount.load(std::memory_order_acquire);
+        if (liveCount > 0)
         {
             PG_DEBUG("PostgreSQLDBDriver::cleanup - Skipped: "
-                     << s_liveConnectionCount.load(std::memory_order_acquire)
+                     << liveCount
                      << " live connection(s) still open");
             return;
         }
@@ -118,6 +119,13 @@ namespace cpp_dbc::PostgreSQL
         const std::string &database,
         const std::map<std::string, std::string> & /*options*/) noexcept
     {
+        if (host.empty())
+        {
+            return cpp_dbc::unexpected(DBException("WEBDF2PNV05L",
+                                                    "Cannot build PostgreSQL URI: host is required",
+                                                    system_utils::captureCallStack()));
+        }
+
         if (database.empty())
         {
             return cpp_dbc::unexpected(DBException("2U5PU3Y1GHAX",
@@ -125,8 +133,7 @@ namespace cpp_dbc::PostgreSQL
                                                    system_utils::captureCallStack()));
         }
 
-        constexpr int DEFAULT_POSTGRESQL_PORT = 5432;
-        return system_utils::buildDBURI("cpp_dbc:postgresql://", host, port, DEFAULT_POSTGRESQL_PORT, database);
+        return system_utils::buildDBURI("cpp_dbc:postgresql://", host, port, database);
     }
 
     // Nothrow API implementation

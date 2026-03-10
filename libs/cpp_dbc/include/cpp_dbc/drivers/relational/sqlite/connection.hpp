@@ -56,6 +56,7 @@ namespace cpp_dbc::SQLite
         SQLiteDbHandle m_db;
 
         bool m_closed{true};
+        bool m_counterIncremented{false};
         std::atomic<bool> m_autoCommit{true};
         std::atomic<bool> m_transactionActive{false};
         TransactionIsolationLevel m_isolationLevel;

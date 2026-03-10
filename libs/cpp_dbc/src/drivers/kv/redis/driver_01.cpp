@@ -133,10 +133,11 @@ namespace cpp_dbc::Redis
     void RedisDBDriver::cleanup()
     {
         REDIS_DEBUG("RedisDBDriver::cleanup - Cleaning up Redis driver");
-        if (s_liveConnectionCount.load(std::memory_order_acquire) > 0)
+        auto liveCount = s_liveConnectionCount.load(std::memory_order_acquire);
+        if (liveCount > 0)
         {
             REDIS_DEBUG("RedisDBDriver::cleanup - Skipped: "
-                        << s_liveConnectionCount.load(std::memory_order_acquire)
+                        << liveCount
                         << " live connection(s) still open");
             return;
         }
@@ -164,11 +165,6 @@ namespace cpp_dbc::Redis
             if (!uriCheck.has_value())
             {
                 return cpp_dbc::unexpected(uriCheck.error());
-            }
-            if (!uriCheck.value())
-            {
-                return cpp_dbc::unexpected(DBException("A93B8C7D2E1F", "Invalid Redis URI: " + uri,
-                                                       system_utils::captureCallStack()));
             }
 
             std::string redisUri = uri;

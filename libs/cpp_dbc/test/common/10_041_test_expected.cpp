@@ -445,14 +445,14 @@ TEST_CASE("expected - Database simulation", "[10_041_14_expected]")
         REQUIRE(result->id == 1);
     }
 
-    SECTION("Empty URL error")
+    SECTION("Empty URI error")
     {
         auto result = connect("");
         REQUIRE_FALSE(result.has_value());
         REQUIRE(result.error().getMark() == "RWV8K036776H");
     }
 
-    SECTION("Invalid URL error")
+    SECTION("Invalid URI error")
     {
         auto result = connect("invalid");
         REQUIRE_FALSE(result.has_value());

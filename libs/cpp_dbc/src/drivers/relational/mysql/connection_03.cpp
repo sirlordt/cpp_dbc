@@ -81,15 +81,16 @@ namespace cpp_dbc::MySQL
         }
         TransactionIsolationLevel actualLevel = *actualLevelResult;
 
+        // Update cached state to reflect what the server actually applied
+        this->m_isolationLevel = actualLevel;
+
         if (actualLevel != level)
         {
-            // Some MySQL configurations might not allow certain isolation levels
-            // In this case, we'll update our internal state to match what MySQL actually set
-            this->m_isolationLevel = actualLevel;
-        }
-        else
-        {
-            this->m_isolationLevel = level;
+            return cpp_dbc::unexpected(DBException("HDRX22G5JGOI",
+                "Transaction isolation level mismatch: requested " +
+                    std::string(toStringView(level)) + " but server applied " +
+                    std::string(toStringView(actualLevel)),
+                system_utils::captureCallStack()));
         }
         return {};
     }
@@ -183,7 +184,10 @@ namespace cpp_dbc::MySQL
         // Release live connection count for cleanup() guard.
         // Safe against double-decrement: MYSQL_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED
         // above returns early if already closed, so this line executes exactly once.
-        MySQLDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+        if (m_counterIncremented)
+        {
+            MySQLDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+        }
 
         return {};
     }
@@ -239,6 +243,9 @@ namespace cpp_dbc::MySQL
         return false;
     }
 
+    // No try/catch: the only possible throw is std::bad_alloc from the
+    // std::string copy, which is a death-sentence exception — no meaningful
+    // recovery is possible, so std::terminate is the correct response.
     cpp_dbc::expected<std::string, DBException> MySQLDBConnection::getURI(std::nothrow_t) const noexcept
     {
         return m_uri;

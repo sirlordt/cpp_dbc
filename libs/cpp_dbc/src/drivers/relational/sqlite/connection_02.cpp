@@ -504,7 +504,10 @@ namespace cpp_dbc::SQLite
                 // Release live connection count for cleanup() guard.
                 // Safe against double-decrement: the `if (!m_closed && m_db)` check above
                 // returns early if already closed, so this line executes exactly once.
-                SQLiteDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+                if (m_counterIncremented)
+                {
+                    SQLiteDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+                }
 
                 // Sleep for 10ms to avoid problems with concurrency and memory stability
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -516,7 +519,10 @@ namespace cpp_dbc::SQLite
             // Ensure cleanup even on error
             m_db.reset();
             m_closed = true;
-            SQLiteDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+            if (m_counterIncremented)
+            {
+                SQLiteDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+            }
             return cpp_dbc::unexpected(ex);
         }
         catch (const std::exception &ex)
@@ -524,7 +530,10 @@ namespace cpp_dbc::SQLite
             SQLITE_DEBUG("Exception during SQLite close: %s", ex.what());
             m_db.reset();
             m_closed = true;
-            SQLiteDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+            if (m_counterIncremented)
+            {
+                SQLiteDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+            }
             return cpp_dbc::unexpected(DBException("GRFPVO09UYNU",
                                                    std::string("close failed: ") + ex.what(),
                                                    system_utils::captureCallStack()));
@@ -533,7 +542,10 @@ namespace cpp_dbc::SQLite
         {
             m_db.reset();
             m_closed = true;
-            SQLiteDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+            if (m_counterIncremented)
+            {
+                SQLiteDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+            }
             return cpp_dbc::unexpected(DBException("FHR9J06XNVWS",
                                                    "close failed with unknown error",
                                                    system_utils::captureCallStack()));
@@ -584,6 +596,9 @@ namespace cpp_dbc::SQLite
         return false;
     }
 
+    // No try/catch: the only possible throw is std::bad_alloc from the
+    // std::string copy, which is a death-sentence exception — no meaningful
+    // recovery is possible, so std::terminate is the correct response.
     cpp_dbc::expected<std::string, DBException> SQLiteDBConnection::getURI(std::nothrow_t) const noexcept
     {
         return m_uri;

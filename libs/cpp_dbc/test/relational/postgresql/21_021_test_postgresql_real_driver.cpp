@@ -35,15 +35,36 @@ TEST_CASE("PostgreSQL driver tests", "[21_021_01_postgresql_real_driver]")
         // Create a PostgreSQL driver
         cpp_dbc::PostgreSQL::PostgreSQLDBDriver driver;
 
-        // Check that it accepts PostgreSQL URLs
-        REQUIRE(driver.acceptURI("cpp_dbc:postgresql://localhost:5432/testdb"));
-        REQUIRE(driver.acceptURI("cpp_dbc:postgresql://127.0.0.1:5432/testdb"));
-        REQUIRE(driver.acceptURI("cpp_dbc:postgresql://db.example.com:5432/testdb"));
+        // Check that it accepts PostgreSQL URIs
+        REQUIRE_NOTHROW(driver.acceptURI("cpp_dbc:postgresql://localhost:5432/testdb"));
+        REQUIRE_NOTHROW(driver.acceptURI("cpp_dbc:postgresql://127.0.0.1:5432/testdb"));
+        REQUIRE_NOTHROW(driver.acceptURI("cpp_dbc:postgresql://db.example.com:5432/testdb"));
 
-        // Check that it rejects non-PostgreSQL URLs
-        REQUIRE_FALSE(driver.acceptURI("cpp_dbc:mysql://localhost:3306/testdb"));
-        REQUIRE_FALSE(driver.acceptURI("jdbc:postgresql://localhost:5432/testdb"));
-        REQUIRE_FALSE(driver.acceptURI("postgresql://localhost:5432/testdb"));
+        // Check that it rejects non-PostgreSQL URIs
+        REQUIRE_THROWS_AS(driver.acceptURI("cpp_dbc:mysql://localhost:3306/testdb"), cpp_dbc::DBException);
+        REQUIRE_THROWS_AS(driver.acceptURI("jdbc:postgresql://localhost:5432/testdb"), cpp_dbc::DBException);
+        REQUIRE_THROWS_AS(driver.acceptURI("postgresql://localhost:5432/testdb"), cpp_dbc::DBException);
+    }
+
+    SECTION("PostgreSQL driver URI acceptance (nothrow)")
+    {
+        cpp_dbc::PostgreSQL::PostgreSQLDBDriver driver;
+
+        // Valid PostgreSQL URIs — has_value() returns true
+        auto ok1 = driver.acceptURI(std::nothrow, "cpp_dbc:postgresql://localhost:5432/testdb");
+        REQUIRE(ok1.has_value());
+        auto ok2 = driver.acceptURI(std::nothrow, "cpp_dbc:postgresql://127.0.0.1:5432/testdb");
+        REQUIRE(ok2.has_value());
+        auto ok3 = driver.acceptURI(std::nothrow, "cpp_dbc:postgresql://db.example.com:5432/testdb");
+        REQUIRE(ok3.has_value());
+
+        // Wrong scheme — has_value() returns false with scheme mismatch error
+        auto no1 = driver.acceptURI(std::nothrow, "cpp_dbc:mysql://localhost:3306/testdb");
+        REQUIRE_FALSE(no1.has_value());
+        auto no2 = driver.acceptURI(std::nothrow, "jdbc:postgresql://localhost:5432/testdb");
+        REQUIRE_FALSE(no2.has_value());
+        auto no3 = driver.acceptURI(std::nothrow, "postgresql://localhost:5432/testdb");
+        REQUIRE_FALSE(no3.has_value());
     }
 
     SECTION("PostgreSQL driver connection string parsing")

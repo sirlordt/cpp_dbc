@@ -258,8 +258,9 @@ int main(int argc, char *argv[])
 
             logData("Started transaction " + txnId);
 
-            // Create first task for this transaction
-            taskQueue.push(WorkflowTask(txnId, 1, [&txnManager, txnId]()
+            // Create first task for this transaction — capture i+1 as unique record ID
+            int recordId = i + 1;
+            taskQueue.push(WorkflowTask(txnId, 1, [&txnManager, txnId, recordId]()
                                         {
                 try {
                     // Thread-local RNG for thread safety
@@ -269,7 +270,8 @@ int main(int argc, char *argv[])
                     auto conn = txnManager.getTransactionDBConnection(txnId);
 
                     // Perform some database operations in this transaction
-                    conn->executeUpdate("INSERT INTO transaction_test (id, data) VALUES (1, 'Task 1 Data')");
+                    conn->executeUpdate("INSERT INTO transaction_test (id, data) VALUES (" +
+                        std::to_string(recordId) + ", 'Task " + std::to_string(recordId) + " Data')");
 
                     // Simulate work
                     std::this_thread::sleep_for(std::chrono::milliseconds(dist(rng)));
@@ -285,9 +287,11 @@ int main(int argc, char *argv[])
         logMsg("");
         logMsg("--- Adding Update Tasks ---");
 
-        for (const auto &txnId : transactionIds)
+        for (size_t j = 0; j < transactionIds.size(); j++)
         {
-            taskQueue.push(WorkflowTask(txnId, 2, [&txnManager, txnId]()
+            const auto &txnId = transactionIds[j];
+            int recordId = static_cast<int>(j) + 1;
+            taskQueue.push(WorkflowTask(txnId, 2, [&txnManager, txnId, recordId]()
                                         {
                 try {
                     // Thread-local RNG for thread safety
@@ -297,7 +301,8 @@ int main(int argc, char *argv[])
                     auto conn = txnManager.getTransactionDBConnection(txnId);
 
                     // Perform more database operations in this transaction
-                    conn->executeUpdate("UPDATE transaction_test SET data = 'Task 2 Updated' WHERE id = 1");
+                    conn->executeUpdate("UPDATE transaction_test SET data = 'Task " +
+                        std::to_string(recordId) + " Updated' WHERE id = " + std::to_string(recordId));
 
                     // Simulate work
                     std::this_thread::sleep_for(std::chrono::milliseconds(dist(rng)));

@@ -89,17 +89,20 @@ namespace cpp_dbc::MySQL
     void MySQLDBDriver::cleanup()
     {
         std::scoped_lock lock(s_initMutex);
-        if (s_initialized.load(std::memory_order_acquire))
+        if (!s_initialized.load(std::memory_order_acquire))
         {
-            if (s_liveConnectionCount.load(std::memory_order_acquire) > 0)
-            {
-                MYSQL_DEBUG("MySQLDBDriver::cleanup - Skipped: %zu live connection(s) still open",
-                            s_liveConnectionCount.load(std::memory_order_acquire));
-                return;
-            }
-            mysql_library_end();
-            s_initialized.store(false, std::memory_order_release);
+            return;
         }
+
+        auto liveCount = s_liveConnectionCount.load(std::memory_order_acquire);
+        if (liveCount > 0)
+        {
+            MYSQL_DEBUG("MySQLDBDriver::cleanup - Skipped: %zu live connection(s) still open", liveCount);
+            return;
+        }
+
+        mysql_library_end();
+        s_initialized.store(false, std::memory_order_release);
     }
 
 #ifdef __cpp_exceptions
@@ -156,8 +159,14 @@ namespace cpp_dbc::MySQL
         const std::string &database,
         const std::map<std::string, std::string> & /*options*/) noexcept
     {
-        constexpr int DEFAULT_MYSQL_PORT = 3306;
-        return system_utils::buildDBURI("cpp_dbc:mysql://", host, port, DEFAULT_MYSQL_PORT, database);
+        if (host.empty())
+        {
+            return cpp_dbc::unexpected(DBException("619988OTKYA2",
+                                                    "Cannot build MySQL URI: host is required",
+                                                    system_utils::captureCallStack()));
+        }
+
+        return system_utils::buildDBURI("cpp_dbc:mysql://", host, port, database);
     }
 
     // Nothrow API implementations
@@ -181,7 +190,7 @@ namespace cpp_dbc::MySQL
         auto &portStr = parsed["port"];
         int port = 0;
         auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), port);
-        if (ec != std::errc{})
+        if (ec != std::errc{} || ptr != portStr.data() + portStr.size())
         {
             return cpp_dbc::unexpected(DBException("IYLFP3EHABUY",
                                                    "Invalid port number in URI: " + portStr,

@@ -13,11 +13,11 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file 24_021_example_redis_connection_info.cpp
- * @brief Redis-specific example demonstrating connection URL information
+ * @brief Redis-specific example demonstrating connection URI information
  *
  * This example demonstrates:
  * - Loading configuration from YAML file
- * - Redis connection URL information
+ * - Redis connection URI information
  * - Server ping and basic connectivity test
  *
  * Usage:
@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
     try
     {
         logMsg("");
-        logMsg("--- Redis Connection URL ---");
+        logMsg("--- Redis Connection URI ---");
 
         logStep("Getting Redis configuration...");
         auto redisResult = getDbConfig(configManager, args.dbName, "redis");

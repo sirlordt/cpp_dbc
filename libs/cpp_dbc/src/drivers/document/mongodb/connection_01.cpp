@@ -171,6 +171,7 @@ namespace cpp_dbc::MongoDB
 
         // Track live connection for safe cleanup() guard
         MongoDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
+        m_counterIncremented = true;
 
         MONGODB_DEBUG("MongoDBConnection::constructor(nothrow) - Connected successfully");
     }

@@ -66,6 +66,7 @@ namespace cpp_dbc::Firebird
         std::atomic<bool> m_resetting{false}; // True during reset() to prevent unregister deadlock
         bool m_autoCommit{true};
         bool m_transactionActive{false};
+        bool m_counterIncremented{false};
         TransactionIsolationLevel m_isolationLevel;
         std::string m_uri;
 

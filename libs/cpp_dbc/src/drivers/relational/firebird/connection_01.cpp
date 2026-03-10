@@ -137,18 +137,18 @@ namespace cpp_dbc::Firebird
 
             // Cache URI — database may start with '/' (prepended by parseURI for remote connections).
             // Strip leading '/' from database before passing to buildDBURI, which adds its own separator.
-            constexpr int DEFAULT_FIREBIRD_PORT = 3050;
             std::string_view dbView = database;
             if (!dbView.empty() && dbView.front() == '/')
             {
                 dbView.remove_prefix(1);
             }
-            m_uri = system_utils::buildDBURI("cpp_dbc:firebird://", host, port, DEFAULT_FIREBIRD_PORT, dbView);
+            m_uri = system_utils::buildDBURI("cpp_dbc:firebird://", host, port, dbView);
 
             m_closed.store(false, std::memory_order_release);
 
             // Track live connection for safe cleanup() guard
             FirebirdDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
+            m_counterIncremented = true;
 
             // Start initial transaction if autocommit is enabled
             FIREBIRD_DEBUG("  m_autoCommit: %s", (m_autoCommit ? "true" : "false"));

@@ -305,14 +305,14 @@ namespace cpp_dbc::MySQL
         m_autoCommit = true;
 
         // Initialize URI string once (reuse centralized builder for IPv6 bracket handling)
-        constexpr int DEFAULT_MYSQL_PORT = 3306;
-        m_uri = system_utils::buildDBURI("cpp_dbc:mysql://", host, port, DEFAULT_MYSQL_PORT, database);
+        m_uri = system_utils::buildDBURI("cpp_dbc:mysql://", host, port, database);
 
         // Mark connection as open
         m_closed.store(false, std::memory_order_release);
 
         // Track live connection for safe cleanup() guard
         MySQLDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
+        m_counterIncremented = true;
 
         MYSQL_DEBUG("MySQLConnection::constructor(nothrow) - Done, connected to %s", m_uri.c_str());
     }

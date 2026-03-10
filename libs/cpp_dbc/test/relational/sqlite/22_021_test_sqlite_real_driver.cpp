@@ -35,16 +35,37 @@ TEST_CASE("SQLite driver tests", "[22_021_01_sqlite_real_driver]")
         // Create a SQLite driver
         cpp_dbc::SQLite::SQLiteDBDriver driver;
 
-        // Check that it accepts SQLite URLs
-        REQUIRE(driver.acceptURI("cpp_dbc:sqlite://:memory:"));
-        REQUIRE(driver.acceptURI("cpp_dbc:sqlite://test.db"));
-        REQUIRE(driver.acceptURI("cpp_dbc:sqlite:///path/to/database.db"));
+        // Check that it accepts SQLite URIs
+        REQUIRE_NOTHROW(driver.acceptURI("cpp_dbc:sqlite://:memory:"));
+        REQUIRE_NOTHROW(driver.acceptURI("cpp_dbc:sqlite://test.db"));
+        REQUIRE_NOTHROW(driver.acceptURI("cpp_dbc:sqlite:///path/to/database.db"));
 
-        // Check that it rejects non-SQLite URLs
-        REQUIRE_FALSE(driver.acceptURI("cpp_dbc:mysql://localhost:3306/testdb"));
-        REQUIRE_FALSE(driver.acceptURI("cpp_dbc:postgresql://localhost:5432/testdb"));
-        REQUIRE_FALSE(driver.acceptURI("jdbc:sqlite://test.db"));
-        REQUIRE_FALSE(driver.acceptURI("sqlite://test.db"));
+        // Check that it rejects non-SQLite URIs
+        REQUIRE_THROWS_AS(driver.acceptURI("cpp_dbc:mysql://localhost:3306/testdb"), cpp_dbc::DBException);
+        REQUIRE_THROWS_AS(driver.acceptURI("cpp_dbc:postgresql://localhost:5432/testdb"), cpp_dbc::DBException);
+        REQUIRE_THROWS_AS(driver.acceptURI("jdbc:sqlite://test.db"), cpp_dbc::DBException);
+        REQUIRE_THROWS_AS(driver.acceptURI("sqlite://test.db"), cpp_dbc::DBException);
+    }
+
+    SECTION("SQLite driver URI acceptance (nothrow)")
+    {
+        cpp_dbc::SQLite::SQLiteDBDriver driver;
+
+        // Valid SQLite URIs — has_value() returns true
+        auto ok1 = driver.acceptURI(std::nothrow, "cpp_dbc:sqlite://:memory:");
+        REQUIRE(ok1.has_value());
+        auto ok2 = driver.acceptURI(std::nothrow, "cpp_dbc:sqlite://test.db");
+        REQUIRE(ok2.has_value());
+        auto ok3 = driver.acceptURI(std::nothrow, "cpp_dbc:sqlite:///path/to/database.db");
+        REQUIRE(ok3.has_value());
+
+        // Wrong scheme — has_value() returns false with scheme mismatch error
+        auto no1 = driver.acceptURI(std::nothrow, "cpp_dbc:mysql://localhost:3306/testdb");
+        REQUIRE_FALSE(no1.has_value());
+        auto no2 = driver.acceptURI(std::nothrow, "jdbc:sqlite://test.db");
+        REQUIRE_FALSE(no2.has_value());
+        auto no3 = driver.acceptURI(std::nothrow, "sqlite://test.db");
+        REQUIRE_FALSE(no3.has_value());
     }
 
     SECTION("SQLite driver parseURI - valid URLs")

@@ -18,9 +18,11 @@
 
 */
 
+#include "cpp_dbc/common/system_constants.hpp"
 #include "cpp_dbc/common/system_utils.hpp"
 #include "cpp_dbc/backward.hpp"
 
+#include <charconv>
 #include <vector>
 #include <filesystem>
 #include <thread>
@@ -273,25 +275,29 @@ namespace cpp_dbc::system_utils
                     if (slashPos == std::string::npos)
                     {
                         // No database, just port
-                        try
                         {
-                            result.port = std::stoi(rest.substr(1));
-                        }
-                        catch (...)
-                        {
-                            return false; // Invalid port
+                            auto portStr = rest.substr(1);
+                            int portVal = 0;
+                            auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), portVal);
+                            if (ec != std::errc{} || ptr != portStr.data() + portStr.size() || portVal < system_constants::PORT_MIN || portVal > system_constants::PORT_MAX)
+                            {
+                                return false; // Invalid port
+                            }
+                            result.port = portVal;
                         }
                         return !requireDatabase;
                     }
 
                     // Port and database
-                    try
                     {
-                        result.port = std::stoi(rest.substr(1, slashPos - 1));
-                    }
-                    catch (...)
-                    {
-                        return false; // Invalid port
+                        auto portStr = rest.substr(1, slashPos - 1);
+                        int portVal = 0;
+                        auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), portVal);
+                        if (ec != std::errc{} || ptr != portStr.data() + portStr.size() || portVal < system_constants::PORT_MIN || portVal > system_constants::PORT_MAX)
+                        {
+                            return false; // Invalid port
+                        }
+                        result.port = portVal;
                     }
                     result.database = rest.substr(slashPos + 1);
                     return !requireDatabase || !result.database.empty();
@@ -319,13 +325,15 @@ namespace cpp_dbc::system_utils
                 {
                     // host:port (no database)
                     result.host = rest.substr(0, colonPos);
-                    try
                     {
-                        result.port = std::stoi(rest.substr(colonPos + 1));
-                    }
-                    catch (...)
-                    {
-                        return false; // Invalid port
+                        auto portStr = rest.substr(colonPos + 1);
+                        int portVal = 0;
+                        auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), portVal);
+                        if (ec != std::errc{} || ptr != portStr.data() + portStr.size() || portVal < system_constants::PORT_MIN || portVal > system_constants::PORT_MAX)
+                        {
+                            return false; // Invalid port
+                        }
+                        result.port = portVal;
                     }
                 }
                 else
@@ -341,13 +349,15 @@ namespace cpp_dbc::system_utils
             {
                 // host:port/database
                 result.host = rest.substr(0, colonPos);
-                try
                 {
-                    result.port = std::stoi(rest.substr(colonPos + 1, slashPos - colonPos - 1));
-                }
-                catch (...)
-                {
-                    return false; // Invalid port
+                    auto portStr = rest.substr(colonPos + 1, slashPos - colonPos - 1);
+                    int portVal = 0;
+                    auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), portVal);
+                    if (ec != std::errc{} || ptr != portStr.data() + portStr.size() || portVal < system_constants::PORT_MIN || portVal > system_constants::PORT_MAX)
+                    {
+                        return false; // Invalid port
+                    }
+                    result.port = portVal;
                 }
             }
             else
@@ -373,7 +383,6 @@ namespace cpp_dbc::system_utils
     std::string buildDBURI(std::string_view prefix,
                            std::string_view host,
                            int port,
-                           int /* defaultPort */,
                            std::string_view database) noexcept
     {
         try
@@ -382,27 +391,26 @@ namespace cpp_dbc::system_utils
             uri.reserve(prefix.size() + host.size() + 32);
             uri.append(prefix);
 
-            if (host.empty())
+            if (!host.empty())
             {
-                uri.append("localhost");
-            }
-            else if (host.contains(':') &&
-                     !(host.front() == '[' && host.back() == ']'))
-            {
-                // Bracket raw IPv6 hosts (e.g. "::1" → "[::1]")
-                uri.push_back('[');
-                uri.append(host);
-                uri.push_back(']');
-            }
-            else
-            {
-                uri.append(host);
-            }
+                if (host.contains(':') &&
+                    !(host.front() == '[' && host.back() == ']'))
+                {
+                    // Bracket raw IPv6 hosts (e.g. "::1" → "[::1]")
+                    uri.push_back('[');
+                    uri.append(host);
+                    uri.push_back(']');
+                }
+                else
+                {
+                    uri.append(host);
+                }
 
-            if (port > 0)
-            {
-                uri.push_back(':');
-                uri.append(std::to_string(port));
+                if (port > 0)
+                {
+                    uri.push_back(':');
+                    uri.append(std::to_string(port));
+                }
             }
 
             if (!database.empty())

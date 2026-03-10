@@ -34,13 +34,30 @@ TEST_CASE("ScyllaDB driver tests", "[26_021_01_scylladb_real_driver]")
         // Create a ScyllaDB driver
         cpp_dbc::ScyllaDB::ScyllaDBDriver driver;
 
-        // Check that it accepts ScyllaDB URLs
-        REQUIRE(driver.acceptURI("cpp_dbc:scylladb://localhost:9042/testdb"));
-        REQUIRE(driver.acceptURI("cpp_dbc:scylladb://127.0.0.1:9042/testdb"));
+        // Check that it accepts ScyllaDB URIs
+        REQUIRE_NOTHROW(driver.acceptURI("cpp_dbc:scylladb://localhost:9042/testdb"));
+        REQUIRE_NOTHROW(driver.acceptURI("cpp_dbc:scylladb://127.0.0.1:9042/testdb"));
 
-        // Check that it rejects non-ScyllaDB URLs
-        REQUIRE_FALSE(driver.acceptURI("cpp_dbc:mysql://localhost:3306/testdb"));
-        REQUIRE_FALSE(driver.acceptURI("scylladb://localhost:9042/testdb"));
+        // Check that it rejects non-ScyllaDB URIs
+        REQUIRE_THROWS_AS(driver.acceptURI("cpp_dbc:mysql://localhost:3306/testdb"), cpp_dbc::DBException);
+        REQUIRE_THROWS_AS(driver.acceptURI("scylladb://localhost:9042/testdb"), cpp_dbc::DBException);
+    }
+
+    SECTION("ScyllaDB driver URI acceptance (nothrow)")
+    {
+        cpp_dbc::ScyllaDB::ScyllaDBDriver driver;
+
+        // Valid ScyllaDB URIs — has_value() returns true
+        auto ok1 = driver.acceptURI(std::nothrow, "cpp_dbc:scylladb://localhost:9042/testdb");
+        REQUIRE(ok1.has_value());
+        auto ok2 = driver.acceptURI(std::nothrow, "cpp_dbc:scylladb://127.0.0.1:9042/testdb");
+        REQUIRE(ok2.has_value());
+
+        // Wrong scheme — has_value() returns false with scheme mismatch error
+        auto no1 = driver.acceptURI(std::nothrow, "cpp_dbc:mysql://localhost:3306/testdb");
+        REQUIRE_FALSE(no1.has_value());
+        auto no2 = driver.acceptURI(std::nothrow, "scylladb://localhost:9042/testdb");
+        REQUIRE_FALSE(no2.has_value());
     }
 
     SECTION("ScyllaDB driver parseURI - valid URIs")

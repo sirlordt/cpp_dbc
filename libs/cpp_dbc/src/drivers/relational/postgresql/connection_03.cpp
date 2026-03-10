@@ -320,7 +320,10 @@ namespace cpp_dbc::PostgreSQL
                 // Release live connection count for cleanup() guard.
                 // Safe against double-decrement: the if (!m_closed && m_conn) guard
                 // above ensures this line executes exactly once.
-                PostgreSQLDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+                if (m_counterIncremented)
+                {
+                    PostgreSQLDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+                }
             }
             return {};
         }
@@ -430,6 +433,9 @@ namespace cpp_dbc::PostgreSQL
         return false;
     }
 
+    // No try/catch: the only possible throw is std::bad_alloc from the
+    // std::string copy, which is a death-sentence exception — no meaningful
+    // recovery is possible, so std::terminate is the correct response.
     cpp_dbc::expected<std::string, DBException> PostgreSQLDBConnection::getURI(std::nothrow_t) const noexcept
     {
         return m_uri;

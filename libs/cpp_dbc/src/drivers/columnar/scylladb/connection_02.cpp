@@ -53,7 +53,10 @@ namespace cpp_dbc::ScyllaDB
         // Release live connection count for cleanup() guard.
         // Safe against double-decrement: the m_closed check above returns early
         // if already closed, so this line executes exactly once.
-        ScyllaDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+        if (m_counterIncremented)
+        {
+            ScyllaDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+        }
 
         SCYLLADB_DEBUG("ScyllaDBConnection::close(nothrow) - Connection closed");
         return {};
@@ -74,6 +77,9 @@ namespace cpp_dbc::ScyllaDB
         return false;
     }
 
+    // No try/catch: the only possible throw is std::bad_alloc from the
+    // std::string copy, which is a death-sentence exception — no meaningful
+    // recovery is possible, so std::terminate is the correct response.
     cpp_dbc::expected<std::string, DBException> ScyllaDBConnection::getURI(std::nothrow_t) const noexcept
     {
         return m_uri;
@@ -275,38 +281,43 @@ namespace cpp_dbc::ScyllaDB
 
         auto &rs = queryResult.value();
         auto nextResult = rs->next(std::nothrow);
-        if (nextResult.has_value() && nextResult.value())
+        if (!nextResult.has_value() || !nextResult.value())
         {
-            auto releaseVersion = rs->getString(std::nothrow, 1);
-            if (releaseVersion.has_value())
-            {
-                info["ServerVersion"] = releaseVersion.value();
-            }
-            auto clusterName = rs->getString(std::nothrow, 2);
-            if (clusterName.has_value())
-            {
-                info["ClusterName"] = clusterName.value();
-            }
-            auto dataCenter = rs->getString(std::nothrow, 3);
-            if (dataCenter.has_value())
-            {
-                info["DataCenter"] = dataCenter.value();
-            }
-            auto rack = rs->getString(std::nothrow, 4);
-            if (rack.has_value())
-            {
-                info["Rack"] = rack.value();
-            }
-            auto partitioner = rs->getString(std::nothrow, 5);
-            if (partitioner.has_value())
-            {
-                info["Partitioner"] = partitioner.value();
-            }
-            auto cqlVersion = rs->getString(std::nothrow, 6);
-            if (cqlVersion.has_value())
-            {
-                info["CQLVersion"] = cqlVersion.value();
-            }
+            return cpp_dbc::unexpected(DBException(
+                "KV7RQJN3WF8D",
+                "Failed to retrieve ScyllaDB server info",
+                system_utils::captureCallStack()));
+        }
+
+        auto releaseVersion = rs->getString(std::nothrow, 1);
+        if (releaseVersion.has_value())
+        {
+            info["ServerVersion"] = releaseVersion.value();
+        }
+        auto clusterName = rs->getString(std::nothrow, 2);
+        if (clusterName.has_value())
+        {
+            info["ClusterName"] = clusterName.value();
+        }
+        auto dataCenter = rs->getString(std::nothrow, 3);
+        if (dataCenter.has_value())
+        {
+            info["DataCenter"] = dataCenter.value();
+        }
+        auto rack = rs->getString(std::nothrow, 4);
+        if (rack.has_value())
+        {
+            info["Rack"] = rack.value();
+        }
+        auto partitioner = rs->getString(std::nothrow, 5);
+        if (partitioner.has_value())
+        {
+            info["Partitioner"] = partitioner.value();
+        }
+        auto cqlVersion = rs->getString(std::nothrow, 6);
+        if (cqlVersion.has_value())
+        {
+            info["CQLVersion"] = cqlVersion.value();
         }
 
         return info;

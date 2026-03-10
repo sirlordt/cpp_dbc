@@ -75,6 +75,7 @@ namespace cpp_dbc::MongoDB
          * @brief Flag indicating if the connection is closed
          */
         std::atomic<bool> m_closed{true};
+        bool m_counterIncremented{false};
 
         /**
          * @brief Flag indicating if the connection is pooled

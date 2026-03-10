@@ -109,12 +109,12 @@ namespace cpp_dbc::ScyllaDB
 
         m_closed = false;
 
+        // Cache the full URI including the cpp_dbc: prefix (reuse centralized builder for IPv6 bracket handling)
+        m_uri = system_utils::buildDBURI("cpp_dbc:scylladb://", host, port, keyspace);
+
         // Track live connection for safe cleanup() guard
         ScyllaDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
-
-        // Cache the full URI including the cpp_dbc: prefix (reuse centralized builder for IPv6 bracket handling)
-        constexpr int DEFAULT_SCYLLADB_PORT = 9042;
-        m_uri = system_utils::buildDBURI("cpp_dbc:scylladb://", host, port, DEFAULT_SCYLLADB_PORT, keyspace);
+        m_counterIncremented = true;
         SCYLLADB_DEBUG("ScyllaDBConnection::constructor(nothrow) - Connection established");
     }
 

@@ -330,7 +330,7 @@ void demonstrateConnectionErrors()
             ""
         ); });
 
-    executeWithErrorHandling("Invalid Connection URL", []()
+    executeWithErrorHandling("Invalid Connection URI", []()
                              {
         auto conn = cpp_dbc::DriverManager::getDBConnection(
             "invalid:url:format",

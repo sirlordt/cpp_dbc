@@ -62,7 +62,10 @@ namespace cpp_dbc::Firebird
         // Release live connection count for cleanup() guard.
         // Safe against double-decrement: FIREBIRD_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED
         // above returns early if already closed, so this line executes exactly once.
-        FirebirdDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+        if (m_counterIncremented)
+        {
+            FirebirdDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+        }
 
         FIREBIRD_DEBUG("FirebirdConnection::close - Done");
 
@@ -151,6 +154,9 @@ namespace cpp_dbc::Firebird
         return false;
     }
 
+    // No try/catch: the only possible throw is std::bad_alloc from the
+    // std::string copy, which is a death-sentence exception — no meaningful
+    // recovery is possible, so std::terminate is the correct response.
     cpp_dbc::expected<std::string, DBException>
     FirebirdDBConnection::getURI(std::nothrow_t) const noexcept
     {

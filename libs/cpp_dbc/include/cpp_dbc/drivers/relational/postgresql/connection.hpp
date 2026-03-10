@@ -38,6 +38,7 @@ namespace cpp_dbc::PostgreSQL
     {
         PGconnHandle m_conn; // shared_ptr allows PreparedStatements to use weak_ptr
         bool m_closed{true};
+        bool m_counterIncremented{false};
         bool m_autoCommit{true};
         bool m_transactionActive{false};
         int m_statementCounter{0};

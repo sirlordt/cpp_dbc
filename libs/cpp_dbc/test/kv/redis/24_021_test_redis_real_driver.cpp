@@ -36,18 +36,39 @@ TEST_CASE("Redis driver tests", "[24_021_01_redis_real_driver]")
         // Create a Redis driver
         cpp_dbc::Redis::RedisDBDriver driver;
 
-        // Check that it accepts Redis URLs
-        REQUIRE(driver.acceptURI("cpp_dbc:redis://localhost:6379/0"));
-        REQUIRE(driver.acceptURI("cpp_dbc:redis://127.0.0.1:6379/0"));
-        REQUIRE(driver.acceptURI("cpp_dbc:redis://db.example.com:6379/1"));
-        REQUIRE(driver.acceptURI("cpp_dbc:redis://localhost:6379/15"));
+        // Check that it accepts Redis URIs
+        REQUIRE_NOTHROW(driver.acceptURI("cpp_dbc:redis://localhost:6379/0"));
+        REQUIRE_NOTHROW(driver.acceptURI("cpp_dbc:redis://127.0.0.1:6379/0"));
+        REQUIRE_NOTHROW(driver.acceptURI("cpp_dbc:redis://db.example.com:6379/1"));
+        REQUIRE_NOTHROW(driver.acceptURI("cpp_dbc:redis://localhost:6379/15"));
 
-        // Check that it rejects non-Redis URLs
-        REQUIRE_FALSE(driver.acceptURI("cpp_dbc:mysql://localhost:3306/testdb"));
-        REQUIRE_FALSE(driver.acceptURI("cpp_dbc:postgresql://localhost:5432/testdb"));
-        REQUIRE_FALSE(driver.acceptURI("cpp_dbc:mongodb://localhost:27017/testdb"));
-        REQUIRE_FALSE(driver.acceptURI("redis://localhost:6379/0"));
-        REQUIRE_FALSE(driver.acceptURI("jdbc:redis://localhost:6379/0"));
+        // Check that it rejects non-Redis URIs
+        REQUIRE_THROWS_AS(driver.acceptURI("cpp_dbc:mysql://localhost:3306/testdb"), cpp_dbc::DBException);
+        REQUIRE_THROWS_AS(driver.acceptURI("cpp_dbc:postgresql://localhost:5432/testdb"), cpp_dbc::DBException);
+        REQUIRE_THROWS_AS(driver.acceptURI("cpp_dbc:mongodb://localhost:27017/testdb"), cpp_dbc::DBException);
+        REQUIRE_THROWS_AS(driver.acceptURI("redis://localhost:6379/0"), cpp_dbc::DBException);
+        REQUIRE_THROWS_AS(driver.acceptURI("jdbc:redis://localhost:6379/0"), cpp_dbc::DBException);
+    }
+
+    SECTION("Redis driver URI acceptance (nothrow)")
+    {
+        cpp_dbc::Redis::RedisDBDriver driver;
+
+        // Valid Redis URIs — has_value() returns true
+        auto ok1 = driver.acceptURI(std::nothrow, "cpp_dbc:redis://localhost:6379/0");
+        REQUIRE(ok1.has_value());
+        auto ok2 = driver.acceptURI(std::nothrow, "cpp_dbc:redis://127.0.0.1:6379/0");
+        REQUIRE(ok2.has_value());
+        auto ok3 = driver.acceptURI(std::nothrow, "cpp_dbc:redis://db.example.com:6379/1");
+        REQUIRE(ok3.has_value());
+
+        // Wrong scheme — has_value() returns false with scheme mismatch error
+        auto no1 = driver.acceptURI(std::nothrow, "cpp_dbc:mysql://localhost:3306/testdb");
+        REQUIRE_FALSE(no1.has_value());
+        auto no2 = driver.acceptURI(std::nothrow, "cpp_dbc:mongodb://localhost:27017/testdb");
+        REQUIRE_FALSE(no2.has_value());
+        auto no3 = driver.acceptURI(std::nothrow, "redis://localhost:6379/0");
+        REQUIRE_FALSE(no3.has_value());
     }
 
     SECTION("Redis driver connection with config credentials")

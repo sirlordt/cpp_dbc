@@ -200,11 +200,11 @@ namespace cpp_dbc::PostgreSQL
         setAutoCommit(true);
 
         // Initialize URI string once (reuse centralized builder for IPv6 bracket handling)
-        constexpr int DEFAULT_POSTGRESQL_PORT = 5432;
-        m_uri = system_utils::buildDBURI("cpp_dbc:postgresql://", host, port, DEFAULT_POSTGRESQL_PORT, database);
+        m_uri = system_utils::buildDBURI("cpp_dbc:postgresql://", host, port, database);
 
         // Track live connection for safe cleanup() guard
         PostgreSQLDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
+        m_counterIncremented = true;
     }
 
     // Destructor

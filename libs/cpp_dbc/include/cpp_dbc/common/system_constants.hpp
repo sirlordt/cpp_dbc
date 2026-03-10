@@ -21,6 +21,7 @@
 #ifndef SYSTEM_CONSTANTS_HPP
 #define SYSTEM_CONSTANTS_HPP
 
+#include <cstdint>
 #include <string_view>
 
 namespace cpp_dbc::system_constants
@@ -29,6 +30,12 @@ namespace cpp_dbc::system_constants
     /// URI prefix that all cpp_dbc connection strings must begin with.
     /// Format: cpp_dbc:<driver>://<host>:<port>/<database>
     inline constexpr std::string_view URI_PREFIX = "cpp_dbc:";
+
+    /// Minimum valid TCP/UDP port number (inclusive).
+    inline constexpr int PORT_MIN = 1;
+
+    /// Maximum valid TCP/UDP port number (inclusive).
+    inline constexpr int PORT_MAX = 65535;
 
 } // namespace cpp_dbc::system_constants
 

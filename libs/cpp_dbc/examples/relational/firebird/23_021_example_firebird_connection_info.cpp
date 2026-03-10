@@ -13,11 +13,11 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file 23_021_example_firebird_connection_info.cpp
- * @brief Firebird-specific example demonstrating connection URL information
+ * @brief Firebird-specific example demonstrating connection URI information
  *
  * This example demonstrates:
  * - Loading configuration from YAML file
- * - Firebird connection URL information
+ * - Firebird connection URI information
  *
  * Usage:
  *   ./23_021_example_firebird_connection_info [--config=<path>] [--db=<name>] [--help]
@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
     try
     {
         logMsg("");
-        logMsg("--- Firebird Connection URL ---");
+        logMsg("--- Firebird Connection URI ---");
 
         logStep("Getting Firebird configuration...");
         auto firebirdResult = getDbConfig(configManager, args.dbName, "firebird");

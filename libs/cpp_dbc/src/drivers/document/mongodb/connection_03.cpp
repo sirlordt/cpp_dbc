@@ -77,7 +77,10 @@ namespace cpp_dbc::MongoDB
             // Release live connection count for cleanup() guard.
             // Safe against double-decrement: the m_closed check above
             // returns early if already closed, so this line executes exactly once.
-            MongoDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+            if (m_counterIncremented)
+            {
+                MongoDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
+            }
 
             MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Connection closed");
             return {};
@@ -124,6 +127,9 @@ namespace cpp_dbc::MongoDB
         return m_pooled;
     }
 
+    // No try/catch: the only possible throw is std::bad_alloc from the
+    // std::string copy, which is a death-sentence exception — no meaningful
+    // recovery is possible, so std::terminate is the correct response.
     expected<std::string, DBException> MongoDBConnection::getURI(std::nothrow_t) const noexcept
     {
         return m_uri;

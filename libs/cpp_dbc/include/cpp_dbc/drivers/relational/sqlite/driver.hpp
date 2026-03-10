@@ -116,12 +116,17 @@ namespace cpp_dbc::SQLite
         using DBDriver::parseURI;
         using DBDriver::buildURI;
 
-        std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
-                                                                  const std::string &,
-                                                                  const std::string &,
-                                                                  const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
+        std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &uri,
+                                                                  const std::string &user,
+                                                                  const std::string &password,
+                                                                  const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
         {
-            return nullptr;
+            auto r = connectRelational(std::nothrow, uri, user, password, options);
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
+            return r.value();
         }
 #endif // __cpp_exceptions
 

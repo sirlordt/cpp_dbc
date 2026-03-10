@@ -141,13 +141,21 @@ namespace cpp_dbc::Redis
         // ====================================================================
 
 #ifdef __cpp_exceptions
+        using DBDriver::parseURI;
+        using DBDriver::buildURI;
+
         std::shared_ptr<KVDBConnection> connectKV(
-            const std::string &,
-            const std::string &,
-            const std::string &,
-            const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
+            const std::string &uri,
+            const std::string &user,
+            const std::string &password,
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
         {
-            return nullptr;
+            auto r = connectKV(std::nothrow, uri, user, password, options);
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
+            return r.value();
         }
 
 #endif // __cpp_exceptions

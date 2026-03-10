@@ -35,17 +35,38 @@ TEST_CASE("Firebird driver tests", "[23_021_01_firebird_real_driver]")
         // Create a Firebird driver
         cpp_dbc::Firebird::FirebirdDBDriver driver;
 
-        // Check that it accepts Firebird URLs
-        REQUIRE(driver.acceptURI("cpp_dbc:firebird://localhost:3050/testdb"));
-        REQUIRE(driver.acceptURI("cpp_dbc:firebird://127.0.0.1:3050/testdb"));
-        REQUIRE(driver.acceptURI("cpp_dbc:firebird://db.example.com:3050/testdb"));
-        REQUIRE(driver.acceptURI("cpp_dbc:firebird://localhost:3050//var/lib/firebird/data/testdb.fdb"));
+        // Check that it accepts Firebird URIs
+        REQUIRE_NOTHROW(driver.acceptURI("cpp_dbc:firebird://localhost:3050/testdb"));
+        REQUIRE_NOTHROW(driver.acceptURI("cpp_dbc:firebird://127.0.0.1:3050/testdb"));
+        REQUIRE_NOTHROW(driver.acceptURI("cpp_dbc:firebird://db.example.com:3050/testdb"));
+        REQUIRE_NOTHROW(driver.acceptURI("cpp_dbc:firebird://localhost:3050//var/lib/firebird/data/testdb.fdb"));
 
-        // Check that it rejects non-Firebird URLs
-        REQUIRE_FALSE(driver.acceptURI("cpp_dbc:mysql://localhost:3306/testdb"));
-        REQUIRE_FALSE(driver.acceptURI("cpp_dbc:postgresql://localhost:5432/testdb"));
-        REQUIRE_FALSE(driver.acceptURI("jdbc:firebird://localhost:3050/testdb"));
-        REQUIRE_FALSE(driver.acceptURI("firebird://localhost:3050/testdb"));
+        // Check that it rejects non-Firebird URIs
+        REQUIRE_THROWS_AS(driver.acceptURI("cpp_dbc:mysql://localhost:3306/testdb"), cpp_dbc::DBException);
+        REQUIRE_THROWS_AS(driver.acceptURI("cpp_dbc:postgresql://localhost:5432/testdb"), cpp_dbc::DBException);
+        REQUIRE_THROWS_AS(driver.acceptURI("jdbc:firebird://localhost:3050/testdb"), cpp_dbc::DBException);
+        REQUIRE_THROWS_AS(driver.acceptURI("firebird://localhost:3050/testdb"), cpp_dbc::DBException);
+    }
+
+    SECTION("Firebird driver URI acceptance (nothrow)")
+    {
+        cpp_dbc::Firebird::FirebirdDBDriver driver;
+
+        // Valid Firebird URIs — has_value() returns true
+        auto ok1 = driver.acceptURI(std::nothrow, "cpp_dbc:firebird://localhost:3050/testdb");
+        REQUIRE(ok1.has_value());
+        auto ok2 = driver.acceptURI(std::nothrow, "cpp_dbc:firebird://127.0.0.1:3050/testdb");
+        REQUIRE(ok2.has_value());
+        auto ok3 = driver.acceptURI(std::nothrow, "cpp_dbc:firebird://localhost:3050//var/lib/firebird/data/testdb.fdb");
+        REQUIRE(ok3.has_value());
+
+        // Wrong scheme — has_value() returns false with scheme mismatch error
+        auto no1 = driver.acceptURI(std::nothrow, "cpp_dbc:mysql://localhost:3306/testdb");
+        REQUIRE_FALSE(no1.has_value());
+        auto no2 = driver.acceptURI(std::nothrow, "jdbc:firebird://localhost:3050/testdb");
+        REQUIRE_FALSE(no2.has_value());
+        auto no3 = driver.acceptURI(std::nothrow, "firebird://localhost:3050/testdb");
+        REQUIRE_FALSE(no3.has_value());
     }
 
     SECTION("Firebird driver connection string parsing")

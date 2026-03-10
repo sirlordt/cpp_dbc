@@ -114,7 +114,7 @@ This section is mandatory. It proves the analysis was thorough and not just a se
 
 7. **No false positives**: If you are unsure whether something is a violation, do not include it. Err on the side of precision over recall. A report with zero false positives is more valuable than one that catches everything but includes noise.
 
-8. **No retroactive enforcement**: The conventions state that several rules apply "only to new or modified code" and that "pre-existing comments do not need to be updated retroactively." Respect this — only report violations in code that was written or modified as part of the current driver implementation. When analyzing an entire driver (e.g., all MySQL files), treat all code in those files as in-scope unless the user specifies otherwise.
+8. **No retroactive enforcement**: The conventions state that several rules apply "only to new or modified code" and that "pre-existing comments do not need to be updated retroactively." By default, only report violations in new or modified code — not in pre-existing code that was untouched. A whole-driver review (where all code in the driver's files is treated as in-scope) only applies when the user explicitly requests it (e.g., "analyze the entire MySQL driver", "full audit of all ScyllaDB files"). If the user does not specify a whole-driver review, restrict findings to new or modified code.
 
 9. **Consistent numbering**: Violations are numbered sequentially starting at `#1`. The numbering has no relation to severity — violations are ordered by the sequence in which they are discovered during the file-by-file analysis.
 

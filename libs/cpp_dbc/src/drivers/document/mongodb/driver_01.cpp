@@ -115,19 +115,23 @@ namespace cpp_dbc::MongoDB
     void MongoDBDriver::cleanup()
     {
         MONGODB_DEBUG("MongoDBDriver::cleanup - Cleaning up MongoDB C driver");
-        if (s_initialized.load(std::memory_order_acquire))
+        if (!s_initialized.load(std::memory_order_acquire))
         {
-            if (s_liveConnectionCount.load(std::memory_order_acquire) > 0)
-            {
-                MONGODB_DEBUG("MongoDBDriver::cleanup - Skipped: "
-                              << s_liveConnectionCount.load(std::memory_order_acquire)
-                              << " live connection(s) still open");
-                return;
-            }
-            mongoc_cleanup();
-            s_initialized.store(false, std::memory_order_release);
-            MONGODB_DEBUG("MongoDBDriver::cleanup - Done");
+            return;
         }
+
+        auto liveCount = s_liveConnectionCount.load(std::memory_order_acquire);
+        if (liveCount > 0)
+        {
+            MONGODB_DEBUG("MongoDBDriver::cleanup - Skipped: "
+                          << liveCount
+                          << " live connection(s) still open");
+            return;
+        }
+
+        mongoc_cleanup();
+        s_initialized.store(false, std::memory_order_release);
+        MONGODB_DEBUG("MongoDBDriver::cleanup - Done");
     }
 
     bool MongoDBDriver::isInitialized()
@@ -172,12 +176,6 @@ namespace cpp_dbc::MongoDB
         if (!uriCheck.has_value())
         {
             return unexpected<DBException>(uriCheck.error());
-        }
-        if (!uriCheck.value())
-        {
-            return unexpected<DBException>(DBException(
-                "1C2D3E4F5A6B",
-                "Invalid MongoDB URI: " + uri));
         }
 
         // Pass the full canonical URI — MongoDBConnection strips the cpp_dbc:

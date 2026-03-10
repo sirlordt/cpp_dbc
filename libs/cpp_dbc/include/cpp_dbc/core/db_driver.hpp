@@ -42,11 +42,10 @@ namespace cpp_dbc
      * ```cpp
      * // Register and use a driver directly
      * auto driver = std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>();
-     * if (driver->acceptURI("cpp_dbc:mysql://localhost/mydb")) {
-     *     auto conn = driver->connect("cpp_dbc:mysql://localhost/mydb", "user", "pass");
-     *     // ... use connection ...
-     *     conn->close();
-     * }
+     * driver->acceptURI("cpp_dbc:mysql://localhost/mydb");  // throws DBException on mismatch
+     * auto conn = driver->connect("cpp_dbc:mysql://localhost/mydb", "user", "pass");
+     * // ... use connection ...
+     * conn->close();
      * ```
      *
      * @see DriverManager, RelationalDBDriver, DocumentDBDriver, KVDBDriver, ColumnarDBDriver
@@ -121,18 +120,15 @@ namespace cpp_dbc
          * @brief Check if this driver accepts the given URI
          *
          * @param uri The database URI to check
-         * @return true if this driver can handle the URI
-         * @return false if this driver cannot handle the URI
-         * @throws DBException on error
+         * @throws DBException if the URI scheme doesn't match or the URI is malformed
          */
-        virtual bool acceptURI(const std::string &uri)
+        virtual void acceptURI(const std::string &uri)
         {
             auto result = acceptURI(std::nothrow, uri);
             if (!result.has_value())
             {
                 throw result.error();
             }
-            return result.value();
         }
 
         /**
@@ -203,21 +199,51 @@ namespace cpp_dbc
          * @brief Check if this driver accepts the given URI (nothrow version)
          *
          * Each driver recognizes a specific URI scheme (e.g., "cpp_dbc:mysql://", "cpp_dbc:postgresql://").
+         * Returns success (void) when the URI is valid for this driver, or a DBException
+         * describing why the URI was rejected — either a scheme mismatch (wrong driver)
+         * or a malformed URI (right driver, bad format).
          *
          * @param nothrow std::nothrow tag to indicate exception-free operation
          * @param uri The database URI to check
-         * @return expected containing true if this driver can handle the URI, false otherwise
+         * @return expected<void> on success, or DBException on scheme mismatch / malformed URI
          *
          * ```cpp
          * auto driver = std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>();
-         * auto ok = driver->acceptURI(std::nothrow, "cpp_dbc:mysql://localhost/mydb");   // true
-         * auto no = driver->acceptURI(std::nothrow, "cpp_dbc:postgresql://localhost/mydb"); // false
+         * auto ok  = driver->acceptURI(std::nothrow, "cpp_dbc:mysql://localhost/mydb");      // success
+         * auto no  = driver->acceptURI(std::nothrow, "cpp_dbc:postgresql://localhost/mydb");  // error: scheme mismatch
+         * auto err = driver->acceptURI(std::nothrow, "cpp_dbc:mysql://");                    // error: malformed URI
          * ```
          */
-        virtual cpp_dbc::expected<bool, DBException> acceptURI(
+        virtual cpp_dbc::expected<void, DBException> acceptURI(
             std::nothrow_t, const std::string &uri) noexcept
         {
-            return parseURI(std::nothrow, uri).has_value();
+            // Extract the URI prefix (everything up to and including "://") from this
+            // driver's scheme template to distinguish "wrong driver" from "malformed URI".
+            auto scheme = getURIScheme();
+            auto sep = scheme.find("://");
+            if (sep == std::string::npos)
+            {
+                // Driver has no valid scheme — cannot accept any URI
+                return cpp_dbc::unexpected(DBException("7S7JCEW5HKIK",
+                    "URI scheme mismatch: driver has no valid scheme, cannot accept URI: " + uri));
+            }
+            std::string_view prefix(scheme.data(), sep + 3);
+
+            // Wrong driver — URI doesn't match this driver's scheme prefix
+            if (!uri.starts_with(prefix))
+            {
+                return cpp_dbc::unexpected(DBException("5P6I5DGADCPU",
+                    "URI scheme mismatch: expected prefix '" + std::string(prefix) +
+                    "' but got URI: " + uri));
+            }
+
+            // Right driver — parse and propagate any error (malformed URI for this driver)
+            auto parseResult = parseURI(std::nothrow, uri);
+            if (!parseResult.has_value())
+            {
+                return cpp_dbc::unexpected(parseResult.error());
+            }
+            return {};
         }
 
         /**

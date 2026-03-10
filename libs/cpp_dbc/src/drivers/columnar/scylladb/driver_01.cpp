@@ -76,17 +76,21 @@ namespace cpp_dbc::ScyllaDB
     void ScyllaDBDriver::cleanup()
     {
         std::scoped_lock lock(s_initMutex);
-        if (s_initialized.load(std::memory_order_acquire))
+        if (!s_initialized.load(std::memory_order_acquire))
         {
-            if (s_liveConnectionCount.load(std::memory_order_acquire) > 0)
-            {
-                SCYLLADB_DEBUG("ScyllaDBDriver::cleanup - Skipped: "
-                               << s_liveConnectionCount.load(std::memory_order_acquire)
-                               << " live connection(s) still open");
-                return;
-            }
-            s_initialized.store(false, std::memory_order_release);
+            return;
         }
+
+        auto liveCount = s_liveConnectionCount.load(std::memory_order_acquire);
+        if (liveCount > 0)
+        {
+            SCYLLADB_DEBUG("ScyllaDBDriver::cleanup - Skipped: "
+                           << liveCount
+                           << " live connection(s) still open");
+            return;
+        }
+
+        s_initialized.store(false, std::memory_order_release);
     }
 
 #ifdef __cpp_exceptions
@@ -203,6 +207,13 @@ namespace cpp_dbc::ScyllaDB
         const std::string &database,
         const std::map<std::string, std::string> & /*options*/) noexcept
     {
+        if (host.empty())
+        {
+            return cpp_dbc::unexpected(DBException("LVFLE56HHX7K",
+                                                    "Cannot build ScyllaDB URI: host is required",
+                                                    system_utils::captureCallStack()));
+        }
+
         // 2026-03-08T22:00:00Z
         // Bug: Raw IPv6 hosts (e.g. "::1") were concatenated without brackets,
         // producing invalid URIs like "cpp_dbc:scylladb://::1:9042/ks".

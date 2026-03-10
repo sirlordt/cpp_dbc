@@ -71,6 +71,7 @@ namespace cpp_dbc::ScyllaDB
         std::shared_ptr<CassSession> m_session; // Shared for PreparedStatement weak_ptr
         std::string m_uri;
         std::atomic<bool> m_closed{true};
+        bool m_counterIncremented{false};
         bool m_initFailed{false};
         DBException m_initError{"0J9B2L099DS6", "", {}};
         TransactionIsolationLevel m_transactionIsolation{TransactionIsolationLevel::TRANSACTION_NONE};

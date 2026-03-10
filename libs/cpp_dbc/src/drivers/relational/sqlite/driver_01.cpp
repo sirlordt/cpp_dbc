@@ -110,18 +110,21 @@ namespace cpp_dbc::SQLite
     void SQLiteDBDriver::cleanup()
     {
         std::scoped_lock lock(s_initMutex);
-        if (s_initialized.load(std::memory_order_acquire))
+        if (!s_initialized.load(std::memory_order_acquire))
         {
-            if (s_liveConnectionCount.load(std::memory_order_acquire) > 0)
-            {
-                SQLITE_DEBUG("SQLiteDBDriver::cleanup - Skipped: %zu live connection(s) still open",
-                             s_liveConnectionCount.load(std::memory_order_acquire));
-                return;
-            }
-            // No global library cleanup needed for SQLite (sqlite3_shutdown is optional
-            // and already called in the destructor)
-            s_initialized.store(false, std::memory_order_release);
+            return;
         }
+
+        auto liveCount = s_liveConnectionCount.load(std::memory_order_acquire);
+        if (liveCount > 0)
+        {
+            SQLITE_DEBUG("SQLiteDBDriver::cleanup - Skipped: %zu live connection(s) still open", liveCount);
+            return;
+        }
+
+        // No global library cleanup needed for SQLite (sqlite3_shutdown is optional
+        // and already called in the destructor)
+        s_initialized.store(false, std::memory_order_release);
     }
 
 #ifdef __cpp_exceptions
