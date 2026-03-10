@@ -122,10 +122,12 @@ namespace cpp_dbc
 #ifdef __cpp_exceptions
         // Family-specific typed getter (throwing)
         virtual std::shared_ptr<ColumnarDBConnection> getColumnarDBConnection();
+        virtual std::shared_ptr<ColumnarDBConnection> getColumnarDBConnection(size_t timeoutMs);
 #endif
 
         // Family-specific typed getter (nothrow)
         cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException> getColumnarDBConnection(std::nothrow_t) noexcept;
+        cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException> getColumnarDBConnection(std::nothrow_t, size_t timeoutMs) noexcept;
     };
 
     /**

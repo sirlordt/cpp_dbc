@@ -103,6 +103,15 @@ namespace cpp_dbc
         virtual std::shared_ptr<DBConnection> getDBConnection() = 0;
 
         /**
+         * @brief Borrow a connection with a custom timeout
+         *
+         * @param timeoutMs Maximum wait time in milliseconds
+         * @return A shared pointer to a database connection
+         * @throws DBException if no connection is available within the timeout
+         */
+        virtual std::shared_ptr<DBConnection> getDBConnection(size_t timeoutMs) = 0;
+
+        /**
          * @brief Get the number of connections currently in use
          * @return The number of active (borrowed) connections
          */
@@ -145,6 +154,13 @@ namespace cpp_dbc
          * @return expected containing a shared_ptr to a connection, or DBException on failure
          */
         virtual cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> getDBConnection(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Borrow a connection with a custom timeout (nothrow version)
+         * @param timeoutMs Maximum wait time in milliseconds
+         * @return expected containing a shared_ptr to a connection, or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> getDBConnection(std::nothrow_t, size_t timeoutMs) noexcept = 0;
 
         /**
          * @brief Get the number of connections currently in use (nothrow version)

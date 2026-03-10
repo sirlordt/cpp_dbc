@@ -153,7 +153,8 @@ namespace cpp_dbc
 
         // Core borrow logic — returns a pooled connection from the pool.
         // Protected so derived classes can implement typed getters (e.g., getRelationalDBConnection).
-        cpp_dbc::expected<std::shared_ptr<DBConnectionPooled>, DBException> acquireConnection(std::nothrow_t) noexcept;
+        // timeoutMs == 0 means use pool default (m_maxWaitMillis).
+        cpp_dbc::expected<std::shared_ptr<DBConnectionPooled>, DBException> acquireConnection(std::nothrow_t, size_t timeoutMs = 0) noexcept;
         // Sets the transaction isolation level for the pool
         void setPoolTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override
         {
@@ -231,6 +232,7 @@ namespace cpp_dbc
 #ifdef __cpp_exceptions
         // DBConnectionPool interface implementation
         std::shared_ptr<DBConnection> getDBConnection() override;
+        std::shared_ptr<DBConnection> getDBConnection(size_t timeoutMs) override;
 
         // Gets current pool statistics
         size_t getActiveDBConnectionCount() const override;
@@ -249,6 +251,7 @@ namespace cpp_dbc
        // ====================================================================
 
         cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> getDBConnection(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> getDBConnection(std::nothrow_t, size_t timeoutMs) noexcept override;
         cpp_dbc::expected<size_t, DBException> getActiveDBConnectionCount(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<size_t, DBException> getIdleDBConnectionCount(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<size_t, DBException> getTotalDBConnectionCount(std::nothrow_t) const noexcept override;

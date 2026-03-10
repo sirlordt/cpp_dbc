@@ -117,10 +117,12 @@ namespace cpp_dbc
 #ifdef __cpp_exceptions
         // Family-specific typed getter (throwing)
         virtual std::shared_ptr<RelationalDBConnection> getRelationalDBConnection();
+        virtual std::shared_ptr<RelationalDBConnection> getRelationalDBConnection(size_t timeoutMs);
 #endif
 
         // Family-specific typed getter (nothrow)
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> getRelationalDBConnection(std::nothrow_t) noexcept;
+        cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> getRelationalDBConnection(std::nothrow_t, size_t timeoutMs) noexcept;
     };
 
     // RelationalPooledDBConnection wraps a physical relational database connection.

@@ -120,10 +120,12 @@ namespace cpp_dbc
 #ifdef __cpp_exceptions
         // Family-specific typed getter (throwing)
         virtual std::shared_ptr<DocumentDBConnection> getDocumentDBConnection();
+        virtual std::shared_ptr<DocumentDBConnection> getDocumentDBConnection(size_t timeoutMs);
 #endif
 
         // Family-specific typed getter (nothrow)
         cpp_dbc::expected<std::shared_ptr<DocumentDBConnection>, DBException> getDocumentDBConnection(std::nothrow_t) noexcept;
+        cpp_dbc::expected<std::shared_ptr<DocumentDBConnection>, DBException> getDocumentDBConnection(std::nothrow_t, size_t timeoutMs) noexcept;
     };
 
     // DocumentPooledDBConnection wraps a physical document database connection.

@@ -548,6 +548,16 @@ namespace cpp_dbc
         return result.value();
     }
 
+    std::shared_ptr<DBConnection> DBConnectionPoolBase::getDBConnection(size_t timeoutMs)
+    {
+        auto result = getDBConnection(std::nothrow, timeoutMs);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
     size_t DBConnectionPoolBase::getActiveDBConnectionCount() const
     {
         auto result = getActiveDBConnectionCount(std::nothrow);
@@ -611,10 +621,20 @@ namespace cpp_dbc
         return std::static_pointer_cast<DBConnection>(result.value());
     }
 
-    cpp_dbc::expected<std::shared_ptr<DBConnectionPooled>, DBException> DBConnectionPoolBase::acquireConnection(std::nothrow_t) noexcept
+    cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> DBConnectionPoolBase::getDBConnection(std::nothrow_t, size_t timeoutMs) noexcept
+    {
+        auto result = acquireConnection(std::nothrow, timeoutMs);
+        if (!result.has_value())
+        {
+            return cpp_dbc::unexpected(result.error());
+        }
+        return std::static_pointer_cast<DBConnection>(result.value());
+    }
+
+    cpp_dbc::expected<std::shared_ptr<DBConnectionPooled>, DBException> DBConnectionPoolBase::acquireConnection(std::nothrow_t, size_t timeoutMs) noexcept
     {
         using namespace std::chrono;
-        auto deadline = steady_clock::now() + milliseconds(m_maxWaitMillis);
+        auto deadline = steady_clock::now() + milliseconds(timeoutMs > 0 ? timeoutMs : m_maxWaitMillis);
 
         while (true)
         {

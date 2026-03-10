@@ -184,12 +184,28 @@ namespace cpp_dbc
         return result.value();
     }
 
+    std::shared_ptr<RelationalDBConnection> RelationalDBConnectionPool::getRelationalDBConnection(size_t timeoutMs)
+    {
+        auto result = getRelationalDBConnection(std::nothrow, timeoutMs);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
 #endif // __cpp_exceptions
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>
     RelationalDBConnectionPool::getRelationalDBConnection(std::nothrow_t) noexcept
     {
-        auto result = acquireConnection(std::nothrow);
+        return getRelationalDBConnection(std::nothrow, 0);
+    }
+
+    cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>
+    RelationalDBConnectionPool::getRelationalDBConnection(std::nothrow_t, size_t timeoutMs) noexcept
+    {
+        auto result = acquireConnection(std::nothrow, timeoutMs);
         if (!result.has_value())
         {
             return cpp_dbc::unexpected(result.error());

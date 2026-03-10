@@ -120,10 +120,12 @@ namespace cpp_dbc
 #ifdef __cpp_exceptions
         // Family-specific typed getter (throwing)
         virtual std::shared_ptr<KVDBConnection> getKVDBConnection();
+        virtual std::shared_ptr<KVDBConnection> getKVDBConnection(size_t timeoutMs);
 #endif
 
         // Family-specific typed getter (nothrow)
         cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> getKVDBConnection(std::nothrow_t) noexcept;
+        cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> getKVDBConnection(std::nothrow_t, size_t timeoutMs) noexcept;
     };
 
     // KVPooledDBConnection wraps a physical KV database connection.

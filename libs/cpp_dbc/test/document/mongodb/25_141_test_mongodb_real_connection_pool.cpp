@@ -341,7 +341,7 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
         // Test concurrent connections under load
         SECTION("Connection pool under load")
         {
-            pool->setConnectionTimeout(std::nothrow, 6000);
+            // pool->setConnectionTimeout(std::nothrow, 7000);
 
             const uint64_t numOperations = 40;
             std::atomic<int> successCount(0);
@@ -353,7 +353,7 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
                 threads.push_back(std::thread([&pool, &successCount, &failureCount, i]()
                                               {
                     try {
-                        auto loadConn = pool->getDocumentDBConnection();
+                        auto loadConn = pool->getDocumentDBConnection(7000);
                         if (!loadConn)
                         {
                             failureCount++;
@@ -405,6 +405,445 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
         pool->close();
 
         // Verify pool is no longer running
+        REQUIRE_FALSE(pool->isRunning());
+    }
+
+    // ========================================================================
+    // Runtime pool configuration tests
+    // ========================================================================
+    SECTION("Runtime pool configuration")
+    {
+        cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
+        poolConfigLocal.setUri(connStr);
+        poolConfigLocal.setUsername(username);
+        poolConfigLocal.setPassword(password);
+        poolConfigLocal.setInitialSize(3);
+        poolConfigLocal.setMaxSize(5);
+        poolConfigLocal.setMinIdle(2);
+        poolConfigLocal.setConnectionTimeout(3500);
+        poolConfigLocal.setIdleTimeout(30000);
+        poolConfigLocal.setMaxLifetimeMillis(60000);
+        poolConfigLocal.setTestOnBorrow(true);
+        poolConfigLocal.setTestOnReturn(false);
+
+        auto poolResult = cpp_dbc::MongoDB::MongoDBConnectionPool::create(std::nothrow, poolConfigLocal);
+        REQUIRE(poolResult.has_value());
+        auto pool = poolResult.value();
+
+        SECTION("setConnectionTimeout changes pool default timeout")
+        {
+            // Verify initial value
+            REQUIRE(pool->getConnectionTimeout(std::nothrow) == 3500);
+
+            // Change timeout
+            pool->setConnectionTimeout(std::nothrow, 8000);
+            REQUIRE(pool->getConnectionTimeout(std::nothrow) == 8000);
+
+            // Exhaust the pool (maxSize=5), then verify timeout applies
+            std::vector<std::shared_ptr<cpp_dbc::DocumentDBConnection>> conns;
+            for (size_t i = 0; i < 5; ++i)
+            {
+                auto c = pool->getDocumentDBConnection();
+                REQUIRE(c != nullptr);
+                conns.push_back(c);
+            }
+            REQUIRE(pool->getActiveDBConnectionCount() == 5);
+
+            // Next request should time out — use a very short timeout via per-call override
+            // to avoid waiting 8 seconds. The pool default is 8000ms but we override with 100ms.
+            auto start = std::chrono::steady_clock::now();
+            auto result = pool->getDocumentDBConnection(std::nothrow, 100);
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - start);
+
+            REQUIRE_FALSE(result.has_value()); // Should fail — pool exhausted
+            REQUIRE(elapsed.count() >= 80);    // Should have waited ~100ms
+            REQUIRE(elapsed.count() < 2000);   // Should NOT have waited 8000ms
+
+            // Release all connections
+            for (auto &c : conns)
+            {
+                c->close();
+            }
+        }
+
+        SECTION("setIdleTimeout and setMaxLifetimeMillis getters")
+        {
+            // Verify initial values
+            REQUIRE(pool->getIdleTimeout(std::nothrow) == 30000);
+            REQUIRE(pool->getMaxLifetimeMillis(std::nothrow) == 60000);
+
+            // Change values
+            pool->setIdleTimeout(std::nothrow, 5000);
+            pool->setMaxLifetimeMillis(std::nothrow, 15000);
+
+            REQUIRE(pool->getIdleTimeout(std::nothrow) == 5000);
+            REQUIRE(pool->getMaxLifetimeMillis(std::nothrow) == 15000);
+        }
+
+        SECTION("setTestOnBorrow and setTestOnReturn toggle validation")
+        {
+            // Verify initial values
+            REQUIRE(pool->getTestOnBorrow(std::nothrow) == true);
+            REQUIRE(pool->getTestOnReturn(std::nothrow) == false);
+
+            // Toggle both
+            pool->setTestOnBorrow(std::nothrow, false);
+            pool->setTestOnReturn(std::nothrow, true);
+
+            REQUIRE(pool->getTestOnBorrow(std::nothrow) == false);
+            REQUIRE(pool->getTestOnReturn(std::nothrow) == true);
+
+            // Connections should still work with changed validation settings
+            auto conn = pool->getDocumentDBConnection();
+            REQUIRE(conn != nullptr);
+            REQUIRE(conn->ping());
+            conn->close();
+
+            // Toggle back
+            pool->setTestOnBorrow(std::nothrow, true);
+            pool->setTestOnReturn(std::nothrow, false);
+
+            REQUIRE(pool->getTestOnBorrow(std::nothrow) == true);
+            REQUIRE(pool->getTestOnReturn(std::nothrow) == false);
+
+            auto conn2 = pool->getDocumentDBConnection();
+            REQUIRE(conn2 != nullptr);
+            REQUIRE(conn2->ping());
+            conn2->close();
+        }
+
+        SECTION("setMaxSize grows and shrinks pool")
+        {
+            // Initial maxSize=5, pool has initialSize=3 connections
+            REQUIRE(pool->getMaxSize(std::nothrow) == 5);
+            auto initialTotal = pool->getTotalDBConnectionCount();
+            REQUIRE(initialTotal >= 2); // at least minIdle
+
+            // Grow maxSize to 8
+            auto growResult = pool->setMaxSize(std::nothrow, 8);
+            REQUIRE(growResult.has_value());
+            REQUIRE(pool->getMaxSize(std::nothrow) == 8);
+
+            // Should be able to borrow more connections than old maxSize
+            std::vector<std::shared_ptr<cpp_dbc::DocumentDBConnection>> conns;
+            for (size_t i = 0; i < 7; ++i)
+            {
+                auto c = pool->getDocumentDBConnection();
+                REQUIRE(c != nullptr);
+                conns.push_back(c);
+            }
+            REQUIRE(pool->getActiveDBConnectionCount() == 7);
+
+            // Release all
+            for (auto &c : conns)
+            {
+                c->close();
+            }
+            conns.clear();
+
+            // Now shrink maxSize to 3 — should evict excess idle connections
+            auto shrinkResult = pool->setMaxSize(std::nothrow, 3);
+            REQUIRE(shrinkResult.has_value());
+            REQUIRE(pool->getMaxSize(std::nothrow) == 3);
+
+            // Poll for convergence (30s for Helgrind compatibility)
+            auto startTime = std::chrono::steady_clock::now();
+            const auto timeout = std::chrono::milliseconds(30000);
+            bool converged = false;
+
+            while (std::chrono::steady_clock::now() - startTime < timeout)
+            {
+                if (pool->getTotalDBConnectionCount() <= 3)
+                {
+                    converged = true;
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+
+            REQUIRE(converged);
+            REQUIRE(pool->getTotalDBConnectionCount() <= 3);
+
+            // setMaxSize(0) should fail
+            auto zeroResult = pool->setMaxSize(std::nothrow, 0);
+            REQUIRE_FALSE(zeroResult.has_value());
+        }
+
+        SECTION("setMinIdle adjusts minimum idle connections")
+        {
+            REQUIRE(pool->getMinIdle(std::nothrow) == 2);
+
+            // Increase minIdle to 4
+            auto result = pool->setMinIdle(std::nothrow, 4);
+            REQUIRE(result.has_value());
+            REQUIRE(pool->getMinIdle(std::nothrow) == 4);
+
+            // Poll for maintenance thread to replenish (60s for Helgrind compatibility)
+            auto startTime = std::chrono::steady_clock::now();
+            const auto timeout = std::chrono::milliseconds(60000);
+            bool replenished = false;
+
+            while (std::chrono::steady_clock::now() - startTime < timeout)
+            {
+                if (pool->getIdleDBConnectionCount() >= 4)
+                {
+                    replenished = true;
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+
+            REQUIRE(replenished);
+            REQUIRE(pool->getIdleDBConnectionCount() >= 4);
+
+            // Decrease minIdle to 1
+            auto result2 = pool->setMinIdle(std::nothrow, 1);
+            REQUIRE(result2.has_value());
+            REQUIRE(pool->getMinIdle(std::nothrow) == 1);
+
+            // setMinIdle > maxSize should fail
+            auto badResult = pool->setMinIdle(std::nothrow, pool->getMaxSize(std::nothrow) + 1);
+            REQUIRE_FALSE(badResult.has_value());
+        }
+
+        SECTION("setMaxSize shrinks while connections are active")
+        {
+            // Borrow all 5 connections
+            std::vector<std::shared_ptr<cpp_dbc::DocumentDBConnection>> conns;
+            for (size_t i = 0; i < 5; ++i)
+            {
+                auto c = pool->getDocumentDBConnection();
+                REQUIRE(c != nullptr);
+                conns.push_back(c);
+            }
+            REQUIRE(pool->getActiveDBConnectionCount() == 5);
+
+            // Shrink maxSize to 2 while all 5 are borrowed
+            auto shrinkResult = pool->setMaxSize(std::nothrow, 2);
+            REQUIRE(shrinkResult.has_value());
+            REQUIRE(pool->getMaxSize(std::nothrow) == 2);
+
+            // Active connections must still work
+            for (auto &c : conns)
+            {
+                auto pingResult = c->ping(std::nothrow);
+                REQUIRE(pingResult.has_value());
+                REQUIRE(pingResult.value());
+            }
+
+            // Return all connections — they go back to idle (returnConnection
+            // does not check maxSize for valid connections)
+            for (auto &c : conns)
+            {
+                c->close();
+            }
+            conns.clear();
+
+            // Re-apply setMaxSize to force immediate eviction of excess idle
+            // connections. Without this, eviction depends on the maintenance
+            // thread cycle (~30s), which is too slow under Helgrind.
+            auto reapplyResult = pool->setMaxSize(std::nothrow, 2);
+            REQUIRE(reapplyResult.has_value());
+
+            // Poll for convergence (30s for Helgrind)
+            auto startTime = std::chrono::steady_clock::now();
+            const auto timeout = std::chrono::milliseconds(30000);
+            bool converged = false;
+
+            while (std::chrono::steady_clock::now() - startTime < timeout)
+            {
+                if (pool->getTotalDBConnectionCount() <= 2)
+                {
+                    converged = true;
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+
+            REQUIRE(converged);
+            REQUIRE(pool->getTotalDBConnectionCount() <= 2);
+
+            // Pool still functional after shrink
+            auto c = pool->getDocumentDBConnection();
+            REQUIRE(c != nullptr);
+            auto pingResult = c->ping(std::nothrow);
+            REQUIRE(pingResult.has_value());
+            REQUIRE(pingResult.value());
+            c->close();
+        }
+
+        SECTION("setMaxSize auto-adjusts minIdle when shrinking below it")
+        {
+            // Set minIdle to 4 first
+            auto setResult = pool->setMinIdle(std::nothrow, 4);
+            REQUIRE(setResult.has_value());
+            REQUIRE(pool->getMinIdle(std::nothrow) == 4);
+
+            // Poll for replenishment (60s for Helgrind)
+            auto startTime = std::chrono::steady_clock::now();
+            const auto timeout = std::chrono::milliseconds(60000);
+            bool replenished = false;
+
+            while (std::chrono::steady_clock::now() - startTime < timeout)
+            {
+                if (pool->getIdleDBConnectionCount() >= 4)
+                {
+                    replenished = true;
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+
+            REQUIRE(replenished);
+
+            // Shrink maxSize to 2 — must auto-adjust minIdle from 4 to 2
+            auto shrinkResult = pool->setMaxSize(std::nothrow, 2);
+            REQUIRE(shrinkResult.has_value());
+            REQUIRE(pool->getMaxSize(std::nothrow) == 2);
+            REQUIRE(pool->getMinIdle(std::nothrow) == 2);
+
+            // Poll for convergence (30s for Helgrind)
+            auto startTime2 = std::chrono::steady_clock::now();
+            const auto timeout2 = std::chrono::milliseconds(30000);
+            bool converged = false;
+
+            while (std::chrono::steady_clock::now() - startTime2 < timeout2)
+            {
+                if (pool->getTotalDBConnectionCount() <= 2)
+                {
+                    converged = true;
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+
+            REQUIRE(converged);
+            REQUIRE(pool->getTotalDBConnectionCount() <= 2);
+
+            // Pool still functional
+            auto c = pool->getDocumentDBConnection();
+            REQUIRE(c != nullptr);
+            auto pingResult = c->ping(std::nothrow);
+            REQUIRE(pingResult.has_value());
+            REQUIRE(pingResult.value());
+            c->close();
+        }
+
+        SECTION("Per-call timeout via getDocumentDBConnection(timeoutMs)")
+        {
+            // Exhaust the pool
+            std::vector<std::shared_ptr<cpp_dbc::DocumentDBConnection>> conns;
+            for (size_t i = 0; i < 5; ++i)
+            {
+                auto c = pool->getDocumentDBConnection();
+                REQUIRE(c != nullptr);
+                conns.push_back(c);
+            }
+            REQUIRE(pool->getActiveDBConnectionCount() == 5);
+
+            // Request with a short per-call timeout — should fail quickly
+            auto start = std::chrono::steady_clock::now();
+            auto result = pool->getDocumentDBConnection(std::nothrow, 200);
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - start);
+
+            REQUIRE_FALSE(result.has_value());
+            REQUIRE(elapsed.count() >= 150); // Waited at least ~200ms
+            REQUIRE(elapsed.count() < 2000); // Did not wait pool default (3500ms)
+
+            // Release one connection in a background thread after 100ms,
+            // then request with a longer per-call timeout — should succeed
+            std::thread releaser([&conns]()
+                                 {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                conns.back()->close();
+                conns.pop_back(); });
+
+            auto start2 = std::chrono::steady_clock::now();
+            auto result2 = pool->getDocumentDBConnection(std::nothrow, 3000);
+            auto elapsed2 = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - start2);
+
+            releaser.join();
+
+            REQUIRE(result2.has_value());
+            REQUIRE(elapsed2.count() >= 50);  // Had to wait for release
+            REQUIRE(elapsed2.count() < 2500); // But not the full 3000ms
+
+            result2.value()->close();
+
+            // Release remaining
+            for (auto &c : conns)
+            {
+                c->close();
+            }
+        }
+
+        SECTION("Connection pool under load with runtime timeout")
+        {
+            // Increase timeout for load test stability
+            pool->setConnectionTimeout(std::nothrow, 6000);
+
+            const uint64_t numOperations = 30;
+            std::atomic<int> successCount(0);
+            std::atomic<int> failureCount(0);
+            std::vector<std::thread> threads;
+
+            for (uint64_t i = 0; i < numOperations; i++)
+            {
+                threads.push_back(std::thread([&pool, &successCount, &failureCount, i]()
+                                              {
+                    try
+                    {
+                        auto loadConn = pool->getDocumentDBConnection(6000);
+                        if (!loadConn)
+                        {
+                            failureCount++;
+                            return;
+                        }
+
+                        bool isAlive = loadConn->ping();
+                        if (!isAlive)
+                        {
+                            failureCount++;
+                            loadConn->close();
+                            return;
+                        }
+
+                        std::this_thread::sleep_for(std::chrono::milliseconds(10 + (i % 10)));
+                        loadConn->close();
+                        successCount++;
+                    }
+                    catch (const std::exception &ex)
+                    {
+                        failureCount++;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST",
+                            "Load operation " + std::to_string(i) + " error: " + std::string(ex.what()));
+                    } }));
+            }
+
+            for (auto &t : threads)
+            {
+                if (t.joinable())
+                {
+                    t.join();
+                }
+            }
+
+            if (failureCount > 0)
+            {
+                WARN("failureCount: " << failureCount);
+            }
+            else
+            {
+                SUCCEED("failureCount: 0");
+            }
+            REQUIRE(successCount >= static_cast<int>(numOperations * 0.95));
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+        }
+
+        pool->close();
         REQUIRE_FALSE(pool->isRunning());
     }
 }
