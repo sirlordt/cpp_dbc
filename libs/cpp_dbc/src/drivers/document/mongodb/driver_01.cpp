@@ -88,21 +88,21 @@ namespace cpp_dbc::MongoDB
 
     void MongoDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<MongoDBConnection> conn) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
+        std::scoped_lock lock(s_registryMutex);
         s_connectionRegistry.insert(std::move(conn));
     }
 
     void MongoDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<MongoDBConnection> &conn) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
+        std::scoped_lock lock(s_registryMutex);
         s_connectionRegistry.erase(conn);
     }
 
     size_t MongoDBDriver::getConnectionAlive() noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
-        return static_cast<size_t>(std::count_if(
-            s_connectionRegistry.begin(), s_connectionRegistry.end(),
+        std::scoped_lock lock(s_registryMutex);
+        return static_cast<size_t>(std::ranges::count_if(
+            s_connectionRegistry,
             [](const auto &w) { return !w.expired(); }));
     }
 
@@ -196,7 +196,7 @@ namespace cpp_dbc::MongoDB
     cpp_dbc::expected<std::shared_ptr<MongoDBDriver>, DBException>
     MongoDBDriver::getInstance(std::nothrow_t) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_instanceMutex);
+        std::scoped_lock lock(s_instanceMutex);
         auto existing = s_instance.lock();
         if (existing)
         {

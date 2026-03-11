@@ -134,21 +134,21 @@ namespace cpp_dbc::Redis
 
     void RedisDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<RedisDBConnection> conn) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
+        std::scoped_lock lock(s_registryMutex);
         s_connectionRegistry.insert(std::move(conn));
     }
 
     void RedisDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<RedisDBConnection> &conn) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
+        std::scoped_lock lock(s_registryMutex);
         s_connectionRegistry.erase(conn);
     }
 
     size_t RedisDBDriver::getConnectionAlive() noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
-        return static_cast<size_t>(std::count_if(
-            s_connectionRegistry.begin(), s_connectionRegistry.end(),
+        std::scoped_lock lock(s_registryMutex);
+        return static_cast<size_t>(std::ranges::count_if(
+            s_connectionRegistry,
             [](const auto &w) { return !w.expired(); }));
     }
 
@@ -185,7 +185,7 @@ namespace cpp_dbc::Redis
     cpp_dbc::expected<std::shared_ptr<RedisDBDriver>, DBException>
     RedisDBDriver::getInstance(std::nothrow_t) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_instanceMutex);
+        std::scoped_lock lock(s_instanceMutex);
         auto existing = s_instance.lock();
         if (existing)
         {

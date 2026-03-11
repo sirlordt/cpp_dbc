@@ -66,13 +66,13 @@ namespace cpp_dbc::MySQL
 
     void MySQLDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<MySQLDBConnection> conn) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
+        std::scoped_lock lock(s_registryMutex);
         s_connectionRegistry.insert(std::move(conn));
     }
 
     void MySQLDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<MySQLDBConnection> &conn) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
+        std::scoped_lock lock(s_registryMutex);
         s_connectionRegistry.erase(conn);
     }
 
@@ -139,7 +139,7 @@ namespace cpp_dbc::MySQL
     cpp_dbc::expected<std::shared_ptr<MySQLDBDriver>, DBException>
     MySQLDBDriver::getInstance(std::nothrow_t) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_instanceMutex);
+        std::scoped_lock lock(s_instanceMutex);
         auto existing = s_instance.lock();
         if (existing)
         {
@@ -158,9 +158,9 @@ namespace cpp_dbc::MySQL
 
     size_t MySQLDBDriver::getConnectionAlive() noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
-        return static_cast<size_t>(std::count_if(
-            s_connectionRegistry.begin(), s_connectionRegistry.end(),
+        std::scoped_lock lock(s_registryMutex);
+        return static_cast<size_t>(std::ranges::count_if(
+            s_connectionRegistry,
             [](const auto &w) { return !w.expired(); }));
     }
 

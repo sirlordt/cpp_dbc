@@ -59,13 +59,13 @@ namespace cpp_dbc::PostgreSQL
 
     void PostgreSQLDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<PostgreSQLDBConnection> conn) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
+        std::scoped_lock lock(s_registryMutex);
         s_connectionRegistry.insert(std::move(conn));
     }
 
     void PostgreSQLDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<PostgreSQLDBConnection> &conn) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
+        std::scoped_lock lock(s_registryMutex);
         s_connectionRegistry.erase(conn);
     }
 
@@ -188,7 +188,7 @@ namespace cpp_dbc::PostgreSQL
     cpp_dbc::expected<std::shared_ptr<PostgreSQLDBDriver>, DBException>
     PostgreSQLDBDriver::getInstance(std::nothrow_t) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_instanceMutex);
+        std::scoped_lock lock(s_instanceMutex);
         auto existing = s_instance.lock();
         if (existing)
         {
@@ -207,9 +207,9 @@ namespace cpp_dbc::PostgreSQL
 
     size_t PostgreSQLDBDriver::getConnectionAlive() noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
-        return static_cast<size_t>(std::count_if(
-            s_connectionRegistry.begin(), s_connectionRegistry.end(),
+        std::scoped_lock lock(s_registryMutex);
+        return static_cast<size_t>(std::ranges::count_if(
+            s_connectionRegistry,
             [](const auto &w) { return !w.expired(); }));
     }
 
