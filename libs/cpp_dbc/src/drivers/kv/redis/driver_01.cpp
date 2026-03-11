@@ -38,13 +38,14 @@
 namespace cpp_dbc::Redis
 {
 
-    // ============================================================================
-    // Static member initialization
-    // ============================================================================
-
-    std::atomic<bool> RedisDBDriver::s_initialized{false}; // NOSONAR - Must match declaration in header
-    std::atomic<size_t> RedisDBDriver::s_liveConnectionCount{0};
+    // ── Static member initialization ──────────────────────────────────────────
+    std::atomic<bool> RedisDBDriver::s_initialized{false}; // NOSONAR(cpp:S1197) — explicit template arg for clarity in static member definition
     std::mutex RedisDBDriver::s_initMutex;
+    std::weak_ptr<RedisDBDriver> RedisDBDriver::s_instance;
+    std::mutex                   RedisDBDriver::s_instanceMutex;
+    std::mutex                   RedisDBDriver::s_registryMutex;
+    std::set<std::weak_ptr<RedisDBConnection>,
+             std::owner_less<std::weak_ptr<RedisDBConnection>>> RedisDBDriver::s_connectionRegistry;
 
     // ============================================================================
     // RedisDBDriver Implementation
@@ -59,7 +60,7 @@ namespace cpp_dbc::Redis
         return true;
     }
 
-    RedisDBDriver::RedisDBDriver()
+    RedisDBDriver::RedisDBDriver(RedisDBDriver::PrivateCtorTag, std::nothrow_t) noexcept
     {
         REDIS_DEBUG("RedisDBDriver::constructor - Creating driver");
         // Use double-checked locking pattern for thread-safe initialization
@@ -131,15 +132,45 @@ namespace cpp_dbc::Redis
 #endif
     }
 
+    void RedisDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<RedisDBConnection> conn) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        s_connectionRegistry.insert(std::move(conn));
+    }
+
+    void RedisDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<RedisDBConnection> &conn) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        s_connectionRegistry.erase(conn);
+    }
+
+    size_t RedisDBDriver::getConnectionAlive() noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        return static_cast<size_t>(std::count_if(
+            s_connectionRegistry.begin(), s_connectionRegistry.end(),
+            [](const auto &w) { return !w.expired(); }));
+    }
+
+#ifdef __cpp_exceptions
+    std::shared_ptr<RedisDBDriver> RedisDBDriver::getInstance()
+    {
+        auto result = getInstance(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+#endif // __cpp_exceptions
+
     void RedisDBDriver::cleanup()
     {
         REDIS_DEBUG("RedisDBDriver::cleanup - Cleaning up Redis driver");
-        auto liveCount = s_liveConnectionCount.load(std::memory_order_acquire);
-        if (liveCount > 0)
+        std::scoped_lock lock(s_initMutex);
+        if (!s_initialized.load(std::memory_order_acquire))
         {
-            REDIS_DEBUG("RedisDBDriver::cleanup - Skipped: "
-                        << liveCount
-                        << " live connection(s) still open");
             return;
         }
         // No specific cleanup needed for hiredis
@@ -151,6 +182,23 @@ namespace cpp_dbc::Redis
     // RedisDBDriver - NOTHROW IMPLEMENTATIONS
     // ============================================================================
 
+    cpp_dbc::expected<std::shared_ptr<RedisDBDriver>, DBException>
+    RedisDBDriver::getInstance(std::nothrow_t) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_instanceMutex);
+        auto existing = s_instance.lock();
+        if (existing)
+        {
+            return existing;
+        }
+        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+        // RedisDBDriver() constructor only calls initialize(std::nothrow) and debug
+        // macros — no recoverable exception is possible.
+        auto inst = std::make_shared<RedisDBDriver>(RedisDBDriver::PrivateCtorTag{}, std::nothrow);
+        s_instance = inst;
+        return inst;
+    }
+
     cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> RedisDBDriver::connectKV(
         std::nothrow_t,
         const std::string &uri,
@@ -158,42 +206,29 @@ namespace cpp_dbc::Redis
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
     {
-        try
-        {
-            REDIS_DEBUG("RedisDBDriver::connectKV(nothrow) - Connecting to: " << uri);
+        REDIS_DEBUG("RedisDBDriver::connectKV(nothrow) - Connecting to: " << uri);
 
-            auto uriCheck = acceptURI(std::nothrow, uri);
-            if (!uriCheck.has_value())
-            {
-                return cpp_dbc::unexpected(uriCheck.error());
-            }
-
-            std::string redisUri = uri;
-            if (uri.starts_with(cpp_dbc::system_constants::URI_PREFIX))
-            {
-                redisUri = uri.substr(cpp_dbc::system_constants::URI_PREFIX.size());
-            }
-
-            auto connResult = RedisDBConnection::create(std::nothrow, redisUri, user, password, options);
-            if (!connResult.has_value())
-            {
-                return cpp_dbc::unexpected(connResult.error());
-            }
-            REDIS_DEBUG("RedisDBDriver::connectKV(nothrow) - Connection established");
-            return std::shared_ptr<KVDBConnection>(connResult.value());
-        }
-        catch (const std::exception &ex)
+        auto uriCheck = acceptURI(std::nothrow, uri);
+        if (!uriCheck.has_value())
         {
-            return cpp_dbc::unexpected(DBException("RE1K8C9D0E1F",
-                                                   std::string("connectKV failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(uriCheck.error());
         }
-        catch (...)
+
+        std::string redisUri = uri;
+        if (uri.starts_with(cpp_dbc::system_constants::URI_PREFIX))
         {
-            return cpp_dbc::unexpected(DBException("RD7A8B9C0D1E",
-                                                   "connectKV failed: unknown error",
-                                                   system_utils::captureCallStack()));
+            redisUri = uri.substr(cpp_dbc::system_constants::URI_PREFIX.size());
         }
+
+        auto connResult = RedisDBConnection::create(std::nothrow, redisUri, user, password, options);
+        if (!connResult.has_value())
+        {
+            return cpp_dbc::unexpected(connResult.error());
+        }
+        auto conn = connResult.value();
+        registerConnection(std::nothrow, conn);
+        REDIS_DEBUG("RedisDBDriver::connectKV(nothrow) - Connection established");
+        return std::shared_ptr<KVDBConnection>(conn);
     }
 
     cpp_dbc::expected<std::map<std::string, std::string>, DBException> RedisDBDriver::parseURI(
@@ -249,17 +284,15 @@ namespace cpp_dbc::Redis
 
             return result;
         }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
         catch (const std::exception &ex)
         {
+            // std::regex constructor and std::regex_match can throw std::regex_error
+            // (inherits from std::exception) on malformed patterns or excessive backtracking.
             return cpp_dbc::unexpected(DBException("RD8B9C0D1E2F",
                                                    std::string("parseURI failed: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("RD9C0D1E2F3A",
                                                    "parseURI failed: unknown error",

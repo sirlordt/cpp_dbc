@@ -138,7 +138,7 @@ namespace cpp_dbc::Redis
                 if (ec != std::errc{} || ptr != portStr.data() + portStr.size())
                 {
                     m_initFailed = true;
-                    m_initError = DBException("C58E02D9F1A8", "Invalid port in Redis URI: " + portStr,
+                    m_initError = std::make_unique<DBException>("C58E02D9F1A8", "Invalid port in Redis URI: " + portStr,
                                               system_utils::captureCallStack());
                     return;
                 }
@@ -151,7 +151,7 @@ namespace cpp_dbc::Redis
                 if (ec2 != std::errc{} || ptr2 != dbStr.data() + dbStr.size())
                 {
                     m_initFailed = true;
-                    m_initError = DBException("C58E02D9F1A9", "Invalid database index in Redis URI: " + dbStr,
+                    m_initError = std::make_unique<DBException>("C58E02D9F1A9", "Invalid database index in Redis URI: " + dbStr,
                                               system_utils::captureCallStack());
                     return;
                 }
@@ -160,7 +160,7 @@ namespace cpp_dbc::Redis
         else
         {
             m_initFailed = true;
-            m_initError = DBException("C58E02D9F1A7", "Invalid Redis URI format: " + uri,
+            m_initError = std::make_unique<DBException>("C58E02D9F1A7", "Invalid Redis URI format: " + uri,
                                       system_utils::captureCallStack());
             return;
         }
@@ -228,7 +228,7 @@ namespace cpp_dbc::Redis
                 redisFree(context);
             }
             m_initFailed = true;
-            m_initError = DBException("B49D7C01E3F5", "Redis connection failed: " + errorMsg,
+            m_initError = std::make_unique<DBException>("B49D7C01E3F5", "Redis connection failed: " + errorMsg,
                                       system_utils::captureCallStack());
             return;
         }
@@ -261,7 +261,7 @@ namespace cpp_dbc::Redis
                     freeReplyObject(reply);
                 }
                 m_initFailed = true;
-                m_initError = DBException("A76F5C23D89B", "Redis authentication failed: " + errorMsg,
+                m_initError = std::make_unique<DBException>("A76F5C23D89B", "Redis authentication failed: " + errorMsg,
                                           system_utils::captureCallStack());
                 return;
             }
@@ -276,7 +276,7 @@ namespace cpp_dbc::Redis
             if (!selectResult.has_value())
             {
                 m_initFailed = true;
-                m_initError = selectResult.error();
+                m_initError = std::make_unique<DBException>(selectResult.error());
                 return;
             }
         }
@@ -299,10 +299,6 @@ namespace cpp_dbc::Redis
                 }
             }
         }
-
-        // Track live connection for safe cleanup() guard
-        RedisDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
-        m_counterIncremented = true;
 
         REDIS_DEBUG("RedisDBConnection::constructor(nothrow) - Connected successfully");
     }
@@ -445,10 +441,9 @@ namespace cpp_dbc::Redis
                 std::scoped_lock lock_(m_mutex);
                 m_context.reset();
                 m_closed.store(true, std::memory_order_release);
-                if (m_counterIncremented)
-                {
-                    RedisDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
-                }
+                // Unregister from the driver registry so getConnectionAlive() reflects
+                // actual live connections.
+                RedisDBDriver::unregisterConnection(std::nothrow, m_self);
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {

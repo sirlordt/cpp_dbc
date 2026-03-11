@@ -46,7 +46,7 @@ TEST_CASE("MySQL PreparedStatement::executeQuery() — materialized mode", "[20_
     std::string password = dbConfig.getPassword();
     std::string connStr = dbConfig.createConnectionString();
 
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(mysql_test_helpers::getMySQLDriver());
     auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
         cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
     REQUIRE(conn != nullptr);

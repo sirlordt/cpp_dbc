@@ -32,11 +32,14 @@
 
 #include <atomic>
 #include <mutex>
+#include <set>
 
 namespace cpp_dbc::ScyllaDB
 {
+    class ScyllaDBConnection; // forward declaration for registry
+
     /**
-     * @brief ScyllaDB database driver implementation
+     * @brief ScyllaDB database driver implementation — singleton
      *
      * Concrete ColumnarDBDriver for ScyllaDB/Cassandra databases using the
      * Cassandra C/C++ driver. Handles connection establishment, URI parsing,
@@ -44,8 +47,7 @@ namespace cpp_dbc::ScyllaDB
      * Accepts URLs in the format `cpp_dbc:scylladb://host:port/keyspace`.
      *
      * ```cpp
-     * auto driver = std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>();
-     * cpp_dbc::DriverManager::registerDriver(driver);
+     * auto driver = cpp_dbc::ScyllaDB::ScyllaDBDriver::getInstance();
      * auto conn = driver->connectColumnar(
      *     "cpp_dbc:scylladb://localhost:9042/mykeyspace", "", "");
      * ```
@@ -54,22 +56,42 @@ namespace cpp_dbc::ScyllaDB
      */
     class ScyllaDBDriver final : public cpp_dbc::ColumnarDBDriver
     {
-    private:
+        // ── PrivateCtorTag — prevents direct construction; use getInstance() ──
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
         // Note: Using atomic<bool> + mutex instead of std::once_flag because
         // std::once_flag cannot be reset, but we need cleanup() to allow
         // re-initialization on subsequent driver construction.
         // Also, std::call_once can throw std::system_error, which is incompatible
         // with -fno-exceptions builds.
         static std::atomic<bool> s_initialized;
-        static std::atomic<size_t> s_liveConnectionCount;
         static std::mutex s_initMutex;
+
+        // ── Singleton state ───────────────────────────────────────────────────
+        static std::weak_ptr<ScyllaDBDriver> s_instance;
+        static std::mutex                    s_instanceMutex;
+
+        // ── Connection registry ───────────────────────────────────────────────
+        static std::mutex                                                        s_registryMutex;
+        static std::set<std::weak_ptr<ScyllaDBConnection>,
+                        std::owner_less<std::weak_ptr<ScyllaDBConnection>>>      s_connectionRegistry;
 
         static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
 
+        static void registerConnection(std::nothrow_t, std::weak_ptr<ScyllaDBConnection> conn) noexcept;
+        static void unregisterConnection(std::nothrow_t, const std::weak_ptr<ScyllaDBConnection> &conn) noexcept;
+
         friend class ScyllaDBConnection;
 
+        // ── Construction state ────────────────────────────────────────────────
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
+
     public:
-        ScyllaDBDriver();
+        ScyllaDBDriver(PrivateCtorTag, std::nothrow_t) noexcept;
         ~ScyllaDBDriver() override;
 
         // ====================================================================
@@ -79,6 +101,12 @@ namespace cpp_dbc::ScyllaDB
 #ifdef __cpp_exceptions
         using DBDriver::parseURI;
         using DBDriver::buildURI;
+
+        /**
+         * @brief Return the singleton ScyllaDBDriver instance, creating it if necessary.
+         * @throws DBException if library initialization fails.
+         */
+        static std::shared_ptr<ScyllaDBDriver> getInstance();
 
         std::shared_ptr<ColumnarDBConnection> connectColumnar(
             const std::string &uri,
@@ -91,6 +119,12 @@ namespace cpp_dbc::ScyllaDB
         // ====================================================================
         // NOTHROW API — exception-free, always available
         // ====================================================================
+
+        /**
+         * @brief Return the singleton ScyllaDBDriver instance, creating it if necessary.
+         * @return The shared instance, or an error if initialization fails.
+         */
+        static cpp_dbc::expected<std::shared_ptr<ScyllaDBDriver>, DBException> getInstance(std::nothrow_t) noexcept;
 
         std::string getURIScheme() const noexcept override;
         bool supportsClustering() const noexcept override;
@@ -115,7 +149,13 @@ namespace cpp_dbc::ScyllaDB
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
 
         static void cleanup();
-        static size_t getConnectionAlive() noexcept { return s_liveConnectionCount.load(std::memory_order_acquire); }
+
+        /**
+         * @brief Return the number of live connections tracked by the registry.
+         *
+         * Counts non-expired entries in the static connection registry.
+         */
+        static size_t getConnectionAlive() noexcept;
     };
 } // namespace cpp_dbc::ScyllaDB
 

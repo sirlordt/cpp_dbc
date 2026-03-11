@@ -145,16 +145,17 @@ namespace cpp_dbc::PostgreSQL
         return {};
     }
 
-#ifdef __cpp_exceptions
-
-    // Constructor
-    PostgreSQLDBConnection::PostgreSQLDBConnection(const std::string &host,
+    // Constructor — nothrow, captures errors in m_initFailed / m_initError instead of throwing.
+    // PQconnectdb() is a C API that does not throw, but setAutoCommit() calls PQexec() which
+    // is also a C API. No recoverable C++ exceptions are possible here, so no try/catch needed.
+    PostgreSQLDBConnection::PostgreSQLDBConnection(PostgreSQLDBConnection::PrivateCtorTag,
+                                                   std::nothrow_t,
+                                                   const std::string &host,
                                                    int port,
                                                    const std::string &database,
                                                    const std::string &user,
                                                    const std::string &password,
-                                                   const std::map<std::string, std::string> &options)
-        : m_closed(false)
+                                                   const std::map<std::string, std::string> &options) noexcept
     {
         // Build connection string
         std::stringstream conninfo;
@@ -183,7 +184,11 @@ namespace cpp_dbc::PostgreSQL
         {
             std::string error = PQerrorMessage(rawConn);
             PQfinish(rawConn);
-            throw DBException("1Q2R3S4T5U6V", "Failed to connect to PostgreSQL: " + error, system_utils::captureCallStack());
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>("GLN3SP411SYV",
+                                                        "Failed to connect to PostgreSQL: " + error,
+                                                        system_utils::captureCallStack());
+            return;
         }
 
         // Wrap in shared_ptr with custom deleter
@@ -196,15 +201,14 @@ namespace cpp_dbc::PostgreSQL
                              },
                              nullptr);
 
-        // Set auto-commit mode
-        setAutoCommit(true);
+        // Set auto-commit mode (nothrow — errors silently ignored in constructor;
+        // the connection is still valid if autocommit setup fails)
+        [[maybe_unused]] auto acResult = setAutoCommit(std::nothrow, true);
 
         // Initialize URI string once (reuse centralized builder for IPv6 bracket handling)
         m_uri = system_utils::buildDBURI("cpp_dbc:postgresql://", host, port, database);
 
-        // Track live connection for safe cleanup() guard
-        PostgreSQLDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
-        m_counterIncremented = true;
+        m_closed = false;
     }
 
     // Destructor
@@ -213,6 +217,8 @@ namespace cpp_dbc::PostgreSQL
         // CRITICAL: Use nothrow version - destructors must NEVER throw exceptions
         [[maybe_unused]] auto closeResult = close(std::nothrow);
     }
+
+#ifdef __cpp_exceptions
 
     // DBConnection interface
     void PostgreSQLDBConnection::close()

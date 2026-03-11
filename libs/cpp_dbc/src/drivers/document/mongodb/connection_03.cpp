@@ -74,13 +74,10 @@ namespace cpp_dbc::MongoDB
             m_client.reset();
             m_closed.store(true, std::memory_order_release);
 
-            // Release live connection count for cleanup() guard.
-            // Safe against double-decrement: the m_closed check above
-            // returns early if already closed, so this line executes exactly once.
-            // if (m_counterIncremented)
-            //{
-            // MongoDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
-            //}
+            // Unregister from the driver registry so getConnectionAlive() reflects
+            // actual live connections. The owner_less m_self weak_ptr is used for
+            // set lookup — raw 'this' would not match the set's comparator.
+            MongoDBDriver::unregisterConnection(std::nothrow, m_self);
 
             MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Connection closed");
             return {};

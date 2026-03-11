@@ -54,7 +54,7 @@ TEST_CASE("ScyllaDB FULL JOIN emulation", "[26_101_01_scylladb_real_full_join]")
     std::string connStr = "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) + "/" + keyspace;
 
     // Register the ScyllaDB driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(scylla_test_helpers::getScyllaDriver());
 
     // Get a connection
     auto conn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(

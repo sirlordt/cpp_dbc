@@ -49,12 +49,13 @@ TEST_CASE("MySQL transaction isolation tests", "[20_121_01_mysql_real_transactio
     SECTION("MySQL driver default isolation level")
     {
         // Create a MySQL driver
-        cpp_dbc::MySQL::MySQLDBDriver driver;
+        auto driver = mysql_test_helpers::getMySQLDriver();
+        REQUIRE(driver != nullptr);
 
         try
         {
             // Try to connect to a local MySQL server
-            auto conn = driver.connectRelational(connStr, username, password);
+            auto conn = driver->connectRelational(connStr, username, password);
 
             // Check default isolation level (should be REPEATABLE_READ for MySQL)
             REQUIRE(conn->getTransactionIsolation() == cpp_dbc::TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ);
@@ -90,20 +91,21 @@ TEST_CASE("MySQL transaction isolation tests", "[20_121_01_mysql_real_transactio
     SECTION("MySQL READ_UNCOMMITTED isolation behavior")
     {
         // Create a MySQL driver
-        cpp_dbc::MySQL::MySQLDBDriver driver;
+        auto driver = mysql_test_helpers::getMySQLDriver();
+        REQUIRE(driver != nullptr);
 
         try
         {
             // Create a test table
-            auto setupConn = driver.connectRelational(connStr, username, password);
+            auto setupConn = driver->connectRelational(connStr, username, password);
             setupConn->executeUpdate("DROP TABLE IF EXISTS isolation_test");
             setupConn->executeUpdate("CREATE TABLE isolation_test (id INT PRIMARY KEY, value VARCHAR(50))");
             setupConn->executeUpdate("INSERT INTO isolation_test VALUES (1, 'initial')");
             setupConn->close();
 
             // Create two connections
-            auto conn1 = driver.connectRelational(connStr, username, password);
-            auto conn2 = driver.connectRelational(connStr, username, password);
+            auto conn1 = driver->connectRelational(connStr, username, password);
+            auto conn2 = driver->connectRelational(connStr, username, password);
 
             // Set READ_UNCOMMITTED isolation level for both connections
             conn1->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED);
@@ -154,20 +156,21 @@ TEST_CASE("MySQL transaction isolation tests", "[20_121_01_mysql_real_transactio
     SECTION("MySQL READ_COMMITTED isolation behavior")
     {
         // Create a MySQL driver
-        cpp_dbc::MySQL::MySQLDBDriver driver;
+        auto driver = mysql_test_helpers::getMySQLDriver();
+        REQUIRE(driver != nullptr);
 
         try
         {
             // Create a test table
-            auto setupConn = driver.connectRelational(connStr, username, password);
+            auto setupConn = driver->connectRelational(connStr, username, password);
             setupConn->executeUpdate("DROP TABLE IF EXISTS isolation_test");
             setupConn->executeUpdate("CREATE TABLE isolation_test (id INT PRIMARY KEY, value VARCHAR(50))");
             setupConn->executeUpdate("INSERT INTO isolation_test VALUES (1, 'initial')");
             setupConn->close();
 
             // Create two connections
-            auto conn1 = driver.connectRelational(connStr, username, password);
-            auto conn2 = driver.connectRelational(connStr, username, password);
+            auto conn1 = driver->connectRelational(connStr, username, password);
+            auto conn2 = driver->connectRelational(connStr, username, password);
 
             // Set READ_COMMITTED isolation level for both connections
             conn1->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
@@ -212,20 +215,21 @@ TEST_CASE("MySQL transaction isolation tests", "[20_121_01_mysql_real_transactio
     SECTION("MySQL REPEATABLE_READ isolation behavior")
     {
         // Create a MySQL driver
-        cpp_dbc::MySQL::MySQLDBDriver driver;
+        auto driver = mysql_test_helpers::getMySQLDriver();
+        REQUIRE(driver != nullptr);
 
         try
         {
             // Create a test table
-            auto setupConn = driver.connectRelational(connStr, username, password);
+            auto setupConn = driver->connectRelational(connStr, username, password);
             setupConn->executeUpdate("DROP TABLE IF EXISTS isolation_test");
             setupConn->executeUpdate("CREATE TABLE isolation_test (id INT PRIMARY KEY, value VARCHAR(50))");
             setupConn->executeUpdate("INSERT INTO isolation_test VALUES (1, 'initial')");
             setupConn->close();
 
             // Create two connections
-            auto conn1 = driver.connectRelational(connStr, username, password);
-            auto conn2 = driver.connectRelational(connStr, username, password);
+            auto conn1 = driver->connectRelational(connStr, username, password);
+            auto conn2 = driver->connectRelational(connStr, username, password);
 
             // Set REPEATABLE_READ isolation level for both connections
             conn1->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ);
@@ -263,20 +267,21 @@ TEST_CASE("MySQL transaction isolation tests", "[20_121_01_mysql_real_transactio
     SECTION("MySQL SERIALIZABLE isolation behavior")
     {
         // Create a MySQL driver
-        cpp_dbc::MySQL::MySQLDBDriver driver;
+        auto driver = mysql_test_helpers::getMySQLDriver();
+        REQUIRE(driver != nullptr);
 
         try
         {
             // Create a test table
-            auto setupConn = driver.connectRelational(connStr, username, password);
+            auto setupConn = driver->connectRelational(connStr, username, password);
             setupConn->executeUpdate("DROP TABLE IF EXISTS isolation_test");
             setupConn->executeUpdate("CREATE TABLE isolation_test (id INT PRIMARY KEY, value VARCHAR(50))");
             setupConn->executeUpdate("INSERT INTO isolation_test VALUES (1, 'initial')");
             setupConn->close();
 
             // Create two connections
-            auto conn1 = driver.connectRelational(connStr, username, password);
-            auto conn2 = driver.connectRelational(connStr, username, password);
+            auto conn1 = driver->connectRelational(connStr, username, password);
+            auto conn2 = driver->connectRelational(connStr, username, password);
 
             // Set SERIALIZABLE isolation level for both connections
             conn1->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
@@ -297,7 +302,7 @@ TEST_CASE("MySQL transaction isolation tests", "[20_121_01_mysql_real_transactio
                 conn1->commit();
 
                 // Start a new transaction with SERIALIZABLE isolation
-                auto conn3 = driver.connectRelational(connStr, username, password);
+                auto conn3 = driver->connectRelational(connStr, username, password);
                 conn3->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
                 conn3->setAutoCommit(false);
 

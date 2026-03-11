@@ -57,7 +57,7 @@ TEST_CASE("MySQL BLOB operations", "[20_061_01_mysql_real_blob]")
     std::string connStr = dbConfig.createConnectionString();
 
     // Register the MySQL driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(mysql_test_helpers::getMySQLDriver());
 
     // Get a connection
     auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));

@@ -57,8 +57,13 @@ namespace cpp_dbc::MySQL
         std::atomic<bool> m_resetting{false}; // True during reset() to prevent unregister deadlock
         bool m_autoCommit{true};
         bool m_transactionActive{false};
-        bool m_counterIncremented{false};
         TransactionIsolationLevel m_isolationLevel{TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ}; // MySQL default
+
+        // Self weak_ptr stored by create() factory after construction.
+        // Used by close() to unregister this connection from MySQLDBDriver::s_connectionRegistry
+        // via owner_less comparison — safe to call even after shared_ptr refcount drops to zero,
+        // because owner_less compares control blocks, not the object pointer.
+        std::weak_ptr<MySQLDBConnection> m_self;
         bool m_inGetTransactionIsolation{false}; // Recursion guard for getTransactionIsolation (per-instance, not static)
 
         /// @brief Cached URI string for getURI() method
@@ -366,6 +371,9 @@ namespace cpp_dbc::MySQL
             {
                 return cpp_dbc::unexpected(std::move(*obj->m_initError));
             }
+            // Store a weak self-reference so close() can unregister from the driver's
+            // connection registry via owner_less comparison without calling shared_from_this().
+            obj->m_self = obj;
             return obj;
         }
 

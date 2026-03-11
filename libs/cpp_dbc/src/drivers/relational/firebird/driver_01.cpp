@@ -23,43 +23,72 @@
 
 #include "cpp_dbc/drivers/relational/driver_firebird.hpp"
 
-#include <charconv>
-#include <sstream>
 #include <algorithm>
+#include <charconv>
+#include <chrono>
 #include <cstring>
 #include <cstdlib>
+#include <sstream>
+#include <thread>
 
+#include "cpp_dbc/common/system_utils.hpp"
 #include "firebird_internal.hpp"
 
 #if USE_FIREBIRD
 
 namespace cpp_dbc::Firebird
 {
-    // Static member initialization
-    std::atomic<bool> FirebirdDBDriver::s_initialized{false};
-    std::atomic<size_t> FirebirdDBDriver::s_liveConnectionCount{0};
-    std::mutex FirebirdDBDriver::s_initMutex;
+    // ── Static member initialization ──────────────────────────────────────────
+    std::weak_ptr<FirebirdDBDriver> FirebirdDBDriver::s_instance;
+    std::mutex                      FirebirdDBDriver::s_instanceMutex;
+    std::mutex                      FirebirdDBDriver::s_registryMutex;
+    std::set<std::weak_ptr<FirebirdDBConnection>,
+             std::owner_less<std::weak_ptr<FirebirdDBConnection>>> FirebirdDBDriver::s_connectionRegistry;
 
     // ============================================================================
-    // FirebirdDBDriver Implementation - Constructor
+    // FirebirdDBDriver Implementation - Private Static Helpers
     // ============================================================================
 
-    FirebirdDBDriver::FirebirdDBDriver()
+    // Firebird (fbclient) does not require explicit global library initialization.
+    // The initialize() method exists for structural symmetry with other drivers.
+    cpp_dbc::expected<bool, DBException> FirebirdDBDriver::initialize(std::nothrow_t) noexcept
     {
-        if (!s_initialized.load(std::memory_order_acquire))
-        {
-            std::scoped_lock lock(s_initMutex);
-            if (!s_initialized.load(std::memory_order_acquire))
-            {
-                // Firebird doesn't require explicit initialization
-                s_initialized.store(true, std::memory_order_release);
-            }
-        }
+        // No initialization needed for fbclient
+        return true;
+    }
+
+    void FirebirdDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<FirebirdDBConnection> conn) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        s_connectionRegistry.insert(std::move(conn));
+    }
+
+    void FirebirdDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<FirebirdDBConnection> &conn) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        s_connectionRegistry.erase(conn);
+    }
+
+    void FirebirdDBDriver::cleanup()
+    {
+        // Firebird (fbclient) does not require explicit global library cleanup.
+        // Sleep a bit to ensure all resources are properly released.
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
     // ============================================================================
-    // FirebirdDBDriver Implementation - Destructor
+    // FirebirdDBDriver Implementation - Constructor + Destructor
     // ============================================================================
+
+    FirebirdDBDriver::FirebirdDBDriver(FirebirdDBDriver::PrivateCtorTag, std::nothrow_t) noexcept
+    {
+        auto result = initialize(std::nothrow);
+        if (!result.has_value())
+        {
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>(std::move(result.error()));
+        }
+    }
 
     FirebirdDBDriver::~FirebirdDBDriver()
     {
@@ -67,30 +96,21 @@ namespace cpp_dbc::Firebird
         cleanup();
     }
 
-    void FirebirdDBDriver::cleanup()
-    {
-        std::scoped_lock lock(s_initMutex);
-        if (!s_initialized.load(std::memory_order_acquire))
-        {
-            return;
-        }
-
-        auto liveCount = s_liveConnectionCount.load(std::memory_order_acquire);
-        if (liveCount > 0)
-        {
-            FIREBIRD_DEBUG("FirebirdDBDriver::cleanup - Skipped: %zu live connection(s) still open", liveCount);
-            return;
-        }
-
-        // Firebird doesn't require explicit library cleanup
-        s_initialized.store(false, std::memory_order_release);
-    }
-
     // ============================================================================
-    // FirebirdDBDriver Implementation - Throwing API
+    // FirebirdDBDriver Implementation - Singleton + Throwing API
     // ============================================================================
 
 #ifdef __cpp_exceptions
+    std::shared_ptr<FirebirdDBDriver> FirebirdDBDriver::getInstance()
+    {
+        auto result = getInstance(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
     std::shared_ptr<RelationalDBConnection> FirebirdDBDriver::connectRelational(const std::string &uri,
                                                                                 const std::string &user,
                                                                                 const std::string &password,
@@ -128,6 +148,38 @@ namespace cpp_dbc::Firebird
     }
 
 #endif // __cpp_exceptions
+
+    // ============================================================================
+    // FirebirdDBDriver Implementation - Singleton (nothrow) + Connection Registry
+    // ============================================================================
+
+    cpp_dbc::expected<std::shared_ptr<FirebirdDBDriver>, DBException>
+    FirebirdDBDriver::getInstance(std::nothrow_t) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_instanceMutex);
+        auto existing = s_instance.lock();
+        if (existing)
+        {
+            return existing;
+        }
+        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+        // Constructor errors are captured in m_initFailed / m_initError.
+        auto inst = std::make_shared<FirebirdDBDriver>(FirebirdDBDriver::PrivateCtorTag{}, std::nothrow);
+        if (inst->m_initFailed)
+        {
+            return cpp_dbc::unexpected(std::move(*inst->m_initError));
+        }
+        s_instance = inst;
+        return inst;
+    }
+
+    size_t FirebirdDBDriver::getConnectionAlive() noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        return static_cast<size_t>(std::count_if(
+            s_connectionRegistry.begin(), s_connectionRegistry.end(),
+            [](const auto &w) { return !w.expired(); }));
+    }
 
     // ============================================================================
     // FirebirdDBDriver Implementation - Nothrow API
@@ -279,8 +331,9 @@ namespace cpp_dbc::Firebird
         {
             return cpp_dbc::unexpected(connResult.error());
         }
-        return cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>(
-            std::static_pointer_cast<RelationalDBConnection>(connResult.value()));
+        auto conn = connResult.value();
+        registerConnection(std::nothrow, conn);
+        return std::shared_ptr<RelationalDBConnection>(conn);
     }
 
     cpp_dbc::expected<int, DBException>

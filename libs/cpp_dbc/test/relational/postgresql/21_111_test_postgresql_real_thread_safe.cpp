@@ -68,7 +68,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[21_111_01_postgresql_real_thread_s
     std::string connStr = dbConfig.createConnectionString();
 
     // Register the PostgreSQL driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(postgresql_test_helpers::getPostgreSQLDriver());
 
     SECTION("Multiple threads with individual connections")
     {

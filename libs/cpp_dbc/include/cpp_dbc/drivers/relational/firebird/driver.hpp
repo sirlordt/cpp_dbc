@@ -30,24 +30,25 @@
 
 #if USE_FIREBIRD
 #include <map>
+#include <set>
 #include <string>
 #include <memory>
-#include <atomic>
 #include <mutex>
 #include <any>
 
 namespace cpp_dbc::Firebird
 {
+    class FirebirdDBConnection; // forward declaration for registry
+
     /**
-     * @brief Firebird database driver implementation
+     * @brief Firebird database driver implementation — singleton
      *
      * Concrete RelationalDBDriver for Firebird databases.
      * Accepts URLs in the format `cpp_dbc:firebird://host:port/path/to/database.fdb`.
      * Supports database creation via the `createDatabase()` method.
      *
      * ```cpp
-     * auto driver = std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>();
-     * cpp_dbc::DriverManager::registerDriver(driver);
+     * auto driver = cpp_dbc::Firebird::FirebirdDBDriver::getInstance();
      * auto conn = driver->connectRelational(
      *     "cpp_dbc:firebird://localhost:3050/tmp/test.fdb", "SYSDBA", "masterkey");
      * ```
@@ -56,10 +57,27 @@ namespace cpp_dbc::Firebird
      */
     class FirebirdDBDriver final : public RelationalDBDriver
     {
-    private:
-        static std::atomic<bool> s_initialized;
-        static std::atomic<size_t> s_liveConnectionCount;
-        static std::mutex s_initMutex;
+        // ── PrivateCtorTag — prevents direct construction; use getInstance() ──
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
+        // ── Singleton state ───────────────────────────────────────────────────
+        static std::weak_ptr<FirebirdDBDriver> s_instance;
+        static std::mutex                      s_instanceMutex;
+
+        // ── Connection registry ───────────────────────────────────────────────
+        static std::mutex                                                        s_registryMutex;
+        static std::set<std::weak_ptr<FirebirdDBConnection>,
+                        std::owner_less<std::weak_ptr<FirebirdDBConnection>>>   s_connectionRegistry;
+
+        static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
+
+        static void registerConnection(std::nothrow_t, std::weak_ptr<FirebirdDBConnection> conn) noexcept;
+        static void unregisterConnection(std::nothrow_t, const std::weak_ptr<FirebirdDBConnection> &conn) noexcept;
+
+        static void cleanup();
 
         /**
          * @brief Parsed URI components for Firebird connections.
@@ -81,9 +99,13 @@ namespace cpp_dbc::Firebird
 
         friend class FirebirdDBConnection;
 
+        // ── Construction state ────────────────────────────────────────────────
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
+
     public:
         // ── Constructor ───────────────────────────────────────────────────────
-        FirebirdDBDriver();
+        FirebirdDBDriver(PrivateCtorTag, std::nothrow_t) noexcept;
 
         // ── Destructor ────────────────────────────────────────────────────────
         ~FirebirdDBDriver() override;
@@ -101,6 +123,12 @@ namespace cpp_dbc::Firebird
 #ifdef __cpp_exceptions
         using DBDriver::buildURI;
         using DBDriver::parseURI;
+
+        /**
+         * @brief Return the singleton FirebirdDBDriver instance, creating it if necessary.
+         * @throws DBException if library initialization fails.
+         */
+        static std::shared_ptr<FirebirdDBDriver> getInstance();
 
         std::shared_ptr<RelationalDBConnection> connectRelational(
             const std::string &uri,
@@ -148,6 +176,12 @@ namespace cpp_dbc::Firebird
         // NOTHROW API — exception-free, always available
         // ====================================================================
 
+        /**
+         * @brief Return the singleton FirebirdDBDriver instance, creating it if necessary.
+         * @return The shared instance, or an error if initialization fails.
+         */
+        static cpp_dbc::expected<std::shared_ptr<FirebirdDBDriver>, DBException> getInstance(std::nothrow_t) noexcept;
+
         cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(
             std::nothrow_t, const std::string &uri) noexcept override;
 
@@ -180,8 +214,12 @@ namespace cpp_dbc::Firebird
         std::string getURIScheme() const noexcept override;
         std::string getDriverVersion() const noexcept override;
 
-        static void cleanup();
-        static size_t getConnectionAlive() noexcept { return s_liveConnectionCount.load(std::memory_order_acquire); }
+        /**
+         * @brief Return the number of live connections tracked by the registry.
+         *
+         * Counts non-expired entries in the static connection registry.
+         */
+        static size_t getConnectionAlive() noexcept;
     };
 
     // ============================================================================

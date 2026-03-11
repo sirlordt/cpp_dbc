@@ -39,7 +39,7 @@ TEST_CASE("SQLite connection test", "[22_041_01_sqlite_real_connection]")
     std::string connStr = dbConfig.createConnectionString();
 
     // Register the SQLite driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(sqlite_test_helpers::getSQLiteDriver());
 
     if (!sqlite_test_helpers::canConnectToSQLite())
     {
@@ -143,7 +143,7 @@ TEST_CASE("SQLite connection test", "[22_041_01_sqlite_real_connection]")
 TEST_CASE("SQLite in-memory database test", "[22_041_02_sqlite_real_connection]")
 {
     // Register the SQLite driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(sqlite_test_helpers::getSQLiteDriver());
 
     SECTION("Test SQLite in-memory database")
     {
@@ -196,7 +196,7 @@ TEST_CASE("SQLite in-memory database test", "[22_041_02_sqlite_real_connection]"
 }
 TEST_CASE("SQLite getServerVersion and getServerInfo", "[22_041_04_sqlite_real_connection]")
 {
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(sqlite_test_helpers::getSQLiteDriver());
 
     SECTION("getServerVersion returns non-empty version string")
     {
@@ -271,7 +271,7 @@ TEST_CASE("SQLite getServerVersion and getServerInfo", "[22_041_04_sqlite_real_c
 }
 TEST_CASE("SQLite getDriverVersion", "[22_041_05_sqlite_real_connection]")
 {
-    auto driver = std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>();
+    auto driver = sqlite_test_helpers::getSQLiteDriver();
 
     SECTION("getDriverVersion returns non-empty version string")
     {

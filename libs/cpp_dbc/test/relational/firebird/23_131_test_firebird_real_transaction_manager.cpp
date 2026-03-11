@@ -59,8 +59,9 @@ TEST_CASE("Firebird TransactionContext tests", "[23_131_01_firebird_real_transac
     std::string connStr = dbConfig.createConnectionString();
 
     // Create a real Firebird connection
-    cpp_dbc::Firebird::FirebirdDBDriver driver;
-    auto connBase = driver.connect(connStr, username, password);
+    auto driver = firebird_test_helpers::getFirebirdDriver();
+    REQUIRE(driver != nullptr);
+    auto connBase = driver->connect(connStr, username, password);
     auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(connBase);
     REQUIRE(conn != nullptr);
 

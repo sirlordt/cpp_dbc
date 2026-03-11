@@ -43,7 +43,7 @@ TEST_CASE("PostgreSQL connection test", "[21_041_01_postgresql_real_connection]"
     std::string password = dbConfig.getPassword();
     std::string connStr = dbConfig.createConnectionString();
 
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(postgresql_test_helpers::getPostgreSQLDriver());
 
     SECTION("Test PostgreSQL connection")
     {
@@ -83,7 +83,7 @@ TEST_CASE("PostgreSQL getServerVersion and getServerInfo", "[21_041_03_postgresq
     std::string password = dbConfig.getPassword();
     std::string connStr = dbConfig.createConnectionString();
 
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(postgresql_test_helpers::getPostgreSQLDriver());
 
     SECTION("getServerVersion returns non-empty version string")
     {
@@ -137,7 +137,7 @@ TEST_CASE("PostgreSQL getServerVersion and getServerInfo", "[21_041_03_postgresq
 }
 TEST_CASE("PostgreSQL getDriverVersion", "[21_041_04_postgresql_real_connection]")
 {
-    auto driver = std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>();
+    auto driver = postgresql_test_helpers::getPostgreSQLDriver();
 
     SECTION("getDriverVersion returns non-empty version string")
     {

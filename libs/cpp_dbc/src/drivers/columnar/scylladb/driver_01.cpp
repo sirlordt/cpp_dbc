@@ -39,10 +39,14 @@ namespace cpp_dbc::ScyllaDB
     // ScyllaDBDriver
     // ====================================================================
 
-    // Static member initialization
-    std::atomic<bool> ScyllaDBDriver::s_initialized{false}; // NOSONAR - Explicit template arg for clarity in static member definition
-    std::atomic<size_t> ScyllaDBDriver::s_liveConnectionCount{0};
+    // ── Static member initialization ──────────────────────────────────────────
+    std::atomic<bool> ScyllaDBDriver::s_initialized{false}; // NOSONAR(cpp:S1197) — explicit template arg for clarity in static member definition
     std::mutex ScyllaDBDriver::s_initMutex;
+    std::weak_ptr<ScyllaDBDriver> ScyllaDBDriver::s_instance;
+    std::mutex                    ScyllaDBDriver::s_instanceMutex;
+    std::mutex                    ScyllaDBDriver::s_registryMutex;
+    std::set<std::weak_ptr<ScyllaDBConnection>,
+             std::owner_less<std::weak_ptr<ScyllaDBConnection>>> ScyllaDBDriver::s_connectionRegistry;
 
     cpp_dbc::expected<bool, DBException> ScyllaDBDriver::initialize(std::nothrow_t) noexcept
     {
@@ -54,7 +58,7 @@ namespace cpp_dbc::ScyllaDB
         return true;
     }
 
-    ScyllaDBDriver::ScyllaDBDriver()
+    ScyllaDBDriver::ScyllaDBDriver(ScyllaDBDriver::PrivateCtorTag, std::nothrow_t) noexcept
     {
         SCYLLADB_DEBUG("ScyllaDBDriver::constructor - Creating driver");
         // Double-checked locking: compatible with -fno-exceptions (std::call_once can throw
@@ -87,20 +91,40 @@ namespace cpp_dbc::ScyllaDB
         {
             return;
         }
-
-        auto liveCount = s_liveConnectionCount.load(std::memory_order_acquire);
-        if (liveCount > 0)
-        {
-            SCYLLADB_DEBUG("ScyllaDBDriver::cleanup - Skipped: "
-                           << liveCount
-                           << " live connection(s) still open");
-            return;
-        }
-
         s_initialized.store(false, std::memory_order_release);
     }
 
+    void ScyllaDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<ScyllaDBConnection> conn) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        s_connectionRegistry.insert(std::move(conn));
+    }
+
+    void ScyllaDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<ScyllaDBConnection> &conn) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        s_connectionRegistry.erase(conn);
+    }
+
+    size_t ScyllaDBDriver::getConnectionAlive() noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        return static_cast<size_t>(std::count_if(
+            s_connectionRegistry.begin(), s_connectionRegistry.end(),
+            [](const auto &w) { return !w.expired(); }));
+    }
+
 #ifdef __cpp_exceptions
+    std::shared_ptr<ScyllaDBDriver> ScyllaDBDriver::getInstance()
+    {
+        auto result = getInstance(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
     std::shared_ptr<ColumnarDBConnection> ScyllaDBDriver::connectColumnar(
         const std::string &uri,
         const std::string &user,
@@ -150,6 +174,23 @@ namespace cpp_dbc::ScyllaDB
 
     // Nothrow API
 
+    cpp_dbc::expected<std::shared_ptr<ScyllaDBDriver>, DBException>
+    ScyllaDBDriver::getInstance(std::nothrow_t) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_instanceMutex);
+        auto existing = s_instance.lock();
+        if (existing)
+        {
+            return existing;
+        }
+        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+        // ScyllaDBDriver constructor only calls initialize(std::nothrow) and debug
+        // macros — no recoverable exception is possible.
+        auto inst = std::make_shared<ScyllaDBDriver>(ScyllaDBDriver::PrivateCtorTag{}, std::nothrow);
+        s_instance = inst;
+        return inst;
+    }
+
     cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException> ScyllaDBDriver::connectColumnar(
         std::nothrow_t,
         const std::string &uri,
@@ -186,7 +227,9 @@ namespace cpp_dbc::ScyllaDB
             SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Failed to create connection: " << connResult.error().what());
             return cpp_dbc::unexpected(connResult.error());
         }
-        return std::shared_ptr<ColumnarDBConnection>(connResult.value());
+        auto conn = connResult.value();
+        registerConnection(std::nothrow, conn);
+        return std::shared_ptr<ColumnarDBConnection>(conn);
     }
 
     cpp_dbc::expected<std::map<std::string, std::string>, DBException> ScyllaDBDriver::parseURI(std::nothrow_t, const std::string &uri) noexcept

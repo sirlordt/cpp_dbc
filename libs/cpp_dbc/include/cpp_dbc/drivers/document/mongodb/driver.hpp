@@ -10,23 +10,25 @@
 
 #include <atomic>
 #include <mutex>
+#include <set>
 
 namespace cpp_dbc::MongoDB
 {
+    class MongoDBConnection; // forward declaration for registry
+
     // ============================================================================
     // MongoDBDriver - Implements DocumentDBDriver
     // ============================================================================
 
     /**
-     * @brief MongoDB driver implementation
+     * @brief MongoDB driver implementation — singleton
      *
      * Concrete DocumentDBDriver for MongoDB databases using libmongoc.
      * Handles MongoDB C driver library initialization and cleanup.
      * Accepts URLs in the format `cpp_dbc:mongodb://host:port/database`.
      *
      * ```cpp
-     * auto driver = std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>();
-     * cpp_dbc::DriverManager::registerDriver(driver);
+     * auto driver = cpp_dbc::MongoDB::MongoDBDriver::getInstance();
      * auto conn = driver->connectDocument(
      *     "cpp_dbc:mongodb://localhost:27017/mydb", "", "");
      * ```
@@ -35,7 +37,12 @@ namespace cpp_dbc::MongoDB
      */
     class MongoDBDriver final : public DocumentDBDriver
     {
-    private:
+        // ── PrivateCtorTag — prevents direct construction; use getInstance() ──
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
         // Note: Using atomic<bool> + mutex instead of std::once_flag because
         // std::once_flag cannot be reset, but we need cleanup() to allow
         // re-initialization on subsequent driver construction.
@@ -44,10 +51,28 @@ namespace cpp_dbc::MongoDB
         static std::atomic<bool> s_initialized;
         static std::mutex s_initMutex;
 
+        // ── Singleton state ───────────────────────────────────────────────────
+        static std::weak_ptr<MongoDBDriver> s_instance;
+        static std::mutex                   s_instanceMutex;
+
+        // ── Connection registry ───────────────────────────────────────────────
+        static std::mutex                                                      s_registryMutex;
+        static std::set<std::weak_ptr<MongoDBConnection>,
+                        std::owner_less<std::weak_ptr<MongoDBConnection>>>     s_connectionRegistry;
+
         /**
          * @brief Initialize the MongoDB C driver library
          */
         static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
+
+        static void registerConnection(std::nothrow_t, std::weak_ptr<MongoDBConnection> conn) noexcept;
+        static void unregisterConnection(std::nothrow_t, const std::weak_ptr<MongoDBConnection> &conn) noexcept;
+
+        friend class MongoDBConnection;
+
+        // ── Construction state ────────────────────────────────────────────────
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
 
     public:
         /**
@@ -55,7 +80,7 @@ namespace cpp_dbc::MongoDB
          *
          * This will initialize the MongoDB C driver library if not already done.
          */
-        MongoDBDriver();
+        MongoDBDriver(PrivateCtorTag, std::nothrow_t) noexcept;
 
         /**
          * @brief Destructor
@@ -80,6 +105,12 @@ namespace cpp_dbc::MongoDB
         using DBDriver::parseURI;
         using DBDriver::buildURI;
 
+        /**
+         * @brief Return the singleton MongoDBDriver instance, creating it if necessary.
+         * @throws DBException if library initialization fails.
+         */
+        static std::shared_ptr<MongoDBDriver> getInstance();
+
         std::shared_ptr<DocumentDBConnection> connectDocument(
             const std::string &url,
             const std::string &user,
@@ -91,6 +122,12 @@ namespace cpp_dbc::MongoDB
         // ====================================================================
         // NOTHROW API — exception-free, always available
         // ====================================================================
+
+        /**
+         * @brief Return the singleton MongoDBDriver instance, creating it if necessary.
+         * @return The shared instance, or an error if initialization fails.
+         */
+        static cpp_dbc::expected<std::shared_ptr<MongoDBDriver>, DBException> getInstance(std::nothrow_t) noexcept;
 
         std::string getURIScheme() const noexcept override;
         bool supportsReplicaSets() const noexcept override;
@@ -138,6 +175,13 @@ namespace cpp_dbc::MongoDB
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
 
         std::string getName() const noexcept override;
+
+        /**
+         * @brief Return the number of live connections tracked by the registry.
+         *
+         * Counts non-expired entries in the static connection registry.
+         */
+        static size_t getConnectionAlive() noexcept;
     };
 
 } // namespace cpp_dbc::MongoDB

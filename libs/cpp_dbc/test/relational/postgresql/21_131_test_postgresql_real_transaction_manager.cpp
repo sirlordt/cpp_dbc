@@ -59,8 +59,9 @@ TEST_CASE("PostgreSQL TransactionContext tests", "[21_131_01_postgresql_real_tra
     std::string connStr = dbConfig.createConnectionString();
 
     // Create a real PostgreSQL connection
-    cpp_dbc::PostgreSQL::PostgreSQLDBDriver driver;
-    auto connBase = driver.connect(connStr, username, password);
+    auto driver = postgresql_test_helpers::getPostgreSQLDriver();
+    REQUIRE(driver != nullptr);
+    auto connBase = driver->connect(connStr, username, password);
     auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(connBase);
     REQUIRE(conn != nullptr);
 

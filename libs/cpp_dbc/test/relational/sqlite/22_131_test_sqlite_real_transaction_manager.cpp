@@ -47,8 +47,9 @@ TEST_CASE("SQLite TransactionContext tests", "[22_131_01_sqlite_real_transaction
     INFO("SQLite TransactionContext tests");
 
     // Create a real SQLite in-memory connection
-    cpp_dbc::SQLite::SQLiteDBDriver driver;
-    auto connBase = driver.connect("cpp_dbc:sqlite://:memory:", "", "");
+    auto driver = sqlite_test_helpers::getSQLiteDriver();
+    REQUIRE(driver != nullptr);
+    auto connBase = driver->connect("cpp_dbc:sqlite://:memory:", "", "");
     auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(connBase);
     REQUIRE(conn != nullptr);
 

@@ -49,12 +49,13 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[21_121_01_postgresql_real_
     SECTION("PostgreSQL driver default isolation level")
     {
         // Create a PostgreSQL driver
-        cpp_dbc::PostgreSQL::PostgreSQLDBDriver driver;
+        auto driver = postgresql_test_helpers::getPostgreSQLDriver();
+        REQUIRE(driver != nullptr);
 
         try
         {
             // Try to connect to a local PostgreSQL server
-            auto conn = driver.connectRelational(connStr, username, password);
+            auto conn = driver->connectRelational(connStr, username, password);
 
             // Check default isolation level (should be READ_COMMITTED for PostgreSQL)
             REQUIRE(conn->getTransactionIsolation() == cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
@@ -102,20 +103,21 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[21_121_01_postgresql_real_
     SECTION("PostgreSQL READ_COMMITTED isolation behavior")
     {
         // Create a PostgreSQL driver
-        cpp_dbc::PostgreSQL::PostgreSQLDBDriver driver;
+        auto driver = postgresql_test_helpers::getPostgreSQLDriver();
+        REQUIRE(driver != nullptr);
 
         try
         {
             // Create a test table
-            auto setupConn = driver.connectRelational(connStr, username, password);
+            auto setupConn = driver->connectRelational(connStr, username, password);
             setupConn->executeUpdate("DROP TABLE IF EXISTS isolation_test");
             setupConn->executeUpdate("CREATE TABLE isolation_test (id INT PRIMARY KEY, value VARCHAR(50))");
             setupConn->executeUpdate("INSERT INTO isolation_test VALUES (1, 'initial')");
             setupConn->close();
 
             // Create two connections
-            auto conn1 = driver.connectRelational(connStr, username, password);
-            auto conn2 = driver.connectRelational(connStr, username, password);
+            auto conn1 = driver->connectRelational(connStr, username, password);
+            auto conn2 = driver->connectRelational(connStr, username, password);
 
             // Set READ_COMMITTED isolation level for both connections
             conn1->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
@@ -160,20 +162,21 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[21_121_01_postgresql_real_
     SECTION("PostgreSQL REPEATABLE_READ isolation behavior")
     {
         // Create a PostgreSQL driver
-        cpp_dbc::PostgreSQL::PostgreSQLDBDriver driver;
+        auto driver = postgresql_test_helpers::getPostgreSQLDriver();
+        REQUIRE(driver != nullptr);
 
         try
         {
             // Create a test table
-            auto setupConn = driver.connectRelational(connStr, username, password);
+            auto setupConn = driver->connectRelational(connStr, username, password);
             setupConn->executeUpdate("DROP TABLE IF EXISTS isolation_test");
             setupConn->executeUpdate("CREATE TABLE isolation_test (id INT PRIMARY KEY, value VARCHAR(50))");
             setupConn->executeUpdate("INSERT INTO isolation_test VALUES (1, 'initial')");
             setupConn->close();
 
             // Create two connections
-            auto conn1 = driver.connectRelational(connStr, username, password);
-            auto conn2 = driver.connectRelational(connStr, username, password);
+            auto conn1 = driver->connectRelational(connStr, username, password);
+            auto conn2 = driver->connectRelational(connStr, username, password);
 
             // Set REPEATABLE_READ isolation level for both connections
             conn1->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ);
@@ -210,12 +213,13 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[21_121_01_postgresql_real_
 
     SECTION("PostgreSQL SERIALIZABLE isolation behavior")
     {
-        cpp_dbc::PostgreSQL::PostgreSQLDBDriver driver;
+        auto driver = postgresql_test_helpers::getPostgreSQLDriver();
+        REQUIRE(driver != nullptr);
 
         try
         {
             // Create test table
-            auto setupConn = driver.connectRelational(connStr, username, password);
+            auto setupConn = driver->connectRelational(connStr, username, password);
             setupConn->executeUpdate("DROP TABLE IF EXISTS isolation_test");
             setupConn->executeUpdate(
                 "CREATE TABLE isolation_test (id INT PRIMARY KEY, value VARCHAR(50))");
@@ -227,8 +231,8 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[21_121_01_postgresql_real_
             // ========================================
             SECTION("Snapshot consistency - concurrent transaction isolation")
             {
-                auto conn1 = driver.connectRelational(connStr, username, password);
-                auto conn2 = driver.connectRelational(connStr, username, password);
+                auto conn1 = driver->connectRelational(connStr, username, password);
+                auto conn2 = driver->connectRelational(connStr, username, password);
 
                 conn1->setTransactionIsolation(
                     cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
@@ -287,13 +291,13 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[21_121_01_postgresql_real_
             SECTION("Write-write conflict causes serialization error")
             {
                 // Reset table
-                setupConn = driver.connectRelational(connStr, username, password);
+                setupConn = driver->connectRelational(connStr, username, password);
                 setupConn->executeUpdate(
                     "UPDATE isolation_test SET value = 'initial' WHERE id = 1");
                 setupConn->close();
 
-                auto conn1 = driver.connectRelational(connStr, username, password);
-                auto conn2 = driver.connectRelational(connStr, username, password);
+                auto conn1 = driver->connectRelational(connStr, username, password);
+                auto conn2 = driver->connectRelational(connStr, username, password);
 
                 conn1->setTransactionIsolation(
                     cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
@@ -359,14 +363,14 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[21_121_01_postgresql_real_
             SECTION("Serialization anomaly detection (write skew)")
             {
                 // Reset table with two rows
-                setupConn = driver.connectRelational(connStr, username, password);
+                setupConn = driver->connectRelational(connStr, username, password);
                 setupConn->executeUpdate("DELETE FROM isolation_test");
                 setupConn->executeUpdate(
                     "INSERT INTO isolation_test VALUES (1, 'initial'), (2, 'initial2')");
                 setupConn->close();
 
-                auto txn1 = driver.connectRelational(connStr, username, password);
-                auto txn2 = driver.connectRelational(connStr, username, password);
+                auto txn1 = driver->connectRelational(connStr, username, password);
+                auto txn2 = driver->connectRelational(connStr, username, password);
 
                 txn1->setTransactionIsolation(
                     cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
@@ -436,14 +440,14 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[21_121_01_postgresql_real_
             SECTION("Phantom read prevention")
             {
                 // Reset table
-                setupConn = driver.connectRelational(connStr, username, password);
+                setupConn = driver->connectRelational(connStr, username, password);
                 setupConn->executeUpdate("DELETE FROM isolation_test");
                 setupConn->executeUpdate(
                     "INSERT INTO isolation_test VALUES (1, 'initial')");
                 setupConn->close();
 
-                auto conn1 = driver.connectRelational(connStr, username, password);
-                auto conn2 = driver.connectRelational(connStr, username, password);
+                auto conn1 = driver->connectRelational(connStr, username, password);
+                auto conn2 = driver->connectRelational(connStr, username, password);
 
                 conn1->setTransactionIsolation(
                     cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);

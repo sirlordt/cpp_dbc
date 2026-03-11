@@ -20,16 +20,17 @@
 
 #include "cpp_dbc/drivers/relational/driver_postgresql.hpp"
 
+#include <algorithm>
 #include <array>
+#include <charconv>
 #include <cstring>
 #include <iostream>
 #include <thread>
 #include <chrono>
-#include <algorithm>
 #include <cctype>
 #include <iomanip>
-#include <charconv>
 
+#include "cpp_dbc/common/system_utils.hpp"
 #include "postgresql_internal.hpp"
 
 #if USE_POSTGRESQL
@@ -37,23 +38,55 @@
 namespace cpp_dbc::PostgreSQL
 {
 
-    // Static member initialization
-    std::atomic<bool> PostgreSQLDBDriver::s_initialized{false}; // NOSONAR(cpp:S6012) — CTAD cannot be used for out-of-class static member definitions; type must match the header declaration
-    std::atomic<size_t> PostgreSQLDBDriver::s_liveConnectionCount{0};
-    std::mutex PostgreSQLDBDriver::s_initMutex;
+    // ── Static member initialization ──────────────────────────────────────────
+    std::weak_ptr<PostgreSQLDBDriver> PostgreSQLDBDriver::s_instance;
+    std::mutex                        PostgreSQLDBDriver::s_instanceMutex;
+    std::mutex                        PostgreSQLDBDriver::s_registryMutex;
+    std::set<std::weak_ptr<PostgreSQLDBConnection>,
+             std::owner_less<std::weak_ptr<PostgreSQLDBConnection>>> PostgreSQLDBDriver::s_connectionRegistry;
 
-    // PostgreSQLDBDriver implementation
-    PostgreSQLDBDriver::PostgreSQLDBDriver()
+    // ============================================================================
+    // PostgreSQLDBDriver Implementation - Private Static Helpers
+    // ============================================================================
+
+    // PostgreSQL (libpq) does not require explicit global library initialization.
+    // The initialize() method exists for structural symmetry with other drivers.
+    cpp_dbc::expected<bool, DBException> PostgreSQLDBDriver::initialize(std::nothrow_t) noexcept
     {
-        // PostgreSQL (libpq) does not require global library initialization,
-        // but we follow the same double-checked locking pattern for consistency.
-        if (!s_initialized.load(std::memory_order_acquire))
+        // No initialization needed for libpq
+        return true;
+    }
+
+    void PostgreSQLDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<PostgreSQLDBConnection> conn) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        s_connectionRegistry.insert(std::move(conn));
+    }
+
+    void PostgreSQLDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<PostgreSQLDBConnection> &conn) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        s_connectionRegistry.erase(conn);
+    }
+
+    void PostgreSQLDBDriver::cleanup()
+    {
+        // PostgreSQL (libpq) does not require explicit global library cleanup.
+        // Sleep a bit to ensure all resources are properly released.
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    // ============================================================================
+    // PostgreSQLDBDriver Implementation - Constructor + Destructor
+    // ============================================================================
+
+    PostgreSQLDBDriver::PostgreSQLDBDriver(PostgreSQLDBDriver::PrivateCtorTag, std::nothrow_t) noexcept
+    {
+        auto result = initialize(std::nothrow);
+        if (!result.has_value())
         {
-            std::scoped_lock lock(s_initMutex);
-            if (!s_initialized.load(std::memory_order_acquire))
-            {
-                s_initialized.store(true, std::memory_order_release);
-            }
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>(std::move(result.error()));
         }
     }
 
@@ -63,29 +96,21 @@ namespace cpp_dbc::PostgreSQL
         cleanup();
     }
 
-    void PostgreSQLDBDriver::cleanup()
-    {
-        std::scoped_lock lock(s_initMutex);
-        if (!s_initialized.load(std::memory_order_acquire))
-        {
-            return;
-        }
-
-        auto liveCount = s_liveConnectionCount.load(std::memory_order_acquire);
-        if (liveCount > 0)
-        {
-            PG_DEBUG("PostgreSQLDBDriver::cleanup - Skipped: "
-                     << liveCount
-                     << " live connection(s) still open");
-            return;
-        }
-
-        // Sleep a bit to ensure all resources are properly released
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        s_initialized.store(false, std::memory_order_release);
-    }
+    // ============================================================================
+    // PostgreSQLDBDriver Implementation - Singleton + Throwing API
+    // ============================================================================
 
 #ifdef __cpp_exceptions
+    std::shared_ptr<PostgreSQLDBDriver> PostgreSQLDBDriver::getInstance()
+    {
+        auto result = getInstance(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
     std::shared_ptr<RelationalDBConnection> PostgreSQLDBDriver::connectRelational(const std::string &uri,
                                                                                   const std::string &user,
                                                                                   const std::string &password,
@@ -156,6 +181,38 @@ namespace cpp_dbc::PostgreSQL
         return system_utils::buildDBURI("cpp_dbc:postgresql://", host, port, database);
     }
 
+    // ============================================================================
+    // PostgreSQLDBDriver Implementation - Singleton (nothrow) + Connection Registry
+    // ============================================================================
+
+    cpp_dbc::expected<std::shared_ptr<PostgreSQLDBDriver>, DBException>
+    PostgreSQLDBDriver::getInstance(std::nothrow_t) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_instanceMutex);
+        auto existing = s_instance.lock();
+        if (existing)
+        {
+            return existing;
+        }
+        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+        // Constructor errors are captured in m_initFailed / m_initError.
+        auto inst = std::make_shared<PostgreSQLDBDriver>(PostgreSQLDBDriver::PrivateCtorTag{}, std::nothrow);
+        if (inst->m_initFailed)
+        {
+            return cpp_dbc::unexpected(std::move(*inst->m_initError));
+        }
+        s_instance = inst;
+        return inst;
+    }
+
+    size_t PostgreSQLDBDriver::getConnectionAlive() noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        return static_cast<size_t>(std::count_if(
+            s_connectionRegistry.begin(), s_connectionRegistry.end(),
+            [](const auto &w) { return !w.expired(); }));
+    }
+
     // Nothrow API implementation
     cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> PostgreSQLDBDriver::connectRelational(
         std::nothrow_t,
@@ -164,42 +221,33 @@ namespace cpp_dbc::PostgreSQL
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
     {
-        try
+        auto parseResult = parseURI(std::nothrow, uri);
+        if (!parseResult.has_value())
         {
-            auto parseResult = parseURI(std::nothrow, uri);
-            if (!parseResult.has_value())
-            {
-                return cpp_dbc::unexpected(parseResult.error());
-            }
+            return cpp_dbc::unexpected(parseResult.error());
+        }
 
-            auto &parsed = parseResult.value();
-            const std::string &host = parsed["host"];
-            const auto &portStr = parsed["port"];
-            int port = 0;
-            auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), port);
-            if (ec != std::errc{} || ptr != portStr.data() + portStr.size())
-            {
-                return cpp_dbc::unexpected(DBException("T3A7QUX6XNUT",
-                                                       "Invalid port number in URI: " + portStr,
-                                                       system_utils::captureCallStack()));
-            }
-            const std::string &database = parsed["database"];
+        auto &parsed = parseResult.value();
+        const std::string &host = parsed["host"];
+        const auto &portStr = parsed["port"];
+        int port = 0;
+        auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), port);
+        if (ec != std::errc{} || ptr != portStr.data() + portStr.size())
+        {
+            return cpp_dbc::unexpected(DBException("T3A7QUX6XNUT",
+                                                   "Invalid port number in URI: " + portStr,
+                                                   system_utils::captureCallStack()));
+        }
+        const std::string &database = parsed["database"];
 
-            auto connection = std::make_shared<PostgreSQLDBConnection>(host, port, database, user, password, options);
-            return cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>(std::static_pointer_cast<RelationalDBConnection>(connection));
-        }
-        catch (const DBException &ex)
+        auto connResult = PostgreSQLDBConnection::create(std::nothrow, host, port, database, user, password, options);
+        if (!connResult.has_value())
         {
-            return cpp_dbc::unexpected<DBException>(ex);
+            return cpp_dbc::unexpected(connResult.error());
         }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("2A3B4C5D6E7F", std::string("Exception in connectRelational: ") + ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("8G9H0I1J2K3L", "Unknown exception in connectRelational", system_utils::captureCallStack()));
-        }
+        auto conn = connResult.value();
+        registerConnection(std::nothrow, conn);
+        return std::shared_ptr<RelationalDBConnection>(conn);
     }
 
     std::string PostgreSQLDBDriver::getName() const noexcept

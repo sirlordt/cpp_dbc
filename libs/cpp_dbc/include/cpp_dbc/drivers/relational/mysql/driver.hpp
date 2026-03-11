@@ -4,22 +4,28 @@
 
 #if USE_MYSQL
 
-#include <atomic>
 #include <map>
-#include <string>
 #include <memory>
+#include <mutex>
+#include <set>
+#include <string>
 
 namespace cpp_dbc::MySQL
 {
+    class MySQLDBConnection; // forward declaration for registry
+
     /**
-     * @brief MySQL database driver implementation
+     * @brief MySQL database driver implementation — singleton
      *
      * Concrete RelationalDBDriver for MySQL/MariaDB databases.
      * Accepts URLs in the format `cpp_dbc:mysql://host:port/database`.
      *
+     * The driver is a singleton: use getInstance() to obtain the shared instance.
+     * Every connection created through connectRelational() is registered in the
+     * driver's connection registry and automatically removed when closed.
+     *
      * ```cpp
-     * auto driver = std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>();
-     * cpp_dbc::DriverManager::registerDriver(driver);
+     * auto driver = cpp_dbc::MySQL::MySQLDBDriver::getInstance();
      * auto conn = driver->connectRelational("cpp_dbc:mysql://localhost:3306/mydb", "root", "pass");
      * ```
      *
@@ -27,17 +33,41 @@ namespace cpp_dbc::MySQL
      */
     class MySQLDBDriver final : public RelationalDBDriver
     {
+        // ── PrivateCtorTag — prevents direct construction; use getInstance() ──
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
+        // ── Singleton state ───────────────────────────────────────────────────
         // Note: MySQL does NOT use double-checked locking (s_initialized + s_initMutex)
         // because mysql_library_end() must be called unconditionally for Valgrind-clean
         // shutdown. See initialize() in driver_01.cpp for full explanation.
-        static std::atomic<size_t> s_liveConnectionCount;
+        static std::weak_ptr<MySQLDBDriver> s_instance;
+        static std::mutex                   s_instanceMutex;
+
+        // ── Connection registry ───────────────────────────────────────────────
+        // Tracks all live connections created through connectRelational().
+        // Uses weak_ptr so the registry never prevents connection destruction.
+        static std::mutex                                                    s_registryMutex;
+        static std::set<std::weak_ptr<MySQLDBConnection>,
+                        std::owner_less<std::weak_ptr<MySQLDBConnection>>>   s_connectionRegistry;
 
         static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
 
+        static void registerConnection(std::nothrow_t, std::weak_ptr<MySQLDBConnection> conn) noexcept;
+        static void unregisterConnection(std::nothrow_t, const std::weak_ptr<MySQLDBConnection> &conn) noexcept;
+
+        static void cleanup();
+
         friend class MySQLDBConnection;
 
+        // ── Construction state ────────────────────────────────────────────────
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
+
     public:
-        MySQLDBDriver();
+        MySQLDBDriver(PrivateCtorTag, std::nothrow_t) noexcept;
         ~MySQLDBDriver() override;
 
         // Rule of 5: disable copy and move operations
@@ -51,6 +81,12 @@ namespace cpp_dbc::MySQL
         // ====================================================================
 
 #ifdef __cpp_exceptions
+        /**
+         * @brief Return the singleton MySQLDBDriver instance, creating it if necessary.
+         * @throws DBException if MySQL library initialization fails.
+         */
+        static std::shared_ptr<MySQLDBDriver> getInstance();
+
         using DBDriver::parseURI;
         using DBDriver::buildURI;
 
@@ -64,6 +100,11 @@ namespace cpp_dbc::MySQL
         // NOTHROW API — exception-free, always available
         // ====================================================================
 
+        /**
+         * @brief Return the singleton MySQLDBDriver instance, creating it if necessary.
+         * @return The shared instance, or an error if initialization fails.
+         */
+        static cpp_dbc::expected<std::shared_ptr<MySQLDBDriver>, DBException> getInstance(std::nothrow_t) noexcept;
 
         cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(
             std::nothrow_t, const std::string &uri) noexcept override;
@@ -86,8 +127,14 @@ namespace cpp_dbc::MySQL
         std::string getURIScheme() const noexcept override;
         std::string getDriverVersion() const noexcept override;
 
-        static void cleanup();
-        static size_t getConnectionAlive() noexcept { return s_liveConnectionCount.load(std::memory_order_acquire); }
+        /**
+         * @brief Return the number of live connections tracked by the registry.
+         *
+         * Counts non-expired entries in the static connection registry.
+         * This value reflects connections created through connectRelational() only;
+         * connections created directly via MySQLDBConnection::create() are not counted.
+         */
+        static size_t getConnectionAlive() noexcept;
     };
 
 } // namespace cpp_dbc::MySQL

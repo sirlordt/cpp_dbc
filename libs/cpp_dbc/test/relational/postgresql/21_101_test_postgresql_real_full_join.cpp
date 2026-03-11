@@ -57,7 +57,7 @@ TEST_CASE("PostgreSQL FULL JOIN operations", "[21_101_01_postgresql_real_full_jo
     std::string connStr = dbConfig.createConnectionString();
 
     // Register the PostgreSQL driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(postgresql_test_helpers::getPostgreSQLDriver());
 
     // Get a connection
     auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));

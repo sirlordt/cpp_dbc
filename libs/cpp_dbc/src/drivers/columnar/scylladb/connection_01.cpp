@@ -75,7 +75,7 @@ namespace cpp_dbc::ScyllaDB
             std::string errorMsg(message, length);
             SCYLLADB_DEBUG("ScyllaDBConnection::constructor(nothrow) - Connection failed: " << errorMsg);
             m_initFailed = true;
-            m_initError = DBException("Q8R9S0T1U2V3", errorMsg, system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("Q8R9S0T1U2V3", errorMsg, system_utils::captureCallStack());
             return;
         }
 
@@ -90,7 +90,7 @@ namespace cpp_dbc::ScyllaDB
             if (!isValidKeyspace)
             {
                 m_initFailed = true;
-                m_initError = DBException("7A3F9E2B5C8D", "Invalid keyspace name: " + keyspace, system_utils::captureCallStack());
+                m_initError = std::make_unique<DBException>("7A3F9E2B5C8D", "Invalid keyspace name: " + keyspace, system_utils::captureCallStack());
                 return;
             }
 
@@ -102,7 +102,7 @@ namespace cpp_dbc::ScyllaDB
             {
                 SCYLLADB_DEBUG("ScyllaDBConnection::constructor(nothrow) - Failed to use keyspace: " << keyspace);
                 m_initFailed = true;
-                m_initError = DBException("R9S0T1U2V3W4", "Failed to use keyspace " + keyspace, system_utils::captureCallStack());
+                m_initError = std::make_unique<DBException>("R9S0T1U2V3W4", "Failed to use keyspace " + keyspace, system_utils::captureCallStack());
                 return;
             }
         }
@@ -112,9 +112,6 @@ namespace cpp_dbc::ScyllaDB
         // Cache the full URI including the cpp_dbc: prefix (reuse centralized builder for IPv6 bracket handling)
         m_uri = system_utils::buildDBURI("cpp_dbc:scylladb://", host, port, keyspace);
 
-        // Track live connection for safe cleanup() guard
-        ScyllaDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
-        m_counterIncremented = true;
         SCYLLADB_DEBUG("ScyllaDBConnection::constructor(nothrow) - Connection established");
     }
 

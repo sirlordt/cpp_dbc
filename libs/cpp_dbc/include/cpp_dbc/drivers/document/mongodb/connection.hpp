@@ -75,7 +75,10 @@ namespace cpp_dbc::MongoDB
          * @brief Flag indicating if the connection is closed
          */
         std::atomic<bool> m_closed{true};
-        bool m_counterIncremented{false};
+
+        // Stored by the create() factory so close() can unregister from the driver registry
+        // using owner_less comparison (raw 'this' won't work with the set's comparator).
+        std::weak_ptr<MongoDBConnection> m_self;
 
         /**
          * @brief Flag indicating if the connection is pooled
@@ -139,8 +142,9 @@ namespace cpp_dbc::MongoDB
          * @brief Error captured when constructor initialization fails
          *
          * Holds the DBException that would have been thrown, for deferred delivery.
+         * Only allocated on the failure path (~256 bytes saved per successful instance).
          */
-        DBException m_initError{"31N7TQLDCNQT", "", {}};
+        std::unique_ptr<DBException> m_initError{nullptr};
         TransactionIsolationLevel m_transactionIsolation{TransactionIsolationLevel::TRANSACTION_NONE};
 
     public:
@@ -268,8 +272,11 @@ namespace cpp_dbc::MongoDB
             auto obj = std::make_shared<MongoDBConnection>(PrivateCtorTag{}, std::nothrow, uri, user, password, options);
             if (obj->m_initFailed)
             {
-                return cpp_dbc::unexpected(obj->m_initError);
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
             }
+            // Store a weak self-reference so close() can unregister from the driver's
+            // connection registry via owner_less comparison without calling shared_from_this().
+            obj->m_self = obj;
             return obj;
         }
 

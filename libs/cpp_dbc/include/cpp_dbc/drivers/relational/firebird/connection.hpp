@@ -66,9 +66,12 @@ namespace cpp_dbc::Firebird
         std::atomic<bool> m_resetting{false}; // True during reset() to prevent unregister deadlock
         bool m_autoCommit{true};
         bool m_transactionActive{false};
-        bool m_counterIncremented{false};
         TransactionIsolationLevel m_isolationLevel;
         std::string m_uri;
+
+        // Stored by the create() factory so close() can unregister from the driver registry
+        // using owner_less comparison (raw 'this' won't work with the set's comparator).
+        std::weak_ptr<FirebirdDBConnection> m_self;
 
         // Registry of active prepared statements and result sets
         std::set<std::weak_ptr<FirebirdDBPreparedStatement>, std::owner_less<std::weak_ptr<FirebirdDBPreparedStatement>>> m_activeStatements;
@@ -97,8 +100,9 @@ namespace cpp_dbc::Firebird
          * @brief Error captured when constructor initialization fails
          *
          * Holds the DBException that would have been thrown, for deferred delivery.
+         * Only allocated on the failure path (~256 bytes saved per successful instance).
          */
-        DBException m_initError{"RE8MSLXITHQ2", "", {}};
+        std::unique_ptr<DBException> m_initError{nullptr};
 
         // ── Private helper methods ────────────────────────────────────────────
         cpp_dbc::expected<void, DBException> registerStatement(std::nothrow_t, std::weak_ptr<FirebirdDBPreparedStatement> stmt) noexcept;
@@ -222,8 +226,11 @@ namespace cpp_dbc::Firebird
                 PrivateCtorTag{}, std::nothrow, host, port, database, user, password, options);
             if (obj->m_initFailed)
             {
-                return cpp_dbc::unexpected(obj->m_initError);
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
             }
+            // Store a weak self-reference so close() can unregister from the driver's
+            // connection registry via owner_less comparison without calling shared_from_this().
+            obj->m_self = obj;
             return obj;
         }
 

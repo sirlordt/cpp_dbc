@@ -120,7 +120,7 @@ namespace cpp_dbc::MongoDB
         if (!mongoUri)
         {
             m_initFailed = true;
-            m_initError = DBException("J4K5L6M7N8O9", std::string("Invalid MongoDB URI: ") + error.message, system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("J4K5L6M7N8O9", std::string("Invalid MongoDB URI: ") + error.message, system_utils::captureCallStack());
             return;
         }
 
@@ -136,7 +136,7 @@ namespace cpp_dbc::MongoDB
         if (!rawClient)
         {
             m_initFailed = true;
-            m_initError = DBException("K5L6M7N8O9P0", "Failed to create MongoDB client", system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("K5L6M7N8O9P0", "Failed to create MongoDB client", system_utils::captureCallStack());
             return;
         }
 
@@ -165,15 +165,11 @@ namespace cpp_dbc::MongoDB
         {
             m_client.reset();
             m_initFailed = true;
-            m_initError = DBException("L6M7N8O9P0Q1", std::string("Failed to connect to MongoDB: ") + error.message, system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("L6M7N8O9P0Q1", std::string("Failed to connect to MongoDB: ") + error.message, system_utils::captureCallStack());
             return;
         }
 
         m_closed.store(false, std::memory_order_release);
-
-        // Track live connection for safe cleanup() guard
-        // MongoDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
-        m_counterIncremented = true;
 
         MONGODB_DEBUG("MongoDBConnection::constructor(nothrow) - Connected successfully");
     }

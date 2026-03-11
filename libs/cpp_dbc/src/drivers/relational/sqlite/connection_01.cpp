@@ -425,10 +425,6 @@ namespace cpp_dbc::SQLite
             }
 
             SQLITE_DEBUG("Connection created successfully");
-
-            // Track live connection for safe cleanup() guard
-            SQLiteDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
-            m_counterIncremented = true;
         }
         catch (const DBException &e)
         {

@@ -74,7 +74,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
     SECTION("Basic Firebird operations")
     {
         // Register the Firebird driver (safe registration)
-        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(firebird_test_helpers::getFirebirdDriver());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -162,7 +162,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
     SECTION("Firebird metadata retrieval")
     {
         // Register the Firebird driver (safe registration)
-        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(firebird_test_helpers::getFirebirdDriver());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -235,7 +235,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
     SECTION("Firebird TIME type test")
     {
         // Register the Firebird driver (safe registration)
-        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(firebird_test_helpers::getFirebirdDriver());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));

@@ -181,13 +181,12 @@ namespace cpp_dbc::MySQL
         m_mysql.reset();
         m_closed.store(true, std::memory_order_release);
 
-        // Release live connection count for cleanup() guard.
-        // Safe against double-decrement: MYSQL_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED
-        // above returns early if already closed, so this line executes exactly once.
-        if (m_counterIncremented)
-        {
-            MySQLDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
-        }
+        // Remove this connection from the driver's registry.
+        // m_self holds a weak_ptr with the same control block as the original shared_ptr,
+        // so owner_less comparison works correctly even if the shared_ptr refcount is 0.
+        // Safe against double-unregister: MYSQL_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED
+        // above returns early if already closed, so this executes exactly once.
+        MySQLDBDriver::unregisterConnection(std::nothrow, m_self);
 
         return {};
     }

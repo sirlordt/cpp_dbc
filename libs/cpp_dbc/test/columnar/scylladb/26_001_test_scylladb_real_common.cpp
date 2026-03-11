@@ -114,7 +114,7 @@ namespace scylla_test_helpers
     std::shared_ptr<cpp_dbc::ScyllaDB::ScyllaDBDriver> getScyllaDriver()
     {
         static std::shared_ptr<cpp_dbc::ScyllaDB::ScyllaDBDriver> driver =
-            std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>();
+            cpp_dbc::ScyllaDB::ScyllaDBDriver::getInstance(std::nothrow).value_or(nullptr);
         return driver;
     }
 

@@ -59,13 +59,10 @@ namespace cpp_dbc::Firebird
 
         m_closed.store(true, std::memory_order_release);
 
-        // Release live connection count for cleanup() guard.
-        // Safe against double-decrement: FIREBIRD_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED
-        // above returns early if already closed, so this line executes exactly once.
-        if (m_counterIncremented)
-        {
-            FirebirdDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
-        }
+        // Unregister from the driver registry so getConnectionAlive() reflects
+        // actual live connections. The owner_less m_self weak_ptr is used for
+        // set lookup — raw 'this' would not match the set's comparator.
+        FirebirdDBDriver::unregisterConnection(std::nothrow, m_self);
 
         FIREBIRD_DEBUG("FirebirdConnection::close - Done");
 

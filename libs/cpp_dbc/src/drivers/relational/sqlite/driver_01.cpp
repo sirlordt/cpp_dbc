@@ -31,6 +31,7 @@
 #include <fstream> // Para std::ifstream
 #include <charconv>
 #include "cpp_dbc/common/system_constants.hpp"
+#include "cpp_dbc/common/system_utils.hpp"
 #include "sqlite_internal.hpp"
 
 #if USE_SQLITE
@@ -38,13 +39,16 @@
 namespace cpp_dbc::SQLite
 {
 
-    // SQLiteDBDriver implementation
-    // Static member variables to ensure SQLite is configured once
-    std::atomic<bool> SQLiteDBDriver::s_initialized{false};
-    std::atomic<size_t> SQLiteDBDriver::s_liveConnectionCount{0};
+    // ── Static member initialization ──────────────────────────────────────────
+    std::atomic<bool> SQLiteDBDriver::s_initialized{false}; // NOSONAR(cpp:S1197) — explicit template arg for clarity in static member definition
     std::mutex SQLiteDBDriver::s_initMutex;
+    std::weak_ptr<SQLiteDBDriver> SQLiteDBDriver::s_instance;
+    std::mutex                    SQLiteDBDriver::s_instanceMutex;
+    std::mutex                    SQLiteDBDriver::s_registryMutex;
+    std::set<std::weak_ptr<SQLiteDBConnection>,
+             std::owner_less<std::weak_ptr<SQLiteDBConnection>>> SQLiteDBDriver::s_connectionRegistry;
 
-    SQLiteDBDriver::SQLiteDBDriver()
+    SQLiteDBDriver::SQLiteDBDriver(SQLiteDBDriver::PrivateCtorTag, std::nothrow_t) noexcept
     {
         // Thread-safe single initialization pattern
         if (!s_initialized.load(std::memory_order_acquire))
@@ -83,18 +87,60 @@ namespace cpp_dbc::SQLite
         cleanup();
     }
 
+    void SQLiteDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<SQLiteDBConnection> conn) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        s_connectionRegistry.insert(std::move(conn));
+    }
+
+    void SQLiteDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<SQLiteDBConnection> &conn) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        s_connectionRegistry.erase(conn);
+    }
+
+    size_t SQLiteDBDriver::getConnectionAlive() noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        return static_cast<size_t>(std::count_if(
+            s_connectionRegistry.begin(), s_connectionRegistry.end(),
+            [](const auto &w) { return !w.expired(); }));
+    }
+
+#ifdef __cpp_exceptions
+    std::shared_ptr<SQLiteDBDriver> SQLiteDBDriver::getInstance()
+    {
+        auto result = getInstance(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+#endif // __cpp_exceptions
+
+    cpp_dbc::expected<std::shared_ptr<SQLiteDBDriver>, DBException>
+    SQLiteDBDriver::getInstance(std::nothrow_t) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_instanceMutex);
+        auto existing = s_instance.lock();
+        if (existing)
+        {
+            return existing;
+        }
+        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+        // SQLiteDBDriver constructor only runs noexcept operations — no m_initFailed check needed.
+        auto inst = std::make_shared<SQLiteDBDriver>(SQLiteDBDriver::PrivateCtorTag{}, std::nothrow);
+        s_instance = inst;
+        return inst;
+    }
+
     void SQLiteDBDriver::cleanup()
     {
         std::scoped_lock lock(s_initMutex);
         if (!s_initialized.load(std::memory_order_acquire))
         {
-            return;
-        }
-
-        auto liveCount = s_liveConnectionCount.load(std::memory_order_acquire);
-        if (liveCount > 0)
-        {
-            SQLITE_DEBUG("SQLiteDBDriver::cleanup - Skipped: %zu live connection(s) still open", liveCount);
             return;
         }
 
@@ -195,41 +241,30 @@ namespace cpp_dbc::SQLite
         [[maybe_unused]] const std::string &,
         const std::map<std::string, std::string> &options) noexcept
     {
-        try
+        auto parseResult = parseURI(std::nothrow, uri);
+        if (!parseResult.has_value())
         {
-            auto parseResult = parseURI(std::nothrow, uri);
-            if (!parseResult.has_value())
-            {
-                return cpp_dbc::unexpected(parseResult.error());
-            }
-
-            const auto &parsed = parseResult.value();
-            auto dbIt = parsed.find("database");
-            if (dbIt == parsed.end() || dbIt->second.empty())
-            {
-                return cpp_dbc::unexpected(DBException("SLEN4O5P6Q7R", "Invalid SQLite connection URI: " + uri,
-                                                       system_utils::captureCallStack()));
-            }
-
-            auto connection = std::make_shared<SQLiteDBConnection>(dbIt->second, options);
-            return std::shared_ptr<RelationalDBConnection>(connection);
+            return cpp_dbc::unexpected(parseResult.error());
         }
-        catch (const DBException &ex)
+
+        const auto &parsed = parseResult.value();
+        auto dbIt = parsed.find("database");
+        if (dbIt == parsed.end() || dbIt->second.empty())
         {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("CR1A1B2C3D4E",
-                                                   std::string("connectRelational failed: ") + ex.what(),
+            return cpp_dbc::unexpected(DBException("SLEN4O5P6Q7R", "Invalid SQLite connection URI: " + uri,
                                                    system_utils::captureCallStack()));
         }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
+
+        // SQLiteDBConnection::create(nothrow) sets m_self internally and handles
+        // any construction errors — no try/catch needed here (all calls are noexcept).
+        auto connResult = SQLiteDBConnection::create(std::nothrow, dbIt->second, options);
+        if (!connResult.has_value())
         {
-            return cpp_dbc::unexpected(DBException("CR1A1B2C3D4F",
-                                                   "connectRelational failed: unknown error",
-                                                   system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(connResult.error());
         }
+        auto connection = connResult.value();
+        registerConnection(std::nothrow, connection);
+        return std::shared_ptr<RelationalDBConnection>(connection);
     }
 
     std::string SQLiteDBDriver::getName() const noexcept

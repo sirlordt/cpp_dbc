@@ -46,7 +46,7 @@ TEST_CASE("MySQL connection test", "[20_041_01_mysql_real_connection]")
     std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port);
 
     // Register the MySQL driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(mysql_test_helpers::getMySQLDriver());
 
     SECTION("Test MySQL connection")
     {
@@ -92,7 +92,7 @@ TEST_CASE("MySQL getServerVersion and getServerInfo", "[20_041_03_mysql_real_con
     std::string password = dbConfig.getPassword();
     std::string connStr = dbConfig.createConnectionString();
 
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(mysql_test_helpers::getMySQLDriver());
 
     SECTION("getServerVersion returns non-empty version string")
     {
@@ -169,7 +169,7 @@ TEST_CASE("MySQL getServerVersion and getServerInfo", "[20_041_03_mysql_real_con
 }
 TEST_CASE("MySQL getDriverVersion", "[20_041_04_mysql_real_connection]")
 {
-    auto driver = std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>();
+    auto driver = mysql_test_helpers::getMySQLDriver();
 
     SECTION("getDriverVersion returns non-empty version string")
     {

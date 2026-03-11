@@ -16,6 +16,7 @@ This guide explains how to add support for a new database management system (DBM
    - [Create Header Files (.hpp)](#create-header-files-hpp)
    - [Create Source Files (.cpp)](#create-source-files-cpp)
    - [Update Main Header (cpp_dbc.hpp)](#update-main-header-cpp_dbchpp)
+   - [Register in DriverManager::initDrivers](#register-in-drivermanagerinitdrivers)
    - [Integrate with Connection Pool](#integrate-with-connection-pool)
 4. [Phase 2: Update Build Configuration](#phase-2-update-build-configuration)
    - [Update CMakeLists.txt](#update-cmakeliststxt)
@@ -39,6 +40,7 @@ This guide explains how to add support for a new database management system (DBM
 9. [Common Mistakes to Avoid](#common-mistakes-to-avoid)
 10. [Architectural Patterns](#architectural-patterns)
     - [PrivateCtorTag Pattern — Throw-Free Construction with `std::make_shared`](#privatectortag-pattern--throw-free-construction-with-stdmake_shared)
+    - [DBDriver Singleton + Connection Registry Pattern](#dbdriver-singleton--connection-registry-pattern)
     - [Mutex Sharing — Connection and Child Classes](#mutex-sharing--connection-and-child-classes)
 11. [Related Documentation](#related-documentation)
 
@@ -349,6 +351,40 @@ Add the conditional include for the new driver header (around line 80-107):
 - Document: `cpp_dbc/drivers/document/driver_<name>.hpp`
 - Key-Value: `cpp_dbc/drivers/kv/driver_<name>.hpp`
 - Columnar: `cpp_dbc/drivers/columnar/driver_<name>.hpp`
+
+### Register in DriverManager::initDrivers
+
+Every new driver must register itself in `DriverManager::initDrivers` so that callers using the high-level `DriverManager::getDBConnection()` API can discover and use it without manual driver registration.
+
+**File**: `libs/cpp_dbc/src/driver_manager.cpp`
+
+Add a new `#if USE_<DRIVER>` block inside `DriverManager::initDrivers(std::nothrow_t)`, following the identical pattern used by all existing drivers:
+
+```cpp
+#if USE_SQLSERVER
+    if (!drivers.contains("sqlserver"))
+    {
+        auto result = cpp_dbc::SQLServer::SQLServerDBDriver::getInstance(std::nothrow);
+        if (result.has_value())
+        {
+            registerDriver(result.value());
+        }
+        else
+        {
+            errors.push_back(result.error());
+        }
+    }
+#endif
+```
+
+**Key design points**:
+
+- **`!drivers.contains("sqlserver")` guard**: Makes `initDrivers` idempotent. If the driver is already registered (e.g. from a previous call, or from explicit `registerDriver()` by the caller), the entire block is skipped — no constructor runs, no C library is touched.
+- **`getInstance(std::nothrow)`**: All drivers use the `weak_ptr`-based singleton pattern. `getInstance` returns the live instance if one already exists, or creates a new one. The singleton ensures only one driver object exists per process, even if `initDrivers` is called multiple times.
+- **Error accumulation**: Failures are collected into `errors` and returned at the end — other drivers continue to initialize even if one fails.
+- **`#if USE_<DRIVER>` guard**: The block is compiled only when the driver is enabled in the build. The driver name string (`"sqlserver"`) must match exactly what `XxxDBDriver::getName()` returns.
+
+**`getName()` contract**: The string key passed to `drivers.contains()` must be identical to the value returned by the driver's `getName() const noexcept override`. Check the driver's `getName()` implementation before writing the string literal.
 
 ### Integrate with Connection Pool
 
@@ -1443,7 +1479,9 @@ If you need to add support for the new driver in `common/10_061_test_integration
 #if USE_SQLSERVER
 TEST_CASE("SQL Server Integration", "[10_061_07_sqlserver_integration]")
 {
-    auto driver = std::make_shared<cpp_dbc::SQLServerDBDriver>();
+    auto driverResult = cpp_dbc::SQLServer::SQLServerDBDriver::getInstance(std::nothrow);
+    REQUIRE(driverResult.has_value());
+    auto driver = driverResult.value();
     // ... test code ...
 }
 #endif
@@ -1605,7 +1643,9 @@ libs/cpp_dbc/examples/kv/memcached/28_091_example_memcached_error_handling.cpp
 int main()
 {
 #if USE_NEWKV
-    auto driver = std::make_shared<NewKVDriver>();
+    auto driverResult = NewKVDriver::getInstance(std::nothrow);
+    if (!driverResult.has_value()) { return 1; }
+    auto driver = driverResult.value();
     auto conn = driver->connectKV("newkv://localhost:1234", "", "");
 
     // String operations
@@ -1655,7 +1695,9 @@ libs/cpp_dbc/examples/document/couchdb/29_091_example_couchdb_error_handling.cpp
 #if USE_NEWDOC
 void demonstrateDocumentDB()
 {
-    auto driver = std::make_shared<NewDocDriver>();
+    auto driverResult = NewDocDriver::getInstance(std::nothrow);
+    if (!driverResult.has_value()) { return; }
+    auto driver = driverResult.value();
     auto conn = driver->connectDocument("newdoc://localhost:27017", "database");
 
     // Insert document
@@ -1825,6 +1867,10 @@ endif()
 - [ ] Updated `libs/cpp_dbc/include/cpp_dbc/cpp_dbc.hpp`
   - [ ] Added `#ifndef USE_<DRIVER>` macro definition
   - [ ] Added `#if USE_<DRIVER>` conditional include
+- [ ] Registered in `DriverManager::initDrivers` in `libs/cpp_dbc/src/driver_manager.cpp`
+  - [ ] Added `#if USE_<DRIVER>` block with `!drivers.contains("<name>")` guard
+  - [ ] Used `XxxDBDriver::getInstance(std::nothrow)` (singleton, not `make_shared`)
+  - [ ] Driver name string matches `XxxDBDriver::getName()` exactly
 - [ ] Connection Pool Integration
   - **Existing family** (relational, kv, document, columnar):
     - [ ] Added driver subclass pool class in `pool/<family>/<family>_db_connection_pool.hpp`
@@ -2331,6 +2377,141 @@ All driver classes use `PrivateCtorTag` + `std::make_shared`. There is no altern
 | **SQLite** | Public ctor + `make_shared` (legacy) | Public ctor + `make_shared` (legacy) | Public ctor + `make_shared` (legacy) |
 
 > **Note**: SQLite uses an older pattern with public throwing constructors. New drivers **must** follow the `PrivateCtorTag` pattern for **all** classes.
+
+---
+
+### DBDriver Singleton + Connection Registry Pattern
+
+Every `*DBDriver` class (e.g. `MySQLDBDriver`, `MongoDBDriver`) implements two tightly-coupled mechanisms: a **`weak_ptr`-based singleton** that enforces a single live driver instance per process, and a **connection registry** that tracks all open connections for lifecycle management.
+
+#### Why a Singleton?
+
+A `DBDriver` wraps a C library that typically requires one-time global initialization (e.g. `mysql_library_init`, `mongoc_init`). Creating multiple driver instances in the same process would either double-initialize the library or leave a stale `s_initialized` flag after the first instance is destroyed — both incorrect.
+
+The `weak_ptr` singleton is the right tool here because:
+- It allows the driver to be destroyed (C library cleaned up) when no one holds a `shared_ptr` to it.
+- The next `getInstance()` call transparently creates a fresh instance, reinitializing the library.
+- No global `shared_ptr` is kept alive forever — memory and library resources are released when the driver is no longer needed.
+
+#### Required Static Members
+
+Add these static members to every `*DBDriver` class header (inside `#if USE_<DRIVER>`):
+
+```cpp
+// ── Initialization state ───────────────────────────────────────────────────
+// atomic<bool> + mutex instead of std::once_flag because once_flag cannot be
+// reset, but cleanup() must allow re-initialization after driver destruction.
+// Also, std::call_once can throw std::system_error, incompatible with -fno-exceptions.
+static std::atomic<bool> s_initialized;
+static std::mutex        s_initMutex;
+
+// ── Singleton state ────────────────────────────────────────────────────────
+static std::weak_ptr<XxxDBDriver> s_instance;
+static std::mutex                 s_instanceMutex;
+
+// ── Connection registry ────────────────────────────────────────────────────
+static std::mutex                                                      s_registryMutex;
+static std::set<std::weak_ptr<XxxDBConnection>,
+                std::owner_less<std::weak_ptr<XxxDBConnection>>>       s_connectionRegistry;
+```
+
+Add these private methods:
+
+```cpp
+static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
+static void registerConnection(std::nothrow_t, std::weak_ptr<XxxDBConnection> conn) noexcept;
+static void unregisterConnection(std::nothrow_t, const std::weak_ptr<XxxDBConnection> &conn) noexcept;
+friend class XxxDBConnection;  // so XxxDBConnection can call unregisterConnection
+```
+
+Add these public methods:
+
+```cpp
+static std::shared_ptr<XxxDBDriver> getInstance();                                          // throwing
+static cpp_dbc::expected<std::shared_ptr<XxxDBDriver>, DBException> getInstance(std::nothrow_t) noexcept;
+static void cleanup();
+static size_t getConnectionAlive() noexcept;
+```
+
+#### `getInstance(std::nothrow_t)` Implementation
+
+```cpp
+cpp_dbc::expected<std::shared_ptr<XxxDBDriver>, DBException>
+XxxDBDriver::getInstance(std::nothrow_t) noexcept
+{
+    std::lock_guard<std::mutex> lock(s_instanceMutex);
+    auto existing = s_instance.lock();
+    if (existing)
+    {
+        return existing;
+    }
+    try
+    {
+        auto inst = std::make_shared<XxxDBDriver>();
+        s_instance = inst;
+        return inst;
+    }
+    catch (const DBException &ex)
+    {
+        return cpp_dbc::unexpected(ex);
+    }
+    catch (const std::exception &ex)
+    {
+        return cpp_dbc::unexpected(DBException("XXXXXXXXXXXX",
+            std::string("Failed to initialize Xxx driver singleton: ") + ex.what(),
+            system_utils::captureCallStack()));
+    }
+    catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
+    {
+        return cpp_dbc::unexpected(DBException("XXXXXXXXXXXX",
+            "Unknown error while initializing Xxx driver singleton",
+            system_utils::captureCallStack()));
+    }
+}
+```
+
+#### Connection Registry
+
+The registry uses `std::set<std::weak_ptr<XxxDBConnection>, std::owner_less<...>>` so that expired weak pointers remain comparable. `registerConnection` is called by `connectXxx()` after successful connection creation. `unregisterConnection` is called by `XxxDBConnection::close()` using the `m_self` weak pointer stored during `create()`.
+
+**In the driver's `connectXxx()` method** — call `registerConnection` after success:
+
+```cpp
+auto conn = XxxDBConnection::create(std::nothrow, host, port, db, user, password, options);
+if (!conn.has_value())
+{
+    return cpp_dbc::unexpected(conn.error());
+}
+registerConnection(std::nothrow, conn.value());
+return conn.value();
+```
+
+**In `XxxDBConnection`** — add `m_self` and call unregister in `close()`:
+
+```cpp
+// In the class header:
+std::weak_ptr<XxxDBConnection> m_self;
+
+// In create() factory — set m_self after construction succeeds:
+obj->m_self = obj;
+
+// In close(std::nothrow_t) — unregister before closing:
+XxxDBDriver::unregisterConnection(std::nothrow, m_self);
+```
+
+`m_self` must be set in the factory (not the constructor) because `shared_from_this()` is unavailable inside a constructor. The `owner_less` comparator in the registry set compares by control block identity, so a `weak_ptr<XxxDBConnection>` can be erased even after the object is partially destroyed.
+
+#### `getConnectionAlive()` Implementation
+
+```cpp
+size_t XxxDBDriver::getConnectionAlive() noexcept
+{
+    std::lock_guard<std::mutex> lock(s_registryMutex);
+    return static_cast<size_t>(std::count_if(
+        s_connectionRegistry.begin(), s_connectionRegistry.end(),
+        [](const auto &w) { return !w.expired(); }));
+}
+```
 
 ---
 

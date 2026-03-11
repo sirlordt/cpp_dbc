@@ -20,6 +20,7 @@
 
 #include "cpp_dbc/drivers/relational/driver_mysql.hpp"
 
+#include <algorithm>
 #include <array>
 #include <charconv>
 #include <cstring>
@@ -32,11 +33,15 @@
 namespace cpp_dbc::MySQL
 {
 
-    // Static member initialization
-    std::atomic<size_t> MySQLDBDriver::s_liveConnectionCount{0};
+    // ── Static member initialization ──────────────────────────────────────────
+    std::weak_ptr<MySQLDBDriver> MySQLDBDriver::s_instance;
+    std::mutex                   MySQLDBDriver::s_instanceMutex;
+    std::mutex                   MySQLDBDriver::s_registryMutex;
+    std::set<std::weak_ptr<MySQLDBConnection>,
+             std::owner_less<std::weak_ptr<MySQLDBConnection>>> MySQLDBDriver::s_connectionRegistry;
 
     // ============================================================================
-    // MySQLDBDriver Implementation - Private Static Initializer
+    // MySQLDBDriver Implementation - Private Static Helpers
     // ============================================================================
 
     // Note: MySQL does NOT use the double-checked locking pattern (s_initialized + s_initMutex)
@@ -59,23 +64,16 @@ namespace cpp_dbc::MySQL
         return true;
     }
 
-    // ============================================================================
-    // MySQLDBDriver Implementation - Constructor + Destructor
-    // ============================================================================
-
-    MySQLDBDriver::MySQLDBDriver()
+    void MySQLDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<MySQLDBConnection> conn) noexcept
     {
-        auto result = initialize(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        s_connectionRegistry.insert(std::move(conn));
     }
 
-    MySQLDBDriver::~MySQLDBDriver()
+    void MySQLDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<MySQLDBConnection> &conn) noexcept
     {
-        MYSQL_DEBUG("MySQLDBDriver::destructor - Destroying driver");
-        cleanup();
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        s_connectionRegistry.erase(conn);
     }
 
     // See initialize() comment above for why cleanup() calls mysql_library_end()
@@ -85,7 +83,41 @@ namespace cpp_dbc::MySQL
         mysql_library_end();
     }
 
+    // ============================================================================
+    // MySQLDBDriver Implementation - Constructor + Destructor
+    // ============================================================================
+
+    MySQLDBDriver::MySQLDBDriver(MySQLDBDriver::PrivateCtorTag, std::nothrow_t) noexcept
+    {
+        auto result = initialize(std::nothrow);
+        if (!result.has_value())
+        {
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>(std::move(result.error()));
+        }
+    }
+
+    MySQLDBDriver::~MySQLDBDriver()
+    {
+        MYSQL_DEBUG("MySQLDBDriver::destructor - Destroying driver");
+        cleanup();
+    }
+
+    // ============================================================================
+    // MySQLDBDriver Implementation - Singleton + Throwing API
+    // ============================================================================
+
 #ifdef __cpp_exceptions
+    std::shared_ptr<MySQLDBDriver> MySQLDBDriver::getInstance()
+    {
+        auto result = getInstance(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
     std::shared_ptr<RelationalDBConnection> MySQLDBDriver::connectRelational(const std::string &uri,
                                                                              const std::string &user,
                                                                              const std::string &password,
@@ -99,6 +131,38 @@ namespace cpp_dbc::MySQL
         return *result;
     }
 #endif // __cpp_exceptions
+
+    // ============================================================================
+    // MySQLDBDriver Implementation - Singleton (nothrow) + Connection Registry
+    // ============================================================================
+
+    cpp_dbc::expected<std::shared_ptr<MySQLDBDriver>, DBException>
+    MySQLDBDriver::getInstance(std::nothrow_t) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_instanceMutex);
+        auto existing = s_instance.lock();
+        if (existing)
+        {
+            return existing;
+        }
+        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+        // Constructor errors are captured in m_initFailed / m_initError.
+        auto inst = std::make_shared<MySQLDBDriver>(MySQLDBDriver::PrivateCtorTag{}, std::nothrow);
+        if (inst->m_initFailed)
+        {
+            return cpp_dbc::unexpected(std::move(*inst->m_initError));
+        }
+        s_instance = inst;
+        return inst;
+    }
+
+    size_t MySQLDBDriver::getConnectionAlive() noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        return static_cast<size_t>(std::count_if(
+            s_connectionRegistry.begin(), s_connectionRegistry.end(),
+            [](const auto &w) { return !w.expired(); }));
+    }
 
     cpp_dbc::expected<std::map<std::string, std::string>, DBException> MySQLDBDriver::parseURI(
         std::nothrow_t, const std::string &uri) noexcept
@@ -184,7 +248,9 @@ namespace cpp_dbc::MySQL
         {
             return cpp_dbc::unexpected(connResult.error());
         }
-        return std::shared_ptr<RelationalDBConnection>(connResult.value());
+        auto conn = connResult.value();
+        registerConnection(std::nothrow, conn);
+        return std::shared_ptr<RelationalDBConnection>(conn);
     }
 
     std::string MySQLDBDriver::getName() const noexcept

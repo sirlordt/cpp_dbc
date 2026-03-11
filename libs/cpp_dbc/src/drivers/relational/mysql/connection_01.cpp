@@ -310,10 +310,6 @@ namespace cpp_dbc::MySQL
         // Mark connection as open
         m_closed.store(false, std::memory_order_release);
 
-        // Track live connection for safe cleanup() guard
-        MySQLDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
-        m_counterIncremented = true;
-
         MYSQL_DEBUG("MySQLConnection::constructor(nothrow) - Done, connected to %s", m_uri.c_str());
     }
 

@@ -49,12 +49,13 @@ TEST_CASE("Firebird transaction isolation tests", "[23_121_01_firebird_real_tran
     SECTION("Firebird driver default isolation level")
     {
         // Create a Firebird driver
-        cpp_dbc::Firebird::FirebirdDBDriver driver;
+        auto driver = firebird_test_helpers::getFirebirdDriver();
+        REQUIRE(driver != nullptr);
 
         try
         {
             // Try to connect to a local Firebird server
-            auto conn = driver.connectRelational(connStr, username, password);
+            auto conn = driver->connectRelational(connStr, username, password);
 
             // Check default isolation level (should be READ_COMMITTED for Firebird)
             REQUIRE(conn->getTransactionIsolation() == cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
@@ -91,20 +92,21 @@ TEST_CASE("Firebird transaction isolation tests", "[23_121_01_firebird_real_tran
     SECTION("Firebird READ_UNCOMMITTED isolation behavior")
     {
         // Create a Firebird driver
-        cpp_dbc::Firebird::FirebirdDBDriver driver;
+        auto driver = firebird_test_helpers::getFirebirdDriver();
+        REQUIRE(driver != nullptr);
 
         try
         {
             // Create test table
-            auto setupConn = driver.connectRelational(connStr, username, password);
+            auto setupConn = driver->connectRelational(connStr, username, password);
             setupConn->executeUpdate("RECREATE TABLE isolation_test (id INT NOT NULL PRIMARY KEY, val VARCHAR(50))");
             setupConn->executeUpdate("INSERT INTO isolation_test VALUES (1, 'initial')");
             setupConn->commit(); // Explicitly commit before closing (required for Firebird)
             setupConn->close();
 
             // Create two connections
-            auto conn1 = driver.connectRelational(connStr, username, password);
-            auto conn2 = driver.connectRelational(connStr, username, password);
+            auto conn1 = driver->connectRelational(connStr, username, password);
+            auto conn2 = driver->connectRelational(connStr, username, password);
 
             // Set READ_UNCOMMITTED isolation level
             conn1->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED);
@@ -156,7 +158,7 @@ TEST_CASE("Firebird transaction isolation tests", "[23_121_01_firebird_real_tran
             conn2->close();
 
             // Drop the test table
-            auto cleanupConn = driver.connectRelational(connStr, username, password);
+            auto cleanupConn = driver->connectRelational(connStr, username, password);
             cleanupConn->executeUpdate("DROP TABLE isolation_test");
             cleanupConn->close();
         }
@@ -169,21 +171,22 @@ TEST_CASE("Firebird transaction isolation tests", "[23_121_01_firebird_real_tran
     SECTION("Firebird READ_COMMITTED isolation behavior")
     {
         // Create a Firebird driver
-        cpp_dbc::Firebird::FirebirdDBDriver driver;
+        auto driver = firebird_test_helpers::getFirebirdDriver();
+        REQUIRE(driver != nullptr);
 
         try
         {
             // Create a test table using RECREATE TABLE (Firebird's equivalent of DROP IF EXISTS + CREATE)
             // Note: 'value' is a reserved word in Firebird, so we use 'val' instead
-            auto setupConn = driver.connectRelational(connStr, username, password);
+            auto setupConn = driver->connectRelational(connStr, username, password);
             setupConn->executeUpdate("RECREATE TABLE isolation_test (id INT NOT NULL PRIMARY KEY, val VARCHAR(50))");
             setupConn->executeUpdate("INSERT INTO isolation_test VALUES (1, 'initial')");
             setupConn->commit(); // Explicitly commit before closing (required for Firebird)
             setupConn->close();
 
             // Create two connections
-            auto conn1 = driver.connectRelational(connStr, username, password);
-            auto conn2 = driver.connectRelational(connStr, username, password);
+            auto conn1 = driver->connectRelational(connStr, username, password);
+            auto conn2 = driver->connectRelational(connStr, username, password);
 
             // Start transactions first, then set isolation level
             // For Firebird, we need to start the transaction before setting isolation level
@@ -233,7 +236,7 @@ TEST_CASE("Firebird transaction isolation tests", "[23_121_01_firebird_real_tran
             conn2->close();
 
             // Drop the test table
-            auto cleanupConn = driver.connectRelational(connStr, username, password);
+            auto cleanupConn = driver->connectRelational(connStr, username, password);
             cleanupConn->executeUpdate("DROP TABLE isolation_test");
             cleanupConn->close();
         }
@@ -246,21 +249,22 @@ TEST_CASE("Firebird transaction isolation tests", "[23_121_01_firebird_real_tran
     SECTION("Firebird REPEATABLE_READ isolation behavior")
     {
         // Create a Firebird driver
-        cpp_dbc::Firebird::FirebirdDBDriver driver;
+        auto driver = firebird_test_helpers::getFirebirdDriver();
+        REQUIRE(driver != nullptr);
 
         try
         {
             // Create a test table using RECREATE TABLE (Firebird's equivalent of DROP IF EXISTS + CREATE)
             // Note: 'value' is a reserved word in Firebird, so we use 'val' instead
-            auto setupConn = driver.connectRelational(connStr, username, password);
+            auto setupConn = driver->connectRelational(connStr, username, password);
             setupConn->executeUpdate("RECREATE TABLE isolation_test (id INT NOT NULL PRIMARY KEY, val VARCHAR(50))");
             setupConn->executeUpdate("INSERT INTO isolation_test VALUES (1, 'initial')");
             setupConn->commit(); // Explicitly commit before closing (required for Firebird)
             setupConn->close();
 
             // Create two connections
-            auto conn1 = driver.connectRelational(connStr, username, password);
-            auto conn2 = driver.connectRelational(connStr, username, password);
+            auto conn1 = driver->connectRelational(connStr, username, password);
+            auto conn2 = driver->connectRelational(connStr, username, password);
 
             // Start transactions first, then set isolation level
             // For Firebird, we need to start the transaction before setting isolation level
@@ -300,7 +304,7 @@ TEST_CASE("Firebird transaction isolation tests", "[23_121_01_firebird_real_tran
             conn2->close();
 
             // Drop the test table
-            auto cleanupConn = driver.connectRelational(connStr, username, password);
+            auto cleanupConn = driver->connectRelational(connStr, username, password);
             cleanupConn->executeUpdate("DROP TABLE isolation_test");
             cleanupConn->close();
         }
@@ -313,21 +317,22 @@ TEST_CASE("Firebird transaction isolation tests", "[23_121_01_firebird_real_tran
     SECTION("Firebird SERIALIZABLE isolation behavior")
     {
         // Create a Firebird driver
-        cpp_dbc::Firebird::FirebirdDBDriver driver;
+        auto driver = firebird_test_helpers::getFirebirdDriver();
+        REQUIRE(driver != nullptr);
 
         try
         {
             // Create a test table using RECREATE TABLE (Firebird's equivalent of DROP IF EXISTS + CREATE)
             // Note: 'value' is a reserved word in Firebird, so we use 'val' instead
-            auto setupConn = driver.connectRelational(connStr, username, password);
+            auto setupConn = driver->connectRelational(connStr, username, password);
             setupConn->executeUpdate("RECREATE TABLE isolation_test (id INT NOT NULL PRIMARY KEY, val VARCHAR(50))");
             setupConn->executeUpdate("INSERT INTO isolation_test VALUES (1, 'initial')");
             setupConn->commit(); // Explicitly commit before closing (required for Firebird)
             setupConn->close();
 
             // Create two connections
-            auto conn1 = driver.connectRelational(connStr, username, password);
-            auto conn2 = driver.connectRelational(connStr, username, password);
+            auto conn1 = driver->connectRelational(connStr, username, password);
+            auto conn2 = driver->connectRelational(connStr, username, password);
 
             // Test 1: Basic SERIALIZABLE behavior in Firebird
             {
@@ -348,7 +353,7 @@ TEST_CASE("Firebird transaction isolation tests", "[23_121_01_firebird_real_tran
                 conn1->commit();
 
                 // Start a new transaction with SERIALIZABLE isolation
-                auto conn3 = driver.connectRelational(connStr, username, password);
+                auto conn3 = driver->connectRelational(connStr, username, password);
                 conn3->setAutoCommit(false);
                 conn3->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
                 conn3->beginTransaction();
@@ -376,7 +381,7 @@ TEST_CASE("Firebird transaction isolation tests", "[23_121_01_firebird_real_tran
             conn2->close();
 
             // Drop the test table
-            auto cleanupConn = driver.connectRelational(connStr, username, password);
+            auto cleanupConn = driver->connectRelational(connStr, username, password);
             cleanupConn->executeUpdate("DROP TABLE isolation_test");
             cleanupConn->close();
         }

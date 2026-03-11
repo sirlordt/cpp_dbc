@@ -92,7 +92,7 @@ namespace mongodb_test_helpers
     std::shared_ptr<cpp_dbc::MongoDB::MongoDBDriver> getMongoDBDriver()
     {
         static std::shared_ptr<cpp_dbc::MongoDB::MongoDBDriver> driver =
-            std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>();
+            cpp_dbc::MongoDB::MongoDBDriver::getInstance(std::nothrow).value_or(nullptr);
         return driver;
     }
 

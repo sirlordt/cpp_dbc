@@ -69,7 +69,7 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
     std::string connStr = dbConfig.createConnectionString();
 
     // Register the MySQL driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(mysql_test_helpers::getMySQLDriver());
 
     SECTION("Multiple threads with individual connections")
     {

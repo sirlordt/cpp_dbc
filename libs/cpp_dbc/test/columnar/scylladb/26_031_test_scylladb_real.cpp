@@ -72,7 +72,7 @@ TEST_CASE("Real ScyllaDB connection tests", "[26_031_01_scylladb_real]")
     SECTION("Basic ScyllaDB operations")
     {
         // Register the ScyllaDB driver
-        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(scylla_test_helpers::getScyllaDriver());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(
@@ -165,7 +165,7 @@ TEST_CASE("Real ScyllaDB connection tests", "[26_031_01_scylladb_real]")
     SECTION("ScyllaDB metadata retrieval")
     {
         // Register the ScyllaDB driver
-        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(scylla_test_helpers::getScyllaDriver());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(
@@ -292,7 +292,7 @@ TEST_CASE("Real ScyllaDB connection tests", "[26_031_01_scylladb_real]")
     SECTION("ScyllaDB stress test")
     {
         // Register the ScyllaDB driver
-        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(scylla_test_helpers::getScyllaDriver());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(

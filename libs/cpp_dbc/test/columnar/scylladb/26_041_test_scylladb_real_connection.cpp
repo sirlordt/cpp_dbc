@@ -45,7 +45,7 @@ TEST_CASE("ScyllaDB connection test", "[26_041_01_scylladb_real_connection]")
     std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port);
 
     // Register the ScyllaDB driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(scylla_test_helpers::getScyllaDriver());
 
     SECTION("Test ScyllaDB connection without keyspace")
     {
@@ -157,7 +157,7 @@ TEST_CASE("ScyllaDB getServerVersion and getServerInfo", "[26_041_03_scylladb_re
     std::string password = dbConfig.getPassword();
     std::string connStr = dbConfig.createConnectionString();
 
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(scylla_test_helpers::getScyllaDriver());
 
     SECTION("getServerVersion returns non-empty version string")
     {
@@ -232,7 +232,7 @@ TEST_CASE("ScyllaDB getServerVersion and getServerInfo", "[26_041_03_scylladb_re
 }
 TEST_CASE("ScyllaDB getDriverVersion", "[26_041_04_scylladb_real_connection]")
 {
-    auto driver = std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>();
+    auto driver = scylla_test_helpers::getScyllaDriver();
 
     SECTION("getDriverVersion returns non-empty version string")
     {

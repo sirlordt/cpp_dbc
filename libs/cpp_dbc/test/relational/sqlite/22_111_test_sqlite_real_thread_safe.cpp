@@ -72,7 +72,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
     std::string connStr = dbConfig.createConnectionString();
 
     // Register the SQLite driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(sqlite_test_helpers::getSQLiteDriver());
 
     SECTION("Multiple threads with individual connections")
     {

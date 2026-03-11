@@ -126,8 +126,8 @@ namespace cpp_dbc::Firebird
                 FIREBIRD_DEBUG("  Failed to attach: %s", errorMsg.c_str());
                 delete dbHandle;
                 m_initFailed = true;
-                m_initError = DBException("FB7A8B9C0D1E", "Failed to connect to database: " + errorMsg,
-                                          system_utils::captureCallStack());
+                m_initError = std::make_unique<DBException>("FB7A8B9C0D1E", "Failed to connect to database: " + errorMsg,
+                                                            system_utils::captureCallStack());
                 return;
             }
             FIREBIRD_DEBUG("  Attached successfully, dbHandle=%p, *dbHandle=%p", (void *)dbHandle, (void *)(uintptr_t)*dbHandle);
@@ -146,10 +146,6 @@ namespace cpp_dbc::Firebird
 
             m_closed.store(false, std::memory_order_release);
 
-            // Track live connection for safe cleanup() guard
-            FirebirdDBDriver::s_liveConnectionCount.fetch_add(1, std::memory_order_release);
-            m_counterIncremented = true;
-
             // Start initial transaction if autocommit is enabled
             FIREBIRD_DEBUG("  m_autoCommit: %s", (m_autoCommit ? "true" : "false"));
             if (m_autoCommit)
@@ -161,7 +157,7 @@ namespace cpp_dbc::Firebird
                     // Clean up the database handle before reporting failure
                     m_db.reset();
                     m_initFailed = true;
-                    m_initError = txResult.error();
+                    m_initError = std::make_unique<DBException>(txResult.error());
                     return;
                 }
             }
@@ -170,18 +166,18 @@ namespace cpp_dbc::Firebird
         catch (const DBException &ex)
         {
             m_initFailed = true;
-            m_initError = ex;
+            m_initError = std::make_unique<DBException>(ex);
         }
         catch (const std::exception &ex)
         {
             m_initFailed = true;
-            m_initError = DBException("NXZ242YS9FRK", ex.what(), system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("NXZ242YS9FRK", ex.what(), system_utils::captureCallStack());
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             m_initFailed = true;
-            m_initError = DBException("J24BZGLBC24P", "Unknown error in FirebirdDBConnection constructor",
-                                      system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("J24BZGLBC24P", "Unknown error in FirebirdDBConnection constructor",
+                                                        system_utils::captureCallStack());
         }
     }
 

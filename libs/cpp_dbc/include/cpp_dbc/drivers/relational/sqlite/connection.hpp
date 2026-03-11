@@ -56,7 +56,9 @@ namespace cpp_dbc::SQLite
         SQLiteDbHandle m_db;
 
         bool m_closed{true};
-        bool m_counterIncremented{false};
+        // Stored by the create() factory so close() can unregister from the driver registry
+        // using owner_less comparison (raw 'this' won't work with the set's comparator).
+        std::weak_ptr<SQLiteDBConnection> m_self;
         std::atomic<bool> m_autoCommit{true};
         std::atomic<bool> m_transactionActive{false};
         TransactionIsolationLevel m_isolationLevel;
@@ -121,7 +123,11 @@ namespace cpp_dbc::SQLite
         {
             try
             {
-                return std::make_shared<SQLiteDBConnection>(database, options);
+                auto conn = std::make_shared<SQLiteDBConnection>(database, options);
+                // Store a weak self-reference so close() can unregister from the driver's
+                // connection registry via owner_less comparison without calling shared_from_this().
+                conn->m_self = conn;
+                return conn;
             }
             catch (const DBException &ex)
             {

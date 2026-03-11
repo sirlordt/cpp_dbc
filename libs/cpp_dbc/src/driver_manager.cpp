@@ -181,4 +181,124 @@ namespace cpp_dbc
         }
         return it->second;
     }
+
+    // ── initDrivers ──────────────────────────────────────────────────────────────
+
+    std::vector<DBException> DriverManager::initDrivers(std::nothrow_t) noexcept
+    {
+        std::vector<DBException> errors;
+
+        // Each driver uses the weak_ptr singleton pattern: getInstance(std::nothrow)
+        // returns the existing instance if alive, or creates a new one.
+        // If already registered, the contains() guard skips instantiation entirely —
+        // no constructor runs, no C library is touched. This makes initDrivers()
+        // idempotent: calling it N times is equivalent to calling it once.
+
+#if USE_MYSQL
+        if (!drivers.contains("mysql"))
+        {
+            auto result = cpp_dbc::MySQL::MySQLDBDriver::getInstance(std::nothrow);
+            if (result.has_value())
+            {
+                registerDriver(result.value());
+            }
+            else
+            {
+                errors.push_back(result.error());
+            }
+        }
+#endif
+
+#if USE_POSTGRESQL
+        if (!drivers.contains("postgresql"))
+        {
+            auto result = cpp_dbc::PostgreSQL::PostgreSQLDBDriver::getInstance(std::nothrow);
+            if (result.has_value())
+            {
+                registerDriver(result.value());
+            }
+            else
+            {
+                errors.push_back(result.error());
+            }
+        }
+#endif
+
+#if USE_SQLITE
+        if (!drivers.contains("sqlite"))
+        {
+            auto result = cpp_dbc::SQLite::SQLiteDBDriver::getInstance(std::nothrow);
+            if (result.has_value())
+            {
+                registerDriver(result.value());
+            }
+            else
+            {
+                errors.push_back(result.error());
+            }
+        }
+#endif
+
+#if USE_FIREBIRD
+        if (!drivers.contains("firebird"))
+        {
+            auto result = cpp_dbc::Firebird::FirebirdDBDriver::getInstance(std::nothrow);
+            if (result.has_value())
+            {
+                registerDriver(result.value());
+            }
+            else
+            {
+                errors.push_back(result.error());
+            }
+        }
+#endif
+
+#if USE_MONGODB
+        if (!drivers.contains("mongodb"))
+        {
+            auto result = cpp_dbc::MongoDB::MongoDBDriver::getInstance(std::nothrow);
+            if (result.has_value())
+            {
+                registerDriver(result.value());
+            }
+            else
+            {
+                errors.push_back(result.error());
+            }
+        }
+#endif
+
+#if USE_SCYLLADB
+        if (!drivers.contains("scylladb"))
+        {
+            auto result = cpp_dbc::ScyllaDB::ScyllaDBDriver::getInstance(std::nothrow);
+            if (result.has_value())
+            {
+                registerDriver(result.value());
+            }
+            else
+            {
+                errors.push_back(result.error());
+            }
+        }
+#endif
+
+#if USE_REDIS
+        if (!drivers.contains("redis"))
+        {
+            auto result = cpp_dbc::Redis::RedisDBDriver::getInstance(std::nothrow);
+            if (result.has_value())
+            {
+                registerDriver(result.value());
+            }
+            else
+            {
+                errors.push_back(result.error());
+            }
+        }
+#endif
+
+        return errors;
+    }
 }

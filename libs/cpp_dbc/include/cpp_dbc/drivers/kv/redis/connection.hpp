@@ -56,8 +56,10 @@ namespace cpp_dbc::Redis
         std::atomic<bool> m_closed{false};
         mutable std::mutex m_mutex;
         bool m_initFailed{false};
-        std::optional<DBException> m_initError{std::nullopt};
-        bool m_counterIncremented{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
+        // Stored by the create() factory so close() can unregister from the driver registry
+        // using owner_less comparison (raw 'this' won't work with the set's comparator).
+        std::weak_ptr<RedisDBConnection> m_self;
         TransactionIsolationLevel m_transactionIsolation{TransactionIsolationLevel::TRANSACTION_NONE};
 
         /**
@@ -254,8 +256,11 @@ namespace cpp_dbc::Redis
                 PrivateCtorTag{}, std::nothrow, uri, user, password, options);
             if (conn->m_initFailed)
             {
-                return cpp_dbc::unexpected(*conn->m_initError);
+                return cpp_dbc::unexpected(std::move(*conn->m_initError));
             }
+            // Store a weak self-reference so close() can unregister from the driver's
+            // connection registry via owner_less comparison without calling shared_from_this().
+            conn->m_self = conn;
             return conn;
         }
 

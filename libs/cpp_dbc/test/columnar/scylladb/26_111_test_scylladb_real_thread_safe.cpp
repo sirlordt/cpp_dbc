@@ -60,7 +60,7 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[26_111_01_scylladb_real_thread_safe]
     std::string connStr = "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) + "/" + keyspace;
 
     // Register the ScyllaDB driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(scylla_test_helpers::getScyllaDriver());
 
     // Prepare table
     {

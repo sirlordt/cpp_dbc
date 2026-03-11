@@ -71,9 +71,12 @@ namespace cpp_dbc::ScyllaDB
         std::shared_ptr<CassSession> m_session; // Shared for PreparedStatement weak_ptr
         std::string m_uri;
         std::atomic<bool> m_closed{true};
-        bool m_counterIncremented{false};
         bool m_initFailed{false};
-        DBException m_initError{"0J9B2L099DS6", "", {}};
+        std::unique_ptr<DBException> m_initError{nullptr};
+
+        // Stored by the create() factory so close() can unregister from the driver registry
+        // using owner_less comparison (raw 'this' won't work with the set's comparator).
+        std::weak_ptr<ScyllaDBConnection> m_self;
         TransactionIsolationLevel m_transactionIsolation{TransactionIsolationLevel::TRANSACTION_NONE};
 
 #if DB_DRIVER_THREAD_SAFE
@@ -167,8 +170,11 @@ namespace cpp_dbc::ScyllaDB
                 PrivateCtorTag{}, std::nothrow, host, port, keyspace, user, password, options);
             if (obj->m_initFailed)
             {
-                return cpp_dbc::unexpected(obj->m_initError);
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
             }
+            // Store a weak self-reference so close() can unregister from the driver's
+            // connection registry via owner_less comparison without calling shared_from_this().
+            obj->m_self = obj;
             return obj;
         }
 

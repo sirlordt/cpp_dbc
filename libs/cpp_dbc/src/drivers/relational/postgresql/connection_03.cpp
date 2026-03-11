@@ -317,13 +317,10 @@ namespace cpp_dbc::PostgreSQL
                 m_conn.reset();
                 m_closed = true;
 
-                // Release live connection count for cleanup() guard.
-                // Safe against double-decrement: the if (!m_closed && m_conn) guard
-                // above ensures this line executes exactly once.
-                if (m_counterIncremented)
-                {
-                    PostgreSQLDBDriver::s_liveConnectionCount.fetch_sub(1, std::memory_order_release);
-                }
+                // Unregister from the driver registry so getConnectionAlive() reflects
+                // actual live connections. The owner_less m_self weak_ptr is used for
+                // set lookup — raw 'this' would not match the set's comparator.
+                PostgreSQLDBDriver::unregisterConnection(std::nothrow, m_self);
             }
             return {};
         }

@@ -484,7 +484,7 @@ int main(int argc, char *argv[])
     registerDriver("mongodb");
     logOk("Driver registered");
 
-    auto driver = std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>();
+    auto driver = cpp_dbc::MongoDB::MongoDBDriver::getInstance(std::nothrow).value_or(nullptr);
 
     // Demonstrate connection errors (before main connection)
     demonstrateConnectionErrors(*driver);

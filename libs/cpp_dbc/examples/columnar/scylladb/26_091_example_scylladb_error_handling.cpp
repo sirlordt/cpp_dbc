@@ -456,7 +456,7 @@ int main(int argc, char *argv[])
     registerDriver("scylladb");
     logOk("Driver registered");
 
-    auto driver = std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>();
+    auto driver = cpp_dbc::ScyllaDB::ScyllaDBDriver::getInstance(std::nothrow).value_or(nullptr);
 
     // Demonstrate connection errors (before main connection)
     demonstrateConnectionErrors(*driver);
