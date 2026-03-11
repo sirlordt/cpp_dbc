@@ -38,7 +38,7 @@ namespace cpp_dbc::PostgreSQL
 {
 
     // Static member initialization
-    std::atomic<bool> PostgreSQLDBDriver::s_initialized{false};
+    std::atomic<bool> PostgreSQLDBDriver::s_initialized{false}; // NOSONAR(cpp:S6012) — CTAD cannot be used for out-of-class static member definitions; type must match the header declaration
     std::atomic<size_t> PostgreSQLDBDriver::s_liveConnectionCount{0};
     std::mutex PostgreSQLDBDriver::s_initMutex;
 

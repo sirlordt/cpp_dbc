@@ -24,6 +24,7 @@
 #include "cpp_dbc/common/system_utils.hpp"
 #include "connection_pool_internal.hpp"
 #include <algorithm>
+#include <ranges>
 
 namespace cpp_dbc
 {
@@ -1099,7 +1100,7 @@ namespace cpp_dbc
                 conn->markPoolClosed(std::nothrow, true);
 
                 // Remove from m_allConnections
-                auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
+                auto it = std::ranges::find(m_allConnections, conn);
                 if (it != m_allConnections.end())
                 {
                     m_allConnections.erase(it);
@@ -1110,7 +1111,7 @@ namespace cpp_dbc
         }
 
         // Close evicted connections outside lock (I/O)
-        for (auto &conn : toEvict)
+        for (const auto &conn : toEvict)
         {
             auto closeResult = conn->getUnderlyingConnection(std::nothrow)->close(std::nothrow);
             if (!closeResult.has_value())

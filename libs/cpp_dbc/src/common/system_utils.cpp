@@ -447,9 +447,10 @@ namespace cpp_dbc::system_utils
                 }
                 else
                 {
+                    auto b = static_cast<std::byte>(c);
                     result.push_back('%');
-                    result.push_back(hexDigits[c >> 4]);
-                    result.push_back(hexDigits[c & 0x0F]);
+                    result.push_back(hexDigits[std::to_integer<unsigned char>(b >> 4)]);
+                    result.push_back(hexDigits[std::to_integer<unsigned char>(b & std::byte{0x0F})]);
                 }
             }
 

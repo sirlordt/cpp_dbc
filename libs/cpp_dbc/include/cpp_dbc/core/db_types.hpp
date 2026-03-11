@@ -102,17 +102,18 @@ namespace cpp_dbc
      */
     constexpr std::string_view toStringView(TransactionIsolationLevel level) noexcept
     {
+        using enum TransactionIsolationLevel;
         switch (level)
         {
-        case TransactionIsolationLevel::TRANSACTION_NONE:
+        case TRANSACTION_NONE:
             return "NONE";
-        case TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED:
+        case TRANSACTION_READ_UNCOMMITTED:
             return "READ_UNCOMMITTED";
-        case TransactionIsolationLevel::TRANSACTION_READ_COMMITTED:
+        case TRANSACTION_READ_COMMITTED:
             return "READ_COMMITTED";
-        case TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ:
+        case TRANSACTION_REPEATABLE_READ:
             return "REPEATABLE_READ";
-        case TransactionIsolationLevel::TRANSACTION_SERIALIZABLE:
+        case TRANSACTION_SERIALIZABLE:
             return "SERIALIZABLE";
         default:
             return "UNKNOWN";
