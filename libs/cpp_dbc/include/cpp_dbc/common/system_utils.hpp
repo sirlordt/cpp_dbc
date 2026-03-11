@@ -250,6 +250,26 @@ namespace cpp_dbc::system_utils
                            std::string_view database = "") noexcept;
 
     /**
+     * @brief Percent-encode a URI component per RFC 3986
+     *
+     * Encodes every character that is NOT an unreserved character
+     * (A-Z, a-z, 0-9, '-', '.', '_', '~') as %XX where XX is the
+     * uppercase hex representation of the byte value.
+     *
+     * Intended for encoding user credentials before embedding them
+     * in a connection URI (e.g. MongoDB connection strings).
+     *
+     * ```cpp
+     * auto encoded = cpp_dbc::system_utils::percentEncodeURIComponent("p@ss:word/1");
+     * // encoded = "p%40ss%3Aword%2F1"
+     * ```
+     *
+     * @param input The raw string to encode
+     * @return The percent-encoded string
+     */
+    std::string percentEncodeURIComponent(std::string_view input) noexcept;
+
+    /**
      * @brief Thread-safe print function using a global mutex
      *
      * ```cpp

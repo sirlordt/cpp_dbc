@@ -188,7 +188,7 @@ namespace cpp_dbc::Redis
             const std::string & /*database*/,
             const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override
         {
-            return cpp_dbc::unexpected(DBException("RM4SN70ZPIL7", "Redis support is not enabled in this build"));
+            return cpp_dbc::unexpected(DBException("WGWNIMNF0M85", "Redis support is not enabled in this build"));
         }
 
         std::string getURIScheme() const noexcept override { return "cpp_dbc:redis://<host>:<port>/<db>"; }

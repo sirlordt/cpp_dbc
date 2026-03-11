@@ -61,6 +61,24 @@ namespace cpp_dbc::Firebird
         static std::atomic<size_t> s_liveConnectionCount;
         static std::mutex s_initMutex;
 
+        /**
+         * @brief Parsed URI components for Firebird connections.
+         */
+        struct ParsedFirebirdComponents
+        {
+            std::string host;
+            int port{3050};
+            std::string database;
+        };
+
+        /**
+         * @brief Extract host, port and database from the map returned by parseURI().
+         * @param parsed The map produced by parseURI(std::nothrow, uri).
+         * @return ParsedFirebirdComponents on success, or DBException on invalid port / empty database.
+         */
+        static cpp_dbc::expected<ParsedFirebirdComponents, DBException>
+        extractComponents(std::nothrow_t, const std::map<std::string, std::string> &parsed) noexcept;
+
         friend class FirebirdDBConnection;
 
     public:

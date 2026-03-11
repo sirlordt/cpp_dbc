@@ -174,7 +174,15 @@ namespace cpp_dbc::PostgreSQL
 
             auto &parsed = parseResult.value();
             const std::string &host = parsed["host"];
-            int port = std::stoi(parsed["port"]);
+            const auto &portStr = parsed["port"];
+            int port = 0;
+            auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), port);
+            if (ec != std::errc{} || ptr != portStr.data() + portStr.size())
+            {
+                return cpp_dbc::unexpected(DBException("T3A7QUX6XNUT",
+                                                       "Invalid port number in URI: " + portStr,
+                                                       system_utils::captureCallStack()));
+            }
             const std::string &database = parsed["database"];
 
             auto connection = std::make_shared<PostgreSQLDBConnection>(host, port, database, user, password, options);

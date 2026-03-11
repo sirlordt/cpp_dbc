@@ -152,6 +152,13 @@ namespace cpp_dbc::PostgreSQL
          */
         cpp_dbc::expected<void, DBException> closeAllStatements(std::nothrow_t) noexcept;
 
+        /**
+         * @brief Format a PQserverVersion() integer into a human-readable version string.
+         * @param version The integer returned by PQserverVersion() (e.g. 160004 → "16.4").
+         * @return Formatted version string: "major.minor" for PG >= 10, "major.minor.patch" for older.
+         */
+        std::string formatServerVersion(std::nothrow_t, int version) const noexcept;
+
     protected:
         // Pool lifecycle overrides - only callable by pool infrastructure (via friend in RelationalDBConnection).
         cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t,

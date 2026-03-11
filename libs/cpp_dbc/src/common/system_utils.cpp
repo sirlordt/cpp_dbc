@@ -429,6 +429,38 @@ namespace cpp_dbc::system_utils
         }
     }
 
+    std::string percentEncodeURIComponent(std::string_view input) noexcept
+    {
+        try
+        {
+            static constexpr char hexDigits[] = "0123456789ABCDEF";
+            std::string result;
+            result.reserve(input.size() * 3); // worst case: every char encoded
+
+            for (unsigned char c : input)
+            {
+                // RFC 3986 unreserved characters: ALPHA / DIGIT / "-" / "." / "_" / "~"
+                if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                    (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_' || c == '~')
+                {
+                    result.push_back(static_cast<char>(c));
+                }
+                else
+                {
+                    result.push_back('%');
+                    result.push_back(hexDigits[c >> 4]);
+                    result.push_back(hexDigits[c & 0x0F]);
+                }
+            }
+
+            return result;
+        }
+        catch (...) // NOSONAR(cpp:S2738) — noexcept guarantee; allocation failure is a death sentence
+        {
+            return {};
+        }
+    }
+
     // getCurrentTimestamp and logWithTimestamp are already defined as inline in the header file
     // No need to redefine them here
 

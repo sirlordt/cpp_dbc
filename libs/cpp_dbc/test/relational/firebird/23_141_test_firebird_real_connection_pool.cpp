@@ -491,8 +491,8 @@ TEST_CASE("Real Firebird connection pool tests", "[23_141_01_firebird_real_conne
         {
             REQUIRE(pool->getConnectionTimeout(std::nothrow) == 3500);
 
-            pool->setConnectionTimeout(std::nothrow, 8000);
-            REQUIRE(pool->getConnectionTimeout(std::nothrow) == 8000);
+            pool->setConnectionTimeout(std::nothrow, 200);
+            REQUIRE(pool->getConnectionTimeout(std::nothrow) == 200);
 
             std::vector<std::shared_ptr<cpp_dbc::RelationalDBConnection>> conns;
             for (size_t i = 0; i < 5; ++i)
@@ -503,13 +503,14 @@ TEST_CASE("Real Firebird connection pool tests", "[23_141_01_firebird_real_conne
             }
             REQUIRE(pool->getActiveDBConnectionCount() == 5);
 
+            // Call without explicit timeout — must use pool default (200ms)
             auto start = std::chrono::steady_clock::now();
-            auto result = pool->getRelationalDBConnection(std::nothrow, 100);
+            auto result = pool->getRelationalDBConnection(std::nothrow);
             auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - start);
 
             REQUIRE_FALSE(result.has_value());
-            REQUIRE(elapsed.count() >= 80);
+            REQUIRE(elapsed.count() >= 150);
             REQUIRE(elapsed.count() < 2000);
 
             for (auto &c : conns)

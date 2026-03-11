@@ -26,6 +26,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <regex>
+#include <charconv>
 #include "cpp_dbc/common/system_utils.hpp"
 #include "cpp_dbc/core/db_exception.hpp"
 
@@ -132,22 +133,12 @@ namespace cpp_dbc::Redis
 
             if (matches.size() > 2 && matches[2].matched)
             {
-                try
-                {
-                    port = std::stoi(matches[2].str());
-                }
-                catch (const std::exception &ex)
+                std::string portStr = matches[2].str();
+                auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), port);
+                if (ec != std::errc{} || ptr != portStr.data() + portStr.size())
                 {
                     m_initFailed = true;
-                    m_initError = DBException("C58E02D9F1A8", "Invalid port in Redis URI: " + matches[2].str() + " - " + ex.what(),
-                                              system_utils::captureCallStack());
-                    return;
-                }
-                catch (...)
-                {
-                    // Intentionally catching non-std exceptions from std::stoi to prevent terminate() in noexcept context
-                    m_initFailed = true;
-                    m_initError = DBException("HUAN9KM8N8SH", "Invalid port in Redis URI: " + matches[2].str() + " (unknown exception)",
+                    m_initError = DBException("C58E02D9F1A8", "Invalid port in Redis URI: " + portStr,
                                               system_utils::captureCallStack());
                     return;
                 }
@@ -155,22 +146,12 @@ namespace cpp_dbc::Redis
 
             if (matches.size() > 3 && matches[3].matched)
             {
-                try
-                {
-                    m_dbIndex = std::stoi(matches[3].str());
-                }
-                catch (const std::exception &ex)
+                std::string dbStr = matches[3].str();
+                auto [ptr2, ec2] = std::from_chars(dbStr.data(), dbStr.data() + dbStr.size(), m_dbIndex);
+                if (ec2 != std::errc{} || ptr2 != dbStr.data() + dbStr.size())
                 {
                     m_initFailed = true;
-                    m_initError = DBException("C58E02D9F1A9", "Invalid database index in Redis URI: " + matches[3].str() + " - " + ex.what(),
-                                              system_utils::captureCallStack());
-                    return;
-                }
-                catch (...)
-                {
-                    // Intentionally catching non-std exceptions from std::stoi to prevent terminate() in noexcept context
-                    m_initFailed = true;
-                    m_initError = DBException("7GGFM9K667HP", "Invalid database index in Redis URI: " + matches[3].str() + " (unknown exception)",
+                    m_initError = DBException("C58E02D9F1A9", "Invalid database index in Redis URI: " + dbStr,
                                               system_utils::captureCallStack());
                     return;
                 }

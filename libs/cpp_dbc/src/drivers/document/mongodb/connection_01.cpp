@@ -92,7 +92,9 @@ namespace cpp_dbc::MongoDB
             {
                 std::string scheme = connectionUri.substr(0, schemeEnd + 3);
                 std::string rest = connectionUri.substr(schemeEnd + 3);
-                connectionUri = scheme + user + ":" + password + "@" + rest;
+                connectionUri = scheme +
+                                system_utils::percentEncodeURIComponent(user) + ":" +
+                                system_utils::percentEncodeURIComponent(password) + "@" + rest;
             }
         }
 

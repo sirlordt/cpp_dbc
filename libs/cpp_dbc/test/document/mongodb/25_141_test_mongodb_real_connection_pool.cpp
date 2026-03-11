@@ -435,9 +435,9 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
             // Verify initial value
             REQUIRE(pool->getConnectionTimeout(std::nothrow) == 3500);
 
-            // Change timeout
-            pool->setConnectionTimeout(std::nothrow, 8000);
-            REQUIRE(pool->getConnectionTimeout(std::nothrow) == 8000);
+            // Change timeout to a short value to keep the test fast
+            pool->setConnectionTimeout(std::nothrow, 200);
+            REQUIRE(pool->getConnectionTimeout(std::nothrow) == 200);
 
             // Exhaust the pool (maxSize=5), then verify timeout applies
             std::vector<std::shared_ptr<cpp_dbc::DocumentDBConnection>> conns;
@@ -449,16 +449,15 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
             }
             REQUIRE(pool->getActiveDBConnectionCount() == 5);
 
-            // Next request should time out — use a very short timeout via per-call override
-            // to avoid waiting 8 seconds. The pool default is 8000ms but we override with 100ms.
+            // Call without explicit timeout — must use pool default (200ms)
             auto start = std::chrono::steady_clock::now();
-            auto result = pool->getDocumentDBConnection(std::nothrow, 100);
+            auto result = pool->getDocumentDBConnection(std::nothrow);
             auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - start);
 
             REQUIRE_FALSE(result.has_value()); // Should fail — pool exhausted
-            REQUIRE(elapsed.count() >= 80);    // Should have waited ~100ms
-            REQUIRE(elapsed.count() < 2000);   // Should NOT have waited 8000ms
+            REQUIRE(elapsed.count() >= 150);   // Should have waited ~200ms
+            REQUIRE(elapsed.count() < 2000);   // Sanity upper bound
 
             // Release all connections
             for (auto &c : conns)

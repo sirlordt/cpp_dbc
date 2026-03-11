@@ -30,6 +30,7 @@
 #include <cstdlib> // Para getenv
 #include <fstream> // Para std::ifstream
 #include <charconv>
+#include "cpp_dbc/common/system_constants.hpp"
 #include "sqlite_internal.hpp"
 
 #if USE_SQLITE
@@ -142,7 +143,11 @@ namespace cpp_dbc::SQLite
     cpp_dbc::expected<std::map<std::string, std::string>, DBException> SQLiteDBDriver::parseURI(
         std::nothrow_t, const std::string &uri) noexcept
     {
-        if (!uri.starts_with("cpp_dbc:sqlite://"))
+        constexpr std::string_view SCHEME_SUFFIX = "sqlite://";
+        const auto fullPrefixLen = cpp_dbc::system_constants::URI_PREFIX.size() + SCHEME_SUFFIX.size();
+
+        if (!uri.starts_with(cpp_dbc::system_constants::URI_PREFIX) ||
+            !std::string_view(uri).substr(cpp_dbc::system_constants::URI_PREFIX.size()).starts_with(SCHEME_SUFFIX))
         {
             return cpp_dbc::unexpected(DBException("5RHF8WK03IZG",
                                                    "Invalid SQLite URI: " + uri,
@@ -150,8 +155,7 @@ namespace cpp_dbc::SQLite
         }
 
         // SQLite has no network — host is empty, port is 0
-        // Extract database path (prefix "cpp_dbc:sqlite://" is 17 chars)
-        std::string database = uri.substr(17);
+        std::string database = uri.substr(fullPrefixLen);
         if (database.empty())
         {
             return cpp_dbc::unexpected(DBException("5V9WQBTN67OL",
@@ -181,7 +185,7 @@ namespace cpp_dbc::SQLite
         }
 
         // SQLite ignores host and port — URI is always cpp_dbc:sqlite://path
-        return "cpp_dbc:sqlite://" + database;
+        return std::string(cpp_dbc::system_constants::URI_PREFIX) + "sqlite://" + database;
     }
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> SQLiteDBDriver::connectRelational(

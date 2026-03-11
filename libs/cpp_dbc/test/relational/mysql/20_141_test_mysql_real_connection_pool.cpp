@@ -465,8 +465,8 @@ TEST_CASE("Real MySQL connection pool tests", "[20_141_01_mysql_real_connection_
         {
             REQUIRE(pool->getConnectionTimeout(std::nothrow) == 3500);
 
-            pool->setConnectionTimeout(std::nothrow, 8000);
-            REQUIRE(pool->getConnectionTimeout(std::nothrow) == 8000);
+            pool->setConnectionTimeout(std::nothrow, 200);
+            REQUIRE(pool->getConnectionTimeout(std::nothrow) == 200);
 
             // Exhaust the pool (maxSize=5)
             std::vector<std::shared_ptr<cpp_dbc::RelationalDBConnection>> conns;
@@ -478,14 +478,14 @@ TEST_CASE("Real MySQL connection pool tests", "[20_141_01_mysql_real_connection_
             }
             REQUIRE(pool->getActiveDBConnectionCount() == 5);
 
-            // Per-call timeout override: 100ms instead of pool default 8000ms
+            // Call without explicit timeout — must use pool default (200ms)
             auto start = std::chrono::steady_clock::now();
-            auto result = pool->getRelationalDBConnection(std::nothrow, 100);
+            auto result = pool->getRelationalDBConnection(std::nothrow);
             auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - start);
 
             REQUIRE_FALSE(result.has_value());
-            REQUIRE(elapsed.count() >= 80);
+            REQUIRE(elapsed.count() >= 150);
             REQUIRE(elapsed.count() < 2000);
 
             for (auto &c : conns)

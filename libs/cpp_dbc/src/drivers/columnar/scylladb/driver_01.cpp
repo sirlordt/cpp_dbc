@@ -27,6 +27,7 @@
 #include <thread>
 #include <chrono>
 #include <iomanip>
+#include <charconv>
 #include "cpp_dbc/common/system_utils.hpp"
 #include "scylladb_internal.hpp"
 
@@ -166,7 +167,16 @@ namespace cpp_dbc::ScyllaDB
         }
 
         std::string host = (*params)["host"];
-        int port = std::stoi((*params)["port"]);
+        const auto &portStr = (*params)["port"];
+        int port = 0;
+        auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), port);
+        if (ec != std::errc{} || ptr != portStr.data() + portStr.size())
+        {
+            SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Invalid port: " << portStr);
+            return cpp_dbc::unexpected(DBException("A0YWP4OA8BTB",
+                                                   "Invalid port number in URI: " + portStr,
+                                                   system_utils::captureCallStack()));
+        }
         std::string keyspace = (*params)["database"];
 
         SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Creating connection object");

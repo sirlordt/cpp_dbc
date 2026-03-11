@@ -294,9 +294,16 @@ namespace cpp_dbc::Redis
             uri << host;
         }
 
-        // Add port
+        // Validate and add port
         if (port > 0 && port != 6379)
         {
+            if (port < system_constants::PORT_MIN || port > system_constants::PORT_MAX)
+            {
+                return cpp_dbc::unexpected(DBException("P7FXQ9Y75G60",
+                    "Cannot build Redis URI: port " + std::to_string(port) + " is outside valid range ("
+                    + std::to_string(system_constants::PORT_MIN) + "-" + std::to_string(system_constants::PORT_MAX) + ")",
+                    system_utils::captureCallStack()));
+            }
             uri << ":" << port;
         }
 
