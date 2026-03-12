@@ -25,6 +25,11 @@ namespace cpp_dbc::PostgreSQL
     {
         using MemoryBlob::copyFrom; // Unhide base-class copyFrom overloads (cpp:S1242)
 
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
         /**
          * @brief Weak reference to the PostgreSQL connection handle
          *
@@ -36,10 +41,12 @@ namespace cpp_dbc::PostgreSQL
         mutable Oid m_lobOid{0};
         mutable bool m_loaded{false};
 
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
+
         /**
          * @brief Get a locked pointer to the PostgreSQL connection handle
          * @return Raw pointer to the PGconn handle
-         * @throws DBException if the connection has been closed
          */
         cpp_dbc::expected<PGconn *, DBException> getPGConnection(std::nothrow_t) const noexcept
         {
@@ -56,41 +63,72 @@ namespace cpp_dbc::PostgreSQL
          * @brief Constructor for creating a new BLOB
          * @param conn Shared pointer to the PostgreSQL connection handle
          */
-        explicit PostgreSQLBlob(std::shared_ptr<PGconn> conn)
-            : m_conn(conn), m_loaded(true) {}
+        PostgreSQLBlob(PrivateCtorTag, std::nothrow_t, std::shared_ptr<PGconn> conn) noexcept
+            : m_conn(conn), m_loaded(true)
+        {
+            // Intentionally empty — all members initialized via in-class initializers
+        }
 
         /**
          * @brief Constructor for loading an existing BLOB by OID
          * @param conn Shared pointer to the PostgreSQL connection handle
          * @param oid The OID of the large object to load
          */
-        PostgreSQLBlob(std::shared_ptr<PGconn> conn, Oid oid)
-            : m_conn(conn), m_lobOid(oid) {}
+        PostgreSQLBlob(PrivateCtorTag, std::nothrow_t, std::shared_ptr<PGconn> conn, Oid oid) noexcept
+            : m_conn(conn), m_lobOid(oid)
+        {
+            // Intentionally empty — all members initialized via in-class initializers
+        }
 
         /**
          * @brief Constructor for creating a BLOB from existing data
          * @param conn Shared pointer to the PostgreSQL connection handle
          * @param initialData The initial data for the BLOB
          */
-        PostgreSQLBlob(std::shared_ptr<PGconn> conn, const std::vector<uint8_t> &initialData)
-            : MemoryBlob(initialData), m_conn(conn), m_loaded(true) {}
+        PostgreSQLBlob(PrivateCtorTag, std::nothrow_t, std::shared_ptr<PGconn> conn, const std::vector<uint8_t> &initialData) noexcept
+            : MemoryBlob(initialData), m_conn(conn), m_loaded(true)
+        {
+            // Intentionally empty — MemoryBlob copies initialData, all members initialized
+        }
+
+        ~PostgreSQLBlob() override = default;
+
+        PostgreSQLBlob(const PostgreSQLBlob &) = delete;
+        PostgreSQLBlob &operator=(const PostgreSQLBlob &) = delete;
 
         static cpp_dbc::expected<std::shared_ptr<PostgreSQLBlob>, DBException> create(std::nothrow_t, std::shared_ptr<PGconn> conn) noexcept
         {
-            return std::make_shared<PostgreSQLBlob>(conn);
+            // No try/catch: std::make_shared can only throw std::bad_alloc (death sentence).
+            auto obj = std::make_shared<PostgreSQLBlob>(PrivateCtorTag{}, std::nothrow, conn);
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            return obj;
         }
 
         static cpp_dbc::expected<std::shared_ptr<PostgreSQLBlob>, DBException> create(std::nothrow_t, std::shared_ptr<PGconn> conn, Oid oid) noexcept
         {
-            return std::make_shared<PostgreSQLBlob>(conn, oid);
+            auto obj = std::make_shared<PostgreSQLBlob>(PrivateCtorTag{}, std::nothrow, conn, oid);
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            return obj;
         }
 
         static cpp_dbc::expected<std::shared_ptr<PostgreSQLBlob>, DBException> create(std::nothrow_t, std::shared_ptr<PGconn> conn,
                                                                                       const std::vector<uint8_t> &initialData) noexcept
         {
-            return std::make_shared<PostgreSQLBlob>(conn, initialData);
+            auto obj = std::make_shared<PostgreSQLBlob>(PrivateCtorTag{}, std::nothrow, conn, initialData);
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            return obj;
         }
 
+#ifdef __cpp_exceptions
         static std::shared_ptr<PostgreSQLBlob> create(std::shared_ptr<PGconn> conn)
         {
             auto r = create(std::nothrow, conn);
@@ -121,6 +159,7 @@ namespace cpp_dbc::PostgreSQL
             }
             return r.value();
         }
+#endif // __cpp_exceptions
 
         cpp_dbc::expected<void, DBException> copyFrom(std::nothrow_t, const PostgreSQLBlob &other) noexcept
         {
@@ -139,6 +178,7 @@ namespace cpp_dbc::PostgreSQL
             return {};
         }
 
+#ifdef __cpp_exceptions
         void copyFrom(const PostgreSQLBlob &other)
         {
             auto r = copyFrom(std::nothrow, other);
@@ -147,6 +187,7 @@ namespace cpp_dbc::PostgreSQL
                 throw r.error();
             }
         }
+#endif // __cpp_exceptions
 
         /**
          * @brief Check if the connection is still valid
@@ -226,6 +267,7 @@ namespace cpp_dbc::PostgreSQL
             return {};
         }
 
+#ifdef __cpp_exceptions
         void ensureLoaded() const
         {
             auto r = ensureLoaded(std::nothrow);
@@ -234,6 +276,7 @@ namespace cpp_dbc::PostgreSQL
                 throw r.error();
             }
         }
+#endif // __cpp_exceptions
 
         // ====================================================================
         // THROWING API - Exception-based (requires __cpp_exceptions)

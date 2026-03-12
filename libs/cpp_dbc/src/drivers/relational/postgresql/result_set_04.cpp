@@ -56,7 +56,12 @@ namespace cpp_dbc::PostgreSQL
             if (PQgetisnull(m_result.get(), row, idx))
             {
                 // Return an empty blob with no connection (data is already loaded)
-                return cpp_dbc::expected<std::shared_ptr<Blob>, DBException>(std::make_shared<PostgreSQLBlob>(std::shared_ptr<PGconn>()));
+                auto emptyBlobResult = PostgreSQLBlob::create(std::nothrow, std::shared_ptr<PGconn>());
+                if (!emptyBlobResult.has_value())
+                {
+                    return cpp_dbc::unexpected<DBException>(emptyBlobResult.error());
+                }
+                return cpp_dbc::expected<std::shared_ptr<Blob>, DBException>(emptyBlobResult.value());
             }
 
             // Check if the column is a bytea type
@@ -74,10 +79,15 @@ namespace cpp_dbc::PostgreSQL
             }
             std::vector<uint8_t> data = bytesResult.value();
 
-            // Create a PostgreSQLBlob with the data
+            // Create a PostgreSQLBlob with the data via factory
             // Note: We pass an empty shared_ptr because the data is already loaded
             // and the blob won't need to query the database
-            return cpp_dbc::expected<std::shared_ptr<Blob>, DBException>{std::make_shared<PostgreSQLBlob>(std::shared_ptr<PGconn>(), data)};
+            auto blobResult = PostgreSQLBlob::create(std::nothrow, std::shared_ptr<PGconn>(), data);
+            if (!blobResult.has_value())
+            {
+                return cpp_dbc::unexpected<DBException>(blobResult.error());
+            }
+            return cpp_dbc::expected<std::shared_ptr<Blob>, DBException>{blobResult.value()};
         }
         catch (const DBException &ex)
         {

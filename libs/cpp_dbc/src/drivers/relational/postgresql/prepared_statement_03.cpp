@@ -65,11 +65,20 @@ namespace cpp_dbc::PostgreSQL
                 return {};
             }
 
-            // Get the blob data
-            std::vector<uint8_t> data = x->getBytes(0, x->length());
+            // Get the blob data using nothrow overloads
+            auto lenResult = x->length(std::nothrow);
+            if (!lenResult.has_value())
+            {
+                return cpp_dbc::unexpected<DBException>(lenResult.error());
+            }
+            auto bytesResult = x->getBytes(std::nothrow, 0, lenResult.value());
+            if (!bytesResult.has_value())
+            {
+                return cpp_dbc::unexpected<DBException>(bytesResult.error());
+            }
 
             // Store the data in our vector to keep it alive
-            m_blobValues[idx] = std::move(data);
+            m_blobValues[idx] = std::move(bytesResult.value());
 
             // Use binary format for BYTEA data
             m_paramValues[idx].resize(m_blobValues[idx].size());
@@ -121,12 +130,21 @@ namespace cpp_dbc::PostgreSQL
                 return {};
             }
 
-            // Read all data from the stream
+            // Read all data from the stream using nothrow overload
             std::vector<uint8_t> data;
             std::array<uint8_t, 4096> buffer{};
-            int bytesRead = 0;
-            while ((bytesRead = x->read(buffer.data(), buffer.size())) > 0)
+            for (;;)
             {
+                auto readResult = x->read(std::nothrow, buffer.data(), buffer.size());
+                if (!readResult.has_value())
+                {
+                    return cpp_dbc::unexpected<DBException>(readResult.error());
+                }
+                int bytesRead = readResult.value();
+                if (bytesRead <= 0)
+                {
+                    break;
+                }
                 data.insert(data.end(), buffer.begin(), buffer.begin() + bytesRead);
             }
 
@@ -183,15 +201,19 @@ namespace cpp_dbc::PostgreSQL
                 return {};
             }
 
-            // Read up to 'length' bytes from the stream
+            // Read up to 'length' bytes from the stream using nothrow overload
             std::vector<uint8_t> data;
             data.reserve(length);
             std::array<uint8_t, 4096> buffer{};
             size_t totalBytesRead = 0;
-            int bytesRead = 0;
             while (totalBytesRead < length)
             {
-                bytesRead = x->read(buffer.data(), std::min(buffer.size(), length - totalBytesRead));
+                auto readResult = x->read(std::nothrow, buffer.data(), std::min(buffer.size(), length - totalBytesRead));
+                if (!readResult.has_value())
+                {
+                    return cpp_dbc::unexpected<DBException>(readResult.error());
+                }
+                int bytesRead = readResult.value();
                 if (bytesRead <= 0)
                 {
                     break;
