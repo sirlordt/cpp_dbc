@@ -96,38 +96,6 @@ namespace cpp_dbc::PostgreSQL
         PostgreSQLBlob(const PostgreSQLBlob &) = delete;
         PostgreSQLBlob &operator=(const PostgreSQLBlob &) = delete;
 
-        static cpp_dbc::expected<std::shared_ptr<PostgreSQLBlob>, DBException> create(std::nothrow_t, std::shared_ptr<PGconn> conn) noexcept
-        {
-            // No try/catch: std::make_shared can only throw std::bad_alloc (death sentence).
-            auto obj = std::make_shared<PostgreSQLBlob>(PrivateCtorTag{}, std::nothrow, conn);
-            if (obj->m_initFailed)
-            {
-                return cpp_dbc::unexpected(std::move(*obj->m_initError));
-            }
-            return obj;
-        }
-
-        static cpp_dbc::expected<std::shared_ptr<PostgreSQLBlob>, DBException> create(std::nothrow_t, std::shared_ptr<PGconn> conn, Oid oid) noexcept
-        {
-            auto obj = std::make_shared<PostgreSQLBlob>(PrivateCtorTag{}, std::nothrow, conn, oid);
-            if (obj->m_initFailed)
-            {
-                return cpp_dbc::unexpected(std::move(*obj->m_initError));
-            }
-            return obj;
-        }
-
-        static cpp_dbc::expected<std::shared_ptr<PostgreSQLBlob>, DBException> create(std::nothrow_t, std::shared_ptr<PGconn> conn,
-                                                                                      const std::vector<uint8_t> &initialData) noexcept
-        {
-            auto obj = std::make_shared<PostgreSQLBlob>(PrivateCtorTag{}, std::nothrow, conn, initialData);
-            if (obj->m_initFailed)
-            {
-                return cpp_dbc::unexpected(std::move(*obj->m_initError));
-            }
-            return obj;
-        }
-
 #ifdef __cpp_exceptions
         static std::shared_ptr<PostgreSQLBlob> create(std::shared_ptr<PGconn> conn)
         {
@@ -161,24 +129,44 @@ namespace cpp_dbc::PostgreSQL
         }
 #endif // __cpp_exceptions
 
-        cpp_dbc::expected<void, DBException> copyFrom(std::nothrow_t, const PostgreSQLBlob &other) noexcept
+        static cpp_dbc::expected<std::shared_ptr<PostgreSQLBlob>, DBException> create(std::nothrow_t, std::shared_ptr<PGconn> conn) noexcept
         {
-            if (this == &other)
+            // No try/catch: std::make_shared can only throw std::bad_alloc (death sentence).
+            auto obj = std::make_shared<PostgreSQLBlob>(PrivateCtorTag{}, std::nothrow, conn);
+            if (obj->m_initFailed)
             {
-                return {};
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
             }
-            auto r = MemoryBlob::copyFrom(std::nothrow, other);
-            if (!r.has_value())
-            {
-                return r;
-            }
-            m_conn = other.m_conn;
-            m_lobOid = other.m_lobOid;
-            m_loaded = other.m_loaded;
-            return {};
+            return obj;
         }
 
+        static cpp_dbc::expected<std::shared_ptr<PostgreSQLBlob>, DBException> create(std::nothrow_t, std::shared_ptr<PGconn> conn, Oid oid) noexcept
+        {
+            auto obj = std::make_shared<PostgreSQLBlob>(PrivateCtorTag{}, std::nothrow, conn, oid);
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            return obj;
+        }
+
+        static cpp_dbc::expected<std::shared_ptr<PostgreSQLBlob>, DBException> create(std::nothrow_t, std::shared_ptr<PGconn> conn,
+                                                                                      const std::vector<uint8_t> &initialData) noexcept
+        {
+            auto obj = std::make_shared<PostgreSQLBlob>(PrivateCtorTag{}, std::nothrow, conn, initialData);
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            return obj;
+        }
+
+        // ====================================================================
+        // THROWING API - Exception-based (requires __cpp_exceptions)
+        // ====================================================================
+
 #ifdef __cpp_exceptions
+
         void copyFrom(const PostgreSQLBlob &other)
         {
             auto r = copyFrom(std::nothrow, other);
@@ -187,87 +175,7 @@ namespace cpp_dbc::PostgreSQL
                 throw r.error();
             }
         }
-#endif // __cpp_exceptions
 
-        /**
-         * @brief Check if the connection is still valid
-         * @return true if the connection is still valid
-         */
-        bool isConnectionValid() const noexcept override
-        {
-            return !m_conn.expired();
-        }
-
-        /**
-         * @brief Load the BLOB data from the database if not already loaded
-         *
-         * This method safely accesses the connection through the weak_ptr,
-         * ensuring the connection is still valid before attempting to read.
-         */
-        cpp_dbc::expected<void, DBException> ensureLoaded(std::nothrow_t) const noexcept
-        {
-            if (m_loaded || m_lobOid == 0)
-            {
-                return {};
-            }
-            auto connResult = getPGConnection(std::nothrow);
-            if (!connResult.has_value())
-            {
-                return cpp_dbc::unexpected(connResult.error());
-            }
-            PGconn *conn = connResult.value();
-
-            PGresult *res = PQexec(conn, "BEGIN");
-            if (PQresultStatus(res) != PGRES_COMMAND_OK)
-            {
-                std::string error = PQresultErrorMessage(res);
-                PQclear(res);
-                return cpp_dbc::unexpected(DBException("PLX9YW4JL8V7", "Failed to start transaction for BLOB loading: " + error, system_utils::captureCallStack()));
-            }
-            PQclear(res);
-
-            int fd = lo_open(conn, m_lobOid, INV_READ);
-            if (fd < 0)
-            {
-                PQexec(conn, "ROLLBACK");
-                return cpp_dbc::unexpected(DBException("4LLXBMB5AMJ9", "Failed to open large object: " + std::to_string(m_lobOid), system_utils::captureCallStack()));
-            }
-
-            int loSize = lo_lseek(conn, fd, 0, SEEK_END);
-            lo_lseek(conn, fd, 0, SEEK_SET);
-
-            if (loSize > 0)
-            {
-                m_data.resize(loSize);
-                int bytesRead = lo_read(conn, fd, reinterpret_cast<char *>(m_data.data()), loSize);
-                if (bytesRead != loSize)
-                {
-                    lo_close(conn, fd);
-                    PQexec(conn, "ROLLBACK");
-                    return cpp_dbc::unexpected(DBException("GO1IJP3EU26A", "Failed to read large object data", system_utils::captureCallStack()));
-                }
-            }
-            else
-            {
-                m_data.clear();
-            }
-
-            lo_close(conn, fd);
-
-            res = PQexec(conn, "COMMIT");
-            if (PQresultStatus(res) != PGRES_COMMAND_OK)
-            {
-                std::string error = PQresultErrorMessage(res);
-                PQclear(res);
-                return cpp_dbc::unexpected(DBException("PYQGW1S0NFFX", "Failed to commit transaction for BLOB loading: " + error, system_utils::captureCallStack()));
-            }
-            PQclear(res);
-
-            m_loaded = true;
-            return {};
-        }
-
-#ifdef __cpp_exceptions
         void ensureLoaded() const
         {
             auto r = ensureLoaded(std::nothrow);
@@ -276,13 +184,6 @@ namespace cpp_dbc::PostgreSQL
                 throw r.error();
             }
         }
-#endif // __cpp_exceptions
-
-        // ====================================================================
-        // THROWING API - Exception-based (requires __cpp_exceptions)
-        // ====================================================================
-
-#ifdef __cpp_exceptions
 
         size_t length() const override
         {
@@ -380,9 +281,105 @@ namespace cpp_dbc::PostgreSQL
         }
 
 #endif // __cpp_exceptions
+
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
+
+        cpp_dbc::expected<void, DBException> copyFrom(std::nothrow_t, const PostgreSQLBlob &other) noexcept
+        {
+            if (this == &other)
+            {
+                return {};
+            }
+            auto r = MemoryBlob::copyFrom(std::nothrow, other);
+            if (!r.has_value())
+            {
+                return r;
+            }
+            m_conn = other.m_conn;
+            m_lobOid = other.m_lobOid;
+            m_loaded = other.m_loaded;
+            return {};
+        }
+
+        /**
+         * @brief Check if the connection is still valid
+         * @return true if the connection is still valid
+         */
+        bool isConnectionValid() const noexcept override
+        {
+            return !m_conn.expired();
+        }
+
+        /**
+         * @brief Load the BLOB data from the database if not already loaded
+         *
+         * This method safely accesses the connection through the weak_ptr,
+         * ensuring the connection is still valid before attempting to read.
+         */
+        cpp_dbc::expected<void, DBException> ensureLoaded(std::nothrow_t) const noexcept
+        {
+            if (m_loaded || m_lobOid == 0)
+            {
+                return {};
+            }
+            auto connResult = getPGConnection(std::nothrow);
+            if (!connResult.has_value())
+            {
+                return cpp_dbc::unexpected(connResult.error());
+            }
+            PGconn *conn = connResult.value();
+
+            PGresult *res = PQexec(conn, "BEGIN");
+            if (PQresultStatus(res) != PGRES_COMMAND_OK)
+            {
+                std::string error = PQresultErrorMessage(res);
+                PQclear(res);
+                return cpp_dbc::unexpected(DBException("PLX9YW4JL8V7", "Failed to start transaction for BLOB loading: " + error, system_utils::captureCallStack()));
+            }
+            PQclear(res);
+
+            int fd = lo_open(conn, m_lobOid, INV_READ);
+            if (fd < 0)
+            {
+                PQexec(conn, "ROLLBACK");
+                return cpp_dbc::unexpected(DBException("4LLXBMB5AMJ9", "Failed to open large object: " + std::to_string(m_lobOid), system_utils::captureCallStack()));
+            }
+
+            int loSize = lo_lseek(conn, fd, 0, SEEK_END);
+            lo_lseek(conn, fd, 0, SEEK_SET);
+
+            if (loSize > 0)
+            {
+                m_data.resize(loSize);
+                int bytesRead = lo_read(conn, fd, reinterpret_cast<char *>(m_data.data()), loSize);
+                if (bytesRead != loSize)
+                {
+                    lo_close(conn, fd);
+                    PQexec(conn, "ROLLBACK");
+                    return cpp_dbc::unexpected(DBException("GO1IJP3EU26A", "Failed to read large object data", system_utils::captureCallStack()));
+                }
+            }
+            else
+            {
+                m_data.clear();
+            }
+
+            lo_close(conn, fd);
+
+            res = PQexec(conn, "COMMIT");
+            if (PQresultStatus(res) != PGRES_COMMAND_OK)
+            {
+                std::string error = PQresultErrorMessage(res);
+                PQclear(res);
+                return cpp_dbc::unexpected(DBException("PYQGW1S0NFFX", "Failed to commit transaction for BLOB loading: " + error, system_utils::captureCallStack()));
+            }
+            PQclear(res);
+
+            m_loaded = true;
+            return {};
+        }
 
         // Get the OID of the large object
         Oid getOid() const noexcept

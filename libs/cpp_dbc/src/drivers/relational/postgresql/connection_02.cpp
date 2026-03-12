@@ -172,6 +172,8 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::getAutoCommit(std::nothrow_t) noexcept
     {
+        DB_DRIVER_LOCK_GUARD(m_connMutex);
+
         if (m_closed.load(std::memory_order_acquire) || !m_conn)
         {
             return cpp_dbc::unexpected<DBException>(DBException("9D3F5A7C2E8B", "Connection is closed", system_utils::captureCallStack()));
@@ -243,6 +245,8 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::transactionActive(std::nothrow_t) noexcept
     {
+        DB_DRIVER_LOCK_GUARD(m_connMutex);
+
         if (m_closed.load(std::memory_order_acquire) || !m_conn)
         {
             return cpp_dbc::unexpected<DBException>(DBException("5F8B2E9A7D3C", "Connection is closed", system_utils::captureCallStack()));

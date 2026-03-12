@@ -312,6 +312,14 @@ namespace cpp_dbc::PostgreSQL
         [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
         [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
 
+        // 2026-03-12T12:00:00Z
+        // Bug: m_autoCommit is a plain bool (non-atomic) modified under m_connMutex in
+        // setAutoCommit/beginTransaction/commit/rollback. Reading it without the lock
+        // is a data race (undefined behavior) in multi-threaded builds.
+        // Solution: Acquire m_connMutex before reading m_autoCommit. Safe with
+        // recursive_mutex since setAutoCommit also acquires m_connMutex internally.
+        DB_DRIVER_LOCK_GUARD(m_connMutex);
+
         // Restore autocommit for the next user of this connection
         if (!m_autoCommit)
         {

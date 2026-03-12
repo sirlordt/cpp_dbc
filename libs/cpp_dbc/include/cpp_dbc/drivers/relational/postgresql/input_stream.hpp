@@ -104,18 +104,12 @@ namespace cpp_dbc::PostgreSQL
             return obj;
         }
 
-        cpp_dbc::expected<void, DBException> copyFrom(std::nothrow_t, const PostgreSQLInputStream &other) noexcept
-        {
-            if (this == &other)
-            {
-                return {};
-            }
-            m_data = other.m_data;
-            m_position = 0;
-            return {};
-        }
+        // ====================================================================
+        // THROWING API - Exception-based (requires __cpp_exceptions)
+        // ====================================================================
 
 #ifdef __cpp_exceptions
+
         void copyFrom(const PostgreSQLInputStream &other)
         {
             auto r = copyFrom(std::nothrow, other);
@@ -124,13 +118,6 @@ namespace cpp_dbc::PostgreSQL
                 throw r.error();
             }
         }
-#endif // __cpp_exceptions
-
-        // ====================================================================
-        // THROWING API - Exception-based (requires __cpp_exceptions)
-        // ====================================================================
-
-#ifdef __cpp_exceptions
 
         int read(uint8_t *buffer, size_t length) override
         {
@@ -161,9 +148,21 @@ namespace cpp_dbc::PostgreSQL
         }
 
 #endif // __cpp_exceptions
+
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
+
+        cpp_dbc::expected<void, DBException> copyFrom(std::nothrow_t, const PostgreSQLInputStream &other) noexcept
+        {
+            if (this == &other)
+            {
+                return {};
+            }
+            m_data = other.m_data;
+            m_position = 0;
+            return {};
+        }
 
         cpp_dbc::expected<int, DBException> read(std::nothrow_t, uint8_t *buffer, size_t length) noexcept override
         {
