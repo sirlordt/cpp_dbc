@@ -35,9 +35,16 @@ namespace cpp_dbc::PostgreSQL
      */
     class PostgreSQLInputStream : public InputStream
     {
-    private:
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
         std::vector<uint8_t> m_data;
         size_t m_position{0};
+
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
 
         static cpp_dbc::expected<const char *, DBException> validateAndEnd(std::nothrow_t, const char *buffer, size_t length) noexcept
         {
@@ -48,49 +55,31 @@ namespace cpp_dbc::PostgreSQL
             return buffer + length;
         }
 
-        static const char *validateAndEnd(const char *buffer, size_t length)
-        {
-            auto r = validateAndEnd(std::nothrow, buffer, length);
-            if (!r.has_value())
-            {
-                throw r.error();
-            }
-            return r.value();
-        }
-
     public:
         /**
          * @brief Construct an input stream from a PostgreSQL BLOB buffer
          * @param buffer Pointer to the BLOB data (may be null if length is 0)
          * @param length Size of the buffer in bytes
-         * @throws DBException if buffer is null and length > 0
          *
          * The buffer data is copied into internal storage, so the source
          * buffer can be safely freed after construction.
+         * On validation failure, sets m_initFailed and m_initError instead of throwing.
          */
-        PostgreSQLInputStream(const char *buffer, size_t length)
-            : m_data(buffer, validateAndEnd(buffer, length)) {}
-
-        static cpp_dbc::expected<std::shared_ptr<PostgreSQLInputStream>, DBException> create(std::nothrow_t, const char *buffer, size_t length) noexcept
+        PostgreSQLInputStream(PrivateCtorTag, std::nothrow_t, const char *buffer, size_t length) noexcept
         {
-            try
+            auto endResult = validateAndEnd(std::nothrow, buffer, length);
+            if (!endResult.has_value())
             {
-                return std::make_shared<PostgreSQLInputStream>(buffer, length);
+                m_initFailed = true;
+                m_initError = std::make_unique<DBException>(std::move(endResult).error());
+                return;
             }
-            catch (const DBException &ex)
-            {
-                return cpp_dbc::unexpected(ex);
-            }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("BKP0ZKLRYH7P", ex.what(), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("SWQPMOOQBED5", "Unknown error creating PostgreSQLInputStream", system_utils::captureCallStack()));
-            }
+            // Vector construction from range [buffer, endPtr) — can only throw bad_alloc (death sentence)
+            m_data.assign(reinterpret_cast<const uint8_t *>(buffer),
+                          reinterpret_cast<const uint8_t *>(endResult.value()));
         }
 
+#ifdef __cpp_exceptions
         static std::shared_ptr<PostgreSQLInputStream> create(const char *buffer, size_t length)
         {
             auto r = create(std::nothrow, buffer, length);
@@ -99,6 +88,20 @@ namespace cpp_dbc::PostgreSQL
                 throw r.error();
             }
             return r.value();
+        }
+#endif // __cpp_exceptions
+
+        static cpp_dbc::expected<std::shared_ptr<PostgreSQLInputStream>, DBException> create(std::nothrow_t, const char *buffer, size_t length) noexcept
+        {
+            // No try/catch: std::make_shared can only throw std::bad_alloc, which is a
+            // death-sentence exception — the heap is exhausted and no meaningful recovery
+            // is possible. The constructor is noexcept and captures errors in m_initFailed.
+            auto obj = std::make_shared<PostgreSQLInputStream>(PrivateCtorTag{}, std::nothrow, buffer, length);
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            return obj;
         }
 
         cpp_dbc::expected<void, DBException> copyFrom(std::nothrow_t, const PostgreSQLInputStream &other) noexcept
@@ -112,6 +115,7 @@ namespace cpp_dbc::PostgreSQL
             return {};
         }
 
+#ifdef __cpp_exceptions
         void copyFrom(const PostgreSQLInputStream &other)
         {
             auto r = copyFrom(std::nothrow, other);
@@ -120,6 +124,7 @@ namespace cpp_dbc::PostgreSQL
                 throw r.error();
             }
         }
+#endif // __cpp_exceptions
 
         // ====================================================================
         // THROWING API - Exception-based (requires __cpp_exceptions)

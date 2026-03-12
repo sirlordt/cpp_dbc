@@ -32,8 +32,13 @@
 - **PostgreSQL Client Library**: For PostgreSQL database connectivity
   - Uses the C API (`libpq-fe.h`)
   - Requires libpq development package
-  - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory, double-checked locking for driver init, `-fno-exceptions` compatible
+  - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory (PrivateCtorTag pattern), double-checked locking for driver init, `-fno-exceptions` compatible
+  - `PostgreSQLDBConnection`: owns `std::recursive_mutex m_connMutex` directly (not shared_ptr); result set registry (`m_activeResultSets`) with lifecycle management; `std::atomic<bool> m_closed`; `getConnectionMutex()` for child access; friend declarations for PreparedStatement/ResultSet (2026-03-12)
+  - `PostgreSQLDBPreparedStatement`/`PostgreSQLDBResultSet`: hold `weak_ptr<PostgreSQLDBConnection>` (not `weak_ptr<PGconn>`), access PGconn* through connection; PrivateCtorTag + `m_initFailed`/`m_initError`; `enable_shared_from_this`; `notifyConnClosing()` lifecycle (2026-03-12)
+  - `PostgreSQLConnectionLock` RAII helper in `postgresql_internal.hpp` for consistent lock-or-return pattern; double-checked locking with `weak_ptr` + atomic closed flag (2026-03-12)
+  - `PostgreSQLInputStream` upgraded to PrivateCtorTag pattern with `m_initFailed`/`m_initError` and `#ifdef __cpp_exceptions` guards (2026-03-12)
   - `getDriverVersion()` via `PQlibVersion()`; `getServerVersion()` via `PQserverVersion()`; `getServerInfo()` returns ServerVersion, ProtocolVersion, ServerEncoding, ClientEncoding, TimeZone (2026-03-08)
+  - `std::from_chars` for all string-to-number conversions; `PG_DEBUG` macro uses `snprintf` + `logWithTimesMillis()` (2026-03-12)
 
 - **SQLite Library**: For SQLite database connectivity
   - Uses the C API (`sqlite3.h`)

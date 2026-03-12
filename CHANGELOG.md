@@ -1,6 +1,82 @@
 # Changelog
 
-## 2026-03-08 17:25:00 PST [Current]
+## 2026-03-12 12:24:00 PDT [Current]
+
+### PostgreSQL Driver — Shared-Mutex Refactoring, PrivateCtorTag Pattern, Convention Compliance, and Lifecycle Management
+
+This release refactors the PostgreSQL driver to align with the MySQL driver's architecture established in 2026-03-06. The major change is replacing the `SharedConnMutex` (`shared_ptr<recursive_mutex>`) pattern with direct mutex ownership in `PostgreSQLDBConnection` and a new `PostgreSQLConnectionLock` RAII helper that acquires the connection's mutex through `weak_ptr<PostgreSQLDBConnection>`. PreparedStatement and ResultSet now use `PrivateCtorTag` + `m_initFailed`/`m_initError`, hold `weak_ptr<PostgreSQLDBConnection>` instead of `weak_ptr<PGconn>`, and use `std::atomic<bool> m_closed`. ResultSets gain lifecycle management via `notifyConnClosing()` and a result set registry in the connection. Numerous convention fixes applied: NOSONAR annotations, `std::from_chars` replacing `std::stoi`/`std::stoll`/`std::stod`, dead try/catch removal, `.has_value()` enforcement, and `PG_DEBUG` macro upgraded from `iostream` to `snprintf`-based with timestamp support. Total: **18 files changed, +733/-655 lines**.
+
+#### PostgreSQLDBConnection — Shared Mutex Ownership and Result Set Registry
+
+- **`m_closed` → `std::atomic<bool>`**: Replaces plain `bool` for thread-safe closed-state checks with proper `memory_order_acquire`/`release` semantics
+- **`m_connMutex` → direct `std::recursive_mutex`**: Replaces `SharedConnMutex` (`shared_ptr<recursive_mutex>`); connection now owns the mutex directly
+- **`getConnectionMutex()` method**: New public method (thread-safe build only) returns reference to `m_connMutex` for child objects to acquire via `PostgreSQLConnectionLock`
+- **Result set registry**: New `m_activeResultSets` set with `registerResultSet()`, `unregisterResultSet()`, `closeAllResultSets()` — mirrors the existing statement registry pattern
+- **Lifecycle management**: `close()`, `reset()`, and `returnToPool()` now call `closeAllResultSets(std::nothrow)` before `closeAllStatements(std::nothrow)`
+- **`friend` declarations**: Added `friend class PostgreSQLDBPreparedStatement` and `friend class PostgreSQLDBResultSet` for internal member access
+- **Comment cleanup**: Trimmed verbose design rationale comments in `m_activeStatements` and `m_statementsMutex` documentation
+- **`generateStatementName()`**: Moved outside `#ifdef __cpp_exceptions` guard (used by both throwing and nothrow paths)
+
+#### PostgreSQLDBPreparedStatement — PrivateCtorTag Pattern and Connection-Based Access
+
+- **PrivateCtorTag pattern**: Added `PrivateCtorTag` private struct, `m_initFailed`/`m_initError` construction state, public noexcept constructor
+- **`weak_ptr<PostgreSQLDBConnection>` replaces `weak_ptr<PGconn>`**: Statement now holds reference to full connection object, accesses `PGconn*` through `getPGConnection(std::nothrow)` which traverses `conn->m_conn`
+- **`std::atomic<bool> m_closed`**: Replaces implicit closed state; initialized to `true`, set to `false` at end of constructor
+- **`enable_shared_from_this`**: Added for lifecycle management
+- **`SharedConnMutex m_connMutex` removed**: Mutex access now via `PostgreSQLConnectionLock` RAII helper
+- **`create()` factories unified**: Single nothrow `create(std::nothrow_t)` with PrivateCtorTag + `m_initFailed` check; throwing version inside `#ifdef __cpp_exceptions`; no try/catch (death-sentence rule)
+- **`notifyConnClosing()` moved outside `#ifdef __cpp_exceptions`**: Called from both throwing and nothrow paths
+- **`close()` calls nothrow overload**: `close()` in `executeQuery`/`executeUpdate` replaced with `close(std::nothrow)` per nothrow-calls-nothrow rule
+- **`PG_STMT_LOCK_OR_RETURN` macro**: Replaces `DB_DRIVER_LOCK_GUARD(*m_connMutex)` in all nothrow methods; uses `PostgreSQLConnectionLock`
+
+#### PostgreSQLDBResultSet — PrivateCtorTag Pattern, Connection Lifecycle, and Convention Fixes
+
+- **PrivateCtorTag pattern**: Added `PrivateCtorTag` private struct, `m_initFailed`/`m_initError` construction state, public noexcept constructor taking `weak_ptr<PostgreSQLDBConnection>`
+- **`weak_ptr<PostgreSQLDBConnection> m_connection`**: New member for connection lifecycle tracking
+- **`std::atomic<bool> m_closed`**: New member; `false` when result has data, `true` when closed or null PGresult
+- **`enable_shared_from_this`**: Added for registry management
+- **`notifyConnClosing()`**: New method called by connection when closing — marks closed, releases PGresult
+- **Independent `mutable std::recursive_mutex m_mutex` removed**: ResultSet now shares connection's mutex via `PostgreSQLConnectionLock`
+- **`create()` factories**: Nothrow version with PrivateCtorTag + `m_initFailed` check; throwing inside `#ifdef __cpp_exceptions`
+- **Null PGresult handling**: Constructor now sets `m_initFailed`/`m_initError` instead of silently creating empty result set
+- **Destructor**: Only calls `close(std::nothrow)` if not already closed (checks `m_closed` atomic)
+- **Dead try/catch removed**: `isBeforeFirst()`, `isAfterLast()`, `getRow()`, `getColumnNames()`, `getColumnCount()` — all nothrow methods with only nothrow operations
+- **`std::stoi`/`std::stoll`/`std::stod` → `std::from_chars`**: `getInt()`, `getLong()`, `getDouble()` now use nothrow `std::from_chars`
+- **`strtol` → `std::from_chars`**: Hex byte parsing in `getBytes()` uses `std::from_chars` with base 16
+- **`.has_value()` enforcement**: `!bytesResult` → `!bytesResult.has_value()` in `getBlob()`/`getBinaryStream()`
+- **`PG_STMT_LOCK_OR_RETURN` macro**: Replaces `DB_DRIVER_LOCK_GUARD(m_mutex)` in all nothrow methods
+
+#### PostgreSQLInputStream — PrivateCtorTag Pattern
+
+- **PrivateCtorTag pattern**: Added private struct, `m_initFailed`/`m_initError`, public noexcept constructor
+- **Constructor validation**: Uses `validateAndEnd(std::nothrow)` instead of throwing overload; captures error in construction state
+- **Throwing `validateAndEnd()` removed**: Only nothrow version remains (private helper rule)
+- **`create()` factories**: Nothrow with PrivateCtorTag; throwing inside `#ifdef __cpp_exceptions`
+- **`copyFrom()` throwing version**: Now inside `#ifdef __cpp_exceptions` guard
+
+#### PostgreSQLBlob — Cleanup
+
+- **Throwing `getPGConnection()` removed**: Only nothrow version remains (private helper rule)
+
+#### postgresql_internal.hpp — RAII Lock Helper and Macro System
+
+- **`PostgreSQLConnectionLock` class**: New RAII helper that acquires `recursive_mutex` through `weak_ptr<PostgreSQLDBConnection>`. Double-checked locking: (1) check `m_closed` atomic, (2) lock connection's weak_ptr and keep alive via `shared_ptr`, (3) acquire mutex, (4) re-check `m_closed` after lock. If connection expired, marks object as closed via atomic store.
+- **`PG_CONNECTION_LOCK_OR_RETURN` / `PG_CONNECTION_LOCK_OR_THROW` / `PG_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED`**: New macros for DBConnection methods (lock `m_connMutex` + check closed state)
+- **`PG_STMT_LOCK_OR_RETURN` / `PG_STMT_LOCK_OR_THROW` / `PG_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED`**: New macros for PreparedStatement/ResultSet methods (use `PostgreSQLConnectionLock`)
+- **`DB_DRIVER_LOCK_GUARD` → `std::scoped_lock`**: Changed from `std::lock_guard` to `std::scoped_lock`
+- **`PG_DEBUG` macro**: Rewritten from `iostream`-based (`std::cout <<`) to `snprintf`-based with timestamp via `system_utils::logWithTimesMillis()`; supports `printf`-style format strings; truncation-safe with `...[TRUNCATED]` suffix
+- **Non-thread-safe variants**: All macros have `#else` branches for non-thread-safe builds (check state without locking)
+
+#### Convention Compliance Fixes (across all `.cpp` files)
+
+- **NOSONAR annotations**: All `catch (...)` blocks now have `// NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above`
+- **`getBytes(const string&)` throwing version**: Now delegates to nothrow overload instead of reimplementing logic
+- **`getAutoCommit()`/`transactionActive()` dead try/catch removed**: These methods only read member variables — no exceptions possible
+- **`PG_DEBUG` format strings**: All `<<` stream-style debug output replaced with `printf`-style `%s` format strings
+
+---
+
+## 2026-03-08 17:25:00 PST
 
 ### Unified version/info API across all drivers, MySQL code hardening, and BlobStream connection validation
 

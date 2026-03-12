@@ -2,7 +2,46 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. The `DBDriver` base class provides a unified URI API (`acceptURI`, `parseURI`, `buildURI`, `getURIScheme`) and a unified `getDriverVersion()` method. The `DBConnection` base class provides `getServerVersion()` and `getServerInfo()` for runtime introspection of database server versions and metadata across all drivers (2026-03-08). `MySQLBlob` and `MySQLInputStream` have been upgraded to the PrivateCtorTag creational pattern. The PrivateCtorTag naming is unified across the entire codebase. `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). The connection pool system is fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
+The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. The `DBDriver` base class provides a unified URI API (`acceptURI`, `parseURI`, `buildURI`, `getURIScheme`) and a unified `getDriverVersion()` method. The `DBConnection` base class provides `getServerVersion()` and `getServerInfo()` for runtime introspection of database server versions and metadata across all drivers (2026-03-08). Both MySQL and PostgreSQL drivers now follow the same architecture: connection owns mutex directly, PreparedStatement/ResultSet hold `weak_ptr<Connection>` and acquire the mutex via RAII lock helpers (`MySQLConnectionLock` / `PostgreSQLConnectionLock`), PrivateCtorTag pattern with `m_initFailed`/`m_initError`, `std::atomic<bool> m_closed`, result set registry in connection with `notifyConnClosing()` lifecycle management (2026-03-12). `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). The connection pool system is fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
+
+### Recent Improvements (2026-03-12 12:24 PDT)
+
+**PostgreSQL Driver — Shared-Mutex Refactoring, PrivateCtorTag Pattern, Convention Compliance:**
+
+1. **Connection Mutex Ownership Refactored:**
+   - `SharedConnMutex` (shared_ptr<recursive_mutex>) replaced with direct `std::recursive_mutex m_connMutex`
+   - New `getConnectionMutex()` method for child objects to acquire mutex
+   - `m_closed` → `std::atomic<bool>` with proper `memory_order_acquire`/`release`
+   - Result set registry: `m_activeResultSets` with `registerResultSet()`/`unregisterResultSet()`/`closeAllResultSets()`
+   - Lifecycle: `close()`/`reset()`/`returnToPool()` close result sets before statements
+
+2. **PostgreSQLConnectionLock RAII Helper:**
+   - New class in `postgresql_internal.hpp` — acquires connection's `recursive_mutex` through `weak_ptr<PostgreSQLDBConnection>`
+   - Double-checked locking: check closed → lock weak_ptr (keep alive) → acquire mutex → re-check closed
+   - `PG_STMT_LOCK_OR_RETURN` / `PG_STMT_LOCK_OR_THROW` / `PG_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED` macros
+   - `PG_CONNECTION_LOCK_OR_RETURN` / `PG_CONNECTION_LOCK_OR_THROW` macros for connection methods
+
+3. **PreparedStatement Refactored:**
+   - `weak_ptr<PGconn>` → `weak_ptr<PostgreSQLDBConnection>`; access PGconn* via `getPGConnection(std::nothrow)` through `conn->m_conn`
+   - PrivateCtorTag + `m_initFailed`/`m_initError`; `enable_shared_from_this`; `std::atomic<bool> m_closed`
+   - `create()` factories unified: single nothrow version with PrivateCtorTag, throwing inside `#ifdef __cpp_exceptions`
+
+4. **ResultSet Refactored:**
+   - PrivateCtorTag pattern; `weak_ptr<PostgreSQLDBConnection>`; shares connection mutex (independent mutex removed)
+   - `notifyConnClosing()` for connection lifecycle management
+   - Dead try/catch removed from `isBeforeFirst()`, `isAfterLast()`, `getRow()`, `getColumnNames()`, `getColumnCount()`
+   - `std::stoi`/`std::stoll`/`std::stod` → `std::from_chars`; `strtol` → `std::from_chars` (hex parsing)
+
+5. **InputStream Refactored:**
+   - PrivateCtorTag pattern; throwing `validateAndEnd()` removed; noexcept constructor
+
+6. **Convention Compliance:**
+   - NOSONAR annotations on all `catch(...)` blocks
+   - `.has_value()` enforcement replacing implicit bool conversion
+   - `DB_DRIVER_LOCK_GUARD` → `std::scoped_lock` (was `std::lock_guard`)
+   - `PG_DEBUG` macro: `iostream` → `snprintf`-based with timestamp via `logWithTimesMillis()`
+
+7. **Impact:** 18 files changed, +733/-655 lines
 
 ### Recent Improvements (2026-03-08 17:25 PST)
 

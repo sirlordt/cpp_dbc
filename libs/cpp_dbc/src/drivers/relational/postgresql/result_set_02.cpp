@@ -43,7 +43,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            PG_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
 
             if (m_result)
             {
@@ -53,6 +53,8 @@ namespace cpp_dbc::PostgreSQL
                 m_rowCount = 0;
                 m_fieldCount = 0;
             }
+
+            m_closed.store(true, std::memory_order_release);
             return {};
         }
         catch (const DBException &ex)
@@ -65,7 +67,7 @@ namespace cpp_dbc::PostgreSQL
                                                                std::string("close failed: ") + ex.what(),
                                                                system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("6HL8OTNIZDP4",
                                                                "close failed: unknown error",
@@ -77,7 +79,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            PG_STMT_LOCK_OR_RETURN("PV38KVY6QHYV", "ResultSet closed");
             return m_rowCount == 0;
         }
         catch (const DBException &ex)
@@ -90,7 +92,7 @@ namespace cpp_dbc::PostgreSQL
                                                                std::string("isEmpty failed: ") + ex.what(),
                                                                system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("AGP9SII10X7C",
                                                                "isEmpty failed: unknown error",
@@ -102,7 +104,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            PG_STMT_LOCK_OR_RETURN("PV38KVY6QHYV", "ResultSet closed");
 
             if (!m_result || m_rowPosition >= m_rowCount)
             {
@@ -116,7 +118,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("11AD78E9C72F", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("69BA39113CCA", "Unknown error in PostgreSQLDBResultSet::next", system_utils::captureCallStack()));
         }
@@ -124,57 +126,24 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBResultSet::isBeforeFirst(std::nothrow_t) noexcept
     {
-        try
-        {
-            return m_rowPosition == 0;
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("A9CD0E3B6241", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("C3BE49F7A8D2", "Unknown error in PostgreSQLDBResultSet::isBeforeFirst", system_utils::captureCallStack()));
-        }
+        return m_rowPosition == 0;
     }
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBResultSet::isAfterLast(std::nothrow_t) noexcept
     {
-        try
-        {
-            return m_result && m_rowPosition > m_rowCount;
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("27DB83E591AF", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("B94C03EA75D1", "Unknown error in PostgreSQLDBResultSet::isAfterLast", system_utils::captureCallStack()));
-        }
+        return m_result && m_rowPosition > m_rowCount;
     }
 
     cpp_dbc::expected<uint64_t, DBException> PostgreSQLDBResultSet::getRow(std::nothrow_t) noexcept
     {
-        try
-        {
-            return m_rowPosition;
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("F5E21DA897B6", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("9A4E73C0D8F2", "Unknown error in PostgreSQLDBResultSet::getRow", system_utils::captureCallStack()));
-        }
+        return m_rowPosition;
     }
 
     cpp_dbc::expected<int, DBException> PostgreSQLDBResultSet::getInt(std::nothrow_t, size_t columnIndex) noexcept
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            PG_STMT_LOCK_OR_RETURN("PV38KVY6QHYV", "ResultSet closed");
 
             if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
@@ -191,14 +160,13 @@ namespace cpp_dbc::PostgreSQL
             }
 
             const char *value = PQgetvalue(m_result.get(), row, idx);
-            try
-            {
-                return std::stoi(value);
-            }
-            catch ([[maybe_unused]] const std::exception &ex)
+            int result = 0;
+            auto [ptr, ec] = std::from_chars(value, value + std::strlen(value), result);
+            if (ec != std::errc{})
             {
                 return cpp_dbc::unexpected<DBException>(DBException("GV1IE638SARF", "Failed to convert value to int", system_utils::captureCallStack()));
             }
+            return result;
         }
         catch (const DBException &ex)
         {
@@ -208,7 +176,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("D28E47A9FC35", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("0B4C5A8D76E3", "Unknown error in PostgreSQLDBResultSet::getInt", system_utils::captureCallStack()));
         }
@@ -234,7 +202,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("FE573C284D9A", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("18CA4D3B2E07", "Unknown error in PostgreSQLDBResultSet::getInt", system_utils::captureCallStack()));
         }
@@ -244,7 +212,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            PG_STMT_LOCK_OR_RETURN("PV38KVY6QHYV", "ResultSet closed");
 
             if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
@@ -260,14 +228,13 @@ namespace cpp_dbc::PostgreSQL
             }
 
             const char *value = PQgetvalue(m_result.get(), row, idx);
-            try
-            {
-                return std::stoll(value);
-            }
-            catch ([[maybe_unused]] const std::exception &ex)
+            int64_t result = 0;
+            auto [ptr, ec] = std::from_chars(value, value + std::strlen(value), result);
+            if (ec != std::errc{})
             {
                 return cpp_dbc::unexpected<DBException>(DBException("PRTK87X1YSDK", "Failed to convert value to int64", system_utils::captureCallStack()));
             }
+            return result;
         }
         catch (const DBException &ex)
         {
@@ -277,7 +244,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("7D9E2F8A1B3C", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("5C6A2D3E7F1B", "Unknown error in PostgreSQLDBResultSet::getLong", system_utils::captureCallStack()));
         }
@@ -303,7 +270,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("3D9B7C5E8F2A", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("6A2E9F1D7B4C", "Unknown error in PostgreSQLDBResultSet::getLong", system_utils::captureCallStack()));
         }
@@ -313,7 +280,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            PG_STMT_LOCK_OR_RETURN("PV38KVY6QHYV", "ResultSet closed");
 
             if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
@@ -329,14 +296,13 @@ namespace cpp_dbc::PostgreSQL
             }
 
             const char *value = PQgetvalue(m_result.get(), row, idx);
-            try
-            {
-                return std::stod(value);
-            }
-            catch ([[maybe_unused]] const std::exception &ex)
+            double result = 0.0;
+            auto [ptr, ec] = std::from_chars(value, value + std::strlen(value), result);
+            if (ec != std::errc{})
             {
                 return cpp_dbc::unexpected<DBException>(DBException("9O0P1Q2R3S4T", "Failed to convert value to double", system_utils::captureCallStack()));
             }
+            return result;
         }
         catch (const DBException &ex)
         {
@@ -346,7 +312,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("7B2E8F4D9A3C", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("5D1F7E3B9C2A", "Unknown error in PostgreSQLDBResultSet::getDouble", system_utils::captureCallStack()));
         }
@@ -372,7 +338,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("2C8A1E9D3B5F", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("4D7F6E2A8B1C", "Unknown error in PostgreSQLDBResultSet::getDouble", system_utils::captureCallStack()));
         }

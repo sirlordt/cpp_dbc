@@ -39,7 +39,10 @@ namespace cpp_dbc::PostgreSQL
 {
 
     // PostgreSQLDBResultSet implementation
-    PostgreSQLDBResultSet::PostgreSQLDBResultSet(PGresult *res) : m_result(res)
+    PostgreSQLDBResultSet::PostgreSQLDBResultSet(PrivateCtorTag, std::nothrow_t,
+                                                  std::weak_ptr<PostgreSQLDBConnection> conn,
+                                                  PGresult *res) noexcept
+        : m_connection(std::move(conn)), m_result(res)
     {
         if (m_result)
         {
@@ -53,9 +56,28 @@ namespace cpp_dbc::PostgreSQL
                 m_columnNames.push_back(name);
                 m_columnMap[name] = i;
             }
+
+            m_closed.store(false, std::memory_order_release);
         }
         else
         {
+            m_rowCount = 0;
+            m_fieldCount = 0;
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>("F32TX52NEFOR",
+                "ResultSet created with null PGresult",
+                system_utils::captureCallStack());
+        }
+    }
+
+    void PostgreSQLDBResultSet::notifyConnClosing()
+    {
+        // Called by connection when closing — mark as closed and release PGresult
+        m_closed.store(true, std::memory_order_release);
+        if (m_result)
+        {
+            m_result.reset();
+            m_rowPosition = 0;
             m_rowCount = 0;
             m_fieldCount = 0;
         }
@@ -63,14 +85,14 @@ namespace cpp_dbc::PostgreSQL
 
     PostgreSQLDBResultSet::~PostgreSQLDBResultSet()
     {
-        auto closeResult = PostgreSQLDBResultSet::close(std::nothrow);
-        if (!closeResult.has_value())
+        // If not already closed by notifyConnClosing, close now
+        if (!m_closed.load(std::memory_order_acquire))
         {
-            PG_DEBUG("PostgreSQLDBResultSet::destructor - close() failed: " << closeResult.error().what_s());
+            [[maybe_unused]] auto closeResult = PostgreSQLDBResultSet::close(std::nothrow);
         }
     }
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     void PostgreSQLDBResultSet::close()
     {
         auto result = close(std::nothrow);
@@ -383,15 +405,14 @@ namespace cpp_dbc::PostgreSQL
 
     std::vector<uint8_t> PostgreSQLDBResultSet::getBytes(const std::string &columnName)
     {
-        auto it = m_columnMap.find(columnName);
-        if (it == m_columnMap.end())
+        auto result = this->getBytes(std::nothrow, columnName);
+        if (!result.has_value())
         {
-            throw DBException("PG1H9I0J1K2L", "Column not found: " + columnName, system_utils::captureCallStack());
+            throw result.error();
         }
-
-        return getBytes(it->second + 1); // +1 because getBytes(int) is 1-based
+        return result.value();
     }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::PostgreSQL
 

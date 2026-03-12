@@ -12,6 +12,14 @@
 
 ## Completed Tasks
 
+- PostgreSQL Driver — Shared-Mutex Refactoring, PrivateCtorTag Pattern, Convention Compliance (2026-03-12):
+  - `SharedConnMutex` (shared_ptr<recursive_mutex>) replaced with direct `std::recursive_mutex` in `PostgreSQLDBConnection`
+  - `PostgreSQLConnectionLock` RAII helper with double-checked locking through `weak_ptr<PostgreSQLDBConnection>`
+  - `PostgreSQLDBPreparedStatement`/`PostgreSQLDBResultSet`/`PostgreSQLInputStream`: PrivateCtorTag pattern, `weak_ptr<PostgreSQLDBConnection>`, `std::atomic<bool> m_closed`
+  - Result set registry with `notifyConnClosing()` lifecycle management
+  - Convention compliance: NOSONAR annotations, `std::from_chars`, dead try/catch removed, `PG_DEBUG` rewritten to `snprintf`-based
+  - 18 files changed, +733/-655 lines
+
 - Unified version/info API across all drivers, MySQL code hardening, BlobStream connection validation (2026-03-08):
   - `getDriverVersion()` moved from family driver bases to `DBDriver` base; implemented in all 7 drivers
   - `getServerVersion()` + `getServerInfo()` (throwing + nothrow) added to `DBConnection` base; all 7 drivers return driver-specific metadata maps

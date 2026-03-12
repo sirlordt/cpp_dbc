@@ -56,7 +56,7 @@ All BLOB implementations use smart pointers (`std::weak_ptr`) for safe connectio
 
 - **FirebirdBlob**: Uses `weak_ptr<FirebirdConnection>` with `getConnection()` helper
 - **MySQLBlob**: Uses `weak_ptr<MySQLDBConnection>` for safe connection access
-- **PostgreSQLBlob**: Uses `weak_ptr<PGconn>` with `getPGConnection()` helper
+- **PostgreSQLBlob**: Uses `weak_ptr<PGconn>` with `getPGConnection(std::nothrow)` helper
 - **SQLiteBlob**: Uses `weak_ptr<sqlite3>` with `getSQLiteConnection()` helper
 
 All BLOB classes have an `isConnectionValid()` method to check if the connection is still valid. Operations throw `DBException` if the connection has been closed, preventing use-after-free errors. The `BlobStream` base class declares `isConnectionValid()` as a pure virtual, and `MemoryBlob` (in-memory BLOBs with no database connection) always returns `true`.

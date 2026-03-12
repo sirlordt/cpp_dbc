@@ -43,19 +43,20 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            PG_STMT_LOCK_OR_RETURN("83S78M5O9PFH", "Statement closed");
 
-            // Get the connection safely
-            auto connPtr = m_conn.lock();
-            if (!connPtr)
+            // Get PGconn* safely through the connection
+            auto connResult = getPGConnection(std::nothrow);
+            if (!connResult.has_value())
             {
-                return cpp_dbc::unexpected<DBException>(DBException("J6K7L8M9N0O1", "PostgreSQL connection has been closed", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(connResult.error());
             }
+            PGconn *pgConn = connResult.value();
 
             // Prepare the statement if not already prepared
             if (!m_prepared)
             {
-                PGresult *prepareResult = PQprepare(connPtr.get(), m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data());
+                PGresult *prepareResult = PQprepare(pgConn, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data());
                 if (PQresultStatus(prepareResult) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(prepareResult);
@@ -78,7 +79,7 @@ namespace cpp_dbc::PostgreSQL
             std::vector<int> paramLengthsInt(m_paramLengths.begin(), m_paramLengths.end());
 
             PGresult *result = PQexecPrepared(
-                connPtr.get(),
+                pgConn,
                 m_stmtName.c_str(),
                 static_cast<int>(m_paramValues.size()),
                 paramValuePtrs.data(),
@@ -94,7 +95,8 @@ namespace cpp_dbc::PostgreSQL
                 return cpp_dbc::unexpected<DBException>(DBException("7ZYR9G76KRKT", "Failed to execute query: " + error, system_utils::captureCallStack()));
             }
 
-            auto rsResult = PostgreSQLDBResultSet::create(std::nothrow, result);
+            // Create ResultSet with connection reference for lifecycle management
+            auto rsResult = PostgreSQLDBResultSet::create(std::nothrow, m_connection, result);
             if (!rsResult.has_value())
             {
                 return cpp_dbc::unexpected(rsResult.error());
@@ -102,7 +104,7 @@ namespace cpp_dbc::PostgreSQL
 
             // Close the statement after execution (single-use)
             // This is safe because PQexecPrepared() copies all data to the PGresult
-            close();
+            [[maybe_unused]] auto closeResult = close(std::nothrow);
 
             return cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>{rsResult.value()};
         }
@@ -114,7 +116,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("7D2E9B4F1C8A", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("3F8C6A5D2B9E", "Unknown error in PostgreSQLDBPreparedStatement::executeQuery", system_utils::captureCallStack()));
         }
@@ -124,19 +126,20 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            PG_STMT_LOCK_OR_RETURN("83S78M5O9PFH", "Statement closed");
 
-            // Get the connection safely
-            auto connPtr = m_conn.lock();
-            if (!connPtr)
+            // Get PGconn* safely through the connection
+            auto connResult = getPGConnection(std::nothrow);
+            if (!connResult.has_value())
             {
-                return cpp_dbc::unexpected<DBException>(DBException("K7L8M9N0O1P2", "PostgreSQL connection has been closed", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(connResult.error());
             }
+            PGconn *pgConn = connResult.value();
 
             // Prepare the statement if not already prepared
             if (!m_prepared)
             {
-                PGresult *prepareResult = PQprepare(connPtr.get(), m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data());
+                PGresult *prepareResult = PQprepare(pgConn, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data());
                 if (PQresultStatus(prepareResult) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(prepareResult);
@@ -159,7 +162,7 @@ namespace cpp_dbc::PostgreSQL
             std::vector<int> paramLengthsInt(m_paramLengths.begin(), m_paramLengths.end());
 
             PGresult *result = PQexecPrepared(
-                connPtr.get(),
+                pgConn,
                 m_stmtName.c_str(),
                 static_cast<int>(m_paramValues.size()),
                 paramValuePtrs.data(),
@@ -187,7 +190,7 @@ namespace cpp_dbc::PostgreSQL
             PQclear(result);
 
             // Close the statement after execution (single-use)
-            close();
+            [[maybe_unused]] auto closeResult = close(std::nothrow);
 
             return rowCount;
         }
@@ -199,7 +202,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("9E2D7F5A3B8C", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("6F1A9D3C7E2B", "Unknown error in PostgreSQLDBPreparedStatement::executeUpdate", system_utils::captureCallStack()));
         }
@@ -209,19 +212,20 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            PG_STMT_LOCK_OR_RETURN("83S78M5O9PFH", "Statement closed");
 
-            // Get the connection safely
-            auto connPtr = m_conn.lock();
-            if (!connPtr)
+            // Get PGconn* safely through the connection
+            auto connResult = getPGConnection(std::nothrow);
+            if (!connResult.has_value())
             {
-                return cpp_dbc::unexpected<DBException>(DBException("L8M9N0O1P2Q3", "PostgreSQL connection has been closed", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(connResult.error());
             }
+            PGconn *pgConn = connResult.value();
 
             // Prepare the statement if not already prepared
             if (!m_prepared)
             {
-                PGresult *prepareResult = PQprepare(connPtr.get(), m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data());
+                PGresult *prepareResult = PQprepare(pgConn, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data());
                 if (PQresultStatus(prepareResult) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(prepareResult);
@@ -244,7 +248,7 @@ namespace cpp_dbc::PostgreSQL
             std::vector<int> paramLengthsInt(m_paramLengths.begin(), m_paramLengths.end());
 
             PGresult *result = PQexecPrepared(
-                connPtr.get(),
+                pgConn,
                 m_stmtName.c_str(),
                 static_cast<int>(m_paramValues.size()),
                 paramValuePtrs.data(),
@@ -275,7 +279,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("7A9C5E2B8D3F", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("1F4B8E3D7A2C", "Unknown error in PostgreSQLDBPreparedStatement::execute", system_utils::captureCallStack()));
         }
@@ -288,16 +292,16 @@ namespace cpp_dbc::PostgreSQL
             // CRITICAL: Must hold the shared connection mutex to prevent race conditions.
             // PQexec(DEALLOCATE) uses the PGconn* connection, so concurrent access from
             // another thread (e.g., connection pool validation) causes protocol errors.
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            PG_STMT_LOCK_OR_RETURN("83S78M5O9PFH", "Statement closed");
 
             if (m_prepared)
             {
                 // Try to deallocate the prepared statement if connection is still valid
-                auto conn = m_conn.lock();
-                if (conn)
+                auto conn = m_connection.lock();
+                if (conn && conn->m_conn)
                 {
                     std::string deallocateSQL = "DEALLOCATE " + m_stmtName;
-                    PGresult *res = PQexec(conn.get(), deallocateSQL.c_str());
+                    PGresult *res = PQexec(conn->m_conn.get(), deallocateSQL.c_str());
                     if (res)
                     {
                         PQclear(res);
@@ -316,7 +320,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("3D8E5F2A9B7C", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("6B9C2D7E4F1A", "Unknown error in PostgreSQLDBPreparedStatement::close", system_utils::captureCallStack()));
         }

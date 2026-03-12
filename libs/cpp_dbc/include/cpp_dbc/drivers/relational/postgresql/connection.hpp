@@ -4,6 +4,7 @@
 
 #if USE_POSTGRESQL
 
+#include <atomic>
 #include <map>
 #include <set>
 #include <string>
@@ -13,6 +14,7 @@
 namespace cpp_dbc::PostgreSQL
 {
     class PostgreSQLDBPreparedStatement;
+    class PostgreSQLDBResultSet;
 
     /**
      * @brief PostgreSQL connection implementation
@@ -36,6 +38,9 @@ namespace cpp_dbc::PostgreSQL
      */
     class PostgreSQLDBConnection final : public RelationalDBConnection, public std::enable_shared_from_this<PostgreSQLDBConnection>
     {
+        friend class PostgreSQLDBPreparedStatement;
+        friend class PostgreSQLDBResultSet;
+
         /**
          * @brief Private tag for the passkey idiom — enables std::make_shared
          * from static factory methods while keeping the constructor
@@ -47,7 +52,7 @@ namespace cpp_dbc::PostgreSQL
         };
 
         PGconnHandle m_conn; // shared_ptr allows PreparedStatements to use weak_ptr
-        bool m_closed{true};
+        std::atomic<bool> m_closed{true};
 
         // Stored by the create() factory so close() can unregister from the driver registry
         // using owner_less comparison (raw 'this' won't work with the set's comparator).
@@ -64,43 +69,11 @@ namespace cpp_dbc::PostgreSQL
          * @brief Registry of active prepared statements using weak_ptr
          *
          * @details
-         * **DESIGN RATIONALE - Statement Lifecycle Management:**
-         *
-         * This registry uses `weak_ptr` instead of `shared_ptr` to track active statements.
-         * This design decision addresses a complex threading issue in connection pooling scenarios.
-         *
-         * **THE PROBLEM:**
-         *
-         * When using `shared_ptr` for statement tracking:
-         * - Statements remain alive as long as the connection exists
-         * - Memory accumulates if users create many statements without explicitly closing them
-         * - However, this prevents race conditions because statements don't get destroyed unexpectedly
-         *
-         * When using `weak_ptr` without proper synchronization:
-         * - Statements can be destroyed at any time when user releases their reference
-         * - The destructor deallocates the prepared statement on the PostgreSQL server
-         * - If another thread is using the same `PGconn*` connection (e.g., connection pool validation),
-         *   this causes a race condition leading to protocol errors or memory corruption
-         *
-         * **THE SOLUTION:**
-         *
-         * We use `weak_ptr` combined with explicit statement cleanup in `returnToPool()`:
-         *
-         * 1. `weak_ptr` allows statements to be destroyed when the user releases them (no memory leak)
-         * 2. Before returning a connection to the pool, `returnToPool()` explicitly closes ALL
-         *    active statements while holding exclusive access to the connection
-         * 3. This ensures no statement destruction can race with connection reuse by another thread
-         * 4. The `close()` method also closes all statements before destroying the connection
-         *
-         * **LIFECYCLE GUARANTEE:**
-         *
-         * - Statement created -> registered in this set (weak_ptr)
-         * - User uses statement -> statement remains valid
+         * Uses `weak_ptr` to track active statements. Statement lifecycle is managed as follows:
+         * - Statement created -> registered in this set
          * - User releases statement -> destructor may run, deallocates statement
          * - Connection returned to pool -> ALL remaining statements are explicitly closed first
          * - Connection closed -> ALL remaining statements are explicitly closed first
-         *
-         * This ensures statement deallocation never races with other connection operations.
          *
          * @note Mutex asymmetry by design: m_statementsMutex is ALWAYS present (unconditional)
          * because statement registration/cleanup can occur from different execution paths even
@@ -108,62 +81,47 @@ namespace cpp_dbc::PostgreSQL
          *
          * @see returnToPool() - Closes all statements before making connection available
          * @see close() - Closes all statements before destroying connection
-         * @see registerStatement() - Adds statement to registry
-         * @see unregisterStatement() - Removes statement from registry (unused, kept for API symmetry)
          */
         std::set<std::weak_ptr<PostgreSQLDBPreparedStatement>, std::owner_less<std::weak_ptr<PostgreSQLDBPreparedStatement>>> m_activeStatements;
 
         /**
-         * @brief Mutex protecting m_activeStatements registry
+         * @brief Registry of active result sets using weak_ptr
+         *
+         * @details
+         * Mirrors the statement registry pattern. When the connection closes,
+         * all active result sets are notified and closed. This ensures consistent
+         * lifecycle management across all drivers (Firebird, MySQL, SQLite, PostgreSQL).
+         */
+        std::set<std::weak_ptr<PostgreSQLDBResultSet>, std::owner_less<std::weak_ptr<PostgreSQLDBResultSet>>> m_activeResultSets;
+
+        /**
+         * @brief Mutex protecting m_activeStatements and m_activeResultSets registries
          *
          * @note This mutex is ALWAYS present (not conditional on DB_DRIVER_THREAD_SAFE) because
-         * statement registration/cleanup can occur from different execution paths even in
+         * registration/cleanup can occur from different execution paths even in
          * single-threaded builds (e.g., during returnToPool() or close()).
          */
         std::mutex m_statementsMutex;
 
 #if DB_DRIVER_THREAD_SAFE
         /**
-         * @brief Shared connection mutex for thread-safe operations
+         * @brief Connection mutex for thread-safe operations
          *
-         * This mutex is shared with all PreparedStatements created from this connection.
-         * This ensures that PQexec(DEALLOCATE) in PreparedStatement destructors is
-         * serialized with all other connection operations, preventing race conditions.
+         * This mutex is shared with all PreparedStatements and ResultSets created from
+         * this connection, accessed via getConnectionMutex(). This ensures that all
+         * operations on the connection and its children are serialized, preventing
+         * race conditions.
          */
-        SharedConnMutex m_connMutex = std::make_shared<std::recursive_mutex>();
+        std::recursive_mutex m_connMutex;
 #endif
 
-        /**
-         * @brief Register a prepared statement in the active statements registry
-         * @param stmt Weak pointer to the statement to register
-         * @note Called automatically when a new PreparedStatement is created via prepareStatement()
-         */
         cpp_dbc::expected<void, DBException> registerStatement(std::nothrow_t, std::weak_ptr<PostgreSQLDBPreparedStatement> stmt) noexcept;
-
-        /**
-         * @brief Unregister a prepared statement from the active statements registry
-         * @param stmt Weak pointer to the statement to unregister
-         * @note Currently unused - statements are cleaned up via closeAllStatements() or expire naturally.
-         *       Kept for API symmetry and potential future use.
-         */
         cpp_dbc::expected<void, DBException> unregisterStatement(std::nothrow_t, std::weak_ptr<PostgreSQLDBPreparedStatement> stmt) noexcept;
-
-        /**
-         * @brief Close all active prepared statements
-         *
-         * @details
-         * This method iterates through all registered statements and explicitly closes them.
-         * It is called by:
-         * - `returnToPool()` before making the connection available for reuse
-         * - `close()` before destroying the connection
-         *
-         * This ensures that statement deallocation is done while we have exclusive access
-         * to the connection, preventing race conditions with other threads.
-         *
-         * @note Statements that have already expired (weak_ptr returns nullptr) are simply
-         * removed from the registry without any action.
-         */
         cpp_dbc::expected<void, DBException> closeAllStatements(std::nothrow_t) noexcept;
+
+        cpp_dbc::expected<void, DBException> registerResultSet(std::nothrow_t, std::weak_ptr<PostgreSQLDBResultSet> rs) noexcept;
+        cpp_dbc::expected<void, DBException> unregisterResultSet(std::nothrow_t, std::weak_ptr<PostgreSQLDBResultSet> rs) noexcept;
+        cpp_dbc::expected<void, DBException> closeAllResultSets(std::nothrow_t) noexcept;
 
         /**
          * @brief Format a PQserverVersion() integer into a human-readable version string.
@@ -172,19 +130,7 @@ namespace cpp_dbc::PostgreSQL
          */
         std::string formatServerVersion(std::nothrow_t, int version) const noexcept;
 
-        /**
-         * @brief Flag indicating constructor initialization failed
-         *
-         * Set by the nothrow constructor when connection setup fails.
-         * Inspected by create(nothrow_t) to propagate the error via expected.
-         */
         bool m_initFailed{false};
-
-        /**
-         * @brief Error captured when constructor initialization fails
-         *
-         * Holds the DBException that would have been thrown, for deferred delivery.
-         */
         std::unique_ptr<DBException> m_initError{nullptr};
 
     protected:
@@ -194,15 +140,6 @@ namespace cpp_dbc::PostgreSQL
         cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
 
     public:
-        /**
-         * @brief Nothrow constructor — contains all connection logic.
-         *
-         * All PQconnectdb, PQstatus, and initial autocommit logic lives here.
-         * On failure, sets m_initFailed and m_initError instead of throwing.
-         *
-         * Public for std::make_shared access, but effectively private:
-         * external code cannot construct PrivateCtorTag.
-         */
         PostgreSQLDBConnection(PrivateCtorTag,
                                std::nothrow_t,
                                const std::string &host,
@@ -261,6 +198,21 @@ namespace cpp_dbc::PostgreSQL
             return obj;
         }
 
+#if DB_DRIVER_THREAD_SAFE
+        /**
+         * @brief Get a reference to the connection's recursive_mutex
+         *
+         * Used by PreparedStatement and ResultSet via PostgreSQLConnectionLock to acquire
+         * the connection's mutex through the weak_ptr<Connection> pattern.
+         *
+         * @return Reference to the connection's recursive_mutex
+         */
+        std::recursive_mutex &getConnectionMutex() noexcept
+        {
+            return m_connMutex;
+        }
+#endif
+
 // DBConnection interface
 #ifdef __cpp_exceptions
         void close() override;
@@ -289,13 +241,14 @@ namespace cpp_dbc::PostgreSQL
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
 
-        /** @brief Generate a unique name for server-side prepared statements */
-        std::string generateStatementName();
-
         std::string getServerVersion() override;
         std::map<std::string, std::string> getServerInfo() override;
 
 #endif // __cpp_exceptions
+
+        /** @brief Generate a unique name for server-side prepared statements */
+        std::string generateStatementName();
+
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

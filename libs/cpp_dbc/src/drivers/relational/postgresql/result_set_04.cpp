@@ -42,7 +42,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            PG_STMT_LOCK_OR_RETURN("PV38KVY6QHYV", "ResultSet closed");
 
             if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
@@ -68,7 +68,7 @@ namespace cpp_dbc::PostgreSQL
 
             // Get the binary data using our getBytes method
             auto bytesResult = getBytes(std::nothrow, columnIndex);
-            if (!bytesResult)
+            if (!bytesResult.has_value())
             {
                 return cpp_dbc::unexpected<DBException>(bytesResult.error());
             }
@@ -87,7 +87,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("F93D7A2B6E1C", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("4B8C2E5A1F9D", "Unknown error in PostgreSQLDBResultSet::getBlob", system_utils::captureCallStack()));
         }
@@ -113,7 +113,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("5A1D9F8E3B7C", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("2C6E8A4B9D1F", "Unknown error in PostgreSQLDBResultSet::getBlob", system_utils::captureCallStack()));
         }
@@ -123,7 +123,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            PG_STMT_LOCK_OR_RETURN("PV38KVY6QHYV", "ResultSet closed");
 
             if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
@@ -137,12 +137,17 @@ namespace cpp_dbc::PostgreSQL
             if (PQgetisnull(m_result.get(), row, idx))
             {
                 // Return an empty stream
-                return cpp_dbc::expected<std::shared_ptr<InputStream>, DBException>{std::make_shared<PostgreSQLInputStream>("", 0)};
+                auto emptyResult = PostgreSQLInputStream::create(std::nothrow, "", 0);
+                if (!emptyResult.has_value())
+                {
+                    return cpp_dbc::unexpected<DBException>(emptyResult.error());
+                }
+                return cpp_dbc::expected<std::shared_ptr<InputStream>, DBException>{emptyResult.value()};
             }
 
             // Get the binary data using our getBytes method
             auto bytesResult = getBytes(std::nothrow, columnIndex);
-            if (!bytesResult)
+            if (!bytesResult.has_value())
             {
                 return cpp_dbc::unexpected<DBException>(bytesResult.error());
             }
@@ -151,14 +156,23 @@ namespace cpp_dbc::PostgreSQL
             // Create a new input stream with the data
             if (data.empty())
             {
-                return cpp_dbc::expected<std::shared_ptr<InputStream>, DBException>{std::make_shared<PostgreSQLInputStream>("", 0)};
+                auto emptyResult = PostgreSQLInputStream::create(std::nothrow, "", 0);
+                if (!emptyResult.has_value())
+                {
+                    return cpp_dbc::unexpected<DBException>(emptyResult.error());
+                }
+                return cpp_dbc::expected<std::shared_ptr<InputStream>, DBException>{emptyResult.value()};
             }
             else
             {
-                return cpp_dbc::expected<std::shared_ptr<InputStream>, DBException>{
-                    std::make_shared<PostgreSQLInputStream>(
-                        reinterpret_cast<const char *>(data.data()),
-                        data.size())};
+                auto streamResult = PostgreSQLInputStream::create(std::nothrow,
+                    reinterpret_cast<const char *>(data.data()),
+                    data.size());
+                if (!streamResult.has_value())
+                {
+                    return cpp_dbc::unexpected<DBException>(streamResult.error());
+                }
+                return cpp_dbc::expected<std::shared_ptr<InputStream>, DBException>{streamResult.value()};
             }
         }
         catch (const DBException &ex)
@@ -169,7 +183,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("3A7C9E5F1D2B", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("8D4B2F6E9A1C", "Unknown error in PostgreSQLDBResultSet::getBinaryStream", system_utils::captureCallStack()));
         }
@@ -195,7 +209,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("7B2E9A4F1D5C", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("3C8F5E1A9D7B", "Unknown error in PostgreSQLDBResultSet::getBinaryStream", system_utils::captureCallStack()));
         }
@@ -205,7 +219,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            PG_STMT_LOCK_OR_RETURN("PV38KVY6QHYV", "ResultSet closed");
 
             if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
@@ -251,8 +265,8 @@ namespace cpp_dbc::PostgreSQL
                             if (i + 1 < hexLength)
                             {
                                 // Convert hex pair to byte
-                                std::array<char, 3> hexPair = {hexData[i], hexData[i + 1], 0};
-                                auto byte = static_cast<uint8_t>(strtol(hexPair.data(), nullptr, 16));
+                                uint8_t byte = 0;
+                                std::from_chars(hexData + i, hexData + i + 2, byte, 16);
                                 data.push_back(byte);
                             }
                         }
@@ -289,7 +303,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("7F2E9D3B8C5A", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("4A1D8B5F2E7C", "Unknown error in PostgreSQLDBResultSet::getBytes", system_utils::captureCallStack()));
         }
@@ -315,7 +329,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("3D8B7E2F5A9C", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("6F1C8A3B9D2E", "Unknown error in PostgreSQLDBResultSet::getBytes", system_utils::captureCallStack()));
         }

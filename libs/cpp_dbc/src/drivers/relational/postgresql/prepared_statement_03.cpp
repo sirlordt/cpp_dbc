@@ -43,7 +43,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            PG_STMT_LOCK_OR_RETURN("95SUU8L0G8UF", "Statement closed");
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
@@ -89,7 +89,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("7D9E3B5F8A2C", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("4B6A9C1E8D3F", "Unknown error in PostgreSQLDBPreparedStatement::setBlob", system_utils::captureCallStack()));
         }
@@ -99,7 +99,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            PG_STMT_LOCK_OR_RETURN("95SUU8L0G8UF", "Statement closed");
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
@@ -151,7 +151,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("2A6D9F4B7E3C", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("8C5E1B7A2D9F", "Unknown error in PostgreSQLDBPreparedStatement::setBinaryStream", system_utils::captureCallStack()));
         }
@@ -161,7 +161,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            PG_STMT_LOCK_OR_RETURN("95SUU8L0G8UF", "Statement closed");
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
@@ -221,7 +221,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("5D7F3A2E9B1C", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("8C2E6B9A4F1D", "Unknown error in PostgreSQLDBPreparedStatement::setBinaryStream", system_utils::captureCallStack()));
         }
@@ -231,7 +231,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            PG_STMT_LOCK_OR_RETURN("95SUU8L0G8UF", "Statement closed");
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
@@ -261,7 +261,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("3A7F9D2E5B8C", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("6E1B9D4A7C2F", "Unknown error in PostgreSQLDBPreparedStatement::setBytes", system_utils::captureCallStack()));
         }
@@ -271,7 +271,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            PG_STMT_LOCK_OR_RETURN("95SUU8L0G8UF", "Statement closed");
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
@@ -312,7 +312,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("7D9F2B5E3A8C", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("4E8B3F9A2D6C", "Unknown error in PostgreSQLDBPreparedStatement::setBytes", system_utils::captureCallStack()));
         }

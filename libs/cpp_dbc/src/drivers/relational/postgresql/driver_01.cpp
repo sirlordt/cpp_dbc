@@ -145,7 +145,7 @@ namespace cpp_dbc::PostgreSQL
                                       false, // allowLocalConnection
                                       true)) // requireDatabase (PostgreSQL requires database)
         {
-            PG_DEBUG("PostgreSQLDBDriver::parseURI - Failed to parse URI: " << uri);
+            PG_DEBUG("PostgreSQLDBDriver::parseURI - Failed to parse URI: %s", uri.c_str());
             return cpp_dbc::unexpected(DBException("1P567517HBSK",
                                                    "Failed to parse PostgreSQL URI: " + uri,
                                                    system_utils::captureCallStack()));

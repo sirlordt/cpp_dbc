@@ -37,7 +37,19 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Unified version/info API across all drivers, MySQL code hardening, BlobStream connection validation** (2026-03-08 17:25 PST):
+1. **PostgreSQL Driver — Shared-Mutex Refactoring, PrivateCtorTag Pattern, Convention Compliance** (2026-03-12 12:24 PDT):
+   - **Connection mutex ownership:** `SharedConnMutex` (shared_ptr<recursive_mutex>) replaced with direct `std::recursive_mutex m_connMutex` in `PostgreSQLDBConnection`; new `getConnectionMutex()` method for child access
+   - **`PostgreSQLConnectionLock` RAII helper:** New class in `postgresql_internal.hpp` acquires connection mutex through `weak_ptr<PostgreSQLDBConnection>` with double-checked locking; marks object closed if connection expired
+   - **`m_closed` → `std::atomic<bool>`:** Connection, PreparedStatement, and ResultSet all use atomic closed flag with proper memory ordering
+   - **PreparedStatement refactored:** `weak_ptr<PGconn>` → `weak_ptr<PostgreSQLDBConnection>`; PrivateCtorTag + `m_initFailed`/`m_initError`; `enable_shared_from_this`; `PG_STMT_LOCK_OR_RETURN` macro replaces `DB_DRIVER_LOCK_GUARD(*m_connMutex)`
+   - **ResultSet refactored:** PrivateCtorTag pattern; `weak_ptr<PostgreSQLDBConnection>`; result set registry in connection; `notifyConnClosing()` lifecycle management; independent mutex removed (shares connection mutex)
+   - **InputStream refactored:** PrivateCtorTag pattern; throwing `validateAndEnd()` removed; noexcept constructor
+   - **Convention fixes:** NOSONAR annotations on all `catch(...)`, `std::from_chars` replacing `std::stoi`/`std::stoll`/`std::stod`/`strtol`, dead try/catch removed from 6+ methods, `.has_value()` enforcement
+   - **`PG_DEBUG` macro rewritten:** `iostream`-based → `snprintf`-based with timestamp via `logWithTimesMillis()`
+   - **`DB_DRIVER_LOCK_GUARD` → `std::scoped_lock`**
+   - 18 files changed, +733/-655 lines
+
+2. **Unified version/info API across all drivers, MySQL code hardening, BlobStream connection validation** (2026-03-08 17:25 PST):
    - **Unified version/info API:** `getDriverVersion()` moved from family driver bases to `DBDriver` base; `getServerVersion()` + `getServerInfo()` (throwing + nothrow) added to `DBConnection` base; all 7 drivers implement with driver-specific metadata
    - **API naming:** MongoDB `getServerInfo()` → `getServerInfoAsDocument()` to avoid base class collision; `getServerInfo()` removed from `KVDBConnection` (now inherited from `DBConnection`)
    - **BlobStream:** `isConnectionValid()` pure virtual added; all blob classes override with `const noexcept`

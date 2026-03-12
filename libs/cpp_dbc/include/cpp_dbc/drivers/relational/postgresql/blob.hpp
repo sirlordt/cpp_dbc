@@ -51,16 +51,6 @@ namespace cpp_dbc::PostgreSQL
             return conn.get();
         }
 
-        PGconn *getPGConnection() const
-        {
-            auto r = getPGConnection(std::nothrow);
-            if (!r.has_value())
-            {
-                throw r.error();
-            }
-            return r.value();
-        }
-
     public:
         /**
          * @brief Constructor for creating a new BLOB

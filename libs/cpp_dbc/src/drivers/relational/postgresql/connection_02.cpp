@@ -43,21 +43,18 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            DB_DRIVER_LOCK_GUARD(m_connMutex);
 
-            if (m_closed || !m_conn)
+            if (m_closed.load(std::memory_order_acquire) || !m_conn)
             {
                 return cpp_dbc::unexpected<DBException>(DBException("7W8X9Y0Z1A2B", "Connection is closed", system_utils::captureCallStack()));
             }
 
-            // Generate a unique statement name and pass weak_ptr to the prepared statement
-            // so it can safely detect when connection is closed
+            // Generate a unique statement name and pass weak_ptr to the connection
+            // so the statement can safely detect when connection is closed
             std::string stmtName = generateStatementName();
-#if DB_DRIVER_THREAD_SAFE
-            auto stmtResult = PostgreSQLDBPreparedStatement::create(std::nothrow, std::weak_ptr<PGconn>(m_conn), m_connMutex, sql, stmtName);
-#else
-            auto stmtResult = PostgreSQLDBPreparedStatement::create(std::nothrow, std::weak_ptr<PGconn>(m_conn), sql, stmtName);
-#endif
+            auto stmtResult = PostgreSQLDBPreparedStatement::create(std::nothrow,
+                std::weak_ptr<PostgreSQLDBConnection>(shared_from_this()), sql, stmtName);
             if (!stmtResult.has_value())
             {
                 return cpp_dbc::unexpected<DBException>(stmtResult.error());
@@ -78,7 +75,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("1D3F5A7C9E2B", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("8B4D6F2A9C3E", "Unknown error in PostgreSQLDBConnection::prepareStatement", system_utils::captureCallStack()));
         }
@@ -88,9 +85,9 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            DB_DRIVER_LOCK_GUARD(m_connMutex);
 
-            if (m_closed || !m_conn)
+            if (m_closed.load(std::memory_order_acquire) || !m_conn)
             {
                 return cpp_dbc::unexpected<DBException>(DBException("3C4D5E6F7G8H", "Connection is closed", system_utils::captureCallStack()));
             }
@@ -103,12 +100,18 @@ namespace cpp_dbc::PostgreSQL
                 return cpp_dbc::unexpected<DBException>(DBException("9I0J1K2L3M4N", "Query failed: " + error, system_utils::captureCallStack()));
             }
 
-            auto rsResult = PostgreSQLDBResultSet::create(std::nothrow, result);
+            auto rsResult = PostgreSQLDBResultSet::create(std::nothrow,
+                std::weak_ptr<PostgreSQLDBConnection>(shared_from_this()), result);
             if (!rsResult.has_value())
             {
                 return cpp_dbc::unexpected(rsResult.error());
             }
-            return cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>(std::static_pointer_cast<RelationalDBResultSet>(rsResult.value()));
+            auto rs = rsResult.value();
+
+            // Register the result set for lifecycle management
+            [[maybe_unused]] auto regResult = registerResultSet(std::nothrow, std::weak_ptr<PostgreSQLDBResultSet>(rs));
+
+            return cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>(std::static_pointer_cast<RelationalDBResultSet>(rs));
         }
         catch (const DBException &ex)
         {
@@ -118,7 +121,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("PG3J1K2L3M4N", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("PG4K2L3M4N5O", "Unknown error in PostgreSQLDBConnection::executeQuery", system_utils::captureCallStack()));
         }
@@ -128,9 +131,9 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            DB_DRIVER_LOCK_GUARD(m_connMutex);
 
-            if (m_closed || !m_conn)
+            if (m_closed.load(std::memory_order_acquire) || !m_conn)
             {
                 return cpp_dbc::unexpected<DBException>(DBException("5O6P7Q8R9S0T", "Connection is closed", system_utils::captureCallStack()));
             }
@@ -163,7 +166,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("9A7C3E5B2D8F", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("4F1D8B6E2A9C", "Unknown error in PostgreSQLDBConnection::executeUpdate", system_utils::captureCallStack()));
         }
@@ -173,9 +176,9 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            DB_DRIVER_LOCK_GUARD(m_connMutex);
 
-            if (m_closed || !m_conn)
+            if (m_closed.load(std::memory_order_acquire) || !m_conn)
             {
                 return cpp_dbc::unexpected<DBException>(DBException("R4S5T6U7V8W9", "Connection is closed", system_utils::captureCallStack()));
             }
@@ -221,7 +224,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("5D7F9A2E8B3C", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("1B6E9C4A8D2F", "Unknown error in PostgreSQLDBConnection::setAutoCommit", system_utils::captureCallStack()));
         }
@@ -229,36 +232,21 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::getAutoCommit(std::nothrow_t) noexcept
     {
-        try
+        if (m_closed.load(std::memory_order_acquire) || !m_conn)
         {
-            if (m_closed || !m_conn)
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("9D3F5A7C2E8B", "Connection is closed", system_utils::captureCallStack()));
-            }
+            return cpp_dbc::unexpected<DBException>(DBException("9D3F5A7C2E8B", "Connection is closed", system_utils::captureCallStack()));
+        }
 
-            return m_autoCommit;
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("1B7D9E5F3A2C", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("8E4C2A6F9B3D", "Unknown error in PostgreSQLDBConnection::getAutoCommit", system_utils::captureCallStack()));
-        }
+        return m_autoCommit;
     }
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::beginTransaction(std::nothrow_t) noexcept
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            DB_DRIVER_LOCK_GUARD(m_connMutex);
 
-            if (m_closed || !m_conn)
+            if (m_closed.load(std::memory_order_acquire) || !m_conn)
             {
                 return cpp_dbc::unexpected<DBException>(DBException("S5T6U7V8W9X0", "Connection is closed", system_utils::captureCallStack()));
             }
@@ -322,7 +310,7 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected<DBException>(DBException("4B8D2F6A9E3C", ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected<DBException>(DBException("7E1C9A5F2D8B", "Unknown error in PostgreSQLDBConnection::beginTransaction", system_utils::captureCallStack()));
         }
@@ -330,27 +318,12 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::transactionActive(std::nothrow_t) noexcept
     {
-        try
+        if (m_closed.load(std::memory_order_acquire) || !m_conn)
         {
-            if (m_closed || !m_conn)
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("5F8B2E9A7D3C", "Connection is closed", system_utils::captureCallStack()));
-            }
+            return cpp_dbc::unexpected<DBException>(DBException("5F8B2E9A7D3C", "Connection is closed", system_utils::captureCallStack()));
+        }
 
-            return m_transactionActive;
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("3A7D9B5E2C8F", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("1D6F8B3E9A2C", "Unknown error in PostgreSQLDBConnection::transactionActive", system_utils::captureCallStack()));
-        }
+        return m_transactionActive;
     }
 
 } // namespace cpp_dbc::PostgreSQL

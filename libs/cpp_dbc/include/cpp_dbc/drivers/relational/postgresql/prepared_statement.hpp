@@ -4,6 +4,7 @@
 
 #if USE_POSTGRESQL
 
+#include <atomic>
 #include <memory>
 #include <vector>
 #include <string>
@@ -31,11 +32,19 @@ namespace cpp_dbc::PostgreSQL
      *
      * @see PostgreSQLDBConnection, PostgreSQLDBResultSet
      */
-    class PostgreSQLDBPreparedStatement final : public RelationalDBPreparedStatement
+    class PostgreSQLDBPreparedStatement final : public RelationalDBPreparedStatement,
+                                                 public std::enable_shared_from_this<PostgreSQLDBPreparedStatement>
     {
         friend class PostgreSQLDBConnection;
+        friend class PostgreSQLConnectionLock;
 
-        std::weak_ptr<PGconn> m_conn; // Safe weak reference to connection - detects when connection is closed
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
+        std::weak_ptr<PostgreSQLDBConnection> m_connection;
+        std::atomic<bool> m_closed{true};
         std::string m_sql;
         std::string m_stmtName;
         std::vector<std::string> m_paramValues;
@@ -47,17 +56,8 @@ namespace cpp_dbc::PostgreSQL
         std::vector<std::shared_ptr<Blob>> m_blobObjects;          // To keep blob objects alive
         std::vector<std::shared_ptr<InputStream>> m_streamObjects; // To keep stream objects alive
 
-#if DB_DRIVER_THREAD_SAFE
-        /**
-         * @brief Shared mutex with the parent connection
-         *
-         * This is the SAME mutex instance as the connection's m_connMutex.
-         * All operations on both Connection and PreparedStatement lock this mutex,
-         * ensuring DEALLOCATE in the destructor never races with other
-         * connection operations.
-         */
-        SharedConnMutex m_connMutex;
-#endif
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
 
         // Internal method called by connection when closing
         void notifyConnClosing();
@@ -65,15 +65,13 @@ namespace cpp_dbc::PostgreSQL
         // Helper method to process SQL and count parameters
         cpp_dbc::expected<int, DBException> processSQL(std::nothrow_t, std::string &sqlQuery) const noexcept;
 
-        // Helper method to get PGconn* safely, returns unexpected if connection is closed
+        // Helper method to get PGconn* safely through the connection, returns unexpected if connection is closed
         cpp_dbc::expected<PGconn *, DBException> getPGConnection(std::nothrow_t) const noexcept;
 
     public:
-#if DB_DRIVER_THREAD_SAFE
-        PostgreSQLDBPreparedStatement(std::weak_ptr<PGconn> conn, SharedConnMutex connMutex, const std::string &sql, const std::string &stmt_name);
-#else
-        PostgreSQLDBPreparedStatement(std::weak_ptr<PGconn> conn, const std::string &sql, const std::string &stmt_name);
-#endif
+        PostgreSQLDBPreparedStatement(PrivateCtorTag, std::nothrow_t,
+                                      std::weak_ptr<PostgreSQLDBConnection> conn,
+                                      const std::string &sql, const std::string &stmt_name) noexcept;
         ~PostgreSQLDBPreparedStatement() override;
 
         // Rule of 5: Non-copyable and non-movable (shares connection mutex and manages server-side state)
@@ -82,71 +80,11 @@ namespace cpp_dbc::PostgreSQL
         PostgreSQLDBPreparedStatement(PostgreSQLDBPreparedStatement &&) = delete;
         PostgreSQLDBPreparedStatement &operator=(PostgreSQLDBPreparedStatement &&) = delete;
 
-#if DB_DRIVER_THREAD_SAFE
-        static cpp_dbc::expected<std::shared_ptr<PostgreSQLDBPreparedStatement>, DBException>
-        create(std::nothrow_t,
-               std::weak_ptr<PGconn> conn,
-               SharedConnMutex connMutex,
-               const std::string &sql,
-               const std::string &stmt_name) noexcept
-        {
-            try
-            {
-                return std::make_shared<PostgreSQLDBPreparedStatement>(conn, connMutex, sql, stmt_name);
-            }
-            catch (const DBException &ex)
-            {
-                return cpp_dbc::unexpected(ex);
-            }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("FRBOTGL3W5V4", ex.what(), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("6A43HAITJ9C5", "Unknown error creating PostgreSQLDBPreparedStatement", system_utils::captureCallStack()));
-            }
-        }
-
+#ifdef __cpp_exceptions
         static std::shared_ptr<PostgreSQLDBPreparedStatement>
-        create(std::weak_ptr<PGconn> conn, SharedConnMutex connMutex, const std::string &sql, const std::string &stmt_name)
+        create(std::weak_ptr<PostgreSQLDBConnection> conn, const std::string &sql, const std::string &stmt_name)
         {
-            auto r = create(std::nothrow, conn, connMutex, sql, stmt_name);
-            if (!r.has_value())
-            {
-                throw r.error();
-            }
-            return r.value();
-        }
-#else
-        static cpp_dbc::expected<std::shared_ptr<PostgreSQLDBPreparedStatement>, DBException>
-        create(std::nothrow_t,
-               std::weak_ptr<PGconn> conn,
-               const std::string &sql,
-               const std::string &stmt_name) noexcept
-        {
-            try
-            {
-                return std::make_shared<PostgreSQLDBPreparedStatement>(conn, sql, stmt_name);
-            }
-            catch (const DBException &ex)
-            {
-                return cpp_dbc::unexpected(ex);
-            }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("FRBOTGL3W5V4", ex.what(), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("6A43HAITJ9C5", "Unknown error creating PostgreSQLDBPreparedStatement", system_utils::captureCallStack()));
-            }
-        }
-
-        static std::shared_ptr<PostgreSQLDBPreparedStatement>
-        create(std::weak_ptr<PGconn> conn, const std::string &sql, const std::string &stmt_name)
-        {
-            auto r = create(std::nothrow, conn, sql, stmt_name);
+            auto r = create(std::nothrow, std::move(conn), sql, stmt_name);
             if (!r.has_value())
             {
                 throw r.error();
@@ -154,6 +92,24 @@ namespace cpp_dbc::PostgreSQL
             return r.value();
         }
 #endif
+
+        static cpp_dbc::expected<std::shared_ptr<PostgreSQLDBPreparedStatement>, DBException>
+        create(std::nothrow_t,
+               std::weak_ptr<PostgreSQLDBConnection> conn,
+               const std::string &sql,
+               const std::string &stmt_name) noexcept
+        {
+            // No try/catch: std::make_shared can only throw std::bad_alloc, which is a
+            // death-sentence exception — the heap is exhausted and no meaningful recovery
+            // is possible. The constructor is noexcept and captures errors in m_initFailed.
+            auto obj = std::make_shared<PostgreSQLDBPreparedStatement>(
+                PrivateCtorTag{}, std::nothrow, std::move(conn), sql, stmt_name);
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            return obj;
+        }
 
 #ifdef __cpp_exceptions
         void setInt(int parameterIndex, int value) override;
@@ -177,8 +133,8 @@ namespace cpp_dbc::PostgreSQL
         uint64_t executeUpdate() override;
         bool execute() override;
         void close() override;
-
 #endif // __cpp_exceptions
+
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

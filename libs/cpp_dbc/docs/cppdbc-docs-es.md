@@ -174,7 +174,7 @@ Todas las implementaciones de BLOB utilizan punteros inteligentes (`std::weak_pt
 
 - **FirebirdBlob**: Usa `weak_ptr<FirebirdConnection>` con el método auxiliar `getConnection()`
 - **MySQLBlob**: Usa `weak_ptr<MySQLDBConnection>` para acceso seguro a la conexión
-- **PostgreSQLBlob**: Usa `weak_ptr<PGconn>` con el método auxiliar `getPGConnection()`
+- **PostgreSQLBlob**: Usa `weak_ptr<PGconn>` con el método auxiliar `getPGConnection(std::nothrow)`
 - **SQLiteBlob**: Usa `weak_ptr<sqlite3>` con el método auxiliar `getSQLiteConnection()`
 
 Todas las clases BLOB tienen un método `isConnectionValid()` para verificar si la conexión sigue siendo válida. Las operaciones lanzan `DBException` si la conexión ha sido cerrada, previniendo errores de uso después de liberación (use-after-free). La clase base `BlobStream` declara `isConnectionValid()` como virtual puro, y `MemoryBlob` (BLOBs en memoria sin conexión a base de datos) siempre retorna `true`.

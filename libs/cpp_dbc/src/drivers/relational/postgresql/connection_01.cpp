@@ -128,7 +128,7 @@ namespace cpp_dbc::PostgreSQL
         // access causes protocol errors and potential corruption.
         // Note: m_statementsMutex is not needed here because registerStatement() is only
         // called from prepareStatement() which also holds m_connMutex, so we're protected.
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        DB_DRIVER_LOCK_GUARD(m_connMutex);
 
         for (auto &weak_stmt : m_activeStatements)
         {
@@ -142,6 +142,73 @@ namespace cpp_dbc::PostgreSQL
             // If weak_ptr is expired, statement was already destroyed - nothing to do
         }
         m_activeStatements.clear();
+        return {};
+    }
+
+    /**
+     * @brief Register a result set in the active result sets registry
+     *
+     * @details
+     * This method is called automatically when a new ResultSet is created
+     * via executeQuery(). The result set is stored as a weak_ptr to allow
+     * natural destruction when the user releases their reference.
+     *
+     * @param rs Weak pointer to the result set to register
+     *
+     * @see closeAllResultSets() for cleanup logic
+     * @see m_activeResultSets for design rationale
+     */
+    cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::registerResultSet(std::nothrow_t, std::weak_ptr<PostgreSQLDBResultSet> rs) noexcept
+    {
+        std::scoped_lock lock(m_statementsMutex);
+        if (m_activeResultSets.size() > 50)
+        {
+            std::erase_if(m_activeResultSets, [](const auto &w)
+                          { return w.expired(); });
+        }
+        m_activeResultSets.insert(rs);
+        return {};
+    }
+
+    /**
+     * @brief Unregister a result set from the active result sets registry
+     *
+     * @param rs Weak pointer to the result set to unregister
+     */
+    cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::unregisterResultSet(std::nothrow_t, std::weak_ptr<PostgreSQLDBResultSet> rs) noexcept
+    {
+        std::scoped_lock lock(m_statementsMutex);
+        auto rsLocked = rs.lock();
+        std::erase_if(m_activeResultSets, [&rsLocked](const auto &w)
+                      {
+            auto locked = w.lock();
+            return !locked || (rsLocked && locked.get() == rsLocked.get()); });
+        return {};
+    }
+
+    /**
+     * @brief Close all active result sets
+     *
+     * @details
+     * Mirrors closeAllStatements(). When the connection closes or is returned
+     * to the pool, all active result sets are notified and closed. This ensures
+     * consistent lifecycle management across all drivers.
+     *
+     * @note This method is called by returnToPool(), reset(), and close()
+     */
+    cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::closeAllResultSets(std::nothrow_t) noexcept
+    {
+        DB_DRIVER_LOCK_GUARD(m_connMutex);
+
+        for (auto &weak_rs : m_activeResultSets)
+        {
+            auto rs = weak_rs.lock();
+            if (rs)
+            {
+                rs->notifyConnClosing();
+            }
+        }
+        m_activeResultSets.clear();
         return {};
     }
 
@@ -208,7 +275,7 @@ namespace cpp_dbc::PostgreSQL
         // Initialize URI string once (reuse centralized builder for IPv6 bracket handling)
         m_uri = system_utils::buildDBURI("cpp_dbc:postgresql://", host, port, database);
 
-        m_closed = false;
+        m_closed.store(false, std::memory_order_release);
     }
 
     // Destructor
@@ -385,15 +452,6 @@ namespace cpp_dbc::PostgreSQL
         return result.value();
     }
 
-    std::string PostgreSQLDBConnection::generateStatementName()
-    {
-        int counter = m_statementCounter;
-        m_statementCounter += 1;
-        std::stringstream ss;
-        ss << "stmt_" << counter;
-        return ss.str();
-    }
-
     bool PostgreSQLDBConnection::ping()
     {
         auto result = ping(std::nothrow);
@@ -425,6 +483,15 @@ namespace cpp_dbc::PostgreSQL
     }
 
 #endif // __cpp_exceptions
+
+    std::string PostgreSQLDBConnection::generateStatementName()
+    {
+        int counter = m_statementCounter;
+        m_statementCounter += 1;
+        std::stringstream ss;
+        ss << "stmt_" << counter;
+        return ss.str();
+    }
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::ping(std::nothrow_t) noexcept
     {
