@@ -41,7 +41,7 @@ namespace cpp_dbc::PostgreSQL
     // Nothrow execute methods for PostgreSQLDBPreparedStatement
     cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> PostgreSQLDBPreparedStatement::executeQuery(std::nothrow_t) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("83S78M5O9PFH", "Statement closed");
+        PG_STMT_LOCK_OR_RETURN("AW52136ACFBD", "Statement closed");
 
         // Get PGconn* safely through the connection
         auto connResult = getPGConnection(std::nothrow);
@@ -100,16 +100,12 @@ namespace cpp_dbc::PostgreSQL
             return cpp_dbc::unexpected(rsResult.error());
         }
 
-        // Close the statement after execution (single-use)
-        // This is safe because PQexecPrepared() copies all data to the PGresult
-        [[maybe_unused]] auto closeResult = close(std::nothrow);
-
         return cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>{rsResult.value()};
     }
 
     cpp_dbc::expected<uint64_t, DBException> PostgreSQLDBPreparedStatement::executeUpdate(std::nothrow_t) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("83S78M5O9PFH", "Statement closed");
+        PG_STMT_LOCK_OR_RETURN("GZNST22PIT6Z", "Statement closed");
 
         // Get PGconn* safely through the connection
         auto connResult = getPGConnection(std::nothrow);
@@ -172,15 +168,12 @@ namespace cpp_dbc::PostgreSQL
 
         PQclear(result);
 
-        // Close the statement after execution (single-use)
-        [[maybe_unused]] auto closeResult = close(std::nothrow);
-
         return rowCount;
     }
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBPreparedStatement::execute(std::nothrow_t) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("83S78M5O9PFH", "Statement closed");
+        PG_STMT_LOCK_OR_RETURN("65RZEJG52VXD", "Statement closed");
 
         // Get PGconn* safely through the connection
         auto connResult = getPGConnection(std::nothrow);
@@ -245,7 +238,7 @@ namespace cpp_dbc::PostgreSQL
         // CRITICAL: Must hold the shared connection mutex to prevent race conditions.
         // PQexec(DEALLOCATE) uses the PGconn* connection, so concurrent access from
         // another thread (e.g., connection pool validation) causes protocol errors.
-        PG_STMT_LOCK_OR_RETURN("83S78M5O9PFH", "Statement closed");
+        PG_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
 
         if (m_prepared)
         {
@@ -263,6 +256,7 @@ namespace cpp_dbc::PostgreSQL
             m_prepared = false;
         }
 
+        m_closed.store(true, std::memory_order_release);
         return {};
     }
 

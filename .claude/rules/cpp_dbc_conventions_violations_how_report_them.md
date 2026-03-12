@@ -185,7 +185,7 @@ When performing a full compliance analysis, check each of the following. This li
 - [ ] **Construction state variables**: `bool m_initFailed{false}` + `std::unique_ptr<DBException> m_initError{nullptr}` in per-class PrivateCtorTag classes
 - [ ] **PrivateCtorTag constructor try/catch**: Only present when body contains recoverable C++ exceptions; comment above `try` listing which exceptions are caught; omitted when body is entirely nothrow or only death-sentence exceptions
 - [ ] **Shared PrivateCtorTag (pool classes)**: Single `PrivateCtorTag` defined as `protected` in `DBConnectionPool` base class, shared across the entire pool hierarchy; no `std::nothrow_t` needed; tag must be named `PrivateCtorTag` (not `ConstructorTag`)
-- [ ] **DBDriver variant**: Double-checked locking with `std::atomic` + `std::mutex` for C library init
+- [ ] **DBDriver singleton**: PrivateCtorTag + `s_instance` weak_ptr + `getInstance()` + connection registry; constructor is `noexcept` with `m_initFailed`/`m_initError`
 - [ ] **Static factory `::create`**: Throwing delegates to nothrow; `#ifdef __cpp_exceptions` guards
 - [ ] **`std::move` in factory error paths**: `std::move(*obj->m_initError)` not a copy
 - [ ] **`#ifdef __cpp_exceptions`**: All throwing code properly guarded

@@ -41,7 +41,7 @@ namespace cpp_dbc::PostgreSQL
     // Nothrow BLOB support methods for PostgreSQLDBPreparedStatement
     cpp_dbc::expected<void, DBException> PostgreSQLDBPreparedStatement::setBlob(std::nothrow_t, int parameterIndex, std::shared_ptr<Blob> x) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("95SUU8L0G8UF", "Statement closed");
+        PG_STMT_LOCK_OR_RETURN("SDG0G3ALP2L1", "Statement closed");
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
         {
@@ -91,7 +91,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBPreparedStatement::setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("95SUU8L0G8UF", "Statement closed");
+        PG_STMT_LOCK_OR_RETURN("K2BMSIXEOBRX", "Statement closed");
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
         {
@@ -147,7 +147,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBPreparedStatement::setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x, size_t length) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("95SUU8L0G8UF", "Statement closed");
+        PG_STMT_LOCK_OR_RETURN("VAKVCYJ43IZ8", "Statement closed");
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
         {
@@ -206,7 +206,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBPreparedStatement::setBytes(std::nothrow_t, int parameterIndex, const std::vector<uint8_t> &x) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("95SUU8L0G8UF", "Statement closed");
+        PG_STMT_LOCK_OR_RETURN("58SW1M7BK5ZZ", "Statement closed");
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
         {
@@ -231,7 +231,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBPreparedStatement::setBytes(std::nothrow_t, int parameterIndex, const uint8_t *x, size_t length) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("95SUU8L0G8UF", "Statement closed");
+        PG_STMT_LOCK_OR_RETURN("K8B6T29V5FMQ", "Statement closed");
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
         {

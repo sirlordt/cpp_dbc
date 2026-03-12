@@ -58,13 +58,13 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBResultSet::isEmpty(std::nothrow_t) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("PV38KVY6QHYV", "ResultSet closed");
+        PG_STMT_LOCK_OR_RETURN("RSF1C75S69Q1", "ResultSet closed");
         return m_rowCount == 0;
     }
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBResultSet::next(std::nothrow_t) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("PV38KVY6QHYV", "ResultSet closed");
+        PG_STMT_LOCK_OR_RETURN("5WZNXG6OE0UP", "ResultSet closed");
 
         if (!m_result || m_rowPosition >= m_rowCount)
         {
@@ -92,7 +92,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<int, DBException> PostgreSQLDBResultSet::getInt(std::nothrow_t, size_t columnIndex) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("PV38KVY6QHYV", "ResultSet closed");
+        PG_STMT_LOCK_OR_RETURN("HCUXXM9XAIFG", "ResultSet closed");
 
         if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
         {
@@ -131,7 +131,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<int64_t, DBException> PostgreSQLDBResultSet::getLong(std::nothrow_t, size_t columnIndex) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("PV38KVY6QHYV", "ResultSet closed");
+        PG_STMT_LOCK_OR_RETURN("ZJ6C11P1OOF7", "ResultSet closed");
 
         if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
         {
@@ -169,7 +169,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<double, DBException> PostgreSQLDBResultSet::getDouble(std::nothrow_t, size_t columnIndex) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("PV38KVY6QHYV", "ResultSet closed");
+        PG_STMT_LOCK_OR_RETURN("D9I12ECS7WCL", "ResultSet closed");
 
         if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
         {

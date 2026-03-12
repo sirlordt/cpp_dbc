@@ -49,11 +49,13 @@ namespace cpp_dbc::PostgreSQL
     // PostgreSQLDBDriver Implementation - Private Static Helpers
     // ============================================================================
 
-    // PostgreSQL (libpq) does not require explicit global library initialization.
-    // The initialize() method exists for structural symmetry with other drivers.
+    // Note: PostgreSQL does NOT use the double-checked locking pattern (s_initialized + s_initMutex)
+    // because libpq does not require explicit global library initialization.
+    // The initialize() method exists for structural symmetry with other drivers
+    // and is a no-op.
     cpp_dbc::expected<bool, DBException> PostgreSQLDBDriver::initialize(std::nothrow_t) noexcept
     {
-        // No initialization needed for libpq
+        // No initialization needed for libpq — this is a no-op
         return true;
     }
 
@@ -69,6 +71,8 @@ namespace cpp_dbc::PostgreSQL
         s_connectionRegistry.erase(conn);
     }
 
+    // See initialize() comment above for why cleanup() does not use
+    // s_initialized guard.
     void PostgreSQLDBDriver::cleanup()
     {
         // PostgreSQL (libpq) does not require explicit global library cleanup.
