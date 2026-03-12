@@ -46,7 +46,7 @@ namespace cpp_dbc::PostgreSQL
     // PostgreSQLDBPreparedStatement implementation
 
     // Private methods (in order of declaration in .hpp)
-    void PostgreSQLDBPreparedStatement::notifyConnClosing()
+    void PostgreSQLDBPreparedStatement::notifyConnClosing(std::nothrow_t) noexcept
     {
         // Connection is closing, invalidate the statement without calling mysql_stmt_close
         // since the connection is already being destroyed

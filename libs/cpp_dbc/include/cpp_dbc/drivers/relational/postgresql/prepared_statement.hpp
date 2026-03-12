@@ -60,7 +60,7 @@ namespace cpp_dbc::PostgreSQL
         std::unique_ptr<DBException> m_initError{nullptr};
 
         // Internal method called by connection when closing
-        void notifyConnClosing();
+        void notifyConnClosing(std::nothrow_t) noexcept;
 
         // Helper method to process SQL and count parameters
         cpp_dbc::expected<int, DBException> processSQL(std::nothrow_t, std::string &sqlQuery) const noexcept;

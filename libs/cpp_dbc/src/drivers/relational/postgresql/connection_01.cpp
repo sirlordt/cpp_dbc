@@ -137,7 +137,7 @@ namespace cpp_dbc::PostgreSQL
             {
                 // notifyConnClosing() calls close(std::nothrow) on the statement
                 // This ensures statement deallocation while we have exclusive access
-                stmt->notifyConnClosing();
+                stmt->notifyConnClosing(std::nothrow);
             }
             // If weak_ptr is expired, statement was already destroyed - nothing to do
         }
@@ -205,7 +205,7 @@ namespace cpp_dbc::PostgreSQL
             auto rs = weak_rs.lock();
             if (rs)
             {
-                rs->notifyConnClosing();
+                rs->notifyConnClosing(std::nothrow);
             }
         }
         m_activeResultSets.clear();
@@ -484,13 +484,11 @@ namespace cpp_dbc::PostgreSQL
 
 #endif // __cpp_exceptions
 
-    std::string PostgreSQLDBConnection::generateStatementName()
+    std::string PostgreSQLDBConnection::generateStatementName(std::nothrow_t) noexcept
     {
         int counter = m_statementCounter;
         m_statementCounter += 1;
-        std::stringstream ss;
-        ss << "stmt_" << counter;
-        return ss.str();
+        return "stmt_" + std::to_string(counter);
     }
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::ping(std::nothrow_t) noexcept

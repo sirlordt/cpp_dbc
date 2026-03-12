@@ -70,7 +70,7 @@ namespace cpp_dbc::PostgreSQL
         }
     }
 
-    void PostgreSQLDBResultSet::notifyConnClosing()
+    void PostgreSQLDBResultSet::notifyConnClosing(std::nothrow_t) noexcept
     {
         // Called by connection when closing — mark as closed and release PGresult
         m_closed.store(true, std::memory_order_release);

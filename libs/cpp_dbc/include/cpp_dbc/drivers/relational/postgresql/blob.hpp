@@ -385,7 +385,7 @@ namespace cpp_dbc::PostgreSQL
         // ====================================================================
 
         // Get the OID of the large object
-        Oid getOid() const
+        Oid getOid() const noexcept
         {
             return m_lobOid;
         }

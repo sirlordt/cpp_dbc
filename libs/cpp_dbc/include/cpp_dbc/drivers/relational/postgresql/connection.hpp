@@ -130,6 +130,9 @@ namespace cpp_dbc::PostgreSQL
          */
         std::string formatServerVersion(std::nothrow_t, int version) const noexcept;
 
+        /** @brief Generate a unique name for server-side prepared statements */
+        std::string generateStatementName(std::nothrow_t) noexcept;
+
         bool m_initFailed{false};
         std::unique_ptr<DBException> m_initError{nullptr};
 
@@ -245,9 +248,6 @@ namespace cpp_dbc::PostgreSQL
         std::map<std::string, std::string> getServerInfo() override;
 
 #endif // __cpp_exceptions
-
-        /** @brief Generate a unique name for server-side prepared statements */
-        std::string generateStatementName();
 
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
