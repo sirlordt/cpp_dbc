@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
         logMsg("--- Driver Registration ---");
 
         logStep("Registering MongoDB driver...");
-        auto driver = std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>();
+        auto driver = cpp_dbc::MongoDB::MongoDBDriver::getInstance(std::nothrow).value_or(nullptr);
         cpp_dbc::DriverManager::registerDriver(driver);
         logOk("MongoDB driver registered");
 

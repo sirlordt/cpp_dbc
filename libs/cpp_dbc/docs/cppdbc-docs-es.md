@@ -151,7 +151,7 @@ Una clase base abstracta que representa un controlador de base de datos.
 **Métodos:**
 - `connect(string, string, string, map<string, string>)`: Establece una conexión a la base de datos con opciones de conexión opcionales.
 - `connectRelational(string, string, string, map<string, string>)`: Establece una conexión relacional a la base de datos con opciones de conexión opcionales.
-- `acceptsURL(string)`: Devuelve true si el controlador puede conectarse a la URL dada.
+- `acceptURI(string)`: Devuelve true si el controlador puede conectarse a la URL dada.
 
 ### DriverManager
 Una clase gestora para registrar y recuperar instancias de controladores.
@@ -173,11 +173,36 @@ CPP_DBC proporciona soporte completo para objetos binarios grandes (BLOB) en tod
 Todas las implementaciones de BLOB utilizan punteros inteligentes (`std::weak_ptr`) para referencias seguras a la conexión:
 
 - **FirebirdBlob**: Usa `weak_ptr<FirebirdConnection>` con el método auxiliar `getConnection()`
-- **MySQLBlob**: Usa `weak_ptr<MYSQL>` con el método auxiliar `getMySQLConnection()`
+- **MySQLBlob**: Usa `weak_ptr<MySQLDBConnection>` para acceso seguro a la conexión
 - **PostgreSQLBlob**: Usa `weak_ptr<PGconn>` con el método auxiliar `getPGConnection()`
 - **SQLiteBlob**: Usa `weak_ptr<sqlite3>` con el método auxiliar `getSQLiteConnection()`
 
-Todas las clases BLOB tienen un método `isConnectionValid()` para verificar si la conexión sigue siendo válida. Las operaciones lanzan `DBException` si la conexión ha sido cerrada, previniendo errores de uso después de liberación (use-after-free).
+Todas las clases BLOB tienen un método `isConnectionValid()` para verificar si la conexión sigue siendo válida. Las operaciones lanzan `DBException` si la conexión ha sido cerrada, previniendo errores de uso después de liberación (use-after-free). La clase base `BlobStream` declara `isConnectionValid()` como virtual puro, y `MemoryBlob` (BLOBs en memoria sin conexión a base de datos) siempre retorna `true`.
+
+### API de Versión e Información
+
+Todos los drivers exponen una API unificada de introspección de versión/información a través de las clases base:
+
+**`DBDriver` (clase base):**
+- `getDriverVersion()`: Retorna la versión de la biblioteca cliente C/C++ subyacente (ej., `mysql_get_client_info()`, `PQlibVersion()`, `sqlite3_libversion()`)
+
+**`DBConnection` (clase base):**
+- `getServerVersion()` / `getServerVersion(std::nothrow_t)`: Retorna la versión del servidor de base de datos
+- `getServerInfo()` / `getServerInfo(std::nothrow_t)`: Retorna `std::map<std::string, std::string>` con al menos `"ServerVersion"` más claves de metadatos específicas del driver
+
+**Claves de metadatos por driver:**
+
+| Driver | Claves en `getServerInfo()` |
+|--------|--------------------------|
+| MySQL | ServerVersion, ServerVersionNumeric, HostInfo, ProtocolVersion, CharacterSet, ThreadId, ServerStatus |
+| PostgreSQL | ServerVersion, ServerVersionNumeric, ProtocolVersion, ServerEncoding, ClientEncoding, TimeZone, IntegerDatetimes, StandardConformingStrings |
+| SQLite | ServerVersion, ServerVersionNumeric, SourceId, ThreadSafe |
+| Firebird | ServerVersion, ODSMajorVersion, ODSMinorVersion, PageSize, SQLDialect |
+| MongoDB | ServerVersion, GitVersion, SysInfo, Allocator, JavascriptEngine, Bits, MaxBsonObjectSize |
+| Redis | ServerVersion + todos los campos de la respuesta INFO |
+| ScyllaDB | ServerVersion, ClusterName, DataCenter, Rack, Partitioner, CQLVersion |
+
+**Nota:** MongoDB también proporciona `getServerInfoAsDocument()` que retorna la respuesta completa de buildInfo como un objeto documento enriquecido, separado del `getServerInfo()` basado en `std::map`.
 
 ### Clases Base
 
@@ -639,7 +664,7 @@ Una clase base abstracta que representa un controlador de base de datos de docum
 
 **Métodos:**
 - `connectDocument(string, string, string, map<string, string>)`: Establece una conexión a la base de datos de documentos.
-- `acceptsURL(string)`: Devuelve true si el controlador puede conectarse a la URL dada.
+- `acceptURI(string)`: Devuelve true si el controlador puede conectarse a la URL dada.
 
 ### MongoDBDocument (anteriormente MongoDBData)
 Implementación de DocumentDBData para MongoDB. Usa patrón de fábrica estática para construcción.
@@ -679,7 +704,7 @@ Implementación de DocumentDBConnection para MongoDB. Usa patrón de fábrica es
 
 **Métodos:**
 Los mismos que DocumentDBConnection, más:
-- `getURL()`: Devuelve la URL de conexión.
+- `getURI()`: Devuelve la URI de conexión.
 
 **Uso de Punteros Inteligentes:**
 - Usa punteros inteligentes para una gestión adecuada de recursos
@@ -693,7 +718,7 @@ Implementación de DocumentDBDriver para MongoDB.
 
 **Métodos:**
 Los mismos que DocumentDBDriver, más:
-- `acceptsURL(string)`: Devuelve true solo para URLs `cpp_dbc:mongodb://`.
+- `acceptURI(string)`: Devuelve true solo para URLs `cpp_dbc:mongodb://`.
 - `cleanup()`: Reinicia el estado de inicialización, permitiendo re-inicialización.
 - `isInitialized()`: Verifica si la biblioteca C está inicializada.
 
@@ -808,7 +833,7 @@ Envuelve una conexión física para proporcionar funcionalidad de agrupamiento. 
 - `m_poolAlive`: Bandera compartida para verificar si el pool sigue vivo (`shared_ptr<atomic<bool>>`)
 - `m_creationTime`, `m_lastUsedTimeNs` (atomic int64_t), `m_active` (atomic bool), `m_closed` (atomic bool)
 
-**Métodos Impl para resolución de diamante:** `closeImpl`, `returnToPoolImpl`, `isClosedImpl`, `isPooledImpl`, `getURLImpl`, `resetImpl`, `pingImpl`, `prepareForPoolReturnImpl`, `prepareForBorrowImpl`
+**Métodos Impl para resolución de diamante:** `closeImpl`, `returnToPoolImpl`, `isClosedImpl`, `isPooledImpl`, `getURIImpl`, `resetImpl`, `pingImpl`, `prepareForPoolReturnImpl`, `prepareForBorrowImpl`
 
 **Métodos de interfaz DBConnectionPooled:**
 - `getCreationTime(std::nothrow_t)`: Devuelve el tiempo de creación.

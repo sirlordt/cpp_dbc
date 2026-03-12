@@ -70,7 +70,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[23_111_01_firebird_real_thread_safe]
     std::string connStr = dbConfig.createConnectionString();
 
     // Register the Firebird driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(firebird_test_helpers::getFirebirdDriver());
 
     SECTION("Multiple threads with individual connections")
     {

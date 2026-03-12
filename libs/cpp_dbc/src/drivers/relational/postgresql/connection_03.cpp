@@ -316,6 +316,11 @@ namespace cpp_dbc::PostgreSQL
                 // shared_ptr will automatically call PQfinish via PGconnDeleter
                 m_conn.reset();
                 m_closed = true;
+
+                // Unregister from the driver registry so getConnectionAlive() reflects
+                // actual live connections. The owner_less m_self weak_ptr is used for
+                // set lookup — raw 'this' would not match the set's comparator.
+                PostgreSQLDBDriver::unregisterConnection(std::nothrow, m_self);
             }
             return {};
         }
@@ -425,9 +430,12 @@ namespace cpp_dbc::PostgreSQL
         return false;
     }
 
-    cpp_dbc::expected<std::string, DBException> PostgreSQLDBConnection::getURL(std::nothrow_t) const noexcept
+    // No try/catch: the only possible throw is std::bad_alloc from the
+    // std::string copy, which is a death-sentence exception — no meaningful
+    // recovery is possible, so std::terminate is the correct response.
+    cpp_dbc::expected<std::string, DBException> PostgreSQLDBConnection::getURI(std::nothrow_t) const noexcept
     {
-        return m_url;
+        return m_uri;
     }
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::prepareForPoolReturn(
@@ -465,6 +473,129 @@ namespace cpp_dbc::PostgreSQL
     {
         // No-op for PostgreSQL: no MVCC snapshot refresh needed
         return {};
+    }
+
+    // 2026-03-08T21:00:00Z
+    // Bug: PQserverVersion() for PostgreSQL 10+ encodes as major*10000 + minor
+    // (e.g. 160004 = version 16.4), not major*10000 + minor*100 + patch.
+    // The old code produced "16.0.4" instead of "16.4".
+    // Solution: Use two-component decoding (major.minor) for versions >= 10.
+    std::string PostgreSQLDBConnection::formatServerVersion(std::nothrow_t, int version) const noexcept
+    {
+        if (version >= 100000)
+        {
+            int major = version / 10000;
+            int minor = version % 10000;
+            return std::to_string(major) + "." + std::to_string(minor);
+        }
+        // Pre-10: major*10000 + minor*100 + patch
+        int major = version / 10000;
+        int minor = (version / 100) % 100;
+        int patch = version % 100;
+        return std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(patch);
+    }
+
+    cpp_dbc::expected<std::string, DBException> PostgreSQLDBConnection::getServerVersion(std::nothrow_t) noexcept
+    {
+        try
+        {
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+            if (m_closed || !m_conn)
+            {
+                return cpp_dbc::unexpected(DBException(
+                    "36M3T260UN4J",
+                    "Connection is closed",
+                    system_utils::captureCallStack()));
+            }
+
+            return formatServerVersion(std::nothrow, PQserverVersion(m_conn.get()));
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException(
+                "ZNYMYKN2VEMU",
+                std::string("Exception in getServerVersion: ") + ex.what(),
+                system_utils::captureCallStack()));
+        }
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
+        {
+            return cpp_dbc::unexpected(DBException(
+                "TYFNEDKFKXKK",
+                "Unknown exception in getServerVersion",
+                system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<std::map<std::string, std::string>, DBException> PostgreSQLDBConnection::getServerInfo(std::nothrow_t) noexcept
+    {
+        try
+        {
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+            if (m_closed || !m_conn)
+            {
+                return cpp_dbc::unexpected(DBException(
+                    "IB9HNOSWLXD7",
+                    "Connection is closed",
+                    system_utils::captureCallStack()));
+            }
+
+            std::map<std::string, std::string> info;
+
+            int version = PQserverVersion(m_conn.get());
+            info["ServerVersion"] = formatServerVersion(std::nothrow, version);
+            info["ServerVersionNumeric"] = std::to_string(version);
+
+            int protocolVersion = PQprotocolVersion(m_conn.get());
+            info["ProtocolVersion"] = std::to_string(protocolVersion);
+
+            const char *serverEncoding = PQparameterStatus(m_conn.get(), "server_encoding");
+            if (serverEncoding)
+            {
+                info["ServerEncoding"] = serverEncoding;
+            }
+
+            const char *clientEncoding = PQparameterStatus(m_conn.get(), "client_encoding");
+            if (clientEncoding)
+            {
+                info["ClientEncoding"] = clientEncoding;
+            }
+
+            const char *timeZone = PQparameterStatus(m_conn.get(), "TimeZone");
+            if (timeZone)
+            {
+                info["TimeZone"] = timeZone;
+            }
+
+            const char *intDateTimes = PQparameterStatus(m_conn.get(), "integer_datetimes");
+            if (intDateTimes)
+            {
+                info["IntegerDatetimes"] = intDateTimes;
+            }
+
+            const char *stdConformingStrings = PQparameterStatus(m_conn.get(), "standard_conforming_strings");
+            if (stdConformingStrings)
+            {
+                info["StandardConformingStrings"] = stdConformingStrings;
+            }
+
+            return info;
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException(
+                "865FHWXNK6H6",
+                std::string("Exception in getServerInfo: ") + ex.what(),
+                system_utils::captureCallStack()));
+        }
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
+        {
+            return cpp_dbc::unexpected(DBException(
+                "XYCXRRI4WCIH",
+                "Unknown exception in getServerInfo",
+                system_utils::captureCallStack()));
+        }
     }
 
 } // namespace cpp_dbc::PostgreSQL

@@ -18,9 +18,11 @@
 
 */
 
+#include "cpp_dbc/common/system_constants.hpp"
 #include "cpp_dbc/common/system_utils.hpp"
 #include "cpp_dbc/backward.hpp"
 
+#include <charconv>
 #include <vector>
 #include <filesystem>
 #include <thread>
@@ -202,10 +204,10 @@ namespace cpp_dbc::system_utils
         }
     }
 
-    bool parseDBURL(std::string_view url,
+    bool parseDBURI(std::string_view uri,
                     std::string_view expectedPrefix,
                     int defaultPort,
-                    ParsedDBURL &result,
+                    ParsedDBURI &result,
                     bool allowLocalConnection,
                     bool requireDatabase) noexcept
     {
@@ -218,13 +220,13 @@ namespace cpp_dbc::system_utils
             result.isLocal = false;
 
             // Check prefix
-            if (!url.starts_with(expectedPrefix))
+            if (!uri.starts_with(expectedPrefix))
             {
                 return false;
             }
 
             // Extract the part after the prefix
-            std::string rest{url.substr(expectedPrefix.length())};
+            std::string rest{uri.substr(expectedPrefix.length())};
 
             // Check for empty rest
             if (rest.empty())
@@ -273,25 +275,29 @@ namespace cpp_dbc::system_utils
                     if (slashPos == std::string::npos)
                     {
                         // No database, just port
-                        try
                         {
-                            result.port = std::stoi(rest.substr(1));
-                        }
-                        catch (...)
-                        {
-                            return false; // Invalid port
+                            auto portStr = rest.substr(1);
+                            int portVal = 0;
+                            auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), portVal);
+                            if (ec != std::errc{} || ptr != portStr.data() + portStr.size() || portVal < system_constants::PORT_MIN || portVal > system_constants::PORT_MAX)
+                            {
+                                return false; // Invalid port
+                            }
+                            result.port = portVal;
                         }
                         return !requireDatabase;
                     }
 
                     // Port and database
-                    try
                     {
-                        result.port = std::stoi(rest.substr(1, slashPos - 1));
-                    }
-                    catch (...)
-                    {
-                        return false; // Invalid port
+                        auto portStr = rest.substr(1, slashPos - 1);
+                        int portVal = 0;
+                        auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), portVal);
+                        if (ec != std::errc{} || ptr != portStr.data() + portStr.size() || portVal < system_constants::PORT_MIN || portVal > system_constants::PORT_MAX)
+                        {
+                            return false; // Invalid port
+                        }
+                        result.port = portVal;
                     }
                     result.database = rest.substr(slashPos + 1);
                     return !requireDatabase || !result.database.empty();
@@ -319,13 +325,15 @@ namespace cpp_dbc::system_utils
                 {
                     // host:port (no database)
                     result.host = rest.substr(0, colonPos);
-                    try
                     {
-                        result.port = std::stoi(rest.substr(colonPos + 1));
-                    }
-                    catch (...)
-                    {
-                        return false; // Invalid port
+                        auto portStr = rest.substr(colonPos + 1);
+                        int portVal = 0;
+                        auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), portVal);
+                        if (ec != std::errc{} || ptr != portStr.data() + portStr.size() || portVal < system_constants::PORT_MIN || portVal > system_constants::PORT_MAX)
+                        {
+                            return false; // Invalid port
+                        }
+                        result.port = portVal;
                     }
                 }
                 else
@@ -341,13 +349,15 @@ namespace cpp_dbc::system_utils
             {
                 // host:port/database
                 result.host = rest.substr(0, colonPos);
-                try
                 {
-                    result.port = std::stoi(rest.substr(colonPos + 1, slashPos - colonPos - 1));
-                }
-                catch (...)
-                {
-                    return false; // Invalid port
+                    auto portStr = rest.substr(colonPos + 1, slashPos - colonPos - 1);
+                    int portVal = 0;
+                    auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), portVal);
+                    if (ec != std::errc{} || ptr != portStr.data() + portStr.size() || portVal < system_constants::PORT_MIN || portVal > system_constants::PORT_MAX)
+                    {
+                        return false; // Invalid port
+                    }
+                    result.port = portVal;
                 }
             }
             else
@@ -367,6 +377,88 @@ namespace cpp_dbc::system_utils
         {
             // Catch any unexpected exceptions - noexcept guarantee
             return false;
+        }
+    }
+
+    std::string buildDBURI(std::string_view prefix,
+                           std::string_view host,
+                           int port,
+                           std::string_view database) noexcept
+    {
+        try
+        {
+            std::string uri;
+            uri.reserve(prefix.size() + host.size() + 32);
+            uri.append(prefix);
+
+            if (!host.empty())
+            {
+                if (host.contains(':') &&
+                    !(host.front() == '[' && host.back() == ']'))
+                {
+                    // Bracket raw IPv6 hosts (e.g. "::1" → "[::1]")
+                    uri.push_back('[');
+                    uri.append(host);
+                    uri.push_back(']');
+                }
+                else
+                {
+                    uri.append(host);
+                }
+
+                if (port > 0)
+                {
+                    uri.push_back(':');
+                    uri.append(std::to_string(port));
+                }
+            }
+
+            if (!database.empty())
+            {
+                uri.push_back('/');
+                uri.append(database);
+            }
+
+            return uri;
+        }
+        catch (...)
+        {
+            // noexcept guarantee — std::string allocation failure is a death sentence,
+            // but we return an empty string rather than terminate
+            return {};
+        }
+    }
+
+    std::string percentEncodeURIComponent(std::string_view input) noexcept
+    {
+        try
+        {
+            static constexpr char hexDigits[] = "0123456789ABCDEF";
+            std::string result;
+            result.reserve(input.size() * 3); // worst case: every char encoded
+
+            for (unsigned char c : input)
+            {
+                // RFC 3986 unreserved characters: ALPHA / DIGIT / "-" / "." / "_" / "~"
+                if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                    (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_' || c == '~')
+                {
+                    result.push_back(static_cast<char>(c));
+                }
+                else
+                {
+                    auto b = static_cast<std::byte>(c);
+                    result.push_back('%');
+                    result.push_back(hexDigits[std::to_integer<unsigned char>(b >> 4)]);
+                    result.push_back(hexDigits[std::to_integer<unsigned char>(b & std::byte{0x0F})]);
+                }
+            }
+
+            return result;
+        }
+        catch (...) // NOSONAR(cpp:S2738) — noexcept guarantee; allocation failure is a death sentence
+        {
+            return {};
         }
     }
 

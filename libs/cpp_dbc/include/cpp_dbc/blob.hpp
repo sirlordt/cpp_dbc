@@ -683,6 +683,14 @@ namespace cpp_dbc
             m_data.shrink_to_fit();
             return {};
         }
+
+        /**
+         * @brief In-memory BLOBs have no database connection — always valid
+         */
+        bool isConnectionValid() const noexcept override
+        {
+            return true;
+        }
     };
 
 } // namespace cpp_dbc

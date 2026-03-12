@@ -16,6 +16,7 @@ This guide explains how to add support for a new database management system (DBM
    - [Create Header Files (.hpp)](#create-header-files-hpp)
    - [Create Source Files (.cpp)](#create-source-files-cpp)
    - [Update Main Header (cpp_dbc.hpp)](#update-main-header-cpp_dbchpp)
+   - [Register in DriverManager::initDrivers](#register-in-drivermanagerinitdrivers)
    - [Integrate with Connection Pool](#integrate-with-connection-pool)
 4. [Phase 2: Update Build Configuration](#phase-2-update-build-configuration)
    - [Update CMakeLists.txt](#update-cmakeliststxt)
@@ -37,7 +38,11 @@ This guide explains how to add support for a new database management system (DBM
    - [Update CMakeLists.txt for Examples](#update-cmakeliststxt-for-examples)
 8. [Checklist Summary](#checklist-summary)
 9. [Common Mistakes to Avoid](#common-mistakes-to-avoid)
-10. [Related Documentation](#related-documentation)
+10. [Architectural Patterns](#architectural-patterns)
+    - [PrivateCtorTag Pattern — Throw-Free Construction with `std::make_shared`](#privatectortag-pattern--throw-free-construction-with-stdmake_shared)
+    - [DBDriver Singleton + Connection Registry Pattern](#dbdriver-singleton--connection-registry-pattern)
+    - [Mutex Sharing — Connection and Child Classes](#mutex-sharing--connection-and-child-classes)
+11. [Related Documentation](#related-documentation)
 
 ---
 
@@ -82,8 +87,8 @@ These are the fundamental classes that all drivers inherit from:
 
 | File | Class | Description |
 |------|-------|-------------|
-| `core/db_driver.hpp` | `DBDriver` | Base class for all drivers. Defines `connect()`, `acceptsURL()`, `getDBType()`, `getName()` |
-| `core/db_connection.hpp` | `DBConnection` | Base class for all connections. Defines `close()`, `isClosed()`, `returnToPool()`, `getURL()` |
+| `core/db_driver.hpp` | `DBDriver` | Base class for all drivers. Defines `connect()`, `acceptURI()`, `getDBType()`, `getName()` |
+| `core/db_connection.hpp` | `DBConnection` | Base class for all connections. Defines `close()`, `isClosed()`, `returnToPool()`, `getURI()` |
 | `core/db_result_set.hpp` | `DBResultSet` | Base class for result sets. Defines `close()`, `isEmpty()` |
 | `core/db_exception.hpp` | `DBException` | Exception class with 12-char error codes and call stack capture |
 | `core/db_types.hpp` | `DBType`, `Types`, `TransactionIsolationLevel` | Core enums for database types, SQL types, and isolation levels |
@@ -114,7 +119,7 @@ Each database family has abstract interfaces in `libs/cpp_dbc/include/cpp_dbc/co
 
 | File | Description |
 |------|-------------|
-| `common/system_utils.hpp` | `captureCallStack()`, `parseDBURL()`, `safePrint()`, logging functions |
+| `common/system_utils.hpp` | `captureCallStack()`, `parseDBURI()`, `safePrint()`, logging functions |
 | `config/database_config.hpp` | Database configuration structures |
 | `config/yaml_config_loader.hpp` | YAML configuration file loader |
 | `blob.hpp` | BLOB type definitions |
@@ -273,7 +278,7 @@ Each family has different required components. **For exact `#include` dependenci
 
 #### Directory Structure
 
-```
+```text
 libs/cpp_dbc/src/drivers/relational/sqlserver/
 ├── driver_01.cpp                 # Driver factory implementation
 ├── connection_01.cpp             # Connection: constructor, destructor, basic ops
@@ -347,6 +352,40 @@ Add the conditional include for the new driver header (around line 80-107):
 - Key-Value: `cpp_dbc/drivers/kv/driver_<name>.hpp`
 - Columnar: `cpp_dbc/drivers/columnar/driver_<name>.hpp`
 
+### Register in DriverManager::initDrivers
+
+Every new driver must register itself in `DriverManager::initDrivers` so that callers using the high-level `DriverManager::getDBConnection()` API can discover and use it without manual driver registration.
+
+**File**: `libs/cpp_dbc/src/driver_manager.cpp`
+
+Add a new `#if USE_<DRIVER>` block inside `DriverManager::initDrivers(std::nothrow_t)`, following the identical pattern used by all existing drivers:
+
+```cpp
+#if USE_SQLSERVER
+    if (!drivers.contains("sqlserver"))
+    {
+        auto result = cpp_dbc::SQLServer::SQLServerDBDriver::getInstance(std::nothrow);
+        if (result.has_value())
+        {
+            registerDriver(result.value());
+        }
+        else
+        {
+            errors.push_back(result.error());
+        }
+    }
+#endif
+```
+
+**Key design points**:
+
+- **`!drivers.contains("sqlserver")` guard**: Makes `initDrivers` idempotent. If the driver is already registered (e.g. from a previous call, or from explicit `registerDriver()` by the caller), the entire block is skipped — no constructor runs, no C library is touched.
+- **`getInstance(std::nothrow)`**: All drivers use the `weak_ptr`-based singleton pattern. `getInstance` returns the live instance if one already exists, or creates a new one. The singleton ensures only one driver object exists per process, even if `initDrivers` is called multiple times.
+- **Error accumulation**: Failures are collected into `errors` and returned at the end — other drivers continue to initialize even if one fails.
+- **`#if USE_<DRIVER>` guard**: The block is compiled only when the driver is enabled in the build. The driver name string (`"sqlserver"`) must match exactly what `XxxDBDriver::getName()` returns.
+
+**`getName()` contract**: The string key passed to `drivers.contains()` must be identical to the value returned by the driver's `getName() const noexcept override`. Check the driver's `getName()` implementation before writing the string literal.
+
 ### Integrate with Connection Pool
 
 Every driver must be visible to the connection pool system. The required work depends on whether the driver belongs to an **existing family** or introduces a **new family**.
@@ -385,12 +424,12 @@ namespace cpp_dbc::SQLServer
     class SQLServerConnectionPool final : public RelationalDBConnectionPool
     {
     public:
-        SQLServerConnectionPool(DBConnectionPool::ConstructorTag,
-                                const std::string &url,
+        SQLServerConnectionPool(DBConnectionPool::PrivateCtorTag,
+                                const std::string &uri,
                                 const std::string &username,
                                 const std::string &password) noexcept;
 
-        explicit SQLServerConnectionPool(DBConnectionPool::ConstructorTag,
+        explicit SQLServerConnectionPool(DBConnectionPool::PrivateCtorTag,
                                          const config::DBConnectionPoolConfig &config) noexcept;
 
         ~SQLServerConnectionPool() override = default;
@@ -400,13 +439,13 @@ namespace cpp_dbc::SQLServer
 
 #ifdef __cpp_exceptions
         static std::shared_ptr<SQLServerConnectionPool> create(
-            const std::string &url, const std::string &username, const std::string &password);
+            const std::string &uri, const std::string &username, const std::string &password);
         static std::shared_ptr<SQLServerConnectionPool> create(
             const config::DBConnectionPoolConfig &config);
 #endif
 
         static cpp_dbc::expected<std::shared_ptr<SQLServerConnectionPool>, DBException>
-        create(std::nothrow_t, const std::string &url, const std::string &username,
+        create(std::nothrow_t, const std::string &uri, const std::string &username,
                const std::string &password) noexcept;
         static cpp_dbc::expected<std::shared_ptr<SQLServerConnectionPool>, DBException>
         create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept;
@@ -422,27 +461,27 @@ Add the constructors and factory methods at the bottom of the family pool `.cpp`
 // In pool/relational/relational_db_connection_pool.cpp
 namespace cpp_dbc::SQLServer
 {
-    SQLServerConnectionPool::SQLServerConnectionPool(DBConnectionPool::ConstructorTag,
-                                                     const std::string &url,
+    SQLServerConnectionPool::SQLServerConnectionPool(DBConnectionPool::PrivateCtorTag,
+                                                     const std::string &uri,
                                                      const std::string &username,
                                                      const std::string &password)
-        : RelationalDBConnectionPool(DBConnectionPool::ConstructorTag{}, url, username, password)
+        : RelationalDBConnectionPool(DBConnectionPool::PrivateCtorTag{}, uri, username, password)
     {
         // Driver-specific initialization if needed
     }
 
-    SQLServerConnectionPool::SQLServerConnectionPool(DBConnectionPool::ConstructorTag,
+    SQLServerConnectionPool::SQLServerConnectionPool(DBConnectionPool::PrivateCtorTag,
                                                      const config::DBConnectionPoolConfig &config) noexcept
-        : RelationalDBConnectionPool(DBConnectionPool::ConstructorTag{}, config)
+        : RelationalDBConnectionPool(DBConnectionPool::PrivateCtorTag{}, config)
     {
         // Driver-specific initialization if needed
     }
 
 #ifdef __cpp_exceptions
     std::shared_ptr<SQLServerConnectionPool> SQLServerConnectionPool::create(
-        const std::string &url, const std::string &username, const std::string &password)
+        const std::string &uri, const std::string &username, const std::string &password)
     {
-        auto result = create(std::nothrow, url, username, password);
+        auto result = create(std::nothrow, uri, username, password);
         if (!result.has_value()) { throw result.error(); }
         return result.value();
     }
@@ -457,12 +496,12 @@ namespace cpp_dbc::SQLServer
 #endif
 
     cpp_dbc::expected<std::shared_ptr<SQLServerConnectionPool>, DBException>
-    SQLServerConnectionPool::create(std::nothrow_t, const std::string &url,
+    SQLServerConnectionPool::create(std::nothrow_t, const std::string &uri,
                                     const std::string &username,
                                     const std::string &password) noexcept
     {
         auto pool = std::make_shared<SQLServerConnectionPool>(
-            DBConnectionPool::ConstructorTag{}, url, username, password);
+            DBConnectionPool::PrivateCtorTag{}, uri, username, password);
         auto initResult = pool->initializePool(std::nothrow);
         if (!initResult.has_value())
         {
@@ -476,7 +515,7 @@ namespace cpp_dbc::SQLServer
                                     const config::DBConnectionPoolConfig &config) noexcept
     {
         auto pool = std::make_shared<SQLServerConnectionPool>(
-            DBConnectionPool::ConstructorTag{}, config);
+            DBConnectionPool::PrivateCtorTag{}, config);
         auto initResult = pool->initializePool(std::nothrow);
         if (!initResult.has_value())
         {
@@ -561,7 +600,7 @@ namespace cpp_dbc
         bool isClosed() const override { return this->isClosedThrow(); }
         void returnToPool() final { this->returnToPoolThrow(); }
         bool isPooled() const override { return this->isPooledThrow(); }
-        std::string getURL() const override { return this->getURLThrow(); }
+        std::string getURI() const override { return this->getURIThrow(); }
         void reset() override { this->resetThrow(); }
         bool ping() override { return this->pingThrow(); }
 
@@ -599,7 +638,7 @@ namespace cpp_dbc
 } // namespace cpp_dbc
 ```
 
-> **Key point — Diamond inheritance**: Each `PooledDBConnection` has TWO `DBConnection` subobjects (one via `DBConnectionPooled`, one via the family connection class). The CRTP base overrides the `DBConnectionPooled` path directly, and provides `*Impl` methods for diamond-ambiguous methods (`close`, `isClosed`, `returnToPool`, `isPooled`, `getURL`, `reset`, `ping`, `prepareForPoolReturn`, `prepareForBorrow`). The derived class provides one-line inline delegators that forward to these `*Impl` methods, resolving the diamond.
+> **Key point — Diamond inheritance**: Each `PooledDBConnection` has TWO `DBConnection` subobjects (one via `DBConnectionPooled`, one via the family connection class). The CRTP base overrides the `DBConnectionPooled` path directly, and provides `*Impl` methods for diamond-ambiguous methods (`close`, `isClosed`, `returnToPool`, `isPooled`, `getURI`, `reset`, `ping`, `prepareForPoolReturn`, `prepareForBorrow`). The derived class provides one-line inline delegators that forward to these `*Impl` methods, resolving the diamond.
 
 ##### 3. Create the Family Pool Source File
 
@@ -962,7 +1001,7 @@ Create a `download_and_setup_<driver>.sh` script when:
 #### Script Location and Naming
 
 Place the script at:
-```
+```text
 libs/cpp_dbc/download_and_setup_<driver>_driver.sh
 ```
 
@@ -1309,7 +1348,7 @@ test/relational/sqlserver/27_141_test_sqlserver_real_connection_pool.cpp
 #### Key-Value Database Tests
 
 Redis-style tests (simpler, no JOINs):
-```
+```text
 24_001_test_redis_real_common.cpp
 24_021_test_redis_real_driver.cpp
 24_041_test_redis_real_connection.cpp
@@ -1319,7 +1358,7 @@ Redis-style tests (simpler, no JOINs):
 #### Document Database Tests
 
 MongoDB-style tests:
-```
+```text
 25_001_test_mongodb_real_common.cpp
 25_011_test_mongodb_real_db_config.cpp
 25_021_test_mongodb_real_driver.cpp
@@ -1338,7 +1377,7 @@ MongoDB-style tests:
 #### Columnar Database Tests
 
 ScyllaDB-style tests:
-```
+```text
 26_001_test_scylladb_real_common.cpp
 26_011_test_scylladb_real_db_config.cpp
 26_021_test_scylladb_real_driver.cpp
@@ -1440,7 +1479,9 @@ If you need to add support for the new driver in `common/10_061_test_integration
 #if USE_SQLSERVER
 TEST_CASE("SQL Server Integration", "[10_061_07_sqlserver_integration]")
 {
-    auto driver = std::make_shared<cpp_dbc::SQLServerDBDriver>();
+    auto driverResult = cpp_dbc::SQLServer::SQLServerDBDriver::getInstance(std::nothrow);
+    REQUIRE(driverResult.has_value());
+    auto driver = driverResult.value();
     // ... test code ...
 }
 #endif
@@ -1453,7 +1494,7 @@ TEST_CASE("SQL Server Integration", "[10_061_07_sqlserver_integration]")
 ### Benchmark File Structure
 
 Benchmarks test CRUD operations:
-```
+```text
 benchmark_sqlserver_select.cpp
 benchmark_sqlserver_insert.cpp
 benchmark_sqlserver_update.cpp
@@ -1602,7 +1643,9 @@ libs/cpp_dbc/examples/kv/memcached/28_091_example_memcached_error_handling.cpp
 int main()
 {
 #if USE_NEWKV
-    auto driver = std::make_shared<NewKVDriver>();
+    auto driverResult = NewKVDriver::getInstance(std::nothrow);
+    if (!driverResult.has_value()) { return 1; }
+    auto driver = driverResult.value();
     auto conn = driver->connectKV("newkv://localhost:1234", "", "");
 
     // String operations
@@ -1652,7 +1695,9 @@ libs/cpp_dbc/examples/document/couchdb/29_091_example_couchdb_error_handling.cpp
 #if USE_NEWDOC
 void demonstrateDocumentDB()
 {
-    auto driver = std::make_shared<NewDocDriver>();
+    auto driverResult = NewDocDriver::getInstance(std::nothrow);
+    if (!driverResult.has_value()) { return; }
+    auto driver = driverResult.value();
     auto conn = driver->connectDocument("newdoc://localhost:27017", "database");
 
     // Insert document
@@ -1822,6 +1867,10 @@ endif()
 - [ ] Updated `libs/cpp_dbc/include/cpp_dbc/cpp_dbc.hpp`
   - [ ] Added `#ifndef USE_<DRIVER>` macro definition
   - [ ] Added `#if USE_<DRIVER>` conditional include
+- [ ] Registered in `DriverManager::initDrivers` in `libs/cpp_dbc/src/driver_manager.cpp`
+  - [ ] Added `#if USE_<DRIVER>` block with `!drivers.contains("<name>")` guard
+  - [ ] Used `XxxDBDriver::getInstance(std::nothrow)` (singleton, not `make_shared`)
+  - [ ] Driver name string matches `XxxDBDriver::getName()` exactly
 - [ ] Connection Pool Integration
   - **Existing family** (relational, kv, document, columnar):
     - [ ] Added driver subclass pool class in `pool/<family>/<family>_db_connection_pool.hpp`
@@ -2079,6 +2128,769 @@ The installed package configuration files also need updates:
 - `libs/cpp_dbc/benchmark/benchmark_common.hpp` - For benchmark includes
 
 Without these updates, users who install cpp_dbc as a package won't be able to use the new driver.
+
+---
+
+## Architectural Patterns
+
+This section documents cross-cutting patterns that apply to **all drivers regardless of family**. Every new driver must implement these patterns.
+
+### PrivateCtorTag Pattern — Throw-Free Construction with `std::make_shared`
+
+#### Problem
+
+Driver classes (Connection, PreparedStatement, ResultSet) need:
+1. **Throw-free constructors** — errors must be captured, not thrown, to support `-fno-exceptions` builds
+2. **`std::make_shared` compatibility** — for efficient single-allocation construction
+3. **Prevention of direct construction** — only static `create()` factories should instantiate objects
+
+A private constructor satisfies (1) and (3) but breaks (2): `std::make_shared` cannot call private constructors. The **PrivateCtorTag** pattern (a variant of the PassKey idiom) resolves this conflict.
+
+#### Solution
+
+Define a private nested struct `PrivateCtorTag` inside the class. The constructor is **public** (so `std::make_shared` can call it) but requires a `PrivateCtorTag` instance as its first parameter. Since the tag type is private, external code cannot construct it — only the class's own static factory methods can.
+
+Two member variables track construction outcome:
+- `m_initFailed` (`bool`, default `false`) — set to `true` if initialization fails
+- `m_initError` (`std::unique_ptr<DBException>`, default `nullptr`) — stores the error for deferred delivery, allocated **only** on the failure path
+
+**Why `std::unique_ptr<DBException>` instead of a bare `DBException`**: A `DBException` object is ~256 bytes. Storing it inline means every instance pays that cost even when construction succeeds (the vast majority of cases). With `std::unique_ptr`, successful instances cost only 8 bytes (the pointer), and the full `DBException` is heap-allocated only when there is an actual error. `std::make_unique` can throw `std::bad_alloc`, but this happens inside a catch block on an already-failed constructor — if the system cannot allocate ~256 bytes, it is a death sentence regardless.
+
+The nothrow constructor wraps all initialization in try/catch and stores errors instead of throwing. The `create()` factory checks `m_initFailed` after construction and returns `std::unexpected` if set.
+
+#### Universal Rule
+
+**ALL driver classes** — Connection, PreparedStatement, ResultSet, Blob, InputStream, Cursor, Collection, Document — use the PrivateCtorTag pattern without exception. There is no "private constructor + `new`" variant. Every class follows the same structure:
+
+1. **Public `noexcept` constructor** guarded by `PrivateCtorTag` — prevents external construction while enabling `std::make_shared`
+2. **`m_initFailed` / `m_initError`** member variables — capture construction errors for deferred delivery
+3. **Static `create` factory** (nothrow + throwing wrapper) — the only way to instantiate objects
+4. **`std::make_shared`** in the factory — if it throws `std::bad_alloc`, that is a death sentence (no try/catch)
+
+This applies **inexorably and strictly** to every class in every driver.
+
+#### Pattern: PrivateCtorTag (Connection)
+
+**Header** — tag definition + construction state + public constructor + factories:
+
+```cpp
+class MyDBConnection final : public RelationalDBConnection,
+                              public std::enable_shared_from_this<MyDBConnection>
+{
+    // ── PrivateCtorTag ────────────────────────────────────────────────────
+    // Private tag for the passkey idiom — enables std::make_shared from
+    // static factory methods while keeping the constructor effectively
+    // private (external code cannot construct PrivateCtorTag).
+    struct PrivateCtorTag
+    {
+        explicit PrivateCtorTag() = default;
+    };
+
+    // ── Member variables ──────────────────────────────────────────────────
+    MyHandle m_handle;
+    std::atomic<bool> m_closed{true};
+    // ... other members ...
+
+    // ── Construction state ────────────────────────────────────────────────
+    // Flag indicating constructor initialization failed. Set by the nothrow
+    // constructor when connection setup fails. Inspected by create(nothrow_t)
+    // to propagate the error via expected.
+    bool m_initFailed{false};
+
+    // Error captured when constructor initialization fails. Only allocated
+    // on the failure path (~256 bytes saved per successful instance).
+    std::unique_ptr<DBException> m_initError{nullptr};
+
+    // ── Private helpers ───────────────────────────────────────────────────
+    // ... private nothrow methods ...
+
+public:
+    // ── Public nothrow constructor (guarded by PrivateCtorTag) ─────────────
+    MyDBConnection(PrivateCtorTag,
+                   std::nothrow_t,
+                   const std::string &host,
+                   int port,
+                   const std::string &database,
+                   const std::string &user,
+                   const std::string &password,
+                   const std::map<std::string, std::string> &options) noexcept;
+
+    ~MyDBConnection() override;
+
+#ifdef __cpp_exceptions
+    // ── Throwing factory ──────────────────────────────────────────────────
+    static std::shared_ptr<MyDBConnection>
+    create(const std::string &host, int port, const std::string &database,
+           const std::string &user, const std::string &password,
+           const std::map<std::string, std::string> &options = {})
+    {
+        auto r = create(std::nothrow, host, port, database, user, password, options);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+#endif
+
+    // ── Nothrow factory ───────────────────────────────────────────────────
+    static cpp_dbc::expected<std::shared_ptr<MyDBConnection>, DBException>
+    create(std::nothrow_t,
+           const std::string &host, int port, const std::string &database,
+           const std::string &user, const std::string &password,
+           const std::map<std::string, std::string> &options = {}) noexcept
+    {
+        auto obj = std::make_shared<MyDBConnection>(
+            PrivateCtorTag{}, std::nothrow, host, port, database, user, password, options);
+        if (obj->m_initFailed)
+        {
+            return cpp_dbc::unexpected(std::move(*obj->m_initError));
+        }
+        return obj;
+    }
+};
+```
+
+**Implementation** — constructor captures errors instead of throwing:
+
+```cpp
+MyDBConnection::MyDBConnection(PrivateCtorTag,
+                               std::nothrow_t,
+                               const std::string &host,
+                               int port,
+                               const std::string &database,
+                               const std::string &user,
+                               const std::string &password,
+                               const std::map<std::string, std::string> &options) noexcept
+#if DB_DRIVER_THREAD_SAFE
+    : m_connMutex(std::make_shared<std::recursive_mutex>())
+#endif
+{
+    try
+    {
+        m_handle = c_api_connect(host, port, database, user, password);
+        if (!m_handle)
+        {
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>(
+                "XXXXXXXXXXXX", "Failed to connect",
+                system_utils::captureCallStack());
+            return;
+        }
+        m_closed.store(false, std::memory_order_release);
+    }
+    catch (const std::exception &ex)
+    {
+        m_initFailed = true;
+        m_initError = std::make_unique<DBException>(
+            "XXXXXXXXXXXX", ex.what(),
+            system_utils::captureCallStack());
+    }
+    catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
+    {
+        m_initFailed = true;
+        m_initError = std::make_unique<DBException>(
+            "XXXXXXXXXXXX", "Unknown error in constructor",
+            system_utils::captureCallStack());
+    }
+}
+```
+
+#### Pattern: PrivateCtorTag (PreparedStatement / ResultSet / Other Children)
+
+Child classes follow the **exact same PrivateCtorTag pattern** as Connection. The only structural difference is the constructor parameters (they receive a weak reference to the parent Connection instead of host/port/etc.):
+
+```cpp
+class MyDBPreparedStatement final : public RelationalDBPreparedStatement
+{
+    // ── PrivateCtorTag ────────────────────────────────────────────────────
+    // Same passkey idiom as Connection — prevents external construction
+    // while enabling std::make_shared from the static factory.
+    struct PrivateCtorTag
+    {
+        explicit PrivateCtorTag() = default;
+    };
+
+    // ── Member variables ──────────────────────────────────────────────────
+    std::weak_ptr<MyDBConnection> m_connection;
+    std::string m_sql;
+    // ...
+
+    // ── Construction state ────────────────────────────────────────────────
+    bool m_initFailed{false};
+    std::unique_ptr<DBException> m_initError{nullptr};
+
+    // ── Private helpers ───────────────────────────────────────────────────
+    // ... private nothrow methods ...
+
+public:
+    // ── Public nothrow constructor (guarded by PrivateCtorTag) ─────────────
+    MyDBPreparedStatement(PrivateCtorTag,
+                          std::nothrow_t,
+                          std::weak_ptr<MyDBConnection> conn,
+                          const std::string &sql) noexcept;
+
+    ~MyDBPreparedStatement() override;
+
+#ifdef __cpp_exceptions
+    static std::shared_ptr<MyDBPreparedStatement>
+    create(std::weak_ptr<MyDBConnection> conn, const std::string &sql)
+    {
+        auto r = create(std::nothrow, std::move(conn), sql);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+#endif
+
+    static cpp_dbc::expected<std::shared_ptr<MyDBPreparedStatement>, DBException>
+    create(std::nothrow_t,
+           std::weak_ptr<MyDBConnection> conn,
+           const std::string &sql) noexcept
+    {
+        // std::make_shared — if bad_alloc is thrown, it is a death sentence
+        // (unrecoverable). No try/catch needed.
+        auto obj = std::make_shared<MyDBPreparedStatement>(
+            PrivateCtorTag{}, std::nothrow, std::move(conn), sql);
+        if (obj->m_initFailed)
+        {
+            return cpp_dbc::unexpected(std::move(*obj->m_initError));
+        }
+        return obj;
+    }
+};
+```
+
+#### Reference Implementations
+
+All driver classes use `PrivateCtorTag` + `std::make_shared`. There is no alternative pattern.
+
+| Driver | Connection | PreparedStatement | ResultSet |
+|--------|-----------|-------------------|-----------|
+| **Firebird** | `PrivateCtorTag` + `make_shared` | `PrivateCtorTag` + `make_shared` | `PrivateCtorTag` + `make_shared` |
+| **MySQL** | `PrivateCtorTag` + `make_shared` | `PrivateCtorTag` + `make_shared` | `PrivateCtorTag` + `make_shared` |
+| **MongoDB** | `PrivateCtorTag` + `make_shared` | `PrivateCtorTag` + `make_shared` (Cursor, Collection, Document) | — |
+| **Redis** | `PrivateCtorTag` + `make_shared` | — | — |
+| **ScyllaDB** | `PrivateCtorTag` + `make_shared` | `PrivateCtorTag` + `make_shared` | `PrivateCtorTag` + `make_shared` |
+| **SQLite** | Public ctor + `make_shared` (legacy) | Public ctor + `make_shared` (legacy) | Public ctor + `make_shared` (legacy) |
+
+> **Note**: SQLite uses an older pattern with public throwing constructors. New drivers **must** follow the `PrivateCtorTag` pattern for **all** classes.
+
+---
+
+### DBDriver Singleton + Connection Registry Pattern
+
+Every `*DBDriver` class (e.g. `MySQLDBDriver`, `MongoDBDriver`) implements two tightly-coupled mechanisms: a **`weak_ptr`-based singleton** that enforces a single live driver instance per process, and a **connection registry** that tracks all open connections for lifecycle management.
+
+#### Why a Singleton?
+
+A `DBDriver` wraps a C library that typically requires one-time global initialization (e.g. `mysql_library_init`, `mongoc_init`). Creating multiple driver instances in the same process would either double-initialize the library or leave a stale `s_initialized` flag after the first instance is destroyed — both incorrect.
+
+The `weak_ptr` singleton is the right tool here because:
+- It allows the driver to be destroyed (C library cleaned up) when no one holds a `shared_ptr` to it.
+- The next `getInstance()` call transparently creates a fresh instance, reinitializing the library.
+- No global `shared_ptr` is kept alive forever — memory and library resources are released when the driver is no longer needed.
+
+#### Required Static Members
+
+Add these static members to every `*DBDriver` class header (inside `#if USE_<DRIVER>`):
+
+```cpp
+// ── Initialization state ───────────────────────────────────────────────────
+// atomic<bool> + mutex instead of std::once_flag because once_flag cannot be
+// reset, but cleanup() must allow re-initialization after driver destruction.
+// Also, std::call_once can throw std::system_error, incompatible with -fno-exceptions.
+static std::atomic<bool> s_initialized;
+static std::mutex        s_initMutex;
+
+// ── Singleton state ────────────────────────────────────────────────────────
+static std::weak_ptr<XxxDBDriver> s_instance;
+static std::mutex                 s_instanceMutex;
+
+// ── Connection registry ────────────────────────────────────────────────────
+static std::mutex                                                      s_registryMutex;
+static std::set<std::weak_ptr<XxxDBConnection>,
+                std::owner_less<std::weak_ptr<XxxDBConnection>>>       s_connectionRegistry;
+```
+
+Add these private methods:
+
+```cpp
+static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
+static void registerConnection(std::nothrow_t, std::weak_ptr<XxxDBConnection> conn) noexcept;
+static void unregisterConnection(std::nothrow_t, const std::weak_ptr<XxxDBConnection> &conn) noexcept;
+friend class XxxDBConnection;  // so XxxDBConnection can call unregisterConnection
+```
+
+Add these public methods:
+
+```cpp
+static std::shared_ptr<XxxDBDriver> getInstance();                                          // throwing
+static cpp_dbc::expected<std::shared_ptr<XxxDBDriver>, DBException> getInstance(std::nothrow_t) noexcept;
+static void cleanup();
+static size_t getConnectionAlive() noexcept;
+```
+
+#### `getInstance(std::nothrow_t)` Implementation
+
+```cpp
+cpp_dbc::expected<std::shared_ptr<XxxDBDriver>, DBException>
+XxxDBDriver::getInstance(std::nothrow_t) noexcept
+{
+    std::lock_guard<std::mutex> lock(s_instanceMutex);
+    auto existing = s_instance.lock();
+    if (existing)
+    {
+        return existing;
+    }
+    try
+    {
+        auto inst = std::make_shared<XxxDBDriver>();
+        s_instance = inst;
+        return inst;
+    }
+    catch (const DBException &ex)
+    {
+        return cpp_dbc::unexpected(ex);
+    }
+    catch (const std::exception &ex)
+    {
+        return cpp_dbc::unexpected(DBException("XXXXXXXXXXXX",
+            std::string("Failed to initialize Xxx driver singleton: ") + ex.what(),
+            system_utils::captureCallStack()));
+    }
+    catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
+    {
+        return cpp_dbc::unexpected(DBException("XXXXXXXXXXXX",
+            "Unknown error while initializing Xxx driver singleton",
+            system_utils::captureCallStack()));
+    }
+}
+```
+
+#### Connection Registry
+
+The registry uses `std::set<std::weak_ptr<XxxDBConnection>, std::owner_less<...>>` so that expired weak pointers remain comparable. `registerConnection` is called by `connectXxx()` after successful connection creation. `unregisterConnection` is called by `XxxDBConnection::close()` using the `m_self` weak pointer stored during `create()`.
+
+**In the driver's `connectXxx()` method** — call `registerConnection` after success:
+
+```cpp
+auto conn = XxxDBConnection::create(std::nothrow, host, port, db, user, password, options);
+if (!conn.has_value())
+{
+    return cpp_dbc::unexpected(conn.error());
+}
+registerConnection(std::nothrow, conn.value());
+return conn.value();
+```
+
+**In `XxxDBConnection`** — add `m_self` and call unregister in `close()`:
+
+```cpp
+// In the class header:
+std::weak_ptr<XxxDBConnection> m_self;
+
+// In create() factory — set m_self after construction succeeds:
+obj->m_self = obj;
+
+// In close(std::nothrow_t) — unregister before closing:
+XxxDBDriver::unregisterConnection(std::nothrow, m_self);
+```
+
+`m_self` must be set in the factory (not the constructor) because `shared_from_this()` is unavailable inside a constructor. The `owner_less` comparator in the registry set compares by control block identity, so a `weak_ptr<XxxDBConnection>` can be erased even after the object is partially destroyed.
+
+#### `getConnectionAlive()` Implementation
+
+```cpp
+size_t XxxDBDriver::getConnectionAlive() noexcept
+{
+    std::lock_guard<std::mutex> lock(s_registryMutex);
+    return static_cast<size_t>(std::count_if(
+        s_connectionRegistry.begin(), s_connectionRegistry.end(),
+        [](const auto &w) { return !w.expired(); }));
+}
+```
+
+---
+
+### Mutex Sharing — Connection and Child Classes
+
+#### Overview
+
+Every Connection class creates a mutex that protects operations on the underlying C API handle. Child classes (PreparedStatement, ResultSet, Cursor, Collection, Document, etc.) that depend semantically and functionally on the Connection may share this mutex or create their own, depending on the database's execution model.
+
+The key architectural invariant is:
+
+1. **Connection owns the mutex** — created as `std::shared_ptr<std::recursive_mutex>` during construction
+2. **Children hold a `std::weak_ptr` back to Connection** — not a raw pointer, to detect parent destruction safely
+3. **Connection tracks all children** — via `std::set<std::weak_ptr<Child>, std::owner_less<...>>` registries
+4. **When Connection closes, all children close** — releases C API resources and marks them as closed
+
+#### Mutex Strictness Levels
+
+Different databases require different levels of mutex sharing depending on their C API threading model:
+
+| Level | Description | Example Drivers |
+|-------|-------------|-----------------|
+| **Strict** | ONE mutex shared by Connection + PreparedStatement + ResultSet | Firebird |
+| **Extra-strict** | ONE mutex per connection + ONE mutex per database file (multiple connections to the same local file share a file-level mutex) | SQLite |
+| **Lax** | ONE mutex shared by Connection + PreparedStatement; ResultSet has its OWN independent mutex | MySQL, PostgreSQL |
+
+The strictness level is determined by how the C API handles concurrent access:
+
+##### Strict (Firebird)
+
+Firebird uses a **cursor-based** execution model. `isc_dsql_fetch()` communicates with the database handle for EACH row. All operations — connection, statement, and result set — must be serialized through a single mutex per connection.
+
+```text
+Connection ─── m_connMutex (shared_ptr<recursive_mutex>)
+  │
+  ├── PreparedStatement ─── accesses mutex via m_connection.lock()->getConnectionMutex()
+  │
+  └── ResultSet ─────────── accesses mutex via m_connection.lock()->getConnectionMutex()
+```
+
+##### Extra-Strict (SQLite)
+
+SQLite has the same cursor-based model as Firebird, but adds a unique constraint: it is a **local file-based database**. Multiple connections to the **same database file** from different threads must also be serialized, because SQLite uses POSIX file locks internally for synchronization — which sanitizers (ThreadSanitizer, Helgrind) cannot detect.
+
+```text
+FileMutexRegistry (singleton)
+  │
+  ├── "/path/to/db1.sqlite" ─── globalFileMutex_A (shared_ptr<recursive_mutex>)
+  │     │
+  │     ├── Connection_1 ─── m_globalFileMutex = globalFileMutex_A
+  │     │     ├── PreparedStatement ─── m_globalFileMutex = globalFileMutex_A
+  │     │     └── ResultSet ─────────── m_globalFileMutex = globalFileMutex_A
+  │     │
+  │     └── Connection_2 ─── m_globalFileMutex = globalFileMutex_A  (SAME mutex!)
+  │           ├── PreparedStatement ─── m_globalFileMutex = globalFileMutex_A
+  │           └── ResultSet ─────────── m_globalFileMutex = globalFileMutex_A
+  │
+  └── "/path/to/db2.sqlite" ─── globalFileMutex_B (different mutex)
+        │
+        └── Connection_3 ─── m_globalFileMutex = globalFileMutex_B
+```
+
+This pattern is specific to **local file-based databases**. Network-based databases (MySQL, PostgreSQL, Firebird) do not need file-level mutexes because the server handles concurrency. The `FileMutexRegistry` normalizes paths (`/tmp/db`, `/tmp//db`, `/tmp/./db` all map to the same mutex) and uses `weak_ptr` for automatic cleanup when all connections to a file are closed.
+
+Special case: `:memory:` databases get a local per-connection mutex instead of a registry-based one, since there is no shared file.
+
+> **Note**: The file-level mutex is controlled by the CMake option `ENABLE_FILE_MUTEX_REGISTRY`. It is enabled for sanitizer testing and disabled in production (zero overhead). See `libs/cpp_dbc/include/cpp_dbc/common/file_mutex_registry.hpp`.
+
+##### Lax (MySQL, PostgreSQL)
+
+MySQL and PostgreSQL use a **"store result"** model. `mysql_store_result()` / `PQexec()` fetches ALL data into client memory (`MYSQL_RES*` / `PGresult*`). After that, ResultSet operations (`next()`, `getString()`, etc.) only read in-memory structures — they do NOT communicate with the connection handle. Therefore, ResultSet can use its own independent mutex.
+
+However, PreparedStatement operations (`mysql_stmt_prepare()`, `mysql_stmt_execute()`, `mysql_stmt_close()`) DO communicate with the connection handle. They must share the connection's mutex.
+
+```text
+Connection ─── m_connMutex (shared_ptr<recursive_mutex>)
+  │
+  ├── PreparedStatement ─── accesses mutex via m_connection.lock()->getConnectionMutex()
+  │                         (shares connection's mutex)
+  │
+  └── ResultSet ─────────── m_mutex (own independent recursive_mutex)
+                            (does NOT share connection's mutex)
+```
+
+#### Child Registry Pattern
+
+Connection tracks its children using weak pointer sets with owner-based comparison:
+
+```cpp
+// In Connection header
+std::set<std::weak_ptr<MyDBPreparedStatement>,
+         std::owner_less<std::weak_ptr<MyDBPreparedStatement>>> m_activeStatements;
+std::set<std::weak_ptr<MyDBResultSet>,
+         std::owner_less<std::weak_ptr<MyDBResultSet>>> m_activeResultSets;
+```
+
+**Why `std::weak_ptr`**: The Connection does not own its children. Users hold the `shared_ptr`. When the user releases a PreparedStatement, it is destroyed naturally. The registry only tracks — it does not extend lifetime.
+
+**Why `std::owner_less`**: Standard `operator<` on `weak_ptr` compares the managed pointer, which can change across `lock()` calls. `std::owner_less` compares ownership (the control block), which is stable.
+
+**Periodic cleanup**: Expired entries are cleaned lazily — when the set exceeds a threshold (e.g., 50 entries), `std::erase_if` removes expired weak pointers:
+
+```cpp
+cpp_dbc::expected<void, DBException>
+MyDBConnection::registerStatement(std::nothrow_t,
+                                  std::weak_ptr<MyDBPreparedStatement> stmt) noexcept
+{
+    LOCK_OR_RETURN("XXXXXXXXXXXX", "Connection closed");
+    if (m_activeStatements.size() > 50)
+    {
+        std::erase_if(m_activeStatements, [](const auto &w) { return w.expired(); });
+    }
+    m_activeStatements.insert(stmt);
+    return {};
+}
+```
+
+#### Connection Close Cascade
+
+When a Connection closes, it must close all its children BEFORE releasing C API resources. The pattern uses a **two-phase approach** to avoid iterator invalidation and deadlocks:
+
+1. **Phase 1** (under lock): Collect live children into a temporary vector, then clear the registry
+2. **Phase 2** (outside lock): Close each child
+
+```cpp
+cpp_dbc::expected<void, DBException>
+MyDBConnection::closeAllStatements(std::nothrow_t) noexcept
+{
+    std::vector<std::shared_ptr<MyDBPreparedStatement>> stmtsToClose;
+
+    {
+        LOCK_OR_RETURN("XXXXXXXXXXXX", "Connection closed");
+        for (auto &weakStmt : m_activeStatements)
+        {
+            if (auto stmt = weakStmt.lock())
+            {
+                stmtsToClose.push_back(stmt);
+            }
+        }
+        m_activeStatements.clear();  // Clear BEFORE releasing lock
+    }
+
+    // Close outside the lock — prevents deadlock if close() re-enters the connection
+    for (auto &stmt : stmtsToClose)
+    {
+        [[maybe_unused]] auto closeResult = stmt->notifyConnClosing(std::nothrow);
+    }
+    return {};
+}
+```
+
+**Why two phases**: `close()` on a child may call `unregisterStatement()` on the Connection, which would modify `m_activeStatements` while iterating — causing iterator invalidation. By clearing the set first and closing outside the lock, this race is eliminated.
+
+#### Child Back-Reference via `std::weak_ptr`
+
+Every child class holds a `std::weak_ptr<MyDBConnection>` back to its parent. This is critical for:
+
+1. **Lifecycle safety**: `weak_ptr::lock()` detects when the Connection is destroyed. Methods can return an error ("connection destroyed") instead of dereferencing a dangling pointer.
+2. **Mutex access**: Children acquire the connection's mutex through `m_connection.lock()->getConnectionMutex()`.
+3. **C API access**: Children access C API resources (transaction handle, database handle) through the locked connection.
+
+```cpp
+// In PreparedStatement methods:
+auto conn = m_connection.lock();
+if (!conn)
+{
+    return cpp_dbc::unexpected(
+        DBException("XXXXXXXXXXXX", "Connection destroyed",
+                   system_utils::captureCallStack()));
+}
+// Safe: connection is alive while conn shared_ptr exists
+auto &tr = conn->getTransactionHandle();
+c_api_execute(tr, m_stmt, ...);
+```
+
+> **CRITICAL**: Never store a raw pointer to the Connection or its members. Use `weak_ptr` and lock it before every access. Raw pointers cause USE-AFTER-FREE bugs when the Connection is destroyed while children still exist.
+
+#### Connection Lock Helper (Strict/Extra-Strict Drivers)
+
+For drivers where children share the connection's mutex (Firebird, SQLite), a RAII helper class simplifies the lock acquisition pattern with double-checked locking:
+
+```cpp
+class ConnectionLock
+{
+    std::shared_ptr<MyDBConnection> m_conn;  // Keeps connection alive while lock is held
+    std::unique_lock<std::recursive_mutex> m_lock;
+    bool m_acquired{false};
+
+public:
+    template <typename T>
+    ConnectionLock(T *obj, std::atomic<bool> &closed)
+    {
+        // FIRST CHECK: fast path — already closed, no lock needed
+        if (closed.load(std::memory_order_acquire))
+        {
+            return;
+        }
+
+        // Obtain connection and KEEP IT ALIVE
+        m_conn = obj->m_connection.lock();
+        if (!m_conn)
+        {
+            closed.store(true, std::memory_order_release);
+            return;
+        }
+
+        // Acquire connection's mutex (connection stays alive via m_conn)
+        m_lock = std::unique_lock<std::recursive_mutex>(m_conn->getConnectionMutex());
+
+        // SECOND CHECK: another thread may have closed between first check and lock
+        if (closed.load(std::memory_order_acquire))
+        {
+            return;
+        }
+
+        m_acquired = true;
+    }
+
+    bool isAcquired() const { return m_acquired; }
+};
+```
+
+This helper is typically used via **six macros** organized in two levels. Each driver defines its own set with the driver prefix (e.g. `MYSQL_`, `FIREBIRD_`, `SQLITE_`). See `src/drivers/relational/mysql/mysql_internal.hpp` and `src/drivers/relational/firebird/firebird_internal.hpp` for complete reference implementations:
+
+**Connection-level macros** — used inside `*DBConnection` methods. Acquire the connection's own mutex (`m_connMutex`) directly:
+
+```cpp
+// Thread-safe variants
+#if DB_DRIVER_THREAD_SAFE
+
+// For nothrow DBConnection methods — returns unexpected if connection is closed
+#define MY_CONNECTION_LOCK_OR_RETURN(mark, msg)                                              \
+    DB_DRIVER_LOCK_GUARD(*m_connMutex);                                                      \
+    if (m_closed.load(std::memory_order_acquire))                                            \
+    {                                                                                        \
+        return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",             \
+                                               cpp_dbc::system_utils::captureCallStack()));  \
+    }
+
+// For throwing DBConnection methods — throws if connection is closed
+#define MY_CONNECTION_LOCK_OR_THROW(mark, msg)                             \
+    DB_DRIVER_LOCK_GUARD(*m_connMutex);                                    \
+    if (m_closed.load(std::memory_order_acquire))                          \
+    {                                                                      \
+        throw DBException(mark, msg " (connection closed)",                \
+                          cpp_dbc::system_utils::captureCallStack());       \
+    }
+
+// For close() method — returns success if already closed (idempotent)
+#define MY_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()  \
+    DB_DRIVER_LOCK_GUARD(*m_connMutex);                    \
+    if (m_closed.load(std::memory_order_acquire))          \
+    {                                                      \
+        return {}; /* Already closed = success */          \
+    }
+
+#else
+// Non-thread-safe: no-op
+#define MY_CONNECTION_LOCK_OR_RETURN(mark, msg) (void)0
+#define MY_CONNECTION_LOCK_OR_THROW(mark, msg) (void)0
+#define MY_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED() (void)0
+#endif
+```
+
+**Statement-level macros** — used inside `*DBPreparedStatement` and `*DBResultSet` methods. Use the `ConnectionLock` RAII helper to acquire the mutex through `weak_ptr<Connection>`:
+
+```cpp
+#if DB_DRIVER_THREAD_SAFE
+
+// For nothrow child methods — returns unexpected if lock fails
+#define MY_STMT_LOCK_OR_RETURN(mark, msg)                                                    \
+    cpp_dbc::MyNS::MyConnectionLock __lock(this, m_closed);                                  \
+    if (!__lock)                                                                             \
+    {                                                                                        \
+        return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",             \
+                                               cpp_dbc::system_utils::captureCallStack()));  \
+    }
+
+// For throwing child methods — throws if lock fails
+#define MY_STMT_LOCK_OR_THROW(mark, msg)                                                                 \
+    cpp_dbc::MyNS::MyConnectionLock __lock(this, m_closed);                                              \
+    if (!__lock)                                                                                         \
+    {                                                                                                    \
+        throw DBException(mark, msg " (connection closed)", cpp_dbc::system_utils::captureCallStack());  \
+    }
+
+// For close() methods — returns success if already closed (idempotent)
+#define MY_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()                          \
+    cpp_dbc::MyNS::MyConnectionLock __lock(this, m_closed);                 \
+    if (!__lock)                                                            \
+    {                                                                       \
+        return {}; /* Already closed or connection lost = success */        \
+    }
+
+#else
+// Non-thread-safe: just check closed flag, no locking
+#define MY_STMT_LOCK_OR_RETURN(mark, msg)                                                    \
+    if (m_closed.load(std::memory_order_acquire))                                            \
+    {                                                                                        \
+        return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",             \
+                                               cpp_dbc::system_utils::captureCallStack()));  \
+    }
+
+#define MY_STMT_LOCK_OR_THROW(mark, msg)                                                                 \
+    if (m_closed.load(std::memory_order_acquire))                                                        \
+    {                                                                                                    \
+        throw DBException(mark, msg " (connection closed)", cpp_dbc::system_utils::captureCallStack());  \
+    }
+
+#define MY_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()        \
+    if (m_closed.load(std::memory_order_acquire))          \
+    {                                                      \
+        return {}; /* Already closed = success */          \
+    }
+#endif
+```
+
+**Usage examples:**
+
+```cpp
+// In Connection nothrow method:
+cpp_dbc::expected<void, DBException>
+MyDBConnection::executeUpdate(std::nothrow_t, const std::string &sql) noexcept
+{
+    MY_CONNECTION_LOCK_OR_RETURN("XXXXXXXXXXXX", "executeUpdate failed");
+    // ... safe to use C API under lock ...
+}
+
+// In PreparedStatement nothrow method:
+cpp_dbc::expected<void, DBException>
+MyDBPreparedStatement::setInt(std::nothrow_t, int index, int value) noexcept
+{
+    MY_STMT_LOCK_OR_RETURN("XXXXXXXXXXXX", "Connection lost in setInt");
+    // ... safe to use C API under lock ...
+}
+
+// In close() method (idempotent):
+cpp_dbc::expected<void, DBException>
+MyDBPreparedStatement::close(std::nothrow_t) noexcept
+{
+    MY_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
+    // ... cleanup logic ...
+}
+```
+
+**Naming convention**: Replace `MY_` with the driver prefix: `MYSQL_`, `FIREBIRD_`, `SQLITE_`, `SCYLLADB_`, `REDIS_`, `MONGODB_`. Replace `MyNS` with the driver namespace and `MyConnectionLock` with the driver-specific lock class name.
+
+#### Applying to Non-Relational Families
+
+The same patterns apply to all driver families — only the child class types differ:
+
+| Family | Connection | Children (share mutex or own) |
+|--------|-----------|-------------------------------|
+| **Relational** | `*DBConnection` | `*DBPreparedStatement`, `*DBResultSet` |
+| **Document** | `MongoDBConnection` | `MongoDBCollection`, `MongoDBCursor`, `MongoDBDocument` |
+| **Columnar** | `ScyllaDBConnection` | `ScyllaDBPreparedStatement`, `ScyllaDBResultSet` |
+| **KV** | `RedisDBConnection` | (typically no long-lived children) |
+
+The invariants remain the same:
+- Children hold `weak_ptr` back to Connection
+- Connection tracks children in `weak_ptr` registries
+- Connection close cascades to all children
+- Mutex strictness depends on the C API's threading model
+
+#### Reference Implementations
+
+| Pattern | Reference Files |
+|---------|----------------|
+| **PrivateCtorTag** (all classes) | `drivers/relational/firebird/connection.hpp` (lines 57-60, 140-224), `drivers/document/mongodb/cursor.hpp` (lines 39-43, 151-161) |
+| **Construction state** (`m_initFailed`/`m_initError` as `unique_ptr`) | `drivers/relational/mysql/connection.hpp` (lines 130-134), `drivers/relational/firebird/result_set.hpp` (lines 78-91) |
+| **Strict mutex** (one per connection) | `drivers/relational/firebird/connection.hpp` (lines 76-85) |
+| **Extra-strict mutex** (file-level) | `drivers/relational/sqlite/connection.hpp`, `common/file_mutex_registry.hpp` |
+| **Lax mutex** (independent ResultSet) | `drivers/relational/mysql/result_set.hpp` (lines 145-172) |
+| **Child registry** (weak_ptr set) | `drivers/relational/firebird/connection.hpp` (lines 72-74) |
+| **Close cascade** (two-phase) | `src/drivers/relational/firebird/connection_01.cpp` (lines 343-425) |
+| **ConnectionLock** (RAII helper) | `src/drivers/relational/firebird/firebird_internal.hpp` (lines 100-160), `src/drivers/relational/mysql/mysql_internal.hpp` (lines 95-143) |
+| **Lock macros** (6-macro pattern) | `src/drivers/relational/firebird/firebird_internal.hpp` (conn: lines 40-69, stmt: lines 165-192), `src/drivers/relational/mysql/mysql_internal.hpp` (conn: lines 41-72, stmt: lines 148-191) |
+| **Debug macro** | `src/drivers/relational/firebird/firebird_internal.hpp` (lines 196-212), `src/drivers/relational/mysql/mysql_internal.hpp` (lines 195-211) |
+| **Complete `*_internal.hpp`** | `src/drivers/relational/firebird/firebird_internal.hpp` (full reference), `src/drivers/relational/mysql/mysql_internal.hpp` (full reference) |
 
 ---
 

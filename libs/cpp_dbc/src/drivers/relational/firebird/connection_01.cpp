@@ -22,7 +22,6 @@
 
 #if USE_FIREBIRD
 
-#include <sstream>
 #include <algorithm>
 #include <chrono>
 #include <thread>
@@ -127,8 +126,8 @@ namespace cpp_dbc::Firebird
                 FIREBIRD_DEBUG("  Failed to attach: %s", errorMsg.c_str());
                 delete dbHandle;
                 m_initFailed = true;
-                m_initError = DBException("FB7A8B9C0D1E", "Failed to connect to database: " + errorMsg,
-                                          system_utils::captureCallStack());
+                m_initError = std::make_unique<DBException>("FB7A8B9C0D1E", "Failed to connect to database: " + errorMsg,
+                                                            system_utils::captureCallStack());
                 return;
             }
             FIREBIRD_DEBUG("  Attached successfully, dbHandle=%p, *dbHandle=%p", (void *)dbHandle, (void *)(uintptr_t)*dbHandle);
@@ -136,10 +135,14 @@ namespace cpp_dbc::Firebird
             // Create shared_ptr with custom deleter
             m_db = std::shared_ptr<isc_db_handle>(dbHandle, FirebirdDbDeleter{});
 
-            // Cache URL — database already starts with '/' (prepended by parseURL for remote connections),
-            // so no separator is added here to avoid a double slash (e.g. "localhost:3050//path").
-            const std::string sep = (!database.empty() && database[0] == '/') ? "" : "/";
-            m_url = "cpp_dbc:firebird://" + host + ":" + std::to_string(port) + sep + database;
+            // Cache URI — database may start with '/' (prepended by parseURI for remote connections).
+            // Strip leading '/' from database before passing to buildDBURI, which adds its own separator.
+            std::string_view dbView = database;
+            if (!dbView.empty() && dbView.front() == '/')
+            {
+                dbView.remove_prefix(1);
+            }
+            m_uri = system_utils::buildDBURI("cpp_dbc:firebird://", host, port, dbView);
 
             m_closed.store(false, std::memory_order_release);
 
@@ -154,7 +157,7 @@ namespace cpp_dbc::Firebird
                     // Clean up the database handle before reporting failure
                     m_db.reset();
                     m_initFailed = true;
-                    m_initError = txResult.error();
+                    m_initError = std::make_unique<DBException>(txResult.error());
                     return;
                 }
             }
@@ -163,18 +166,18 @@ namespace cpp_dbc::Firebird
         catch (const DBException &ex)
         {
             m_initFailed = true;
-            m_initError = ex;
+            m_initError = std::make_unique<DBException>(ex);
         }
         catch (const std::exception &ex)
         {
             m_initFailed = true;
-            m_initError = DBException("NXZ242YS9FRK", ex.what(), system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("NXZ242YS9FRK", ex.what(), system_utils::captureCallStack());
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             m_initFailed = true;
-            m_initError = DBException("J24BZGLBC24P", "Unknown error in FirebirdDBConnection constructor",
-                                      system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("J24BZGLBC24P", "Unknown error in FirebirdDBConnection constructor",
+                                                        system_utils::captureCallStack());
         }
     }
 
@@ -514,9 +517,9 @@ namespace cpp_dbc::Firebird
         return result.value();
     }
 
-    std::string FirebirdDBConnection::getURL() const
+    std::string FirebirdDBConnection::getURI() const
     {
-        auto result = getURL(std::nothrow);
+        auto result = getURI(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();
@@ -638,6 +641,26 @@ namespace cpp_dbc::Firebird
             throw result.error();
         }
         return result.value();
+    }
+
+    std::string FirebirdDBConnection::getServerVersion()
+    {
+        auto result = getServerVersion(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::map<std::string, std::string> FirebirdDBConnection::getServerInfo()
+    {
+        auto result = getServerInfo(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
     }
 
 #endif // __cpp_exceptions

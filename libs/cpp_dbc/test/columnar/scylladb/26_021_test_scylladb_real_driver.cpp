@@ -25,6 +25,8 @@
 
 #include <cpp_dbc/cpp_dbc.hpp>
 
+#include "26_001_test_scylladb_real_common.hpp"
+
 #if USE_SCYLLADB
 // Test case for ScyllaDB driver
 TEST_CASE("ScyllaDB driver tests", "[26_021_01_scylladb_real_driver]")
@@ -32,53 +34,73 @@ TEST_CASE("ScyllaDB driver tests", "[26_021_01_scylladb_real_driver]")
     SECTION("ScyllaDB driver URL acceptance")
     {
         // Create a ScyllaDB driver
-        cpp_dbc::ScyllaDB::ScyllaDBDriver driver;
+        auto driver = scylla_test_helpers::getScyllaDriver();
+        REQUIRE(driver != nullptr);
 
-        // Check that it accepts ScyllaDB URLs
-        REQUIRE(driver.acceptsURL("cpp_dbc:scylladb://localhost:9042/testdb"));
-        REQUIRE(driver.acceptsURL("cpp_dbc:scylladb://127.0.0.1:9042/testdb"));
+        // Check that it accepts ScyllaDB URIs
+        REQUIRE_NOTHROW(driver->acceptURI("cpp_dbc:scylladb://localhost:9042/testdb"));
+        REQUIRE_NOTHROW(driver->acceptURI("cpp_dbc:scylladb://127.0.0.1:9042/testdb"));
 
-        // Check that it rejects non-ScyllaDB URLs
-        REQUIRE_FALSE(driver.acceptsURL("cpp_dbc:mysql://localhost:3306/testdb"));
-        REQUIRE_FALSE(driver.acceptsURL("scylladb://localhost:9042/testdb"));
+        // Check that it rejects non-ScyllaDB URIs
+        REQUIRE_THROWS_AS(driver->acceptURI("cpp_dbc:mysql://localhost:3306/testdb"), cpp_dbc::DBException);
+        REQUIRE_THROWS_AS(driver->acceptURI("scylladb://localhost:9042/testdb"), cpp_dbc::DBException);
+    }
+
+    SECTION("ScyllaDB driver URI acceptance (nothrow)")
+    {
+        auto driver = scylla_test_helpers::getScyllaDriver();
+        REQUIRE(driver != nullptr);
+
+        // Valid ScyllaDB URIs — has_value() returns true
+        auto ok1 = driver->acceptURI(std::nothrow, "cpp_dbc:scylladb://localhost:9042/testdb");
+        REQUIRE(ok1.has_value());
+        auto ok2 = driver->acceptURI(std::nothrow, "cpp_dbc:scylladb://127.0.0.1:9042/testdb");
+        REQUIRE(ok2.has_value());
+
+        // Wrong scheme — has_value() returns false with scheme mismatch error
+        auto no1 = driver->acceptURI(std::nothrow, "cpp_dbc:mysql://localhost:3306/testdb");
+        REQUIRE_FALSE(no1.has_value());
+        auto no2 = driver->acceptURI(std::nothrow, "scylladb://localhost:9042/testdb");
+        REQUIRE_FALSE(no2.has_value());
     }
 
     SECTION("ScyllaDB driver parseURI - valid URIs")
     {
-        cpp_dbc::ScyllaDB::ScyllaDBDriver driver;
+        auto driver = scylla_test_helpers::getScyllaDriver();
+        REQUIRE(driver != nullptr);
 
         // Full URI with host, port, and keyspace
-        auto params = driver.parseURI("cpp_dbc:scylladb://localhost:9042/mydb");
+        auto params = driver->parseURI("cpp_dbc:scylladb://localhost:9042/mydb");
         REQUIRE(params.at("host") == "localhost");
         REQUIRE(params.at("port") == "9042");
         REQUIRE(params.at("database") == "mydb");
 
         // URI with host and port but no keyspace
-        params = driver.parseURI("cpp_dbc:scylladb://server:1234");
+        params = driver->parseURI("cpp_dbc:scylladb://server:1234");
         REQUIRE(params.at("host") == "server");
         REQUIRE(params.at("port") == "1234");
         REQUIRE(params.at("database") == "");
 
         // URI with host only (should default port to 9042)
-        params = driver.parseURI("cpp_dbc:scylladb://localhost");
+        params = driver->parseURI("cpp_dbc:scylladb://localhost");
         REQUIRE(params.at("host") == "localhost");
         REQUIRE(params.at("port") == "9042");
         REQUIRE(params.at("database") == "");
 
         // URI with host and keyspace but no port
-        params = driver.parseURI("cpp_dbc:scylladb://localhost/mykeyspace");
+        params = driver->parseURI("cpp_dbc:scylladb://localhost/mykeyspace");
         REQUIRE(params.at("host") == "localhost");
         REQUIRE(params.at("port") == "9042");
         REQUIRE(params.at("database") == "mykeyspace");
 
         // URI with IP address
-        params = driver.parseURI("cpp_dbc:scylladb://127.0.0.1:9042/testks");
+        params = driver->parseURI("cpp_dbc:scylladb://127.0.0.1:9042/testks");
         REQUIRE(params.at("host") == "127.0.0.1");
         REQUIRE(params.at("port") == "9042");
         REQUIRE(params.at("database") == "testks");
 
         // URI with IPv6 address
-        params = driver.parseURI("cpp_dbc:scylladb://[::1]:9042/testks");
+        params = driver->parseURI("cpp_dbc:scylladb://[::1]:9042/testks");
         REQUIRE(params.at("host") == "::1");
         REQUIRE(params.at("port") == "9042");
         REQUIRE(params.at("database") == "testks");
@@ -86,14 +108,15 @@ TEST_CASE("ScyllaDB driver tests", "[26_021_01_scylladb_real_driver]")
 
     SECTION("ScyllaDB driver parseURI - invalid URIs")
     {
-        cpp_dbc::ScyllaDB::ScyllaDBDriver driver;
+        auto driver = scylla_test_helpers::getScyllaDriver();
+        REQUIRE(driver != nullptr);
 
         // Wrong scheme
         REQUIRE_THROWS_AS(
-            driver.parseURI("cpp_dbc:mysql://localhost:3306/testdb"),
+            driver->parseURI("cpp_dbc:mysql://localhost:3306/testdb"),
             cpp_dbc::DBException);
         REQUIRE_THROWS_AS(
-            driver.parseURI("scylladb://localhost:9042/testdb"),
+            driver->parseURI("scylladb://localhost:9042/testdb"),
             cpp_dbc::DBException);
     }
 }

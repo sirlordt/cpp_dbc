@@ -35,7 +35,7 @@ namespace cpp_dbc
     // ── Constructors (delegate to base) ─────────────────────────────────────
 
     KVDBConnectionPool::KVDBConnectionPool(DBConnectionPool::ConstructorTag,
-                                           const std::string &url,
+                                           const std::string &uri,
                                            const std::string &username,
                                            const std::string &password,
                                            const std::map<std::string, std::string> &options,
@@ -49,7 +49,7 @@ namespace cpp_dbc
                                            bool testOnBorrow,
                                            bool testOnReturn,
                                            TransactionIsolationLevel transactionIsolation) noexcept
-        : DBConnectionPoolBase(DBConnectionPool::ConstructorTag{}, url, username, password, options,
+        : DBConnectionPoolBase(DBConnectionPool::ConstructorTag{}, uri, username, password, options,
                                initialSize, maxSize, minIdle, maxWaitMillis, validationTimeoutMillis,
                                idleTimeoutMillis, maxLifetimeMillis, testOnBorrow, testOnReturn,
                                transactionIsolation)
@@ -73,7 +73,7 @@ namespace cpp_dbc
     cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException>
     KVDBConnectionPool::createDBConnection(std::nothrow_t) const noexcept
     {
-        auto dbConnResult = DriverManager::getDBConnection(std::nothrow, getUrl(), getUsername(), getPassword(), getOptions());
+        auto dbConnResult = DriverManager::getDBConnection(std::nothrow, getUri(), getUsername(), getPassword(), getOptions());
         if (!dbConnResult.has_value())
         {
             return cpp_dbc::unexpected(dbConnResult.error());
@@ -128,7 +128,7 @@ namespace cpp_dbc
     // ── Static factories ────────────────────────────────────────────────────
 
     cpp_dbc::expected<std::shared_ptr<KVDBConnectionPool>, DBException> KVDBConnectionPool::create(std::nothrow_t,
-                                                                                                   const std::string &url,
+                                                                                                   const std::string &uri,
                                                                                                    const std::string &username,
                                                                                                    const std::string &password,
                                                                                                    const std::map<std::string, std::string> &options,
@@ -144,7 +144,7 @@ namespace cpp_dbc
                                                                                                    TransactionIsolationLevel transactionIsolation) noexcept
     {
         auto pool = std::make_shared<KVDBConnectionPool>(
-            DBConnectionPool::ConstructorTag{}, url, username, password, options, initialSize, maxSize, minIdle,
+            DBConnectionPool::ConstructorTag{}, uri, username, password, options, initialSize, maxSize, minIdle,
             maxWaitMillis, validationTimeoutMillis, idleTimeoutMillis, maxLifetimeMillis,
             testOnBorrow, testOnReturn, transactionIsolation);
 
@@ -184,12 +184,28 @@ namespace cpp_dbc
         return result.value();
     }
 
+    std::shared_ptr<KVDBConnection> KVDBConnectionPool::getKVDBConnection(size_t timeoutMs)
+    {
+        auto result = getKVDBConnection(std::nothrow, timeoutMs);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
 #endif // __cpp_exceptions
 
     cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException>
     KVDBConnectionPool::getKVDBConnection(std::nothrow_t) noexcept
     {
-        auto result = acquireConnection(std::nothrow);
+        return getKVDBConnection(std::nothrow, 0);
+    }
+
+    cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException>
+    KVDBConnectionPool::getKVDBConnection(std::nothrow_t, size_t timeoutMs) noexcept
+    {
+        auto result = acquireConnection(std::nothrow, timeoutMs);
         if (!result.has_value())
         {
             return cpp_dbc::unexpected(result.error());
@@ -558,16 +574,6 @@ namespace cpp_dbc
     bool KVPooledDBConnection::flushDB(bool async)
     {
         auto result = flushDB(std::nothrow, async);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    std::map<std::string, std::string> KVPooledDBConnection::getServerInfo()
-    {
-        auto result = getServerInfo(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();
@@ -980,17 +986,6 @@ namespace cpp_dbc
         return getConn(std::nothrow)->flushDB(std::nothrow, async);
     }
 
-    cpp_dbc::expected<std::map<std::string, std::string>, DBException> KVPooledDBConnection::getServerInfo(
-        std::nothrow_t) noexcept
-    {
-        if (isLocalClosed(std::nothrow))
-        {
-            return cpp_dbc::unexpected(DBException("Q4UUV0ULFRE4", "Connection is closed", system_utils::captureCallStack()));
-        }
-        updateLastUsedTime(std::nothrow);
-        return getConn(std::nothrow)->getServerInfo(std::nothrow);
-    }
-
     cpp_dbc::expected<void, DBException>
     KVPooledDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
     {
@@ -1020,10 +1015,10 @@ namespace cpp_dbc
 namespace cpp_dbc::Redis
 {
     RedisDBConnectionPool::RedisDBConnectionPool(DBConnectionPool::ConstructorTag,
-                                                 const std::string &url,
+                                                 const std::string &uri,
                                                  const std::string &username,
                                                  const std::string &password) noexcept
-        : KVDBConnectionPool(DBConnectionPool::ConstructorTag{}, url, username, password, {}, 5, 20, 3, 5000, 5000, 300000, 1800000, true, false)
+        : KVDBConnectionPool(DBConnectionPool::ConstructorTag{}, uri, username, password, {}, 5, 20, 3, 5000, 5000, 300000, 1800000, true, false)
     {
     }
 
@@ -1035,11 +1030,11 @@ namespace cpp_dbc::Redis
 
 #ifdef __cpp_exceptions
 
-    std::shared_ptr<RedisDBConnectionPool> RedisDBConnectionPool::create(const std::string &url,
+    std::shared_ptr<RedisDBConnectionPool> RedisDBConnectionPool::create(const std::string &uri,
                                                                          const std::string &username,
                                                                          const std::string &password)
     {
-        auto result = create(std::nothrow, url, username, password);
+        auto result = create(std::nothrow, uri, username, password);
         if (!result.has_value())
         {
             throw result.error();
@@ -1060,11 +1055,11 @@ namespace cpp_dbc::Redis
 #endif // __cpp_exceptions
 
     cpp_dbc::expected<std::shared_ptr<RedisDBConnectionPool>, DBException> RedisDBConnectionPool::create(std::nothrow_t,
-                                                                                                         const std::string &url,
+                                                                                                         const std::string &uri,
                                                                                                          const std::string &username,
                                                                                                          const std::string &password) noexcept
     {
-        auto pool = std::make_shared<RedisDBConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
+        auto pool = std::make_shared<RedisDBConnectionPool>(DBConnectionPool::ConstructorTag{}, uri, username, password);
         auto initResult = pool->initializePool(std::nothrow);
         if (!initResult.has_value())
         {

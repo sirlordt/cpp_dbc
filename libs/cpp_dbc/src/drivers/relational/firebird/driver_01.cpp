@@ -23,56 +23,100 @@
 
 #include "cpp_dbc/drivers/relational/driver_firebird.hpp"
 
-#include <sstream>
 #include <algorithm>
+#include <charconv>
+#include <chrono>
 #include <cstring>
 #include <cstdlib>
+#include <sstream>
+#include <thread>
 
+#include "cpp_dbc/common/system_utils.hpp"
 #include "firebird_internal.hpp"
 
 #if USE_FIREBIRD
 
 namespace cpp_dbc::Firebird
 {
-    // Static member initialization
-    std::atomic<bool> FirebirdDBDriver::s_initialized{false};
-    std::mutex FirebirdDBDriver::s_initMutex;
+    // ── Static member initialization ──────────────────────────────────────────
+    std::weak_ptr<FirebirdDBDriver> FirebirdDBDriver::s_instance;
+    std::mutex                      FirebirdDBDriver::s_instanceMutex;
+    std::mutex                      FirebirdDBDriver::s_registryMutex;
+    std::set<std::weak_ptr<FirebirdDBConnection>,
+             std::owner_less<std::weak_ptr<FirebirdDBConnection>>> FirebirdDBDriver::s_connectionRegistry;
 
     // ============================================================================
-    // FirebirdDBDriver Implementation - Constructor
+    // FirebirdDBDriver Implementation - Private Static Helpers
     // ============================================================================
 
-    FirebirdDBDriver::FirebirdDBDriver()
+    // Firebird (fbclient) does not require explicit global library initialization.
+    // The initialize() method exists for structural symmetry with other drivers.
+    cpp_dbc::expected<bool, DBException> FirebirdDBDriver::initialize(std::nothrow_t) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_initMutex);
-        if (!s_initialized.load(std::memory_order_acquire))
+        // No initialization needed for fbclient
+        return true;
+    }
+
+    void FirebirdDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<FirebirdDBConnection> conn) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        s_connectionRegistry.insert(std::move(conn));
+    }
+
+    void FirebirdDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<FirebirdDBConnection> &conn) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        s_connectionRegistry.erase(conn);
+    }
+
+    void FirebirdDBDriver::cleanup()
+    {
+        // Firebird (fbclient) does not require explicit global library cleanup.
+        // Sleep a bit to ensure all resources are properly released.
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    // ============================================================================
+    // FirebirdDBDriver Implementation - Constructor + Destructor
+    // ============================================================================
+
+    FirebirdDBDriver::FirebirdDBDriver(FirebirdDBDriver::PrivateCtorTag, std::nothrow_t) noexcept
+    {
+        auto result = initialize(std::nothrow);
+        if (!result.has_value())
         {
-            // Firebird doesn't require explicit initialization
-            s_initialized.store(true, std::memory_order_release);
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>(std::move(result.error()));
         }
     }
 
-    // ============================================================================
-    // FirebirdDBDriver Implementation - Destructor
-    // ============================================================================
-
     FirebirdDBDriver::~FirebirdDBDriver()
     {
-        // Firebird doesn't require explicit cleanup
+        FIREBIRD_DEBUG("FirebirdDBDriver::destructor - Destroying driver");
+        cleanup();
     }
 
     // ============================================================================
-    // FirebirdDBDriver Implementation - Throwing API
+    // FirebirdDBDriver Implementation - Singleton + Throwing API
     // ============================================================================
 
 #ifdef __cpp_exceptions
+    std::shared_ptr<FirebirdDBDriver> FirebirdDBDriver::getInstance()
+    {
+        auto result = getInstance(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
 
-    std::shared_ptr<RelationalDBConnection> FirebirdDBDriver::connectRelational(const std::string &url,
+    std::shared_ptr<RelationalDBConnection> FirebirdDBDriver::connectRelational(const std::string &uri,
                                                                                 const std::string &user,
                                                                                 const std::string &password,
                                                                                 const std::map<std::string, std::string> &options)
     {
-        auto result = connectRelational(std::nothrow, url, user, password, options);
+        auto result = connectRelational(std::nothrow, uri, user, password, options);
         if (!result.has_value())
         {
             throw result.error();
@@ -90,12 +134,12 @@ namespace cpp_dbc::Firebird
         return result.value();
     }
 
-    bool FirebirdDBDriver::createDatabase(const std::string &url,
+    bool FirebirdDBDriver::createDatabase(const std::string &uri,
                                           const std::string &user,
                                           const std::string &password,
                                           const std::map<std::string, std::string> &options)
     {
-        auto result = createDatabase(std::nothrow, url, user, password, options);
+        auto result = createDatabase(std::nothrow, uri, user, password, options);
         if (!result.has_value())
         {
             throw result.error();
@@ -106,35 +150,71 @@ namespace cpp_dbc::Firebird
 #endif // __cpp_exceptions
 
     // ============================================================================
+    // FirebirdDBDriver Implementation - Singleton (nothrow) + Connection Registry
+    // ============================================================================
+
+    cpp_dbc::expected<std::shared_ptr<FirebirdDBDriver>, DBException>
+    FirebirdDBDriver::getInstance(std::nothrow_t) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_instanceMutex);
+        auto existing = s_instance.lock();
+        if (existing)
+        {
+            return existing;
+        }
+        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+        // Constructor errors are captured in m_initFailed / m_initError.
+        auto inst = std::make_shared<FirebirdDBDriver>(FirebirdDBDriver::PrivateCtorTag{}, std::nothrow);
+        if (inst->m_initFailed)
+        {
+            return cpp_dbc::unexpected(std::move(*inst->m_initError));
+        }
+        s_instance = inst;
+        return inst;
+    }
+
+    size_t FirebirdDBDriver::getConnectionAlive() noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        return static_cast<size_t>(std::count_if(
+            s_connectionRegistry.begin(), s_connectionRegistry.end(),
+            [](const auto &w) { return !w.expired(); }));
+    }
+
+    // ============================================================================
     // FirebirdDBDriver Implementation - Nothrow API
     // ============================================================================
 
-    bool FirebirdDBDriver::acceptsURL(const std::string &url) noexcept
+    cpp_dbc::expected<std::map<std::string, std::string>, DBException> FirebirdDBDriver::parseURI(
+        std::nothrow_t, const std::string &uri) noexcept
     {
-        return url.find("cpp_dbc:firebird:") == 0;
-    }
+        if (!uri.starts_with("cpp_dbc:firebird://"))
+        {
+            return cpp_dbc::unexpected(DBException("F233GET0TLGP",
+                                                   "Invalid Firebird URI: " + uri,
+                                                   system_utils::captureCallStack()));
+        }
 
-    bool FirebirdDBDriver::parseURL(const std::string &url, std::string &host, int &port, std::string &database) noexcept
-    {
-        // Use centralized URL parsing from system_utils
-        // Firebird URLs:
+        // Use centralized URI parsing from system_utils
+        // Firebird URIs:
         // - cpp_dbc:firebird://host:port/path/to/database.fdb
         // - cpp_dbc:firebird://host/path/to/database.fdb
         // - cpp_dbc:firebird:///path/to/database.fdb (local)
         // - cpp_dbc:firebird://[::1]:port/path/to/database.fdb (IPv6)
         constexpr int DEFAULT_FIREBIRD_PORT = 3050;
 
-        system_utils::ParsedDBURL parsed;
-        if (!system_utils::parseDBURL(url, "cpp_dbc:firebird://", DEFAULT_FIREBIRD_PORT, parsed,
+        system_utils::ParsedDBURI parsed;
+        if (!system_utils::parseDBURI(uri, "cpp_dbc:firebird://", DEFAULT_FIREBIRD_PORT, parsed,
                                       true,  // allowLocalConnection
                                       true)) // requireDatabase
         {
-            return false;
+            FIREBIRD_DEBUG("FirebirdDBDriver::parseURI - Failed to parse URI: %s", uri.c_str());
+            return cpp_dbc::unexpected(DBException("H9I5J1K7L3M9",
+                                                   "Failed to parse Firebird URI: " + uri,
+                                                   system_utils::captureCallStack()));
         }
 
-        host = parsed.host;
-        port = parsed.port;
-
+        std::string database;
         // For Firebird, the database path needs to include the leading slash
         if (parsed.isLocal)
         {
@@ -147,34 +227,113 @@ namespace cpp_dbc::Firebird
             database = "/" + parsed.database;
         }
 
-        return !database.empty();
+        std::map<std::string, std::string> result;
+        result["host"] = parsed.host;
+        result["port"] = std::to_string(parsed.port);
+        result["database"] = database;
+        return result;
+    }
+
+    cpp_dbc::expected<std::string, DBException> FirebirdDBDriver::buildURI(
+        std::nothrow_t,
+        const std::string &host,
+        int port,
+        const std::string &database,
+        const std::map<std::string, std::string> & /*options*/) noexcept
+    {
+        if (database.empty())
+        {
+            return cpp_dbc::unexpected(DBException("J31TMK3L7IK3",
+                                                   "Cannot build Firebird URI: database path is empty",
+                                                   system_utils::captureCallStack()));
+        }
+
+        // Build: cpp_dbc:firebird://host:port/database
+        // Bracket raw IPv6 hosts (e.g. "::1" → "[::1]")
+        constexpr int DEFAULT_FIREBIRD_PORT = 3050;
+        std::string uri = "cpp_dbc:firebird://";
+        if (!host.empty())
+        {
+            if (host.contains(':') &&
+                !(host.front() == '[' && host.back() == ']'))
+            {
+                uri += "[" + host + "]";
+            }
+            else
+            {
+                uri += host;
+            }
+            if (port != 0 && port != DEFAULT_FIREBIRD_PORT)
+            {
+                uri += ":" + std::to_string(port);
+            }
+        }
+        uri += database;
+        return uri;
+    }
+
+    cpp_dbc::expected<FirebirdDBDriver::ParsedFirebirdComponents, DBException>
+    FirebirdDBDriver::extractComponents(std::nothrow_t, const std::map<std::string, std::string> &parsed) noexcept
+    {
+        ParsedFirebirdComponents comps;
+
+        auto hostIt = parsed.find("host");
+        auto portIt = parsed.find("port");
+        auto dbIt = parsed.find("database");
+
+        comps.host = (hostIt != parsed.end()) ? hostIt->second : "";
+        if (portIt != parsed.end())
+        {
+            const auto &portStr = portIt->second;
+            auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), comps.port);
+            if (ec != std::errc{} || ptr != portStr.data() + portStr.size())
+            {
+                return cpp_dbc::unexpected(DBException("9NVVV6AC2H8A",
+                                                       "Invalid port number in Firebird URI: " + portStr,
+                                                       system_utils::captureCallStack()));
+            }
+        }
+        comps.database = (dbIt != parsed.end()) ? dbIt->second : "";
+
+        if (comps.database.empty())
+        {
+            return cpp_dbc::unexpected(DBException("YU88W61QFVD0",
+                                                   "Invalid Firebird URI: database path is empty",
+                                                   system_utils::captureCallStack()));
+        }
+
+        return comps;
     }
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>
     FirebirdDBDriver::connectRelational(
         std::nothrow_t,
-        const std::string &url,
+        const std::string &uri,
         const std::string &user,
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
     {
-        std::string host;
-        int port = 0;
-        std::string database;
-
-        if (!parseURL(url, host, port, database))
+        auto parseResult = parseURI(std::nothrow, uri);
+        if (!parseResult.has_value())
         {
-            return cpp_dbc::unexpected(DBException("YU88W61QFVD0", "Invalid Firebird URL: " + url,
-                                                   system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(parseResult.error());
         }
 
-        auto connResult = FirebirdDBConnection::create(std::nothrow, host, port, database, user, password, options);
+        auto compsResult = extractComponents(std::nothrow, parseResult.value());
+        if (!compsResult.has_value())
+        {
+            return cpp_dbc::unexpected(compsResult.error());
+        }
+
+        const auto &comps = compsResult.value();
+        auto connResult = FirebirdDBConnection::create(std::nothrow, comps.host, comps.port, comps.database, user, password, options);
         if (!connResult.has_value())
         {
             return cpp_dbc::unexpected(connResult.error());
         }
-        return cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>(
-            std::static_pointer_cast<RelationalDBConnection>(connResult.value()));
+        auto conn = connResult.value();
+        registerConnection(std::nothrow, conn);
+        return std::shared_ptr<RelationalDBConnection>(conn);
     }
 
     cpp_dbc::expected<int, DBException>
@@ -218,35 +377,39 @@ namespace cpp_dbc::Firebird
         if (cmd == "create_database")
         {
             // Extract required parameters
-            std::string url, user, password;
+            std::string uri, user, password;
             std::map<std::string, std::string> options;
 
-            auto urlIt = params.find("url");
-            if (urlIt == params.end())
+            auto uriIt = params.find("uri");
+            if (uriIt == params.end())
             {
-                return cpp_dbc::unexpected(DBException("L3M9N5O1P7Q3", "Missing 'url' parameter for create_database",
+                uriIt = params.find("url");
+            }
+            if (uriIt == params.end())
+            {
+                return cpp_dbc::unexpected(DBException("L3M9N5O1P7Q3", "Missing 'uri' (or 'url') parameter for create_database",
                                                        system_utils::captureCallStack()));
             }
             try
             {
-                url = std::any_cast<std::string>(urlIt->second);
+                uri = std::any_cast<std::string>(uriIt->second);
             }
             catch (const std::bad_any_cast &ex)
             {
                 return cpp_dbc::unexpected(DBException("M4N0O6P2Q8R4",
-                                                       std::string("Invalid 'url' parameter type: ") + ex.what(),
+                                                       std::string("Invalid 'uri'/'url' parameter type: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
             catch (const std::exception &ex)
             {
                 return cpp_dbc::unexpected(DBException("PDLWNXE5A7A0",
-                                                       std::string("Exception reading 'url' parameter: ") + ex.what(),
+                                                       std::string("Exception reading 'uri'/'url' parameter: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
             catch (...)
             {
                 // Intentionally silenced — unknown exception from std::any_cast
-                return cpp_dbc::unexpected(DBException("TT39UST5GNQV", "Unknown exception reading 'url' parameter",
+                return cpp_dbc::unexpected(DBException("TT39UST5GNQV", "Unknown exception reading 'uri'/'url' parameter",
                                                        system_utils::captureCallStack()));
             }
 
@@ -351,7 +514,7 @@ namespace cpp_dbc::Firebird
                 }
             }
 
-            auto dbResult = createDatabase(std::nothrow, url, user, password, options);
+            auto dbResult = createDatabase(std::nothrow, uri, user, password, options);
             if (!dbResult.has_value())
             {
                 return cpp_dbc::unexpected(dbResult.error());
@@ -366,19 +529,27 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<bool, DBException>
     FirebirdDBDriver::createDatabase(std::nothrow_t,
-                                     const std::string &url,
+                                     const std::string &uri,
                                      const std::string &user,
                                      const std::string &password,
                                      const std::map<std::string, std::string> &options) noexcept
     {
-        std::string host;
-        int port = 0;
-        std::string database;
-
-        if (!parseURL(url, host, port, database))
+        auto parseResult = parseURI(std::nothrow, uri);
+        if (!parseResult.has_value())
         {
-            return cpp_dbc::unexpected(DBException("H9I5J1K7L3M9", "Invalid Firebird URL: " + url, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(parseResult.error());
         }
+
+        auto compsResult = extractComponents(std::nothrow, parseResult.value());
+        if (!compsResult.has_value())
+        {
+            return cpp_dbc::unexpected(compsResult.error());
+        }
+
+        const auto &comps = compsResult.value();
+        const auto &host = comps.host;
+        int port = comps.port;
+        const auto &database = comps.database;
 
         // Build the Firebird connection string for CREATE DATABASE
         std::string fbConnStr;
@@ -449,6 +620,20 @@ namespace cpp_dbc::Firebird
     std::string FirebirdDBDriver::getName() const noexcept
     {
         return "firebird";
+    }
+
+    std::string FirebirdDBDriver::getURIScheme() const noexcept
+    {
+        return "cpp_dbc:firebird://<host>:<port>/<database_server_path>";
+    }
+
+    std::string FirebirdDBDriver::getDriverVersion() const noexcept
+    {
+#if defined(FB_API_VER)
+        return std::to_string(FB_API_VER);
+#else
+        return "unknown";
+#endif
     }
 
 } // namespace cpp_dbc::Firebird

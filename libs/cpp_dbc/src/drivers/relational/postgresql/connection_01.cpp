@@ -60,7 +60,8 @@ namespace cpp_dbc::PostgreSQL
         std::scoped_lock lock(m_statementsMutex);
         if (m_activeStatements.size() > 50)
         {
-            std::erase_if(m_activeStatements, [](const auto &w) { return w.expired(); });
+            std::erase_if(m_activeStatements, [](const auto &w)
+                          { return w.expired(); });
         }
         m_activeStatements.insert(stmt);
         return {};
@@ -85,10 +86,9 @@ namespace cpp_dbc::PostgreSQL
         // Remove expired weak_ptrs and the specified one
         auto stmtLocked = stmt.lock();
         std::erase_if(m_activeStatements, [&stmtLocked](const auto &w)
-        {
+                      {
             auto locked = w.lock();
-            return !locked || (stmtLocked && locked.get() == stmtLocked.get());
-        });
+            return !locked || (stmtLocked && locked.get() == stmtLocked.get()); });
         return {};
     }
 
@@ -145,16 +145,17 @@ namespace cpp_dbc::PostgreSQL
         return {};
     }
 
-    #ifdef __cpp_exceptions
-
-    // Constructor
-    PostgreSQLDBConnection::PostgreSQLDBConnection(const std::string &host,
+    // Constructor — nothrow, captures errors in m_initFailed / m_initError instead of throwing.
+    // PQconnectdb() is a C API that does not throw, but setAutoCommit() calls PQexec() which
+    // is also a C API. No recoverable C++ exceptions are possible here, so no try/catch needed.
+    PostgreSQLDBConnection::PostgreSQLDBConnection(PostgreSQLDBConnection::PrivateCtorTag,
+                                                   std::nothrow_t,
+                                                   const std::string &host,
                                                    int port,
                                                    const std::string &database,
                                                    const std::string &user,
                                                    const std::string &password,
-                                                   const std::map<std::string, std::string> &options)
-        : m_closed(false)
+                                                   const std::map<std::string, std::string> &options) noexcept
     {
         // Build connection string
         std::stringstream conninfo;
@@ -183,7 +184,11 @@ namespace cpp_dbc::PostgreSQL
         {
             std::string error = PQerrorMessage(rawConn);
             PQfinish(rawConn);
-            throw DBException("1Q2R3S4T5U6V", "Failed to connect to PostgreSQL: " + error, system_utils::captureCallStack());
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>("GLN3SP411SYV",
+                                                        "Failed to connect to PostgreSQL: " + error,
+                                                        system_utils::captureCallStack());
+            return;
         }
 
         // Wrap in shared_ptr with custom deleter
@@ -196,17 +201,14 @@ namespace cpp_dbc::PostgreSQL
                              },
                              nullptr);
 
-        // Set auto-commit mode
-        setAutoCommit(true);
+        // Set auto-commit mode (nothrow — errors silently ignored in constructor;
+        // the connection is still valid if autocommit setup fails)
+        [[maybe_unused]] auto acResult = setAutoCommit(std::nothrow, true);
 
-        // Initialize URL string once
-        std::stringstream urlBuilder;
-        urlBuilder << "cpp_dbc:postgresql://" << host << ":" << port;
-        if (!database.empty())
-        {
-            urlBuilder << "/" << database;
-        }
-        m_url = urlBuilder.str();
+        // Initialize URI string once (reuse centralized builder for IPv6 bracket handling)
+        m_uri = system_utils::buildDBURI("cpp_dbc:postgresql://", host, port, database);
+
+        m_closed = false;
     }
 
     // Destructor
@@ -215,6 +217,8 @@ namespace cpp_dbc::PostgreSQL
         // CRITICAL: Use nothrow version - destructors must NEVER throw exceptions
         [[maybe_unused]] auto closeResult = close(std::nothrow);
     }
+
+#ifdef __cpp_exceptions
 
     // DBConnection interface
     void PostgreSQLDBConnection::close()
@@ -264,9 +268,9 @@ namespace cpp_dbc::PostgreSQL
         return result.value();
     }
 
-    std::string PostgreSQLDBConnection::getURL() const
+    std::string PostgreSQLDBConnection::getURI() const
     {
-        auto result = getURL(std::nothrow);
+        auto result = getURI(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();
@@ -399,7 +403,28 @@ namespace cpp_dbc::PostgreSQL
         }
         return *result;
     }
-    #endif // __cpp_exceptions
+
+    std::string PostgreSQLDBConnection::getServerVersion()
+    {
+        auto result = getServerVersion(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::map<std::string, std::string> PostgreSQLDBConnection::getServerInfo()
+    {
+        auto result = getServerInfo(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+#endif // __cpp_exceptions
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::ping(std::nothrow_t) noexcept
     {

@@ -60,40 +60,73 @@ TEST_CASE("Real database integration with all drivers", "[10_061_02_integration]
 {
 // Register all available drivers
 #if USE_MYSQL
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(mysql_test_helpers::getMySQLDriver());
     // std::cout << "MySQL driver registered" << std::endl;
 #endif
 
 #if USE_POSTGRESQL
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+    {
+        auto driverResult = cpp_dbc::PostgreSQL::PostgreSQLDBDriver::getInstance(std::nothrow);
+        if (driverResult.has_value())
+        {
+            cpp_dbc::DriverManager::registerDriver(driverResult.value());
+        }
+    }
     // std::cout << "PostgreSQL driver registered" << std::endl;
 #endif
 
 #if USE_SQLITE
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+    {
+        auto driverResult = cpp_dbc::SQLite::SQLiteDBDriver::getInstance(std::nothrow);
+        if (driverResult.has_value())
+        {
+            cpp_dbc::DriverManager::registerDriver(driverResult.value());
+        }
+    }
     // std::cout << "SQLite driver registered" << std::endl;
 #endif
 
 #if USE_FIREBIRD
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+    {
+        auto driverResult = cpp_dbc::Firebird::FirebirdDBDriver::getInstance(std::nothrow);
+        if (driverResult.has_value())
+        {
+            cpp_dbc::DriverManager::registerDriver(driverResult.value());
+        }
+    }
     // std::cout << "Firebird driver registered" << std::endl;
 #endif
 
 #if USE_MONGODB
-    auto mongoDriver = std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>();
-    cpp_dbc::DriverManager::registerDriver(mongoDriver);
+    {
+        auto driverResult = cpp_dbc::MongoDB::MongoDBDriver::getInstance(std::nothrow);
+        if (driverResult.has_value())
+        {
+            cpp_dbc::DriverManager::registerDriver(driverResult.value());
+        }
+    }
     // std::cout << "MongoDB driver registered" << std::endl;
 #endif
 
 #if USE_SCYLLADB
-    auto scyllaDriver = std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>();
-    cpp_dbc::DriverManager::registerDriver(scyllaDriver);
+    {
+        auto driverResult = cpp_dbc::ScyllaDB::ScyllaDBDriver::getInstance(std::nothrow);
+        if (driverResult.has_value())
+        {
+            cpp_dbc::DriverManager::registerDriver(driverResult.value());
+        }
+    }
     // std::cout << "ScyllaDB driver registered" << std::endl;
 #endif
 
 #if USE_REDIS
-    auto redisDriver = std::make_shared<cpp_dbc::Redis::RedisDBDriver>();
-    cpp_dbc::DriverManager::registerDriver(redisDriver);
+    {
+        auto driverResult = cpp_dbc::Redis::RedisDBDriver::getInstance(std::nothrow);
+        if (driverResult.has_value())
+        {
+            cpp_dbc::DriverManager::registerDriver(driverResult.value());
+        }
+    }
     // std::cout << "Redis driver registered" << std::endl;
 #endif
 

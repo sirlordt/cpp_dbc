@@ -19,6 +19,8 @@
 #ifndef CPP_DBC_CORE_DB_TYPES_HPP
 #define CPP_DBC_CORE_DB_TYPES_HPP
 
+#include <string_view>
+
 namespace cpp_dbc
 {
 
@@ -86,6 +88,37 @@ namespace cpp_dbc
         TRANSACTION_REPEATABLE_READ = 4,  ///< Dirty reads and non-repeatable reads are prevented; phantom reads can occur
         TRANSACTION_SERIALIZABLE = 8      ///< Dirty reads, non-repeatable reads, and phantom reads are prevented
     };
+
+    /**
+     * @brief Convert a TransactionIsolationLevel to its human-readable name
+     *
+     * ```cpp
+     * auto name = cpp_dbc::toStringView(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
+     * // name = "READ_COMMITTED"
+     * ```
+     *
+     * @param level The isolation level
+     * @return A string_view with the level name, or "UNKNOWN" for invalid values
+     */
+    constexpr std::string_view toStringView(TransactionIsolationLevel level) noexcept
+    {
+        using enum TransactionIsolationLevel;
+        switch (level)
+        {
+        case TRANSACTION_NONE:
+            return "NONE";
+        case TRANSACTION_READ_UNCOMMITTED:
+            return "READ_UNCOMMITTED";
+        case TRANSACTION_READ_COMMITTED:
+            return "READ_COMMITTED";
+        case TRANSACTION_REPEATABLE_READ:
+            return "REPEATABLE_READ";
+        case TRANSACTION_SERIALIZABLE:
+            return "SERIALIZABLE";
+        default:
+            return "UNKNOWN";
+        }
+    }
 
 } // namespace cpp_dbc
 

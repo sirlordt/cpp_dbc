@@ -72,7 +72,7 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[21_141_01_postgresql_real_c
     {
         // Create a connection pool configuration
         cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
-        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUri(connStr);
         poolConfigLocal.setUsername(username);
         poolConfigLocal.setPassword(password);
         poolConfigLocal.setInitialSize(5);
@@ -143,7 +143,7 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[21_141_01_postgresql_real_c
     {
         // Create a connection pool configuration with testOnReturn enabled
         cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
-        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUri(connStr);
         poolConfigLocal.setUsername(username);
         poolConfigLocal.setPassword(password);
         poolConfigLocal.setInitialSize(5);
@@ -393,6 +393,416 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[21_141_01_postgresql_real_c
             auto idleCount = pool->getIdleDBConnectionCount();
             REQUIRE(idleCount >= 3);
             REQUIRE(idleCount <= 10);
+        }
+
+        pool->close();
+        REQUIRE_FALSE(pool->isRunning());
+    }
+
+    // ========================================================================
+    // Runtime pool configuration tests
+    // ========================================================================
+    SECTION("Runtime pool configuration")
+    {
+        cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
+        poolConfigLocal.setUri(connStr);
+        poolConfigLocal.setUsername(username);
+        poolConfigLocal.setPassword(password);
+        poolConfigLocal.setInitialSize(3);
+        poolConfigLocal.setMaxSize(5);
+        poolConfigLocal.setMinIdle(2);
+        poolConfigLocal.setConnectionTimeout(3500);
+        poolConfigLocal.setIdleTimeout(30000);
+        poolConfigLocal.setMaxLifetimeMillis(60000);
+        poolConfigLocal.setTestOnBorrow(true);
+        poolConfigLocal.setTestOnReturn(false);
+
+        auto poolResult = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(std::nothrow, poolConfigLocal);
+        REQUIRE(poolResult.has_value());
+        auto pool = poolResult.value();
+
+        SECTION("setConnectionTimeout changes pool default timeout")
+        {
+            REQUIRE(pool->getConnectionTimeout(std::nothrow) == 3500);
+
+            pool->setConnectionTimeout(std::nothrow, 200);
+            REQUIRE(pool->getConnectionTimeout(std::nothrow) == 200);
+
+            std::vector<std::shared_ptr<cpp_dbc::RelationalDBConnection>> conns;
+            for (size_t i = 0; i < 5; ++i)
+            {
+                auto c = pool->getRelationalDBConnection();
+                REQUIRE(c != nullptr);
+                conns.push_back(c);
+            }
+            REQUIRE(pool->getActiveDBConnectionCount() == 5);
+
+            // Call without explicit timeout — must use pool default (200ms)
+            auto start = std::chrono::steady_clock::now();
+            auto result = pool->getRelationalDBConnection(std::nothrow);
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - start);
+
+            REQUIRE_FALSE(result.has_value());
+            REQUIRE(elapsed.count() >= 150);
+            REQUIRE(elapsed.count() < 2000);
+
+            for (auto &c : conns)
+            {
+                c->close();
+            }
+        }
+
+        SECTION("setIdleTimeout and setMaxLifetimeMillis getters")
+        {
+            REQUIRE(pool->getIdleTimeout(std::nothrow) == 30000);
+            REQUIRE(pool->getMaxLifetimeMillis(std::nothrow) == 60000);
+
+            pool->setIdleTimeout(std::nothrow, 5000);
+            pool->setMaxLifetimeMillis(std::nothrow, 15000);
+
+            REQUIRE(pool->getIdleTimeout(std::nothrow) == 5000);
+            REQUIRE(pool->getMaxLifetimeMillis(std::nothrow) == 15000);
+        }
+
+        SECTION("setTestOnBorrow and setTestOnReturn toggle validation")
+        {
+            REQUIRE(pool->getTestOnBorrow(std::nothrow) == true);
+            REQUIRE(pool->getTestOnReturn(std::nothrow) == false);
+
+            pool->setTestOnBorrow(std::nothrow, false);
+            pool->setTestOnReturn(std::nothrow, true);
+
+            REQUIRE(pool->getTestOnBorrow(std::nothrow) == false);
+            REQUIRE(pool->getTestOnReturn(std::nothrow) == true);
+
+            auto conn = pool->getRelationalDBConnection();
+            REQUIRE(conn != nullptr);
+            auto rs = conn->executeQuery("SELECT 1");
+            REQUIRE(rs != nullptr);
+            REQUIRE(rs->next());
+            conn->close();
+
+            pool->setTestOnBorrow(std::nothrow, true);
+            pool->setTestOnReturn(std::nothrow, false);
+
+            REQUIRE(pool->getTestOnBorrow(std::nothrow) == true);
+            REQUIRE(pool->getTestOnReturn(std::nothrow) == false);
+        }
+
+        SECTION("setMaxSize grows and shrinks pool")
+        {
+            REQUIRE(pool->getMaxSize(std::nothrow) == 5);
+
+            auto growResult = pool->setMaxSize(std::nothrow, 8);
+            REQUIRE(growResult.has_value());
+            REQUIRE(pool->getMaxSize(std::nothrow) == 8);
+
+            std::vector<std::shared_ptr<cpp_dbc::RelationalDBConnection>> conns;
+            for (size_t i = 0; i < 7; ++i)
+            {
+                auto c = pool->getRelationalDBConnection();
+                REQUIRE(c != nullptr);
+                conns.push_back(c);
+            }
+            REQUIRE(pool->getActiveDBConnectionCount() == 7);
+
+            for (auto &c : conns)
+            {
+                c->close();
+            }
+            conns.clear();
+
+            auto shrinkResult = pool->setMaxSize(std::nothrow, 3);
+            REQUIRE(shrinkResult.has_value());
+            REQUIRE(pool->getMaxSize(std::nothrow) == 3);
+
+            // Poll for convergence (30s for Helgrind compatibility)
+            auto startTime = std::chrono::steady_clock::now();
+            const auto timeout = std::chrono::milliseconds(30000);
+            bool converged = false;
+
+            while (std::chrono::steady_clock::now() - startTime < timeout)
+            {
+                if (pool->getTotalDBConnectionCount() <= 3)
+                {
+                    converged = true;
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+
+            REQUIRE(converged);
+            REQUIRE(pool->getTotalDBConnectionCount() <= 3);
+
+            auto zeroResult = pool->setMaxSize(std::nothrow, 0);
+            REQUIRE_FALSE(zeroResult.has_value());
+        }
+
+        SECTION("setMinIdle adjusts minimum idle connections")
+        {
+            REQUIRE(pool->getMinIdle(std::nothrow) == 2);
+
+            auto result = pool->setMinIdle(std::nothrow, 4);
+            REQUIRE(result.has_value());
+            REQUIRE(pool->getMinIdle(std::nothrow) == 4);
+
+            // Poll for maintenance thread to replenish (60s for Helgrind compatibility)
+            auto startTime = std::chrono::steady_clock::now();
+            const auto timeout = std::chrono::milliseconds(60000);
+            bool replenished = false;
+
+            while (std::chrono::steady_clock::now() - startTime < timeout)
+            {
+                if (pool->getIdleDBConnectionCount() >= 4)
+                {
+                    replenished = true;
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+
+            REQUIRE(replenished);
+            REQUIRE(pool->getIdleDBConnectionCount() >= 4);
+
+            auto result2 = pool->setMinIdle(std::nothrow, 1);
+            REQUIRE(result2.has_value());
+            REQUIRE(pool->getMinIdle(std::nothrow) == 1);
+
+            auto badResult = pool->setMinIdle(std::nothrow, pool->getMaxSize(std::nothrow) + 1);
+            REQUIRE_FALSE(badResult.has_value());
+        }
+
+        SECTION("setMaxSize shrinks while connections are active")
+        {
+            // Borrow all 5 connections
+            std::vector<std::shared_ptr<cpp_dbc::RelationalDBConnection>> conns;
+            for (size_t i = 0; i < 5; ++i)
+            {
+                auto c = pool->getRelationalDBConnection();
+                REQUIRE(c != nullptr);
+                conns.push_back(c);
+            }
+            REQUIRE(pool->getActiveDBConnectionCount() == 5);
+
+            // Shrink maxSize to 2 while all 5 are borrowed
+            auto shrinkResult = pool->setMaxSize(std::nothrow, 2);
+            REQUIRE(shrinkResult.has_value());
+            REQUIRE(pool->getMaxSize(std::nothrow) == 2);
+
+            // Active connections must still work
+            for (auto &c : conns)
+            {
+                auto pingResult = c->ping(std::nothrow);
+                REQUIRE(pingResult.has_value());
+                REQUIRE(pingResult.value());
+            }
+
+            // Return all connections — they go back to idle (returnConnection
+            // does not check maxSize for valid connections)
+            for (auto &c : conns)
+            {
+                c->close();
+            }
+            conns.clear();
+
+            // Re-apply setMaxSize to force immediate eviction of excess idle
+            // connections. Without this, eviction depends on the maintenance
+            // thread cycle (~30s), which is too slow under Helgrind.
+            auto reapplyResult = pool->setMaxSize(std::nothrow, 2);
+            REQUIRE(reapplyResult.has_value());
+
+            // Poll for convergence (30s for Helgrind)
+            auto startTime = std::chrono::steady_clock::now();
+            const auto timeout = std::chrono::milliseconds(30000);
+            bool converged = false;
+
+            while (std::chrono::steady_clock::now() - startTime < timeout)
+            {
+                if (pool->getTotalDBConnectionCount() <= 2)
+                {
+                    converged = true;
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+
+            REQUIRE(converged);
+            REQUIRE(pool->getTotalDBConnectionCount() <= 2);
+
+            // Pool still functional after shrink
+            auto c = pool->getRelationalDBConnection();
+            REQUIRE(c != nullptr);
+            auto pingResult = c->ping(std::nothrow);
+            REQUIRE(pingResult.has_value());
+            REQUIRE(pingResult.value());
+            c->close();
+        }
+
+        SECTION("setMaxSize auto-adjusts minIdle when shrinking below it")
+        {
+            // Set minIdle to 4 first
+            auto setResult = pool->setMinIdle(std::nothrow, 4);
+            REQUIRE(setResult.has_value());
+            REQUIRE(pool->getMinIdle(std::nothrow) == 4);
+
+            // Poll for replenishment (60s for Helgrind)
+            auto startTime = std::chrono::steady_clock::now();
+            const auto timeout = std::chrono::milliseconds(60000);
+            bool replenished = false;
+
+            while (std::chrono::steady_clock::now() - startTime < timeout)
+            {
+                if (pool->getIdleDBConnectionCount() >= 4)
+                {
+                    replenished = true;
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+
+            REQUIRE(replenished);
+
+            // Shrink maxSize to 2 — must auto-adjust minIdle from 4 to 2
+            auto shrinkResult = pool->setMaxSize(std::nothrow, 2);
+            REQUIRE(shrinkResult.has_value());
+            REQUIRE(pool->getMaxSize(std::nothrow) == 2);
+            REQUIRE(pool->getMinIdle(std::nothrow) == 2);
+
+            // Poll for convergence (30s for Helgrind)
+            auto startTime2 = std::chrono::steady_clock::now();
+            const auto timeout2 = std::chrono::milliseconds(30000);
+            bool converged = false;
+
+            while (std::chrono::steady_clock::now() - startTime2 < timeout2)
+            {
+                if (pool->getTotalDBConnectionCount() <= 2)
+                {
+                    converged = true;
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+
+            REQUIRE(converged);
+            REQUIRE(pool->getTotalDBConnectionCount() <= 2);
+
+            // Pool still functional
+            auto c = pool->getRelationalDBConnection();
+            REQUIRE(c != nullptr);
+            auto pingResult = c->ping(std::nothrow);
+            REQUIRE(pingResult.has_value());
+            REQUIRE(pingResult.value());
+            c->close();
+        }
+
+        SECTION("Per-call timeout via getRelationalDBConnection(timeoutMs)")
+        {
+            std::vector<std::shared_ptr<cpp_dbc::RelationalDBConnection>> conns;
+            for (size_t i = 0; i < 5; ++i)
+            {
+                auto c = pool->getRelationalDBConnection();
+                REQUIRE(c != nullptr);
+                conns.push_back(c);
+            }
+            REQUIRE(pool->getActiveDBConnectionCount() == 5);
+
+            auto start = std::chrono::steady_clock::now();
+            auto result = pool->getRelationalDBConnection(std::nothrow, 200);
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - start);
+
+            REQUIRE_FALSE(result.has_value());
+            REQUIRE(elapsed.count() >= 150);
+            REQUIRE(elapsed.count() < 2000);
+
+            std::thread releaser([&conns]()
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                conns.back()->close();
+                conns.pop_back();
+            });
+
+            auto start2 = std::chrono::steady_clock::now();
+            auto result2 = pool->getRelationalDBConnection(std::nothrow, 3000);
+            auto elapsed2 = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - start2);
+
+            releaser.join();
+
+            REQUIRE(result2.has_value());
+            REQUIRE(elapsed2.count() >= 50);
+            REQUIRE(elapsed2.count() < 2500);
+
+            result2.value()->close();
+
+            for (auto &c : conns)
+            {
+                c->close();
+            }
+        }
+
+        SECTION("Connection pool under load with runtime timeout")
+        {
+            pool->setConnectionTimeout(std::nothrow, 6000);
+
+            const uint64_t numOperations = 30;
+            std::atomic<int> successCount(0);
+            std::atomic<int> failureCount(0);
+            std::vector<std::thread> threads;
+
+            for (uint64_t i = 0; i < numOperations; i++)
+            {
+                threads.push_back(std::thread([&pool, &successCount, &failureCount, i]()
+                {
+                    try
+                    {
+                        auto loadConn = pool->getRelationalDBConnection(6000);
+                        if (!loadConn)
+                        {
+                            failureCount++;
+                            return;
+                        }
+
+                        auto rs = loadConn->executeQuery("SELECT 1");
+                        if (!rs || !rs->next())
+                        {
+                            failureCount++;
+                            loadConn->close();
+                            return;
+                        }
+
+                        std::this_thread::sleep_for(std::chrono::milliseconds(10 + (i % 10)));
+                        loadConn->close();
+                        successCount++;
+                    }
+                    catch (const std::exception &ex)
+                    {
+                        failureCount++;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST",
+                            "Load operation " + std::to_string(i) + " error: " + std::string(ex.what()));
+                    }
+                }));
+            }
+
+            for (auto &t : threads)
+            {
+                if (t.joinable())
+                {
+                    t.join();
+                }
+            }
+
+            if (failureCount > 0)
+            {
+                WARN("failureCount: " << failureCount);
+            }
+            else
+            {
+                SUCCEED("failureCount: 0");
+            }
+            REQUIRE(successCount >= static_cast<int>(numOperations * 0.95));
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
         }
 
         pool->close();

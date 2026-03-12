@@ -118,7 +118,7 @@ namespace postgresql_test_helpers
     std::shared_ptr<cpp_dbc::PostgreSQL::PostgreSQLDBDriver> getPostgreSQLDriver()
     {
         static std::shared_ptr<cpp_dbc::PostgreSQL::PostgreSQLDBDriver> driver =
-            std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>();
+            cpp_dbc::PostgreSQL::PostgreSQLDBDriver::getInstance(std::nothrow).value_or(nullptr);
         return driver;
     }
 

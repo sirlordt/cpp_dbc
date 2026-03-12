@@ -30,6 +30,8 @@
 #include <cstdlib> // Para getenv
 #include <fstream> // Para std::ifstream
 #include <charconv>
+#include "cpp_dbc/common/system_constants.hpp"
+#include "cpp_dbc/common/system_utils.hpp"
 #include "sqlite_internal.hpp"
 
 #if USE_SQLITE
@@ -37,23 +39,22 @@
 namespace cpp_dbc::SQLite
 {
 
-    // SQLiteDBDriver implementation
-    // Static member variables to ensure SQLite is configured once
-    std::atomic<bool> SQLiteDBDriver::s_initialized{false};
+    // ── Static member initialization ──────────────────────────────────────────
+    std::atomic<bool> SQLiteDBDriver::s_initialized{false}; // NOSONAR(cpp:S1197) — explicit template arg for clarity in static member definition
     std::mutex SQLiteDBDriver::s_initMutex;
+    std::weak_ptr<SQLiteDBDriver> SQLiteDBDriver::s_instance;
+    std::mutex                    SQLiteDBDriver::s_instanceMutex;
+    std::mutex                    SQLiteDBDriver::s_registryMutex;
+    std::set<std::weak_ptr<SQLiteDBConnection>,
+             std::owner_less<std::weak_ptr<SQLiteDBConnection>>> SQLiteDBDriver::s_connectionRegistry;
 
-    SQLiteDBDriver::SQLiteDBDriver()
+    SQLiteDBDriver::SQLiteDBDriver(SQLiteDBDriver::PrivateCtorTag, std::nothrow_t) noexcept
     {
         // Thread-safe single initialization pattern
-        bool alreadyInitialized = s_initialized.load(std::memory_order_acquire);
-        if (!alreadyInitialized)
+        if (!s_initialized.load(std::memory_order_acquire))
         {
-            // Use a mutex to ensure only one thread performs initialization
-            std::lock_guard<std::mutex> lock(s_initMutex);
-
-            // Double-check that initialization hasn't happened
-            // while we were waiting for the lock
-            if (!s_initialized.load(std::memory_order_relaxed))
+            std::scoped_lock lock(s_initMutex);
+            if (!s_initialized.load(std::memory_order_acquire))
             {
                 // Configure SQLite for thread safety before initialization
                 int configResult = sqlite3_config(SQLITE_CONFIG_SERIALIZED);
@@ -82,6 +83,67 @@ namespace cpp_dbc::SQLite
 
     SQLiteDBDriver::~SQLiteDBDriver()
     {
+        SQLITE_DEBUG("SQLiteDBDriver::destructor - Destroying driver");
+        cleanup();
+    }
+
+    void SQLiteDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<SQLiteDBConnection> conn) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        s_connectionRegistry.insert(std::move(conn));
+    }
+
+    void SQLiteDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<SQLiteDBConnection> &conn) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        s_connectionRegistry.erase(conn);
+    }
+
+    size_t SQLiteDBDriver::getConnectionAlive() noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_registryMutex);
+        return static_cast<size_t>(std::count_if(
+            s_connectionRegistry.begin(), s_connectionRegistry.end(),
+            [](const auto &w) { return !w.expired(); }));
+    }
+
+#ifdef __cpp_exceptions
+    std::shared_ptr<SQLiteDBDriver> SQLiteDBDriver::getInstance()
+    {
+        auto result = getInstance(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+#endif // __cpp_exceptions
+
+    cpp_dbc::expected<std::shared_ptr<SQLiteDBDriver>, DBException>
+    SQLiteDBDriver::getInstance(std::nothrow_t) noexcept
+    {
+        std::lock_guard<std::mutex> lock(s_instanceMutex);
+        auto existing = s_instance.lock();
+        if (existing)
+        {
+            return existing;
+        }
+        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+        // SQLiteDBDriver constructor only runs noexcept operations — no m_initFailed check needed.
+        auto inst = std::make_shared<SQLiteDBDriver>(SQLiteDBDriver::PrivateCtorTag{}, std::nothrow);
+        s_instance = inst;
+        return inst;
+    }
+
+    void SQLiteDBDriver::cleanup()
+    {
+        std::scoped_lock lock(s_initMutex);
+        if (!s_initialized.load(std::memory_order_acquire))
+        {
+            return;
+        }
+
         try
         {
             // Release as much memory as possible
@@ -100,102 +162,124 @@ namespace cpp_dbc::SQLite
             // Sleep a bit to ensure all resources are properly released
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
-        catch (const std::exception &e)
+        catch (const std::exception &ex)
         {
-            SQLITE_DEBUG("7W8X9Y0Z1A2B: Exception during SQLite driver shutdown: %s", e.what());
+            SQLITE_DEBUG("7W8X9Y0Z1A2B: Exception during SQLite driver shutdown: %s", ex.what());
         }
+
+        s_initialized.store(false, std::memory_order_release);
     }
 
-    #ifdef __cpp_exceptions
-    std::shared_ptr<RelationalDBConnection> SQLiteDBDriver::connectRelational(const std::string &url,
+#ifdef __cpp_exceptions
+    std::shared_ptr<RelationalDBConnection> SQLiteDBDriver::connectRelational(const std::string &uri,
                                                                               [[maybe_unused]] const std::string &user,
                                                                               [[maybe_unused]] const std::string &password,
                                                                               const std::map<std::string, std::string> &options)
     {
-        auto result = connectRelational(std::nothrow, url, user, password, options);
+        auto result = connectRelational(std::nothrow, uri, user, password, options);
         if (!result)
         {
             throw result.error();
         }
         return *result;
     }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
-    bool SQLiteDBDriver::acceptsURL(const std::string &url) noexcept
-    {
-        return url.starts_with("cpp_dbc:sqlite://");
-    }
 
-    bool SQLiteDBDriver::parseURL(const std::string &url, std::string &database)
+    cpp_dbc::expected<std::map<std::string, std::string>, DBException> SQLiteDBDriver::parseURI(
+        std::nothrow_t, const std::string &uri) noexcept
     {
-        // Parse URL of format: cpp_dbc:sqlite:/path/to/database.db or cpp_dbc:sqlite::memory:
-        if (!acceptsURL(url))
+        constexpr std::string_view SCHEME_SUFFIX = "sqlite://";
+        const auto fullPrefixLen = cpp_dbc::system_constants::URI_PREFIX.size() + SCHEME_SUFFIX.size();
+
+        if (!uri.starts_with(cpp_dbc::system_constants::URI_PREFIX) ||
+            !std::string_view(uri).substr(cpp_dbc::system_constants::URI_PREFIX.size()).starts_with(SCHEME_SUFFIX))
         {
-            return false;
+            return cpp_dbc::unexpected(DBException("5RHF8WK03IZG",
+                                                   "Invalid SQLite URI: " + uri,
+                                                   system_utils::captureCallStack()));
         }
 
-        // Extract database path (prefix "cpp_dbc:sqlite://" is 17 chars)
-        database = url.substr(17);
-        return true;
+        // SQLite has no network — host is empty, port is 0
+        std::string database = uri.substr(fullPrefixLen);
+        if (database.empty())
+        {
+            return cpp_dbc::unexpected(DBException("5V9WQBTN67OL",
+                                                   "Invalid SQLite URI: database path is empty",
+                                                   system_utils::captureCallStack()));
+        }
+
+        std::map<std::string, std::string> result;
+        result["host"] = "";
+        result["port"] = "0";
+        result["database"] = std::move(database);
+        return result;
+    }
+
+    cpp_dbc::expected<std::string, DBException> SQLiteDBDriver::buildURI(
+        std::nothrow_t,
+        const std::string & /*host*/,
+        int /*port*/,
+        const std::string &database,
+        const std::map<std::string, std::string> & /*options*/) noexcept
+    {
+        if (database.empty())
+        {
+            return cpp_dbc::unexpected(DBException("HLME1TRN0JA8",
+                                                   "Cannot build SQLite URI: database path is empty",
+                                                   system_utils::captureCallStack()));
+        }
+
+        // SQLite ignores host and port — URI is always cpp_dbc:sqlite://path
+        return std::string(cpp_dbc::system_constants::URI_PREFIX) + "sqlite://" + database;
     }
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> SQLiteDBDriver::connectRelational(
         std::nothrow_t,
-        const std::string &url,
+        const std::string &uri,
         [[maybe_unused]] const std::string &,
         [[maybe_unused]] const std::string &,
         const std::map<std::string, std::string> &options) noexcept
     {
-        try
+        auto parseResult = parseURI(std::nothrow, uri);
+        if (!parseResult.has_value())
         {
-            std::string database;
-
-            if (acceptsURL(url))
-            {
-                if (!parseURL(url, database))
-                {
-                    return cpp_dbc::unexpected(DBException("SLEN4O5P6Q7R", "Invalid SQLite connection URL: " + url,
-                                                           system_utils::captureCallStack()));
-                }
-            }
-            else
-            {
-                size_t dbStart = url.find("://");
-                if (dbStart != std::string::npos)
-                {
-                    database = url.substr(dbStart + 3);
-                }
-                else
-                {
-                    return cpp_dbc::unexpected(DBException("SLFO5P6Q7R8S", "Invalid SQLite connection URL: " + url,
-                                                           system_utils::captureCallStack()));
-                }
-            }
-
-            auto connection = std::make_shared<SQLiteDBConnection>(database, options);
-            return std::shared_ptr<RelationalDBConnection>(connection);
+            return cpp_dbc::unexpected(parseResult.error());
         }
-        catch (const DBException &ex)
+
+        const auto &parsed = parseResult.value();
+        auto dbIt = parsed.find("database");
+        if (dbIt == parsed.end() || dbIt->second.empty())
         {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("CR1A1B2C3D4E",
-                                                   std::string("connectRelational failed: ") + ex.what(),
+            return cpp_dbc::unexpected(DBException("SLEN4O5P6Q7R", "Invalid SQLite connection URI: " + uri,
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+
+        // SQLiteDBConnection::create(nothrow) sets m_self internally and handles
+        // any construction errors — no try/catch needed here (all calls are noexcept).
+        auto connResult = SQLiteDBConnection::create(std::nothrow, dbIt->second, options);
+        if (!connResult.has_value())
         {
-            return cpp_dbc::unexpected(DBException("CR1A1B2C3D4F",
-                                                   "connectRelational failed: unknown error",
-                                                   system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(connResult.error());
         }
+        auto connection = connResult.value();
+        registerConnection(std::nothrow, connection);
+        return std::shared_ptr<RelationalDBConnection>(connection);
     }
 
     std::string SQLiteDBDriver::getName() const noexcept
     {
         return "sqlite";
+    }
+
+    std::string SQLiteDBDriver::getURIScheme() const noexcept
+    {
+        return "cpp_dbc:sqlite://<path>";
+    }
+
+    std::string SQLiteDBDriver::getDriverVersion() const noexcept
+    {
+        return sqlite3_libversion();
     }
 
 } // namespace cpp_dbc::SQLite

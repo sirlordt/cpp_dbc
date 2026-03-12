@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file connection_02.cpp
- @brief Firebird database driver implementation - FirebirdDBConnection nothrow methods (group 1: close, reset, isClosed, returnToPool, isPooled, getURL, ping)
+ @brief Firebird database driver implementation - FirebirdDBConnection nothrow methods (group 1: close, reset, isClosed, returnToPool, isPooled, getURI, ping)
 
 */
 
@@ -36,7 +36,7 @@ namespace cpp_dbc::Firebird
 {
 
     // ============================================================================
-    // NOTHROW API — group 1: close, reset, isClosed, returnToPool, isPooled, getURL, ping
+    // NOTHROW API — group 1: close, reset, isClosed, returnToPool, isPooled, getURI, ping
     // ============================================================================
 
     cpp_dbc::expected<void, cpp_dbc::DBException> FirebirdDBConnection::close(std::nothrow_t) noexcept
@@ -58,6 +58,11 @@ namespace cpp_dbc::Firebird
         m_db.reset();
 
         m_closed.store(true, std::memory_order_release);
+
+        // Unregister from the driver registry so getConnectionAlive() reflects
+        // actual live connections. The owner_less m_self weak_ptr is used for
+        // set lookup — raw 'this' would not match the set's comparator.
+        FirebirdDBDriver::unregisterConnection(std::nothrow, m_self);
 
         FIREBIRD_DEBUG("FirebirdConnection::close - Done");
 
@@ -146,10 +151,13 @@ namespace cpp_dbc::Firebird
         return false;
     }
 
+    // No try/catch: the only possible throw is std::bad_alloc from the
+    // std::string copy, which is a death-sentence exception — no meaningful
+    // recovery is possible, so std::terminate is the correct response.
     cpp_dbc::expected<std::string, DBException>
-    FirebirdDBConnection::getURL(std::nothrow_t) const noexcept
+    FirebirdDBConnection::getURI(std::nothrow_t) const noexcept
     {
-        return m_url;
+        return m_uri;
     }
 
     cpp_dbc::expected<bool, DBException> FirebirdDBConnection::ping(std::nothrow_t) noexcept

@@ -19,6 +19,7 @@
 */
 
 #include <string>
+#include <map>
 #include <memory>
 
 #include <catch2/catch_test_macros.hpp>
@@ -31,24 +32,43 @@ TEST_CASE("MySQL driver tests", "[20_021_01_mysql_real_driver]")
 {
     SECTION("MySQL driver URL acceptance")
     {
-        // Create a MySQL driver
-        cpp_dbc::MySQL::MySQLDBDriver driver;
+        auto driver = cpp_dbc::MySQL::MySQLDBDriver::getInstance();
 
-        // Check that it accepts MySQL URLs
-        REQUIRE(driver.acceptsURL("cpp_dbc:mysql://localhost:3306/testdb"));
-        REQUIRE(driver.acceptsURL("cpp_dbc:mysql://127.0.0.1:3306/testdb"));
-        REQUIRE(driver.acceptsURL("cpp_dbc:mysql://db.example.com:3306/testdb"));
+        // Check that it accepts MySQL URIs
+        REQUIRE_NOTHROW(driver->acceptURI("cpp_dbc:mysql://localhost:3306/testdb"));
+        REQUIRE_NOTHROW(driver->acceptURI("cpp_dbc:mysql://127.0.0.1:3306/testdb"));
+        REQUIRE_NOTHROW(driver->acceptURI("cpp_dbc:mysql://db.example.com:3306/testdb"));
 
-        // Check that it rejects non-MySQL URLs
-        REQUIRE_FALSE(driver.acceptsURL("cpp_dbc:postgresql://localhost:5432/testdb"));
-        REQUIRE_FALSE(driver.acceptsURL("jdbc:mysql://localhost:3306/testdb"));
-        REQUIRE_FALSE(driver.acceptsURL("mysql://localhost:3306/testdb"));
+        // Check that it rejects non-MySQL URIs
+        REQUIRE_THROWS_AS(driver->acceptURI("cpp_dbc:postgresql://localhost:5432/testdb"), cpp_dbc::DBException);
+        REQUIRE_THROWS_AS(driver->acceptURI("jdbc:mysql://localhost:3306/testdb"), cpp_dbc::DBException);
+        REQUIRE_THROWS_AS(driver->acceptURI("mysql://localhost:3306/testdb"), cpp_dbc::DBException);
+    }
+
+    SECTION("MySQL driver URI acceptance (nothrow)")
+    {
+        auto driver = cpp_dbc::MySQL::MySQLDBDriver::getInstance();
+
+        // Valid MySQL URIs — has_value() returns true
+        auto ok1 = driver->acceptURI(std::nothrow, "cpp_dbc:mysql://localhost:3306/testdb");
+        REQUIRE(ok1.has_value());
+        auto ok2 = driver->acceptURI(std::nothrow, "cpp_dbc:mysql://127.0.0.1:3306/testdb");
+        REQUIRE(ok2.has_value());
+        auto ok3 = driver->acceptURI(std::nothrow, "cpp_dbc:mysql://db.example.com:3306/testdb");
+        REQUIRE(ok3.has_value());
+
+        // Wrong scheme — has_value() returns false with scheme mismatch error
+        auto no1 = driver->acceptURI(std::nothrow, "cpp_dbc:postgresql://localhost:5432/testdb");
+        REQUIRE_FALSE(no1.has_value());
+        auto no2 = driver->acceptURI(std::nothrow, "jdbc:mysql://localhost:3306/testdb");
+        REQUIRE_FALSE(no2.has_value());
+        auto no3 = driver->acceptURI(std::nothrow, "mysql://localhost:3306/testdb");
+        REQUIRE_FALSE(no3.has_value());
     }
 
     SECTION("MySQL driver connection string parsing")
     {
-        // Create a MySQL driver
-        cpp_dbc::MySQL::MySQLDBDriver driver;
+        auto driver = cpp_dbc::MySQL::MySQLDBDriver::getInstance();
 
         // We can't actually connect to a database in unit tests,
         // but we can verify that the driver correctly parses connection strings
@@ -56,67 +76,84 @@ TEST_CASE("MySQL driver tests", "[20_021_01_mysql_real_driver]")
         // This would normally throw a DBException if the database doesn't exist,
         // but we're just testing the URL parsing logic
         REQUIRE_THROWS_AS(
-            driver.connect("cpp_dbc:mysql://localhost:3306/non_existent_db", "user", "pass"),
+            driver->connect("cpp_dbc:mysql://localhost:3306/non_existent_db", "user", "pass"),
             cpp_dbc::DBException);
     }
 
-    SECTION("MySQL driver parseURL - valid URLs")
+    SECTION("MySQL driver parseURI - valid URLs")
     {
-        cpp_dbc::MySQL::MySQLDBDriver driver;
-        std::string host;
-        int port = 0;
-        std::string database;
+        auto driver = cpp_dbc::MySQL::MySQLDBDriver::getInstance();
 
         // Full URL with host, port, and database
-        REQUIRE(driver.parseURL("cpp_dbc:mysql://localhost:3306/testdb", host, port, database));
-        REQUIRE(host == "localhost");
-        REQUIRE(port == 3306);
-        REQUIRE(database == "testdb");
+        auto result1 = driver->parseURI("cpp_dbc:mysql://localhost:3306/testdb");
+        REQUIRE(result1.at("host") == "localhost");
+        REQUIRE(result1.at("port") == "3306");
+        REQUIRE(result1.at("database") == "testdb");
 
         // URL with custom port
-        REQUIRE(driver.parseURL("cpp_dbc:mysql://dbserver:9999/mydb", host, port, database));
-        REQUIRE(host == "dbserver");
-        REQUIRE(port == 9999);
-        REQUIRE(database == "mydb");
+        auto result2 = driver->parseURI("cpp_dbc:mysql://dbserver:9999/mydb");
+        REQUIRE(result2.at("host") == "dbserver");
+        REQUIRE(result2.at("port") == "9999");
+        REQUIRE(result2.at("database") == "mydb");
 
         // URL without port (should default to 3306)
-        REQUIRE(driver.parseURL("cpp_dbc:mysql://localhost/testdb", host, port, database));
-        REQUIRE(host == "localhost");
-        REQUIRE(port == 3306);
-        REQUIRE(database == "testdb");
+        auto result3 = driver->parseURI("cpp_dbc:mysql://localhost/testdb");
+        REQUIRE(result3.at("host") == "localhost");
+        REQUIRE(result3.at("port") == "3306");
+        REQUIRE(result3.at("database") == "testdb");
 
         // URL with host only (no port, no database)
-        REQUIRE(driver.parseURL("cpp_dbc:mysql://localhost", host, port, database));
-        REQUIRE(host == "localhost");
-        REQUIRE(port == 3306);
-        REQUIRE(database == "");
+        auto result4 = driver->parseURI("cpp_dbc:mysql://localhost");
+        REQUIRE(result4.at("host") == "localhost");
+        REQUIRE(result4.at("port") == "3306");
+        REQUIRE(result4.at("database").empty());
 
         // URL with host and port but no database
-        REQUIRE(driver.parseURL("cpp_dbc:mysql://localhost:3307", host, port, database));
-        REQUIRE(host == "localhost");
-        REQUIRE(port == 3307);
-        REQUIRE(database == "");
+        auto result5 = driver->parseURI("cpp_dbc:mysql://localhost:3307");
+        REQUIRE(result5.at("host") == "localhost");
+        REQUIRE(result5.at("port") == "3307");
+        REQUIRE(result5.at("database").empty());
 
         // URL with IPv6 address
-        REQUIRE(driver.parseURL("cpp_dbc:mysql://[::1]:3306/testdb", host, port, database));
-        REQUIRE(host == "::1");
-        REQUIRE(port == 3306);
-        REQUIRE(database == "testdb");
+        auto result6 = driver->parseURI("cpp_dbc:mysql://[::1]:3306/testdb");
+        REQUIRE(result6.at("host") == "::1");
+        REQUIRE(result6.at("port") == "3306");
+        REQUIRE(result6.at("database") == "testdb");
     }
 
-    SECTION("MySQL driver parseURL - invalid URLs")
+    SECTION("MySQL driver parseURI - invalid URLs")
     {
-        cpp_dbc::MySQL::MySQLDBDriver driver;
-        std::string host;
-        int port = 0;
-        std::string database;
+        auto driver = cpp_dbc::MySQL::MySQLDBDriver::getInstance();
 
-        // Wrong scheme
-        REQUIRE_FALSE(driver.parseURL("cpp_dbc:postgresql://localhost:5432/testdb", host, port, database));
-        REQUIRE_FALSE(driver.parseURL("jdbc:mysql://localhost:3306/testdb", host, port, database));
+        // Wrong scheme — returns unexpected (not accepted)
+        auto r1 = driver->parseURI(std::nothrow, "cpp_dbc:postgresql://localhost:5432/testdb");
+        REQUIRE_FALSE(r1.has_value());
 
-        // Invalid port
-        REQUIRE_FALSE(driver.parseURL("cpp_dbc:mysql://localhost:notaport/testdb", host, port, database));
+        auto r2 = driver->parseURI(std::nothrow, "jdbc:mysql://localhost:3306/testdb");
+        REQUIRE_FALSE(r2.has_value());
+
+        // Invalid port — returns unexpected (parse error)
+        auto r3 = driver->parseURI(std::nothrow, "cpp_dbc:mysql://localhost:notaport/testdb");
+        REQUIRE_FALSE(r3.has_value());
+    }
+
+    SECTION("MySQL driver buildURI")
+    {
+        auto driver = cpp_dbc::MySQL::MySQLDBDriver::getInstance();
+
+        // Build a standard URI
+        auto uri = driver->buildURI("localhost", 3306, "testdb");
+        REQUIRE(uri == "cpp_dbc:mysql://localhost:3306/testdb");
+
+        // Build URI without database
+        auto uri2 = driver->buildURI("dbserver", 9999, "");
+        REQUIRE(uri2 == "cpp_dbc:mysql://dbserver:9999");
+
+        // Roundtrip: buildURI -> parseURI
+        auto parsed = driver->parseURI(uri);
+        REQUIRE(parsed.at("host") == "localhost");
+        REQUIRE(parsed.at("port") == "3306");
+        REQUIRE(parsed.at("database") == "testdb");
     }
 }
 #endif

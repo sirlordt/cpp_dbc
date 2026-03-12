@@ -106,7 +106,7 @@ namespace cpp_dbc::SQLite
          * @brief Check if the database connection is still valid
          * @return true if connection is valid, false if it has been closed
          */
-        bool isConnectionValid() const
+        bool isConnectionValid() const noexcept override
         {
             return !m_db.expired();
         }

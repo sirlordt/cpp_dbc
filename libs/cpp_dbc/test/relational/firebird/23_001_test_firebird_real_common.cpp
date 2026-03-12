@@ -122,7 +122,7 @@ namespace firebird_test_helpers
     std::shared_ptr<cpp_dbc::Firebird::FirebirdDBDriver> getFirebirdDriver()
     {
         static std::shared_ptr<cpp_dbc::Firebird::FirebirdDBDriver> driver =
-            std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>();
+            cpp_dbc::Firebird::FirebirdDBDriver::getInstance(std::nothrow).value_or(nullptr);
         return driver;
     }
 

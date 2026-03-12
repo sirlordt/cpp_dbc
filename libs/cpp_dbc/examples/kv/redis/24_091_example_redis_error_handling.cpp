@@ -435,7 +435,7 @@ int main(int argc, char *argv[])
     registerDriver("redis");
     logOk("Driver registered");
 
-    auto driver = std::make_shared<cpp_dbc::Redis::RedisDBDriver>();
+    auto driver = cpp_dbc::Redis::RedisDBDriver::getInstance(std::nothrow).value_or(nullptr);
 
     // Demonstrate connection errors (before main connection)
     demonstrateConnectionErrors(*driver);

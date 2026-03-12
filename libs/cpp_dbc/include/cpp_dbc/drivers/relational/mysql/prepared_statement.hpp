@@ -4,6 +4,7 @@
 
 #if USE_MYSQL
 
+#include <atomic>
 #include <vector>
 #include <string>
 
@@ -30,10 +31,23 @@ namespace cpp_dbc::MySQL
     class MySQLDBPreparedStatement final : public RelationalDBPreparedStatement
     {
         friend class MySQLDBConnection;
+        friend class MySQLConnectionLock;
 
-        std::weak_ptr<MYSQL> m_mysql; // Safe weak reference to connection - detects when connection is closed
+        /**
+         * @brief Private tag for the passkey idiom — enables std::make_shared
+         * from static factory methods while keeping the constructor
+         * effectively private (external code cannot construct PrivateCtorTag).
+         */
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
+        // ── Member variables ──────────────────────────────────────────────────
+        std::weak_ptr<MySQLDBConnection> m_connection; // Weak reference to parent connection
         std::string m_sql;
         MySQLStmtHandle m_stmt{nullptr}; // Smart pointer for MYSQL_STMT - automatically calls mysql_stmt_close
+        std::atomic<bool> m_closed{true};
         std::vector<MYSQL_BIND> m_binds;
         std::vector<std::string> m_stringValues;                   // To keep string values alive
         std::vector<std::string> m_parameterValues;                // To store parameter values for query reconstruction
@@ -45,104 +59,69 @@ namespace cpp_dbc::MySQL
         std::vector<std::shared_ptr<Blob>> m_blobObjects;          // To keep blob objects alive
         std::vector<std::shared_ptr<InputStream>> m_streamObjects; // To keep stream objects alive
 
-#if DB_DRIVER_THREAD_SAFE
         /**
-         * @brief Shared mutex with the parent connection
+         * @brief Flag indicating constructor initialization failed
          *
-         * This is the SAME mutex instance as the connection's m_connMutex.
-         * All operations on both Connection and PreparedStatement lock this mutex,
-         * ensuring mysql_stmt_close() in the destructor never races with other
-         * connection operations.
+         * Set by the private nothrow constructor when statement preparation fails.
+         * Inspected by create(nothrow_t) to propagate the error via expected.
          */
-        SharedConnMutex m_connMutex;
-#endif
+        bool m_initFailed{false};
+
+        /**
+         * @brief Error captured when constructor initialization fails
+         *
+         * Holds the DBException that would have been thrown, for deferred delivery.
+         */
+        std::unique_ptr<DBException> m_initError{nullptr};
+
+        // ── Private helper methods ────────────────────────────────────────────
 
         // Internal method called by connection when closing
-        void notifyConnClosing();
+        cpp_dbc::expected<void, DBException> notifyConnClosing(std::nothrow_t) noexcept;
 
         // Helper method to get MYSQL* safely, returns unexpected if connection is closed
         cpp_dbc::expected<MYSQL *, DBException> getMySQLConnection(std::nothrow_t) const noexcept;
 
     public:
-#if DB_DRIVER_THREAD_SAFE
-        MySQLDBPreparedStatement(std::weak_ptr<MYSQL> mysql, SharedConnMutex connMutex, const std::string &sql);
-#else
-        MySQLDBPreparedStatement(std::weak_ptr<MYSQL> mysql, const std::string &sql);
-#endif
+        // ── PrivateCtorTag constructor ────────────────────────────────────────
+        /**
+         * @brief Nothrow constructor — contains all initialization logic.
+         *
+         * Calls mysql_stmt_init, mysql_stmt_prepare, and parameter allocation
+         * internally. On failure, sets m_initFailed and m_initError instead of
+         * throwing. Public for std::make_shared access, but effectively private:
+         * external code cannot construct PrivateCtorTag.
+         */
+        MySQLDBPreparedStatement(PrivateCtorTag,
+                                 std::nothrow_t,
+                                 std::weak_ptr<MySQLDBConnection> conn,
+                                 const std::string &sql) noexcept;
+
+        // ── Destructor ────────────────────────────────────────────────────────
         ~MySQLDBPreparedStatement() override;
 
-#if DB_DRIVER_THREAD_SAFE
-        static cpp_dbc::expected<std::shared_ptr<MySQLDBPreparedStatement>, DBException>
-        create(std::nothrow_t,
-               std::weak_ptr<MYSQL> mysql,
-               SharedConnMutex connMutex,
-               const std::string &sql) noexcept
-        {
-            try
-            {
-                return std::make_shared<MySQLDBPreparedStatement>(mysql, connMutex, sql);
-            }
-            catch (const DBException &ex)
-            {
-                return cpp_dbc::unexpected(ex);
-            }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("CQ7QTLFW080H", ex.what(), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("6DPPQ65WEMDW", "Unknown error creating MySQLDBPreparedStatement", system_utils::captureCallStack()));
-            }
-        }
+        // ── Deleted copy/move — non-copyable, non-movable ─────────────────────
+        MySQLDBPreparedStatement(const MySQLDBPreparedStatement &) = delete;
+        MySQLDBPreparedStatement &operator=(const MySQLDBPreparedStatement &) = delete;
+        MySQLDBPreparedStatement(MySQLDBPreparedStatement &&) = delete;
+        MySQLDBPreparedStatement &operator=(MySQLDBPreparedStatement &&) = delete;
 
-        static std::shared_ptr<MySQLDBPreparedStatement>
-        create(std::weak_ptr<MYSQL> mysql, SharedConnMutex connMutex, const std::string &sql)
-        {
-            auto r = create(std::nothrow, mysql, connMutex, sql);
-            if (!r.has_value())
-            {
-                throw r.error();
-            }
-            return r.value();
-        }
-#else
-        static cpp_dbc::expected<std::shared_ptr<MySQLDBPreparedStatement>, DBException>
-        create(std::nothrow_t,
-               std::weak_ptr<MYSQL> mysql,
-               const std::string &sql) noexcept
-        {
-            try
-            {
-                return std::make_shared<MySQLDBPreparedStatement>(mysql, sql);
-            }
-            catch (const DBException &ex)
-            {
-                return cpp_dbc::unexpected(ex);
-            }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("CQ7QTLFW080H", ex.what(), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("6DPPQ65WEMDW", "Unknown error creating MySQLDBPreparedStatement", system_utils::captureCallStack()));
-            }
-        }
-
-        static std::shared_ptr<MySQLDBPreparedStatement>
-        create(std::weak_ptr<MYSQL> mysql, const std::string &sql)
-        {
-            auto r = create(std::nothrow, mysql, sql);
-            if (!r.has_value())
-            {
-                throw r.error();
-            }
-            return r.value();
-        }
-#endif
+        // ====================================================================
+        // THROWING API — requires exception support
+        // ====================================================================
 
 #ifdef __cpp_exceptions
+        static std::shared_ptr<MySQLDBPreparedStatement>
+        create(std::weak_ptr<MySQLDBConnection> conn, const std::string &sql)
+        {
+            auto r = create(std::nothrow, std::move(conn), sql);
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
+            return r.value();
+        }
+
         void setInt(int parameterIndex, int value) override;
         void setLong(int parameterIndex, int64_t value) override;
         void setDouble(int parameterIndex, double value) override;
@@ -166,9 +145,28 @@ namespace cpp_dbc::MySQL
         void close() override;
 
 #endif // __cpp_exceptions
+
         // ====================================================================
-        // NOTHROW VERSIONS - Exception-free API
+        // NOTHROW API — exception-free, always available
         // ====================================================================
+
+        static cpp_dbc::expected<std::shared_ptr<MySQLDBPreparedStatement>, DBException>
+        create(std::nothrow_t,
+               std::weak_ptr<MySQLDBConnection> conn,
+               const std::string &sql) noexcept
+        {
+            // No try/catch: std::make_shared can only throw std::bad_alloc, which is a
+            // death-sentence exception — the heap is exhausted and no meaningful recovery
+            // is possible. Catching it would hide a catastrophic failure as a silent error
+            // return. Letting std::terminate fire is safer and more debuggable.
+            auto obj = std::make_shared<MySQLDBPreparedStatement>(
+                PrivateCtorTag{}, std::nothrow, std::move(conn), sql);
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            return obj;
+        }
 
         [[nodiscard]] cpp_dbc::expected<void, DBException> setInt(std::nothrow_t, int parameterIndex, int value) noexcept override;
         [[nodiscard]] cpp_dbc::expected<void, DBException> setLong(std::nothrow_t, int parameterIndex, int64_t value) noexcept override;

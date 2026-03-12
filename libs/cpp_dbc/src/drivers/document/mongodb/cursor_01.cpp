@@ -283,7 +283,7 @@ namespace cpp_dbc::MongoDB
     // MongoDBCursor Implementation - MongoDB-specific methods
     // ============================================================================
 
-    bool MongoDBCursor::isConnectionValid() const
+    bool MongoDBCursor::isConnectionValid() const noexcept
     {
         return !m_client.expired();
     }

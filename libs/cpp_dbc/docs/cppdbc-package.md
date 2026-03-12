@@ -341,7 +341,7 @@ cmake --build .
       ```cpp
       // Using factory method with configuration
       auto config = cpp_dbc::config::DBConnectionPoolConfig();
-      config.setUrl("mongodb://localhost:27017/test");
+      config.setUri("mongodb://localhost:27017/test");
       auto pool = cpp_dbc::MongoDB::MongoDBConnectionPool::create(config);
       
       // Using factory method with direct parameters

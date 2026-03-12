@@ -36,461 +36,441 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::setBlob(std::nothrow_t, int parameterIndex, std::shared_ptr<Blob> x) noexcept
     {
-        try
+        MYSQL_STMT_LOCK_OR_RETURN("ZPONUDZ1G6PM", "setBlob failed");
+
+        if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
+            return cpp_dbc::unexpected(DBException("I81HBMMW7EY7", "Invalid parameter index for setBlob", system_utils::captureCallStack()));
+        }
 
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        int idx = parameterIndex - 1;
 
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
+        // Store the blob object to keep it alive
+        m_blobObjects[idx] = x;
+
+        if (!x)
+        {
+            auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
+            if (!nullResult.has_value())
             {
-                return cpp_dbc::unexpected(DBException("D1E2F3G4H5I6", "Invalid parameter index for setBlob", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(nullResult.error());
             }
-
-            int idx = parameterIndex - 1;
-
-            // Store the blob object to keep it alive
-            m_blobObjects[idx] = x;
-
-            if (!x)
-            {
-                auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
-                if (!nullResult.has_value())
-                {
-                    return cpp_dbc::unexpected(nullResult.error());
-                }
-                return {};
-            }
-
-            // Get the blob data
-            std::vector<uint8_t> data = x->getBytes(0, x->length());
-
-            // Store the data in our vector to keep it alive
-            m_blobValues[idx] = std::move(data);
-
-            m_binds[idx].buffer_type = MYSQL_TYPE_BLOB;
-            m_binds[idx].buffer = m_blobValues[idx].data();
-            m_binds[idx].buffer_length = m_blobValues[idx].size();
-            m_binds[idx].is_null = nullptr;
-            m_binds[idx].length = nullptr;
-
-            // Store parameter value for query reconstruction (with proper escaping)
-            m_parameterValues[idx] = "BINARY DATA";
             return {};
         }
-        catch (const DBException &ex)
+
+        // Get the blob length via nothrow overload
+        auto lengthResult = x->length(std::nothrow);
+        if (!lengthResult.has_value())
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(lengthResult.error());
         }
-        catch (const std::exception &ex)
+
+        // Get the blob data via nothrow overload
+        auto dataResult = x->getBytes(std::nothrow, 0, lengthResult.value());
+        if (!dataResult.has_value())
         {
-            return cpp_dbc::unexpected(DBException("C8D4E0F6A3B9",
-                                                   std::string("setBlob failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(dataResult.error());
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("C8D4E0F6A3BA",
-                                                   "setBlob failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+
+        // Store the data in our vector to keep it alive
+        m_blobValues[idx] = std::move(dataResult.value());
+
+        m_binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+        m_binds[idx].buffer = m_blobValues[idx].data();
+        m_binds[idx].buffer_length = m_blobValues[idx].size();
+        m_binds[idx].is_null = nullptr;
+        m_binds[idx].length = nullptr;
+
+        // Store parameter value for query reconstruction (with proper escaping)
+        m_parameterValues[idx] = "BINARY DATA";
+        return {};
     }
 
     cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x) noexcept
     {
-        try
+        MYSQL_STMT_LOCK_OR_RETURN("ATVKMR2CYNW3", "setBinaryStream failed");
+
+        if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
+            return cpp_dbc::unexpected(DBException("W32D7KYC25JV", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack()));
+        }
 
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        int idx = parameterIndex - 1;
 
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
+        // Store the stream object to keep it alive
+        m_streamObjects[idx] = x;
+
+        if (!x)
+        {
+            auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
+            if (!nullResult.has_value())
             {
-                return cpp_dbc::unexpected(DBException("J7K8L9M0N1O2", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(nullResult.error());
             }
-
-            int idx = parameterIndex - 1;
-
-            // Store the stream object to keep it alive
-            m_streamObjects[idx] = x;
-
-            if (!x)
-            {
-                auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
-                if (!nullResult.has_value())
-                {
-                    return cpp_dbc::unexpected(nullResult.error());
-                }
-                return {};
-            }
-
-            // Read all data from the stream
-            std::vector<uint8_t> data;
-            std::array<uint8_t, 4096> buffer{};
-            int bytesRead = 0;
-            while ((bytesRead = x->read(buffer.data(), buffer.size())) > 0)
-            {
-                data.insert(data.end(), buffer.begin(), buffer.begin() + bytesRead);
-            }
-
-            // Store the data in our vector to keep it alive
-            m_blobValues[idx] = std::move(data);
-
-            m_binds[idx].buffer_type = MYSQL_TYPE_BLOB;
-            m_binds[idx].buffer = m_blobValues[idx].data();
-            m_binds[idx].buffer_length = m_blobValues[idx].size();
-            m_binds[idx].is_null = nullptr;
-            m_binds[idx].length = nullptr;
-
-            // Store parameter value for query reconstruction
-            m_parameterValues[idx] = "BINARY DATA";
             return {};
         }
-        catch (const DBException &ex)
+
+        // Read all data from the stream via nothrow overload
+        std::vector<uint8_t> data;
+        std::array<uint8_t, 4096> buffer{};
+        for (;;)
         {
-            return cpp_dbc::unexpected(ex);
+            auto readResult = x->read(std::nothrow, buffer.data(), buffer.size());
+            if (!readResult.has_value())
+            {
+                return cpp_dbc::unexpected(readResult.error());
+            }
+            int bytesRead = readResult.value();
+            if (bytesRead <= 0)
+            {
+                break;
+            }
+            data.insert(data.end(), buffer.begin(), buffer.begin() + bytesRead);
         }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("D9E5F1A7B4C0",
-                                                   std::string("setBinaryStream failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("D9E5F1A7B4C1",
-                                                   "setBinaryStream failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+
+        // Store the data in our vector to keep it alive
+        m_blobValues[idx] = std::move(data);
+
+        m_binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+        m_binds[idx].buffer = m_blobValues[idx].data();
+        m_binds[idx].buffer_length = m_blobValues[idx].size();
+        m_binds[idx].is_null = nullptr;
+        m_binds[idx].length = nullptr;
+
+        // Store parameter value for query reconstruction
+        m_parameterValues[idx] = "BINARY DATA";
+        return {};
     }
 
     cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x, size_t length) noexcept
     {
-        try
+        MYSQL_STMT_LOCK_OR_RETURN("2TN4M0W7PMXX", "setBinaryStream failed");
+
+        if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
+            return cpp_dbc::unexpected(DBException("R6XHTB2M1HXD", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack()));
+        }
 
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        int idx = parameterIndex - 1;
 
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
+        // Store the stream object to keep it alive
+        m_streamObjects[idx] = x;
+
+        if (!x)
+        {
+            auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
+            if (!nullResult.has_value())
             {
-                return cpp_dbc::unexpected(DBException("P3Q4R5S6T7U8", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(nullResult.error());
             }
-
-            int idx = parameterIndex - 1;
-
-            // Store the stream object to keep it alive
-            m_streamObjects[idx] = x;
-
-            if (!x)
-            {
-                auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
-                if (!nullResult.has_value())
-                {
-                    return cpp_dbc::unexpected(nullResult.error());
-                }
-                return {};
-            }
-
-            // Read up to 'length' bytes from the stream
-            std::vector<uint8_t> data;
-            data.reserve(length);
-            std::array<uint8_t, 4096> buffer{};
-            size_t totalBytesRead = 0;
-            int bytesRead = 0;
-            while (totalBytesRead < length)
-            {
-                bytesRead = x->read(buffer.data(), std::min(buffer.size(), length - totalBytesRead));
-                if (bytesRead <= 0)
-                {
-                    break;
-                }
-                data.insert(data.end(), buffer.begin(), buffer.begin() + bytesRead);
-                totalBytesRead += bytesRead;
-            }
-
-            // Store the data in our vector to keep it alive
-            m_blobValues[idx] = std::move(data);
-
-            m_binds[idx].buffer_type = MYSQL_TYPE_BLOB;
-            m_binds[idx].buffer = m_blobValues[idx].data();
-            m_binds[idx].buffer_length = m_blobValues[idx].size();
-            m_binds[idx].is_null = nullptr;
-            m_binds[idx].length = nullptr;
-
-            // Store parameter value for query reconstruction
-            m_parameterValues[idx] = "BINARY DATA";
             return {};
         }
-        catch (const DBException &ex)
+
+        // Read up to 'length' bytes from the stream via nothrow overload
+        std::vector<uint8_t> data;
+        data.reserve(length);
+        std::array<uint8_t, 4096> buffer{};
+        size_t totalBytesRead = 0;
+        while (totalBytesRead < length)
         {
-            return cpp_dbc::unexpected(ex);
+            auto readResult = x->read(std::nothrow, buffer.data(), std::min(buffer.size(), length - totalBytesRead));
+            if (!readResult.has_value())
+            {
+                return cpp_dbc::unexpected(readResult.error());
+            }
+            int bytesRead = readResult.value();
+            if (bytesRead <= 0)
+            {
+                break;
+            }
+            data.insert(data.end(), buffer.begin(), buffer.begin() + bytesRead);
+            totalBytesRead += bytesRead;
         }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("E0F6A2B8C5D1",
-                                                   std::string("setBinaryStream failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("E0F6A2B8C5D2",
-                                                   "setBinaryStream failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+
+        // Store the data in our vector to keep it alive
+        m_blobValues[idx] = std::move(data);
+
+        m_binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+        m_binds[idx].buffer = m_blobValues[idx].data();
+        m_binds[idx].buffer_length = m_blobValues[idx].size();
+        m_binds[idx].is_null = nullptr;
+        m_binds[idx].length = nullptr;
+
+        // Store parameter value for query reconstruction
+        m_parameterValues[idx] = "BINARY DATA";
+        return {};
     }
 
     cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::setBytes(std::nothrow_t, int parameterIndex, const std::vector<uint8_t> &x) noexcept
     {
+        // 2026-03-08T19:10:00Z
+        // Bug: std::vector::data() may return nullptr for empty vectors
+        // (implementation-defined). The raw-pointer overload treats nullptr as
+        // SQL NULL, so setBytes(idx, emptyVector) stored NULL instead of a
+        // zero-length blob.
+        // Solution: Guard with x.empty() check — pass a non-null sentinel so the
+        // raw-pointer overload sees a valid pointer with length 0.
+        if (x.empty())
+        {
+            // Use a stack byte as non-null sentinel; length 0 means no data is copied
+            uint8_t sentinel = 0;
+            return setBytes(std::nothrow, parameterIndex, &sentinel, 0);
+        }
         return setBytes(std::nothrow, parameterIndex, x.data(), x.size());
     }
 
     cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::setBytes(std::nothrow_t, int parameterIndex, const uint8_t *x, size_t length) noexcept
     {
-        try
+        MYSQL_STMT_LOCK_OR_RETURN("EI21DGR86T2Z", "setBytes failed");
+
+        if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
         {
+            return cpp_dbc::unexpected(DBException("EZPZDJ1XBAUF", "Invalid parameter index for setBytes", system_utils::captureCallStack()));
+        }
 
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        int idx = parameterIndex - 1;
 
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
+        if (!x)
+        {
+            auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
+            if (!nullResult.has_value())
             {
-                return cpp_dbc::unexpected(DBException("B5C6D7E8F9G0", "Invalid parameter index for setBytes", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(nullResult.error());
             }
-
-            int idx = parameterIndex - 1;
-
-            if (!x)
-            {
-                auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
-                if (!nullResult.has_value())
-                {
-                    return cpp_dbc::unexpected(nullResult.error());
-                }
-                return {};
-            }
-
-            // Store the data in our vector to keep it alive
-            m_blobValues[idx].resize(length);
-            std::memcpy(m_blobValues[idx].data(), x, length);
-
-            m_binds[idx].buffer_type = MYSQL_TYPE_BLOB;
-            m_binds[idx].buffer = m_blobValues[idx].data();
-            m_binds[idx].buffer_length = m_blobValues[idx].size();
-            m_binds[idx].is_null = nullptr;
-            m_binds[idx].length = nullptr;
-
-            // Store parameter value for query reconstruction
-            m_parameterValues[idx] = "BINARY DATA";
             return {};
         }
-        catch (const DBException &ex)
+
+        // Store the data in our vector to keep it alive
+        m_blobValues[idx].resize(length);
+        if (length > 0)
         {
-            return cpp_dbc::unexpected(ex);
+            std::memcpy(m_blobValues[idx].data(), x, length);
         }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("F1A7B3C9D6E2",
-                                                   std::string("setBytes failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("F1A7B3C9D6E3",
-                                                   "setBytes failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+
+        m_binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+        m_binds[idx].buffer = m_blobValues[idx].data();
+        m_binds[idx].buffer_length = m_blobValues[idx].size();
+        m_binds[idx].is_null = nullptr;
+        m_binds[idx].length = nullptr;
+
+        // Store parameter value for query reconstruction
+        m_parameterValues[idx] = "BINARY DATA";
+        return {};
     }
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> MySQLDBPreparedStatement::executeQuery(std::nothrow_t) noexcept
     {
-        try
+        // 2026-03-08T18:30:00Z
+        // Bug: executeQuery() was using mysql_query() with reconstructed SQL instead of
+        // the mysql_stmt_* prepared statement API. This bypassed parameter binding, broke
+        // binary/blob parameters, and was vulnerable to SQL injection.
+        // Solution: Use mysql_stmt_bind_param() + mysql_stmt_execute() +
+        // mysql_stmt_store_result() and materialize all rows into a ResultSet that
+        // operates independently of the MYSQL_STMT handle.
+        MYSQL_STMT_LOCK_OR_RETURN("LXJI5IP1RX5S", "executeQuery failed");
+
+        if (!m_stmt)
         {
+            return cpp_dbc::unexpected(DBException("8S667IDQSV9B", "Statement is not initialized", system_utils::captureCallStack()));
+        }
 
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        // Bind parameters
+        if (!m_binds.empty() && mysql_stmt_bind_param(m_stmt.get(), m_binds.data()) != 0)
+        {
+            return cpp_dbc::unexpected(DBException("IBXPNGBMEO5Y",
+                std::string("Failed to bind parameters: ") + mysql_stmt_error(m_stmt.get()),
+                system_utils::captureCallStack()));
+        }
 
-            if (!m_stmt)
+        // Execute the prepared statement
+        if (mysql_stmt_execute(m_stmt.get()) != 0)
+        {
+            return cpp_dbc::unexpected(DBException("B2LWZLJODUZC",
+                std::string("Failed to execute query: ") + mysql_stmt_error(m_stmt.get()),
+                system_utils::captureCallStack()));
+        }
+
+        // Get result metadata to discover column names and count
+        MySQLResHandle metadata(mysql_stmt_result_metadata(m_stmt.get()));
+        if (!metadata)
+        {
+            return cpp_dbc::unexpected(DBException("KVMVHI5T9YHO",
+                std::string("Failed to get result metadata: ") + mysql_stmt_error(m_stmt.get()),
+                system_utils::captureCallStack()));
+        }
+
+        unsigned int fieldCount = mysql_num_fields(metadata.get());
+
+        // Extract column names from metadata
+        std::vector<std::string> columnNames;
+        columnNames.reserve(fieldCount);
+        {
+            const MYSQL_FIELD *fields = mysql_fetch_fields(metadata.get());
+            for (unsigned int i = 0; i < fieldCount; ++i)
             {
-                return cpp_dbc::unexpected(DBException("P1Z2A3B4C5D6", "Statement is applied", system_utils::captureCallStack()));
+                columnNames.emplace_back(fields[i].name);
+            }
+        }
+
+        // Enable STMT_ATTR_UPDATE_MAX_LENGTH for accurate buffer sizing
+        bool updateMaxLen = true;
+        mysql_stmt_attr_set(m_stmt.get(), STMT_ATTR_UPDATE_MAX_LENGTH, &updateMaxLen);
+
+        // Store all rows on the client side
+        if (mysql_stmt_store_result(m_stmt.get()) != 0)
+        {
+            return cpp_dbc::unexpected(DBException("R7REPR1DR4SC",
+                std::string("Failed to store result: ") + mysql_stmt_error(m_stmt.get()),
+                system_utils::captureCallStack()));
+        }
+
+        // Re-fetch metadata fields to get max_length after store_result
+        const MYSQL_FIELD *fields = mysql_fetch_fields(metadata.get());
+
+        // Set up result binding buffers
+        std::vector<MYSQL_BIND> resultBinds(fieldCount);
+        std::vector<std::vector<char>> buffers(fieldCount);
+        std::vector<unsigned long> lengths(fieldCount, 0);
+        auto nullFlags = std::make_unique<bool[]>(fieldCount);
+        std::fill_n(nullFlags.get(), fieldCount, false);
+        std::memset(resultBinds.data(), 0, sizeof(MYSQL_BIND) * fieldCount);
+
+        for (unsigned int i = 0; i < fieldCount; ++i)
+        {
+            // Use max_length + 1 for the buffer size (max_length is updated after store_result
+            // when STMT_ATTR_UPDATE_MAX_LENGTH is set). Minimum 256 bytes as fallback.
+            size_t bufSize = (fields[i].max_length > 0 ? fields[i].max_length : 256) + 1;
+            buffers[i].resize(bufSize, '\0');
+
+            resultBinds[i].buffer_type = MYSQL_TYPE_STRING;
+            resultBinds[i].buffer = buffers[i].data();
+            resultBinds[i].buffer_length = buffers[i].size();
+            resultBinds[i].length = &lengths[i];
+            resultBinds[i].is_null = &nullFlags[i];
+        }
+
+        if (mysql_stmt_bind_result(m_stmt.get(), resultBinds.data()) != 0)
+        {
+            mysql_stmt_free_result(m_stmt.get());
+            return cpp_dbc::unexpected(DBException("MOQYKOLM4PBP",
+                std::string("Failed to bind result: ") + mysql_stmt_error(m_stmt.get()),
+                system_utils::captureCallStack()));
+        }
+
+        // Materialize all rows
+        std::vector<std::vector<std::optional<std::string>>> rows;
+        while (true)
+        {
+            int fetchRc = mysql_stmt_fetch(m_stmt.get());
+            if (fetchRc == MYSQL_NO_DATA)
+            {
+                break;
+            }
+            if (fetchRc == 1)
+            {
+                mysql_stmt_free_result(m_stmt.get());
+                return cpp_dbc::unexpected(DBException("XJXDLLYIVFDW",
+                    std::string("Failed to fetch row: ") + mysql_stmt_error(m_stmt.get()),
+                    system_utils::captureCallStack()));
             }
 
-            // Get the MySQL connection safely
-            auto mysqlResult = getMySQLConnection(std::nothrow);
-            if (!mysqlResult.has_value())
+            std::vector<std::optional<std::string>> row(fieldCount);
+            for (unsigned int i = 0; i < fieldCount; ++i)
             {
-                return cpp_dbc::unexpected(mysqlResult.error());
-            }
-            MYSQL *mysqlPtr = mysqlResult.value();
-
-            // Reconstruct the query with bound parameters to avoid "Commands out of sync" issue
-            std::string finalQuery = m_sql;
-
-            // Replace each '?' with the corresponding parameter value
-            for (const auto &paramValue : m_parameterValues)
-            {
-                size_t pos = finalQuery.find('?');
-                if (pos != std::string::npos)
+                if (nullFlags[i] != 0)
                 {
-                    finalQuery.replace(pos, 1, paramValue);
+                    row[i] = std::nullopt;
+                }
+                else
+                {
+                    row[i] = std::string(buffers[i].data(), lengths[i]);
                 }
             }
-
-            // Execute the reconstructed query using the regular connection interface
-            if (mysql_query(mysqlPtr, finalQuery.c_str()) != 0)
-            {
-                return cpp_dbc::unexpected(DBException("P2Z3A4B5C6D7", std::string("Query failed: ") + mysql_error(mysqlPtr), system_utils::captureCallStack()));
-            }
-
-            MYSQL_RES *result = mysql_store_result(mysqlPtr);
-            if (!result && mysql_field_count(mysqlPtr) > 0)
-            {
-                return cpp_dbc::unexpected(DBException("H1I2J3K4L5M6", std::string("Failed to get result set: ") + mysql_error(mysqlPtr), system_utils::captureCallStack()));
-            }
-
-            auto rsResult = MySQLDBResultSet::create(std::nothrow, result);
-            if (!rsResult.has_value())
-            {
-                return cpp_dbc::unexpected(rsResult.error());
-            }
-
-            // Close the statement after execution (single-use)
-            // This is safe because mysql_store_result() copies all data to client memory
-            // close();
-
-            return std::shared_ptr<RelationalDBResultSet>(rsResult.value());
+            rows.push_back(std::move(row));
         }
-        catch (const DBException &ex)
+
+        // Free the stmt result — rows are now materialized
+        mysql_stmt_free_result(m_stmt.get());
+
+        // Create a materialized ResultSet
+        auto conn = m_connection.lock();
+        auto rsResult = MySQLDBResultSet::create(
+            std::nothrow, std::move(columnNames), std::move(rows), conn);
+        if (!rsResult.has_value())
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(rsResult.error());
         }
-        catch (const std::exception &ex)
+
+        auto rs = rsResult.value();
+        if (conn)
         {
-            return cpp_dbc::unexpected(DBException("D4E0F6A2B9CC",
-                                                   std::string("executeQuery failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
+            [[maybe_unused]] auto regResult = conn->registerResultSet(
+                std::nothrow, std::weak_ptr<MySQLDBResultSet>(rs));
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("D4E0F6A2B9CD",
-                                                   "executeQuery failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+
+        return std::shared_ptr<RelationalDBResultSet>(rs);
     }
 
     cpp_dbc::expected<uint64_t, DBException> MySQLDBPreparedStatement::executeUpdate(std::nothrow_t) noexcept
     {
-        try
+        MYSQL_STMT_LOCK_OR_RETURN("04CY5QLA3WRQ", "executeUpdate failed");
+
+        if (!m_stmt)
         {
-
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            if (!m_stmt)
-            {
-                return cpp_dbc::unexpected(DBException("5LX1HOYTGK2I", "Statement is applied", system_utils::captureCallStack()));
-            }
-
-            // Bind parameters
-            if (!m_binds.empty() && mysql_stmt_bind_param(m_stmt.get(), m_binds.data()) != 0)
-            {
-                return cpp_dbc::unexpected(DBException("BEQW22FPSELD", std::string("Failed to bind parameters: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
-            }
-
-            // Execute the query
-            if (mysql_stmt_execute(m_stmt.get()) != 0)
-            {
-                return cpp_dbc::unexpected(DBException("GFRDKCPL25D3", std::string("Failed to execute update: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
-            }
-
-            return mysql_stmt_affected_rows(m_stmt.get());
+            return cpp_dbc::unexpected(DBException("5LX1HOYTGK2I", "Statement is not initialized", system_utils::captureCallStack()));
         }
-        catch (const DBException &ex)
+
+        // Bind parameters
+        if (!m_binds.empty() && mysql_stmt_bind_param(m_stmt.get(), m_binds.data()) != 0)
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(DBException("BEQW22FPSELD", std::string("Failed to bind parameters: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
+
+        // Execute the query
+        if (mysql_stmt_execute(m_stmt.get()) != 0)
         {
-            return cpp_dbc::unexpected(DBException("F6A2B8C4D1EE",
-                                                   std::string("executeUpdate failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("GFRDKCPL25D3", std::string("Failed to execute update: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("F6A2B8C4D1EF",
-                                                   "executeUpdate failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+
+        return mysql_stmt_affected_rows(m_stmt.get());
     }
 
     cpp_dbc::expected<bool, DBException> MySQLDBPreparedStatement::execute(std::nothrow_t) noexcept
     {
-        try
+        MYSQL_STMT_LOCK_OR_RETURN("A9VR5AXG07G3", "execute failed");
+
+        if (!m_stmt)
         {
-
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            if (!m_stmt)
-            {
-                return cpp_dbc::unexpected(DBException("P3Z4A5B6C7D8", "Statement is not initialized", system_utils::captureCallStack()));
-            }
-
-            // Bind parameters
-            if (!m_binds.empty() && mysql_stmt_bind_param(m_stmt.get(), m_binds.data()) != 0)
-            {
-                return cpp_dbc::unexpected(DBException("P4Z5A6B7C8D9", std::string("Failed to bind parameters: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
-            }
-
-            // Execute the query
-            if (mysql_stmt_execute(m_stmt.get()) != 0)
-            {
-                return cpp_dbc::unexpected(DBException("P5Z6A7B8C9D0", std::string("Failed to execute statement: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
-            }
-
-            // Return whether there's a result set
-            return mysql_stmt_field_count(m_stmt.get()) > 0;
+            return cpp_dbc::unexpected(DBException("7QNIVNSAGDYI", "Statement is not initialized", system_utils::captureCallStack()));
         }
-        catch (const DBException &ex)
+
+        // Bind parameters
+        if (!m_binds.empty() && mysql_stmt_bind_param(m_stmt.get(), m_binds.data()) != 0)
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(DBException("MTD6DPBV993Q", std::string("Failed to bind parameters: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
+
+        // Execute the query
+        if (mysql_stmt_execute(m_stmt.get()) != 0)
         {
-            return cpp_dbc::unexpected(DBException("B8C4D0E6F3B0",
-                                                   std::string("execute failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("FIMP48JEJJHM", std::string("Failed to execute statement: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("B8C4D0E6F3B1",
-                                                   "execute failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+
+        // Return whether there's a result set
+        return mysql_stmt_field_count(m_stmt.get()) > 0;
     }
 
     cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::close(std::nothrow_t) noexcept
     {
-        try
-        {
+        MYSQL_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
 
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        if (m_stmt)
+        {
+            m_stmt.reset(); // Smart pointer will call mysql_stmt_close via deleter
+        }
 
-            if (m_stmt)
-            {
-                m_stmt.reset(); // Smart pointer will call mysql_stmt_close via deleter
-            }
-            return {};
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("C9D5E1F7A4B9",
-                                                   std::string("close failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("C9D5E1F7A4BA",
-                                                   "close failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        m_closed.store(true, std::memory_order_release);
+        return {};
     }
 
 } // namespace cpp_dbc::MySQL

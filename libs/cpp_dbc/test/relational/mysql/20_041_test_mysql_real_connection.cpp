@@ -46,7 +46,7 @@ TEST_CASE("MySQL connection test", "[20_041_01_mysql_real_connection]")
     std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port);
 
     // Register the MySQL driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(mysql_test_helpers::getMySQLDriver());
 
     SECTION("Test MySQL connection")
     {
@@ -65,12 +65,12 @@ TEST_CASE("MySQL connection test", "[20_041_01_mysql_real_connection]")
             REQUIRE(resultSet->next());
             REQUIRE(resultSet->getInt("test_value") == 1);
 
-            // Verify connection state and URL
+            // Verify connection state and URI
             CHECK_FALSE(conn->isClosed());
 
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URL: " + conn->getURL());
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URI: " + conn->getURI());
 
-            CHECK(conn->getURL() == connStr);
+            CHECK(conn->getURI() == connStr);
 
             // Close the connection
             conn->close();
@@ -85,6 +85,100 @@ TEST_CASE("MySQL connection test", "[20_041_01_mysql_real_connection]")
         }
     }
 }
+TEST_CASE("MySQL getServerVersion and getServerInfo", "[20_041_03_mysql_real_connection]")
+{
+    auto dbConfig = mysql_test_helpers::getMySQLConfig("dev_mysql");
+    std::string username = dbConfig.getUsername();
+    std::string password = dbConfig.getPassword();
+    std::string connStr = dbConfig.createConnectionString();
+
+    cpp_dbc::DriverManager::registerDriver(mysql_test_helpers::getMySQLDriver());
+
+    SECTION("getServerVersion returns non-empty version string")
+    {
+        try
+        {
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+            REQUIRE(conn != nullptr);
+
+            auto version = conn->getServerVersion();
+            CHECK_FALSE(version.empty());
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "MySQL server version: " + version);
+
+            conn->close();
+        }
+        catch (const cpp_dbc::DBException &ex)
+        {
+            WARN("MySQL getServerVersion test skipped: " + std::string(ex.what_s()));
+        }
+    }
+
+    SECTION("getServerInfo returns map with ServerVersion key")
+    {
+        try
+        {
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+            REQUIRE(conn != nullptr);
+
+            auto info = conn->getServerInfo();
+            CHECK_FALSE(info.empty());
+            CHECK(info.count("ServerVersion") == 1);
+            CHECK_FALSE(info.at("ServerVersion").empty());
+
+            // Log all entries
+            for (const auto &[key, value] : info)
+            {
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "  MySQL ServerInfo [" + key + "] = " + value);
+            }
+
+            // Verify some MySQL-specific keys
+            CHECK(info.count("HostInfo") == 1);
+            CHECK(info.count("ProtocolVersion") == 1);
+            CHECK(info.count("CharacterSet") == 1);
+
+            conn->close();
+        }
+        catch (const cpp_dbc::DBException &ex)
+        {
+            WARN("MySQL getServerInfo test skipped: " + std::string(ex.what_s()));
+        }
+    }
+
+    SECTION("getServerVersion matches ServerVersion in getServerInfo")
+    {
+        try
+        {
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+            REQUIRE(conn != nullptr);
+
+            auto version = conn->getServerVersion();
+            auto info = conn->getServerInfo();
+
+            CHECK(version == info.at("ServerVersion"));
+
+            conn->close();
+        }
+        catch (const cpp_dbc::DBException &ex)
+        {
+            WARN("MySQL version consistency test skipped: " + std::string(ex.what_s()));
+        }
+    }
+}
+TEST_CASE("MySQL getDriverVersion", "[20_041_04_mysql_real_connection]")
+{
+    auto driver = mysql_test_helpers::getMySQLDriver();
+
+    SECTION("getDriverVersion returns non-empty version string")
+    {
+        auto version = driver->getDriverVersion();
+        CHECK_FALSE(version.empty());
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "MySQL driver version: " + version);
+    }
+}
+
 #else
 // Skip this test if MySQL support is not enabled
 TEST_CASE("MySQL connection test (skipped)", "[20_041_02_mysql_real_connection]")

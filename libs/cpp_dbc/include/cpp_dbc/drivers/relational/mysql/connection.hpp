@@ -9,10 +9,12 @@
 #include <string>
 #include <mutex>
 #include <memory>
+#include <atomic>
 
 namespace cpp_dbc::MySQL
 {
     class MySQLDBPreparedStatement; // Forward declaration
+    class MySQLDBResultSet;          // Forward declaration
 
     /**
      * @brief MySQL connection implementation
@@ -34,16 +36,38 @@ namespace cpp_dbc::MySQL
      */
     class MySQLDBConnection final : public RelationalDBConnection, public std::enable_shared_from_this<MySQLDBConnection>
     {
-    private:
+        friend class MySQLDBPreparedStatement;
+        friend class MySQLDBResultSet;
+        friend class MySQLBlob;
+        friend class MySQLConnectionLock;
+
+        /**
+         * @brief Private tag for the passkey idiom — enables std::make_shared
+         * from static factory methods while keeping the constructor
+         * effectively private (external code cannot construct PrivateCtorTag).
+         */
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
+        // ── Member variables ──────────────────────────────────────────────────
         MySQLHandle m_mysql; // shared_ptr allows PreparedStatements to use weak_ptr
-        std::atomic<bool> m_closed{false};
+        std::atomic<bool> m_closed{true};
+        std::atomic<bool> m_resetting{false}; // True during reset() to prevent unregister deadlock
         bool m_autoCommit{true};
         bool m_transactionActive{false};
         TransactionIsolationLevel m_isolationLevel{TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ}; // MySQL default
+
+        // Self weak_ptr stored by create() factory after construction.
+        // Used by close() to unregister this connection from MySQLDBDriver::s_connectionRegistry
+        // via owner_less comparison — safe to call even after shared_ptr refcount drops to zero,
+        // because owner_less compares control blocks, not the object pointer.
+        std::weak_ptr<MySQLDBConnection> m_self;
         bool m_inGetTransactionIsolation{false}; // Recursion guard for getTransactionIsolation (per-instance, not static)
 
-        /// @brief Cached URL string for getURL() method
-        std::string m_url;
+        /// @brief Cached URI string for getURI() method
+        std::string m_uri;
 
         /**
          * @brief Registry of active prepared statements using weak_ptr
@@ -93,6 +117,7 @@ namespace cpp_dbc::MySQL
          * @see unregisterStatement() - Removes statement from registry (unused, kept for API symmetry)
          */
         std::set<std::weak_ptr<MySQLDBPreparedStatement>, std::owner_less<std::weak_ptr<MySQLDBPreparedStatement>>> m_activeStatements;
+        std::set<std::weak_ptr<MySQLDBResultSet>, std::owner_less<std::weak_ptr<MySQLDBResultSet>>> m_activeResultSets;
 
         /**
          * @brief Mutex protecting m_activeStatements registry
@@ -113,6 +138,23 @@ namespace cpp_dbc::MySQL
          */
         SharedConnMutex m_connMutex = std::make_shared<std::recursive_mutex>();
 #endif
+
+        /**
+         * @brief Flag indicating constructor initialization failed
+         *
+         * Set by the nothrow constructor when connection setup fails.
+         * Inspected by create(nothrow_t) to propagate the error via expected.
+         */
+        bool m_initFailed{false};
+
+        /**
+         * @brief Error captured when constructor initialization fails
+         *
+         * Holds the DBException that would have been thrown, for deferred delivery.
+         */
+        std::unique_ptr<DBException> m_initError{nullptr};
+
+        // ── Private helper methods ────────────────────────────────────────────
 
         /**
          * @brief Register a prepared statement in the active statements registry
@@ -146,6 +188,80 @@ namespace cpp_dbc::MySQL
          */
         cpp_dbc::expected<void, DBException> closeAllStatements(std::nothrow_t) noexcept;
 
+        /**
+         * @brief Register a result set in the active result sets registry
+         * @param rs Weak pointer to the result set to register
+         * @note Called automatically when a new ResultSet is created via executeQuery()
+         */
+        cpp_dbc::expected<void, DBException> registerResultSet(std::nothrow_t, std::weak_ptr<MySQLDBResultSet> rs) noexcept;
+
+        /**
+         * @brief Unregister a result set from the active result sets registry
+         * @param rs Weak pointer to the result set to unregister
+         * @note Currently unused - result sets are cleaned up via closeAllActiveResultSets()
+         *       or expire naturally. Kept for API symmetry and potential future use.
+         */
+        cpp_dbc::expected<void, DBException> unregisterResultSet(std::nothrow_t, std::weak_ptr<MySQLDBResultSet> rs) noexcept;
+
+        /**
+         * @brief Close all active result sets
+         *
+         * @details
+         * Iterates through all registered result sets and explicitly closes them.
+         * Uses a two-phase pattern: collect shared_ptrs under lock, then close
+         * outside the lock to prevent iterator invalidation.
+         *
+         * Called by returnToPool(), close(), and reset() before making the
+         * connection available for reuse or destroying it.
+         *
+         * @note Unlike PreparedStatements, MySQL ResultSets are independent of the
+         * connection after creation (store result model). Closing them only frees
+         * local MYSQL_RES* memory and does not communicate with the server.
+         */
+        cpp_dbc::expected<void, DBException> closeAllActiveResultSets(std::nothrow_t) noexcept;
+
+        // ── Internal helpers for sibling types (PreparedStatement, ResultSet, MySQLConnectionLock) ──
+
+        /**
+         * @brief Get the native MYSQL* handle for PreparedStatement operations
+         *
+         * Allows PreparedStatement to access the underlying MYSQL* connection handle
+         * via their weak_ptr<MySQLDBConnection>, without storing the handle directly.
+         *
+         * @return Raw MYSQL* pointer (may be nullptr if connection was closed)
+         */
+        MYSQL *getMySQLNativeHandle(std::nothrow_t) const noexcept
+        {
+            return m_mysql.get();
+        }
+
+#if DB_DRIVER_THREAD_SAFE
+        /**
+         * @brief Get the connection mutex for PreparedStatement/ResultSet access
+         *
+         * Allows PreparedStatement and ResultSet to serialize their operations through
+         * the connection mutex via their weak_ptr<MySQLDBConnection>, without storing
+         * the mutex directly.
+         *
+         * @return Reference to the connection's recursive_mutex
+         */
+        std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
+        {
+            return *m_connMutex;
+        }
+#endif
+
+        /**
+         * @brief Check if connection is currently in reset() operation
+         * @return true if reset() is active, false otherwise
+         *
+         * Used by ResultSet/PreparedStatement to avoid unregister deadlock during closeAll*()
+         */
+        bool isResetting(std::nothrow_t) const noexcept
+        {
+            return m_resetting.load(std::memory_order_acquire);
+        }
+
     protected:
         // Pool lifecycle overrides - only callable by pool infrastructure (via friend in RelationalDBConnection).
         cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
@@ -153,47 +269,38 @@ namespace cpp_dbc::MySQL
         cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
 
     public:
-        MySQLDBConnection(const std::string &host,
+        /**
+         * @brief Nothrow constructor — contains all connection logic.
+         *
+         * All mysql_init, mysql_real_connect, and initial autocommit logic
+         * lives here. On failure, sets m_initFailed and m_initError instead of throwing.
+         *
+         * Public for std::make_shared access, but effectively private:
+         * external code cannot construct PrivateCtorTag.
+         */
+        MySQLDBConnection(PrivateCtorTag,
+                          std::nothrow_t,
+                          const std::string &host,
                           int port,
                           const std::string &database,
                           const std::string &user,
                           const std::string &password,
-                          const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
+                          const std::map<std::string, std::string> &options) noexcept;
+
+        // ── Destructor ────────────────────────────────────────────────────────
         ~MySQLDBConnection() override;
 
-        // Rule of 5: Non-copyable and non-movable (mutex member prevents copying/moving)
+        // ── Deleted copy/move — non-copyable, non-movable: owns mutexes and a live DB connection ──
         MySQLDBConnection(const MySQLDBConnection &) = delete;
         MySQLDBConnection &operator=(const MySQLDBConnection &) = delete;
         MySQLDBConnection(MySQLDBConnection &&) = delete;
         MySQLDBConnection &operator=(MySQLDBConnection &&) = delete;
 
-        static cpp_dbc::expected<std::shared_ptr<MySQLDBConnection>, DBException>
-        create(std::nothrow_t,
-               const std::string &host,
-               int port,
-               const std::string &database,
-               const std::string &user,
-               const std::string &password,
-               const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
-        {
-            try
-            {
-                return std::make_shared<MySQLDBConnection>(host, port, database, user, password, options);
-            }
-            catch (const DBException &ex)
-            {
-                return cpp_dbc::unexpected(ex);
-            }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("R0BKZLIW5HEU", ex.what(), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("P0NZGOIXSZRH", "Unknown error creating MySQLDBConnection", system_utils::captureCallStack()));
-            }
-        }
+        // ====================================================================
+        // THROWING API — requires exception support
+        // ====================================================================
 
+#ifdef __cpp_exceptions
         static std::shared_ptr<MySQLDBConnection>
         create(const std::string &host,
                int port,
@@ -210,14 +317,12 @@ namespace cpp_dbc::MySQL
             return r.value();
         }
 
-// DBConnection interface
-#ifdef __cpp_exceptions
         void close() override;
         void reset() override;
         bool isClosed() const override;
         void returnToPool() override;
         bool isPooled() const override;
-        std::string getURL() const override;
+        std::string getURI() const override;
         bool ping() override;
 
         // RelationalDBConnection interface
@@ -238,10 +343,40 @@ namespace cpp_dbc::MySQL
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
 
+        std::string getServerVersion() override;
+        std::map<std::string, std::string> getServerInfo() override;
+
 #endif // __cpp_exceptions
+
         // ====================================================================
-        // NOTHROW VERSIONS - Exception-free API
+        // NOTHROW API — exception-free, always available
         // ====================================================================
+
+        static cpp_dbc::expected<std::shared_ptr<MySQLDBConnection>, DBException>
+        create(std::nothrow_t,
+               const std::string &host,
+               int port,
+               const std::string &database,
+               const std::string &user,
+               const std::string &password,
+               const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
+        {
+            // No try/catch: std::make_shared can only throw std::bad_alloc, which is a
+            // death-sentence exception — the heap is exhausted and no meaningful recovery
+            // is possible. Catching it would hide a catastrophic failure as a silent error
+            // return. Letting std::terminate fire is safer and more debuggable.
+            auto obj = std::make_shared<MySQLDBConnection>(
+                PrivateCtorTag{}, std::nothrow, host, port, database, user, password, options);
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            // Store a weak self-reference so close() can unregister from the driver's
+            // connection registry via owner_less comparison without calling shared_from_this().
+            obj->m_self = obj;
+            return obj;
+        }
+
         cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;
         cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> executeQuery(std::nothrow_t, const std::string &sql) noexcept override;
         cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t, const std::string &sql) noexcept override;
@@ -259,8 +394,11 @@ namespace cpp_dbc::MySQL
         cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
-        cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<std::string, DBException> getURI(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(std::nothrow_t) noexcept override;
+
     };
 
 } // namespace cpp_dbc::MySQL

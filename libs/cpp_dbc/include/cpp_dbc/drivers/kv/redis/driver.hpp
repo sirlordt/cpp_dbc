@@ -8,11 +8,13 @@
 #include <mutex>
 #include <atomic>
 #include <memory>
+#include <set>
 #include <string>
 #include <map>
 
 namespace cpp_dbc::Redis
 {
+    class RedisDBConnection; // forward declaration for registry
     /**
      * @brief Redis driver implementation.
      *
@@ -26,7 +28,7 @@ namespace cpp_dbc::Redis
      * #include "cpp_dbc/drivers/kv/driver_redis.hpp"
      * #include "cpp_dbc/core/driver_manager.hpp"
      *
-     * auto driver = std::make_shared<cpp_dbc::Redis::RedisDBDriver>();
+     * auto driver = cpp_dbc::Redis::RedisDBDriver::getInstance();
      * cpp_dbc::DriverManager::registerDriver(driver);
      * auto conn = driver->connectKV("cpp_dbc:redis://localhost:6379", "", "");
      * auto reply = conn->ping();
@@ -35,7 +37,12 @@ namespace cpp_dbc::Redis
      */
     class RedisDBDriver final : public KVDBDriver
     {
-    private:
+        // ── PrivateCtorTag — prevents direct construction; use getInstance() ──
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
         // Note: Using atomic<bool> + mutex instead of std::once_flag because
         // std::once_flag cannot be reset, but we need cleanup() to allow
         // re-initialization on subsequent driver construction.
@@ -44,16 +51,31 @@ namespace cpp_dbc::Redis
         static std::atomic<bool> s_initialized;
         static std::mutex s_initMutex;
 
-        /**
-         * @brief Initialize Redis driver
-         */
+        // ── Singleton state ───────────────────────────────────────────────────
+        static std::weak_ptr<RedisDBDriver> s_instance;
+        static std::mutex                   s_instanceMutex;
+
+        // ── Connection registry ───────────────────────────────────────────────
+        static std::mutex                                                       s_registryMutex;
+        static std::set<std::weak_ptr<RedisDBConnection>,
+                        std::owner_less<std::weak_ptr<RedisDBConnection>>>      s_connectionRegistry;
+
         static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
+
+        static void registerConnection(std::nothrow_t, std::weak_ptr<RedisDBConnection> conn) noexcept;
+        static void unregisterConnection(std::nothrow_t, const std::weak_ptr<RedisDBConnection> &conn) noexcept;
+
+        friend class RedisDBConnection;
+
+        // ── Construction state ────────────────────────────────────────────────
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
 
     public:
         /**
          * @brief Construct a new Redis Driver
          */
-        RedisDBDriver();
+        RedisDBDriver(PrivateCtorTag, std::nothrow_t) noexcept;
 
         /**
          * @brief Destructor
@@ -65,17 +87,19 @@ namespace cpp_dbc::Redis
         // ====================================================================
 
 #ifdef __cpp_exceptions
+        using DBDriver::parseURI;
+        using DBDriver::buildURI;
+
+        /**
+         * @brief Return the singleton RedisDBDriver instance, creating it if necessary.
+         * @throws DBException if library initialization fails.
+         */
+        static std::shared_ptr<RedisDBDriver> getInstance();
+
         std::shared_ptr<KVDBConnection> connectKV(
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
-            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
-
-        std::map<std::string, std::string> parseURI(const std::string &uri) override;
-        std::string buildURI(
-            const std::string &host,
-            int port,
-            const std::string &db = std::string{},
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
 #endif // __cpp_exceptions
@@ -84,7 +108,11 @@ namespace cpp_dbc::Redis
         // NOTHROW API — exception-free, always available
         // ====================================================================
 
-        bool acceptsURL(const std::string &url) noexcept override;
+        /**
+         * @brief Return the singleton RedisDBDriver instance, creating it if necessary.
+         * @return The shared instance, or an error if initialization fails.
+         */
+        static cpp_dbc::expected<std::shared_ptr<RedisDBDriver>, DBException> getInstance(std::nothrow_t) noexcept;
 
         std::string getURIScheme() const noexcept override;
         bool supportsClustering() const noexcept override;
@@ -96,15 +124,29 @@ namespace cpp_dbc::Redis
          */
         static void cleanup();
 
+        /**
+         * @brief Return the number of live connections tracked by the registry.
+         *
+         * Counts non-expired entries in the static connection registry.
+         */
+        static size_t getConnectionAlive() noexcept;
+
         cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> connectKV(
             std::nothrow_t,
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
 
         cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(
             std::nothrow_t, const std::string &uri) noexcept override;
+
+        cpp_dbc::expected<std::string, DBException> buildURI(
+            std::nothrow_t,
+            const std::string &host,
+            int port,
+            const std::string &database,
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
 
         std::string getName() const noexcept override;
     };
@@ -135,42 +177,33 @@ namespace cpp_dbc::Redis
         // ====================================================================
 
 #ifdef __cpp_exceptions
+        using DBDriver::parseURI;
+        using DBDriver::buildURI;
+
         std::shared_ptr<KVDBConnection> connectKV(
-            const std::string &,
-            const std::string &,
-            const std::string &,
-            const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
+            const std::string &uri,
+            const std::string &user,
+            const std::string &password,
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
         {
-            return nullptr;
+            auto r = connectKV(std::nothrow, uri, user, password, options);
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
+            return r.value();
         }
 
-        std::map<std::string, std::string> parseURI(const std::string &) override
-        {
-            return {};
-        }
-
-        std::string buildURI(
-            const std::string &,
-            int,
-            const std::string & = std::string{},
-            const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
-        {
-            return {};
-        }
 #endif // __cpp_exceptions
 
         // ====================================================================
         // NOTHROW API — exception-free, always available
         // ====================================================================
 
-        bool acceptsURL(const std::string &url) noexcept override
-        {
-            return url.starts_with("cpp_dbc:redis://");
-        }
 
         cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> connectKV(
             std::nothrow_t,
-            const std::string & /*url*/,
+            const std::string & /*uri*/,
             const std::string & /*user*/,
             const std::string & /*password*/,
             const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override
@@ -184,11 +217,21 @@ namespace cpp_dbc::Redis
             return cpp_dbc::unexpected(DBException("RM4SN70ZPIL7", "Redis support is not enabled in this build"));
         }
 
-        std::string getURIScheme() const noexcept override { return "cpp_dbc:redis://"; }
+        cpp_dbc::expected<std::string, DBException> buildURI(
+            std::nothrow_t,
+            const std::string & /*host*/,
+            int /*port*/,
+            const std::string & /*database*/,
+            const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override
+        {
+            return cpp_dbc::unexpected(DBException("WGWNIMNF0M85", "Redis support is not enabled in this build"));
+        }
+
+        std::string getURIScheme() const noexcept override { return "cpp_dbc:redis://<host>:<port>/<db>"; }
         bool supportsClustering() const noexcept override { return false; }
         bool supportsReplication() const noexcept override { return false; }
         std::string getDriverVersion() const noexcept override { return "0.0.0"; }
-        std::string getName() const noexcept override { return "redis (disabled)"; }
+        std::string getName() const noexcept override { return "redis/disabled"; }
     };
 } // namespace cpp_dbc::Redis
 

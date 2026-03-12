@@ -26,6 +26,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <regex>
+#include <charconv>
 #include "cpp_dbc/common/system_utils.hpp"
 #include "cpp_dbc/core/db_exception.hpp"
 
@@ -106,7 +107,7 @@ namespace cpp_dbc::Redis
         const std::string &user,
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
-        : m_url(uri)
+        : m_uri(uri)
     {
         REDIS_DEBUG("RedisDBConnection::constructor(nothrow) - Connecting to: " << uri);
 
@@ -132,22 +133,12 @@ namespace cpp_dbc::Redis
 
             if (matches.size() > 2 && matches[2].matched)
             {
-                try
-                {
-                    port = std::stoi(matches[2].str());
-                }
-                catch (const std::exception &ex)
+                std::string portStr = matches[2].str();
+                auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), port);
+                if (ec != std::errc{} || ptr != portStr.data() + portStr.size())
                 {
                     m_initFailed = true;
-                    m_initError = DBException("C58E02D9F1A8", "Invalid port in Redis URI: " + matches[2].str() + " - " + ex.what(),
-                                              system_utils::captureCallStack());
-                    return;
-                }
-                catch (...)
-                {
-                    // Intentionally catching non-std exceptions from std::stoi to prevent terminate() in noexcept context
-                    m_initFailed = true;
-                    m_initError = DBException("HUAN9KM8N8SH", "Invalid port in Redis URI: " + matches[2].str() + " (unknown exception)",
+                    m_initError = std::make_unique<DBException>("C58E02D9F1A8", "Invalid port in Redis URI: " + portStr,
                                               system_utils::captureCallStack());
                     return;
                 }
@@ -155,22 +146,12 @@ namespace cpp_dbc::Redis
 
             if (matches.size() > 3 && matches[3].matched)
             {
-                try
-                {
-                    m_dbIndex = std::stoi(matches[3].str());
-                }
-                catch (const std::exception &ex)
+                std::string dbStr = matches[3].str();
+                auto [ptr2, ec2] = std::from_chars(dbStr.data(), dbStr.data() + dbStr.size(), m_dbIndex);
+                if (ec2 != std::errc{} || ptr2 != dbStr.data() + dbStr.size())
                 {
                     m_initFailed = true;
-                    m_initError = DBException("C58E02D9F1A9", "Invalid database index in Redis URI: " + matches[3].str() + " - " + ex.what(),
-                                              system_utils::captureCallStack());
-                    return;
-                }
-                catch (...)
-                {
-                    // Intentionally catching non-std exceptions from std::stoi to prevent terminate() in noexcept context
-                    m_initFailed = true;
-                    m_initError = DBException("7GGFM9K667HP", "Invalid database index in Redis URI: " + matches[3].str() + " (unknown exception)",
+                    m_initError = std::make_unique<DBException>("C58E02D9F1A9", "Invalid database index in Redis URI: " + dbStr,
                                               system_utils::captureCallStack());
                     return;
                 }
@@ -179,7 +160,7 @@ namespace cpp_dbc::Redis
         else
         {
             m_initFailed = true;
-            m_initError = DBException("C58E02D9F1A7", "Invalid Redis URI format: " + uri,
+            m_initError = std::make_unique<DBException>("C58E02D9F1A7", "Invalid Redis URI format: " + uri,
                                       system_utils::captureCallStack());
             return;
         }
@@ -247,7 +228,7 @@ namespace cpp_dbc::Redis
                 redisFree(context);
             }
             m_initFailed = true;
-            m_initError = DBException("B49D7C01E3F5", "Redis connection failed: " + errorMsg,
+            m_initError = std::make_unique<DBException>("B49D7C01E3F5", "Redis connection failed: " + errorMsg,
                                       system_utils::captureCallStack());
             return;
         }
@@ -280,7 +261,7 @@ namespace cpp_dbc::Redis
                     freeReplyObject(reply);
                 }
                 m_initFailed = true;
-                m_initError = DBException("A76F5C23D89B", "Redis authentication failed: " + errorMsg,
+                m_initError = std::make_unique<DBException>("A76F5C23D89B", "Redis authentication failed: " + errorMsg,
                                           system_utils::captureCallStack());
                 return;
             }
@@ -295,7 +276,7 @@ namespace cpp_dbc::Redis
             if (!selectResult.has_value())
             {
                 m_initFailed = true;
-                m_initError = selectResult.error();
+                m_initError = std::make_unique<DBException>(selectResult.error());
                 return;
             }
         }
@@ -460,6 +441,9 @@ namespace cpp_dbc::Redis
                 std::scoped_lock lock_(m_mutex);
                 m_context.reset();
                 m_closed.store(true, std::memory_order_release);
+                // Unregister from the driver registry so getConnectionAlive() reflects
+                // actual live connections.
+                RedisDBDriver::unregisterConnection(std::nothrow, m_self);
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
@@ -504,9 +488,9 @@ namespace cpp_dbc::Redis
         return false;
     }
 
-    std::string RedisDBConnection::getURL() const
+    std::string RedisDBConnection::getURI() const
     {
-        return m_url;
+        return m_uri;
     }
 
     void RedisDBConnection::reset()

@@ -13,11 +13,11 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file 20_021_example_mysql_connection_info.cpp
- * @brief MySQL-specific example demonstrating connection URL information
+ * @brief MySQL-specific example demonstrating connection URI information
  *
  * This example demonstrates:
  * - Loading configuration from YAML file
- * - MySQL connection URL information
+ * - MySQL connection URI information
  *
  * Usage:
  *   ./20_021_example_mysql_connection_info [--config=<path>] [--db=<name>] [--help]
@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
     try
     {
         logMsg("");
-        logMsg("--- MySQL Connection URL ---");
+        logMsg("--- MySQL Connection URI ---");
 
         logStep("Getting MySQL configuration...");
         auto mysqlResult = getDbConfig(configManager, args.dbName, "mysql");
@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
         auto mysqlConn = mysqlConfig.createDBConnection();
         logOk("Connected");
 
-        logData("MySQL Connection URL: " + mysqlConn->getURL());
+        logData("MySQL Connection URI: " + mysqlConn->getURI());
 
         logStep("Closing connection...");
         mysqlConn->close();

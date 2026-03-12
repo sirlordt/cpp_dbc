@@ -67,7 +67,11 @@ namespace cpp_dbc::Firebird
         bool m_autoCommit{true};
         bool m_transactionActive{false};
         TransactionIsolationLevel m_isolationLevel;
-        std::string m_url;
+        std::string m_uri;
+
+        // Stored by the create() factory so close() can unregister from the driver registry
+        // using owner_less comparison (raw 'this' won't work with the set's comparator).
+        std::weak_ptr<FirebirdDBConnection> m_self;
 
         // Registry of active prepared statements and result sets
         std::set<std::weak_ptr<FirebirdDBPreparedStatement>, std::owner_less<std::weak_ptr<FirebirdDBPreparedStatement>>> m_activeStatements;
@@ -96,8 +100,9 @@ namespace cpp_dbc::Firebird
          * @brief Error captured when constructor initialization fails
          *
          * Holds the DBException that would have been thrown, for deferred delivery.
+         * Only allocated on the failure path (~256 bytes saved per successful instance).
          */
-        DBException m_initError{"RE8MSLXITHQ2", "", {}};
+        std::unique_ptr<DBException> m_initError{nullptr};
 
         // ── Private helper methods ────────────────────────────────────────────
         cpp_dbc::expected<void, DBException> registerStatement(std::nothrow_t, std::weak_ptr<FirebirdDBPreparedStatement> stmt) noexcept;
@@ -181,7 +186,7 @@ namespace cpp_dbc::Firebird
         bool isClosed() const override;
         void returnToPool() override;
         bool isPooled() const override;
-        std::string getURL() const override;
+        std::string getURI() const override;
         bool ping() override;
 
         std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) override;
@@ -196,6 +201,9 @@ namespace cpp_dbc::Firebird
         void rollback() override;
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
+
+        std::string getServerVersion() override;
+        std::map<std::string, std::string> getServerInfo() override;
 
 #endif // __cpp_exceptions
 
@@ -218,8 +226,11 @@ namespace cpp_dbc::Firebird
                 PrivateCtorTag{}, std::nothrow, host, port, database, user, password, options);
             if (obj->m_initFailed)
             {
-                return cpp_dbc::unexpected(obj->m_initError);
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
             }
+            // Store a weak self-reference so close() can unregister from the driver's
+            // connection registry via owner_less comparison without calling shared_from_this().
+            obj->m_self = obj;
             return obj;
         }
 
@@ -252,7 +263,7 @@ namespace cpp_dbc::Firebird
         cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
-        cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<std::string, DBException> getURI(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException>
@@ -272,6 +283,8 @@ namespace cpp_dbc::Firebird
         cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
         cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(std::nothrow_t) noexcept override;
     };
 
 } // namespace cpp_dbc::Firebird

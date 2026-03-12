@@ -24,7 +24,7 @@
  * connection class). The CRTP base overrides methods from the DBConnectionPooled
  * path directly, and provides *Impl helper methods for methods that need a
  * final-class override to resolve the diamond (close, isClosed, returnToPool,
- * isPooled, getURL, reset, ping, prepareForPoolReturn, prepareForBorrow).
+ * isPooled, getURI, reset, ping, prepareForPoolReturn, prepareForBorrow).
  *
  * Derived classes provide one-line delegators that forward to the Impl methods.
  *
@@ -42,6 +42,8 @@
 
 #include "cpp_dbc/pool/db_connection_pooled.hpp"
 #include <atomic>
+#include <map>
+#include <string>
 
 namespace cpp_dbc
 {
@@ -85,12 +87,14 @@ namespace cpp_dbc
         cpp_dbc::expected<void, DBException> returnToPoolImpl(std::nothrow_t) noexcept;
         cpp_dbc::expected<bool, DBException> isClosedImpl(std::nothrow_t) const noexcept;
         cpp_dbc::expected<bool, DBException> isPooledImpl(std::nothrow_t) const noexcept;
-        cpp_dbc::expected<std::string, DBException> getURLImpl(std::nothrow_t) const noexcept;
+        cpp_dbc::expected<std::string, DBException> getURIImpl(std::nothrow_t) const noexcept;
         cpp_dbc::expected<void, DBException> resetImpl(std::nothrow_t) noexcept;
         cpp_dbc::expected<bool, DBException> pingImpl(std::nothrow_t) noexcept;
         cpp_dbc::expected<void, DBException> prepareForPoolReturnImpl(
             std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept;
         cpp_dbc::expected<void, DBException> prepareForBorrowImpl(std::nothrow_t) noexcept;
+        cpp_dbc::expected<std::string, DBException> getServerVersionImpl(std::nothrow_t) noexcept;
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfoImpl(std::nothrow_t) noexcept;
 
 #ifdef __cpp_exceptions
         // Throwing helper implementations — called by derived throwing delegators
@@ -98,9 +102,11 @@ namespace cpp_dbc
         bool isClosedThrow() const;
         void returnToPoolThrow();
         bool isPooledThrow() const;
-        std::string getURLThrow() const;
+        std::string getURIThrow() const;
         void resetThrow();
         bool pingThrow();
+        std::string getServerVersionThrow();
+        std::map<std::string, std::string> getServerInfoThrow();
 #endif
 
     public:

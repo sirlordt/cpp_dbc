@@ -64,7 +64,7 @@ namespace cpp_dbc
          *
          * This is the typed version that returns a DocumentDBConnection.
          *
-         * @param url The database URL (e.g., "mongodb://host:port/database")
+         * @param uri The database URI (e.g., "mongodb://host:port/database")
          * @param user The username for authentication (may be empty if auth is in URL)
          * @param password The password for authentication (may be empty if auth is in URL)
          * @param options Additional connection options
@@ -72,7 +72,7 @@ namespace cpp_dbc
          * @throws DBException if the connection fails
          */
         virtual std::shared_ptr<DocumentDBConnection> connectDocument(
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) = 0;
@@ -83,40 +83,18 @@ namespace cpp_dbc
          * This method delegates to connectDocument(nothrow) and rethrows on error.
          */
         std::shared_ptr<DBConnection> connect(
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
         {
-            auto result = connectDocument(std::nothrow, url, user, password, options);
+            auto result = connectDocument(std::nothrow, uri, user, password, options);
             if (!result.has_value())
             {
                 throw result.error();
             }
             return std::static_pointer_cast<DBConnection>(result.value());
         }
-
-        /**
-         * @brief Parse a connection URI and extract components
-         * @param uri The connection URI
-         * @return A map containing parsed components (host, port, database, etc.)
-         * @throws DBException if the URI is invalid
-         */
-        virtual std::map<std::string, std::string> parseURI(const std::string &uri) = 0;
-
-        /**
-         * @brief Build a connection URI from components
-         * @param host The hostname
-         * @param port The port number
-         * @param database The database name
-         * @param options Additional options
-         * @return The constructed URI
-         */
-        virtual std::string buildURI(
-            const std::string &host,
-            int port,
-            const std::string &database,
-            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) = 0;
 
 #endif // __cpp_exceptions
 
@@ -140,7 +118,7 @@ namespace cpp_dbc
          */
         virtual expected<std::shared_ptr<DocumentDBConnection>, DBException> connectDocument(
             std::nothrow_t,
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept = 0;
@@ -152,12 +130,12 @@ namespace cpp_dbc
          */
         expected<std::shared_ptr<DBConnection>, DBException> connect(
             std::nothrow_t,
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override
         {
-            auto result = connectDocument(std::nothrow, url, user, password, options);
+            auto result = connectDocument(std::nothrow, uri, user, password, options);
             if (!result.has_value())
             {
                 return cpp_dbc::unexpected(result.error());
@@ -165,28 +143,7 @@ namespace cpp_dbc
             return std::static_pointer_cast<DBConnection>(result.value());
         }
 
-        /**
-         * @brief Parse a connection URI and extract components (nothrow version)
-         * @param nothrow std::nothrow tag to indicate exception-free operation
-         * @return expected containing map of parsed components, or DBException on failure
-         */
-        virtual expected<std::map<std::string, std::string>, DBException> parseURI(
-            std::nothrow_t, const std::string &uri) noexcept = 0;
-
         // Document database specific driver methods (trivial — cannot fail)
-
-        /**
-         * @brief Get the URL prefix accepted by this driver
-         *
-         * Returns the full connection URL prefix that this driver handles,
-         * e.g. `"cpp_dbc:mongodb://"`. This value is also the prefix that
-         * `acceptsURL()` checks against.
-         *
-         * Example format: `cpp_dbc:<engine>://host:port/database`
-         *
-         * @return The URL prefix string (e.g., "cpp_dbc:mongodb://")
-         */
-        virtual std::string getURIScheme() const noexcept = 0;
 
         /**
          * @brief Check if the driver supports replica sets
@@ -200,11 +157,6 @@ namespace cpp_dbc
          */
         virtual bool supportsSharding() const noexcept = 0;
 
-        /**
-         * @brief Get the driver version
-         * @return The driver version string
-         */
-        virtual std::string getDriverVersion() const noexcept = 0;
     };
 
 } // namespace cpp_dbc

@@ -50,6 +50,11 @@ namespace cpp_dbc::ScyllaDB
         m_cluster.reset();
         m_closed.store(true, std::memory_order_release);
 
+        // Unregister from the driver registry so getConnectionAlive() reflects
+        // actual live connections. The owner_less m_self weak_ptr is used for
+        // set lookup — raw 'this' would not match the set's comparator.
+        ScyllaDBDriver::unregisterConnection(std::nothrow, m_self);
+
         SCYLLADB_DEBUG("ScyllaDBConnection::close(nothrow) - Connection closed");
         return {};
     }
@@ -69,9 +74,12 @@ namespace cpp_dbc::ScyllaDB
         return false;
     }
 
-    cpp_dbc::expected<std::string, DBException> ScyllaDBConnection::getURL(std::nothrow_t) const noexcept
+    // No try/catch: the only possible throw is std::bad_alloc from the
+    // std::string copy, which is a death-sentence exception — no meaningful
+    // recovery is possible, so std::terminate is the correct response.
+    cpp_dbc::expected<std::string, DBException> ScyllaDBConnection::getURI(std::nothrow_t) const noexcept
     {
-        return m_url;
+        return m_uri;
     }
 
     cpp_dbc::expected<void, DBException> ScyllaDBConnection::reset(std::nothrow_t) noexcept
@@ -227,6 +235,89 @@ namespace cpp_dbc::ScyllaDB
     {
         // ScyllaDB/Cassandra connections are stateless; no refresh needed on borrow
         return {};
+    }
+
+    cpp_dbc::expected<std::string, DBException> ScyllaDBConnection::getServerVersion(std::nothrow_t) noexcept
+    {
+        auto queryResult = executeQuery(std::nothrow, "SELECT release_version FROM system.local");
+        if (!queryResult.has_value())
+        {
+            return cpp_dbc::unexpected(queryResult.error());
+        }
+
+        auto &rs = queryResult.value();
+        auto nextResult = rs->next(std::nothrow);
+        if (!nextResult.has_value() || !nextResult.value())
+        {
+            return cpp_dbc::unexpected(DBException(
+                "X1Z9CGTWP1HA",
+                "Failed to retrieve ScyllaDB server version",
+                system_utils::captureCallStack()));
+        }
+
+        auto versionResult = rs->getString(std::nothrow, 1);
+        if (!versionResult.has_value())
+        {
+            return cpp_dbc::unexpected(versionResult.error());
+        }
+
+        return versionResult.value();
+    }
+
+    cpp_dbc::expected<std::map<std::string, std::string>, DBException> ScyllaDBConnection::getServerInfo(std::nothrow_t) noexcept
+    {
+        std::map<std::string, std::string> info;
+
+        auto queryResult = executeQuery(std::nothrow,
+            "SELECT release_version, cluster_name, data_center, rack, partitioner, cql_version "
+            "FROM system.local");
+        if (!queryResult.has_value())
+        {
+            return cpp_dbc::unexpected(queryResult.error());
+        }
+
+        auto &rs = queryResult.value();
+        auto nextResult = rs->next(std::nothrow);
+        if (!nextResult.has_value() || !nextResult.value())
+        {
+            return cpp_dbc::unexpected(DBException(
+                "KV7RQJN3WF8D",
+                "Failed to retrieve ScyllaDB server info",
+                system_utils::captureCallStack()));
+        }
+
+        auto releaseVersion = rs->getString(std::nothrow, 1);
+        if (releaseVersion.has_value())
+        {
+            info["ServerVersion"] = releaseVersion.value();
+        }
+        auto clusterName = rs->getString(std::nothrow, 2);
+        if (clusterName.has_value())
+        {
+            info["ClusterName"] = clusterName.value();
+        }
+        auto dataCenter = rs->getString(std::nothrow, 3);
+        if (dataCenter.has_value())
+        {
+            info["DataCenter"] = dataCenter.value();
+        }
+        auto rack = rs->getString(std::nothrow, 4);
+        if (rack.has_value())
+        {
+            info["Rack"] = rack.value();
+        }
+        auto partitioner = rs->getString(std::nothrow, 5);
+        if (partitioner.has_value())
+        {
+            info["Partitioner"] = partitioner.value();
+        }
+        auto cqlVersion = rs->getString(std::nothrow, 6);
+        if (cqlVersion.has_value())
+        {
+            info["CQLVersion"] = cqlVersion.value();
+        }
+
+        return info;
     }
 
 } // namespace cpp_dbc::ScyllaDB

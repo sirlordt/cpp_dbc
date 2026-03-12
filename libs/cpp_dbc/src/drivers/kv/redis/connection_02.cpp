@@ -301,6 +301,17 @@ namespace cpp_dbc::Redis
             throw r.error();
         }
     }
+
+    std::string RedisDBConnection::getServerVersion()
+    {
+        auto result = getServerVersion(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
 #endif // __cpp_exceptions
 
 } // namespace cpp_dbc::Redis

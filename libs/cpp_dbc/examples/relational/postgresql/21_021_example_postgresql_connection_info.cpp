@@ -13,11 +13,11 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file 21_021_example_postgresql_connection_info.cpp
- * @brief PostgreSQL-specific example demonstrating connection URL information
+ * @brief PostgreSQL-specific example demonstrating connection URI information
  *
  * This example demonstrates:
  * - Loading configuration from YAML file
- * - PostgreSQL connection URL information
+ * - PostgreSQL connection URI information
  *
  * Usage:
  *   ./21_021_example_postgresql_connection_info [--config=<path>] [--db=<name>] [--help]
@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
     try
     {
         logMsg("");
-        logMsg("--- PostgreSQL Connection URL ---");
+        logMsg("--- PostgreSQL Connection URI ---");
 
         logStep("Getting PostgreSQL configuration...");
         auto pgResult = getDbConfig(configManager, args.dbName, "postgresql");
@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
         auto pgConn = pgConfig.createDBConnection();
         logOk("Connected");
 
-        logData("PostgreSQL Connection URL: " + pgConn->getURL());
+        logData("PostgreSQL Connection URI: " + pgConn->getURI());
 
         logStep("Closing connection...");
         pgConn->close();

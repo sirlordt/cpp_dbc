@@ -21,6 +21,7 @@
 #ifndef CPP_DBC_DATABASE_CONFIG_HPP
 #define CPP_DBC_DATABASE_CONFIG_HPP
 
+#include <cpp_dbc/common/system_constants.hpp>
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <string>
 #include <string_view>
@@ -221,11 +222,11 @@ namespace cpp_dbc::config
                 // SQLite connection strings are different - they don't have host/port
                 if (m_host.empty() || m_port == 0)
                 {
-                    return "cpp_dbc:" + m_type + "://" + m_database;
+                    return std::string(cpp_dbc::system_constants::URI_PREFIX) + m_type + "://" + m_database;
                 }
                 else
                 {
-                    return "cpp_dbc:" + m_type + "://" + m_host + ":" + std::to_string(m_port) + "/" + m_database;
+                    return std::string(cpp_dbc::system_constants::URI_PREFIX) + m_type + "://" + m_host + ":" + std::to_string(m_port) + "/" + m_database;
                 }
             }
 
@@ -260,7 +261,7 @@ namespace cpp_dbc::config
         {
         private:
             std::string m_name;
-            std::string m_url;
+            std::string m_uri;
             std::string m_username;
             std::string m_password;
             std::map<std::string, std::string> m_options;
@@ -308,7 +309,7 @@ namespace cpp_dbc::config
              */
             DBConnectionPoolConfig(
                 const std::string &name,
-                const std::string &url,
+                const std::string &uri,
                 const std::string &username,
                 const std::string &password,
                 size_t initialSize,
@@ -322,7 +323,7 @@ namespace cpp_dbc::config
                 bool testOnReturn,
                 const std::string &validationQuery,
                 TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) : m_name(name),
-                                                                                                                          m_url(url),
+                                                                                                                          m_uri(uri),
                                                                                                                           m_username(username),
                                                                                                                           m_password(password),
                                                                                                                           m_initialSize(initialSize),
@@ -339,7 +340,7 @@ namespace cpp_dbc::config
 
             // Getters
             const std::string &getName() const { return m_name; }
-            const std::string &getUrl() const { return m_url; }
+            const std::string &getUri() const { return m_uri; }
             const std::string &getUsername() const { return m_username; }
             const std::string &getPassword() const { return m_password; }
             size_t getInitialSize() const { return m_initialSize; }
@@ -357,7 +358,7 @@ namespace cpp_dbc::config
 
             // Setters
             void setName(std::string_view value) { m_name = value; }
-            void setUrl(std::string_view value) { m_url = value; }
+            void setUri(std::string_view value) { m_uri = value; }
             void setUsername(std::string_view value) { m_username = value; }
             void setPassword(std::string_view value) { m_password = value; }
             void setInitialSize(size_t value) { m_initialSize = value; }
@@ -380,7 +381,7 @@ namespace cpp_dbc::config
              */
             DBConnectionPoolConfig &withDatabaseConfig(const DatabaseConfig &dbConfig)
             {
-                m_url = dbConfig.createConnectionString();
+                m_uri = dbConfig.createConnectionString();
                 m_username = dbConfig.getUsername();
                 m_password = dbConfig.getPassword();
                 m_options = dbConfig.getOptions();

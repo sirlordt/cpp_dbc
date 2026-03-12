@@ -57,7 +57,7 @@ TEST_CASE("MySQL BLOB operations", "[20_061_01_mysql_real_blob]")
     std::string connStr = dbConfig.createConnectionString();
 
     // Register the MySQL driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(mysql_test_helpers::getMySQLDriver());
 
     // Get a connection
     auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -263,6 +263,104 @@ TEST_CASE("MySQL BLOB operations", "[20_061_01_mysql_real_blob]")
 
         // Clean up the temporary file
         std::remove(tempImagePath.c_str());
+    }
+
+    SECTION("Image file BLOB via PreparedStatement::executeQuery (materialized path)")
+    {
+        // This section mirrors "Image file BLOB operations" above but retrieves
+        // using PreparedStatement::executeQuery() instead of conn->executeQuery().
+        // This exercises the materialized ResultSet path with real binary file data.
+        std::string imagePath = common_test_helpers::getTestImagePath();
+        std::vector<uint8_t> imageData = common_test_helpers::readBinaryFile(imagePath);
+        REQUIRE(!imageData.empty());
+
+        // Insert using PreparedStatement::executeUpdate (known-working path)
+        auto ins = conn->prepareStatement(
+            "INSERT INTO test_blobs (id, name, long_data) VALUES (?, ?, ?)");
+        ins->setInt(1, 10);
+        ins->setString(2, "Materialized Image");
+        ins->setBytes(3, imageData);
+        REQUIRE(ins->executeUpdate() == 1);
+
+        // Retrieve using PreparedStatement::executeQuery (materialized path)
+        auto sel = conn->prepareStatement(
+            "SELECT id, name, long_data FROM test_blobs WHERE id = ?");
+        sel->setInt(1, 10);
+        auto rs = sel->executeQuery();
+        REQUIRE(rs != nullptr);
+        REQUIRE(rs->next());
+
+        REQUIRE(rs->getInt("id") == 10);
+        REQUIRE(rs->getString("name") == "Materialized Image");
+
+        auto retrievedImageData = rs->getBytes("long_data");
+        REQUIRE(!retrievedImageData.empty());
+        REQUIRE(retrievedImageData.size() == imageData.size());
+        REQUIRE(common_test_helpers::compareBinaryData(imageData, retrievedImageData));
+        REQUIRE_FALSE(rs->next());
+    }
+
+    SECTION("Random binary data via PreparedStatement::executeQuery (materialized path)")
+    {
+        // Retrieves random binary data (including \0 bytes) through the
+        // materialized ResultSet path to verify no C-string truncation occurs.
+        std::vector<uint8_t> blobData = common_test_helpers::generateRandomBinaryData(100000);
+
+        auto ins = conn->prepareStatement(
+            "INSERT INTO test_blobs (id, name, long_data) VALUES (?, ?, ?)");
+        ins->setInt(1, 11);
+        ins->setString(2, "Materialized Random");
+        ins->setBytes(3, blobData);
+        REQUIRE(ins->executeUpdate() == 1);
+
+        // Retrieve using PreparedStatement::executeQuery (materialized path)
+        auto sel = conn->prepareStatement(
+            "SELECT long_data FROM test_blobs WHERE id = ?");
+        sel->setInt(1, 11);
+        auto rs = sel->executeQuery();
+        REQUIRE(rs != nullptr);
+        REQUIRE(rs->next());
+
+        auto retrieved = rs->getBytes("long_data");
+        REQUIRE(retrieved.size() == blobData.size());
+        REQUIRE(common_test_helpers::compareBinaryData(blobData, retrieved));
+        REQUIRE_FALSE(rs->next());
+    }
+
+    SECTION("BLOB streaming via PreparedStatement::executeQuery (materialized path)")
+    {
+        // Tests getBinaryStream() on a materialized ResultSet
+        std::vector<uint8_t> largeData = common_test_helpers::generateRandomBinaryData(200000);
+
+        auto ins = conn->prepareStatement(
+            "INSERT INTO test_blobs (id, name, long_data) VALUES (?, ?, ?)");
+        ins->setInt(1, 12);
+        ins->setString(2, "Materialized Stream");
+        auto inputStream = std::make_shared<cpp_dbc::MemoryInputStream>(largeData);
+        ins->setBinaryStream(3, inputStream, largeData.size());
+        REQUIRE(ins->executeUpdate() == 1);
+
+        // Retrieve using PreparedStatement::executeQuery (materialized path)
+        auto sel = conn->prepareStatement(
+            "SELECT long_data FROM test_blobs WHERE id = ?");
+        sel->setInt(1, 12);
+        auto rs = sel->executeQuery();
+        REQUIRE(rs != nullptr);
+        REQUIRE(rs->next());
+
+        auto blobStream = rs->getBinaryStream("long_data");
+        REQUIRE(blobStream != nullptr);
+
+        std::vector<uint8_t> retrievedData;
+        uint8_t buffer[4096];
+        int bytesRead;
+        while ((bytesRead = blobStream->read(buffer, sizeof(buffer))) > 0)
+        {
+            retrievedData.insert(retrievedData.end(), buffer, buffer + bytesRead);
+        }
+
+        REQUIRE_FALSE(rs->next());
+        REQUIRE(common_test_helpers::compareBinaryData(largeData, retrievedData));
     }
 
     // Clean up

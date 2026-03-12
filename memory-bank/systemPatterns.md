@@ -135,7 +135,9 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
 - **AtomicGuard<T> RAII:** `system_utils::AtomicGuard<T>` provides exception-safe management of `std::atomic<T>` flags (set on construction, restored on destruction, non-copyable)
 - **Pool Lock Order Rule:** Connection close operations must happen OUTSIDE pool locks. Pool lock (`m_mutexPool`) is always acquired BEFORE per-connection mutex. Closing inside pool lock inverts this order → Helgrind LockOrder violation
 - **Printf-Style Debug Output / `logWithTimesMillis`:** All debug macros (`FIREBIRD_DEBUG`, `SQLITE_DEBUG`, `CP_DEBUG`) use `system_utils::logWithTimesMillis(prefix, msg)` which formats `[HH:MM:SS.mmm] [TID] [prefix] message` and writes atomically via `write()` — `operator<<` is not atomic and causes interleaved output + Helgrind false positives under concurrency
-- **`m_resetting` Anti-Deadlock Flag:** `FirebirdDBConnection::m_resetting` (`atomic<bool>`) signals `ResultSet::close()` to skip unregister during `closeAllActiveResultSets()` — prevents re-entrant lock acquisition through the close→unregister→lock cycle
+- **`m_resetting` Anti-Deadlock Flag:** Both `FirebirdDBConnection` and `MySQLDBConnection` use `m_resetting` (`atomic<bool>`) to signal `ResultSet::close()` / `PreparedStatement::close()` to skip unregister during `closeAllActiveResultSets()` / `closeAllStatements()` — prevents re-entrant lock acquisition through the close→unregister→lock cycle
+- **`MySQLConnectionLock` RAII Helper:** `mysql_internal.hpp` provides `MySQLConnectionLock` that locks connection mutex via `weak_ptr<MySQLDBConnection>`, validates connection is alive and not closed, and returns `expected` on failure. The `MYSQL_CONNECTION_LOCK_OR_RETURN` macro expands to this pattern, replacing repeated `DB_DRIVER_LOCK_GUARD` + closed-check boilerplate
+- **Result Set Registry (MySQL):** `MySQLDBConnection::m_activeResultSets` — set of `weak_ptr<MySQLDBResultSet>` with two-phase close pattern in `closeAllActiveResultSets()` (collect shared_ptrs under lock, close outside lock to prevent iterator invalidation). Called by `close()`, `reset()`, and `returnToPool()`
 - **Nothrow API — Pure Virtual Base Class Pattern (2026-02-18):**
   - All nothrow methods in `DBConnection`, `DBResultSet`, and `RelationalDBConnection` are `= 0` pure virtual — no default implementations
   - Every driver MUST implement the complete nothrow API surface: `close`, `reset`, `isClosed`, `returnToPool`, `isPooled`, `getURL`, `prepareForPoolReturn`, `prepareForBorrow`
@@ -193,7 +195,23 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
   - DBDriver init: all drivers use `std::atomic<bool>` + `std::mutex` double-checked locking (not `std::once_flag`) — re-initializable after `cleanup()`, no `std::system_error` under `-fno-exceptions`
   - Nothrow methods that call only nothrow methods have no try/catch blocks (dead code elimination per conventions)
   - Error deferral pattern: private constructors store errors in `m_initFailed` / `m_initError` members; factory checks and propagates via `unexpected`
+  - MySQL-specific (2026-03-06): `MySQLDBConnection` uses `PrivateCtorTag` pattern (public ctor with private tag type) for `std::make_shared` compatibility; `MySQLDBPreparedStatement`/`MySQLDBResultSet` use `new` (not `make_shared`) since their ctors are private; `weak_ptr<MySQLDBConnection>` replaces `weak_ptr<MYSQL>` for accessing native handle and mutex through connection
+  - MySQL-specific (2026-03-07): `MySQLBlob` and `MySQLInputStream` upgraded to PrivateCtorTag pattern with `m_initFailed`/`m_initError` and `#ifdef __cpp_exceptions` guards
   - MongoDB-specific (2026-03-04): `DocumentDBCursor` chaining methods (`skip`, `limit`, `sort`) return `expected<std::reference_wrapper<DocumentDBCursor>, DBException>`; `DocumentDBDriver::getURIScheme()` `noexcept` returning full URL prefix; `getDefaultPort()` removed; `MongoDBDocument` ID caching
+- **Unified URI API in DBDriver Base (2026-03-07):**
+  - `acceptsURL()` renamed to `acceptURI()` — both throwing and nothrow versions in `DBDriver` base (throwing delegates to nothrow)
+  - `parseURI(std::nothrow_t)` pure virtual — each driver implements URI parsing, returns `expected<map<string,string>, DBException>`
+  - `buildURI(std::nothrow_t)` pure virtual — each driver implements URI building from components
+  - `getURIScheme()` pure virtual — returns human-readable URI template (e.g., `"cpp_dbc:mysql://<host>:<port>/<database>"`)
+  - Default `acceptURI(std::nothrow_t)` implementation uses `parseURI()`: successful parse = accepted
+  - Private helpers (`acceptsURL`, `parseURL`, `buildURL`) removed from `ColumnarDBDriver`, `DocumentDBDriver`, `KVDBDriver` — logic now in concrete drivers
+- **Unified Version/Info API in Base Classes (2026-03-08):**
+  - `DBDriver::getDriverVersion()` pure virtual — returns C/C++ client library version string
+  - `DBConnection::getServerVersion()` pure virtual (throwing + nothrow) — returns database server version
+  - `DBConnection::getServerInfo()` pure virtual (throwing + nothrow) — returns `std::map<std::string, std::string>` with `"ServerVersion"` + driver-specific metadata
+  - `BlobStream::isConnectionValid()` pure virtual — checks underlying connection liveness
+  - `getDriverVersion()` consolidated from family driver bases into `DBDriver`; `getServerInfo()` removed from `KVDBConnection` (inherited from `DBConnection`)
+  - MongoDB: `getServerInfo()` renamed to `getServerInfoAsDocument()` to avoid base class collision
 - Member variables prefixed with `m_` to avoid shadowing issues in exception handling
 
 ### Connection Pooling
@@ -261,8 +279,8 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
   - Inherits from `DBConnectionPoolBase` (all pool logic) — only overrides `createPooledDBConnection()` and adds typed getter
   - Concrete implementations for specific database types (PostgreSQLConnectionPool, MongoDBConnectionPool, ScyllaConnectionPool, RedisDBConnectionPool, etc.)
   - Factory methods (`create`) return `expected<shared_ptr<Pool>, DBException>` with `std::nothrow_t` — exception-free pool creation
-  - ConstructorTag pattern (PassKey idiom) to enable `std::make_shared` while enforcing factory pattern:
-    - `DBConnectionPool::ConstructorTag` is a protected struct that acts as an access token
+  - PrivateCtorTag pattern (PassKey idiom) to enable `std::make_shared` while enforcing factory pattern:
+    - `DBConnectionPool::PrivateCtorTag` is a private struct that acts as an access token
     - Constructors are public but require the tag, which can only be created within the class hierarchy
     - Enables single memory allocation with `std::make_shared` instead of separate allocations
   - Resource cleanup with proper exception handling

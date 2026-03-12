@@ -24,7 +24,6 @@
 #include <cctype>
 #include <cstring>
 #include <algorithm>
-#include <sstream>
 #include <iostream>
 #include <thread>
 #include <chrono>
@@ -76,7 +75,7 @@ namespace cpp_dbc::ScyllaDB
             std::string errorMsg(message, length);
             SCYLLADB_DEBUG("ScyllaDBConnection::constructor(nothrow) - Connection failed: " << errorMsg);
             m_initFailed = true;
-            m_initError = DBException("Q8R9S0T1U2V3", errorMsg, system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("Q8R9S0T1U2V3", errorMsg, system_utils::captureCallStack());
             return;
         }
 
@@ -86,13 +85,12 @@ namespace cpp_dbc::ScyllaDB
         {
             // Validate keyspace name to prevent CQL injection.
             // Keyspace names should only contain alphanumeric characters and underscores.
-            bool isValidKeyspace = std::ranges::all_of(keyspace, [](unsigned char c) {
-                return std::isalnum(c) || c == '_';
-            });
+            bool isValidKeyspace = std::ranges::all_of(keyspace, [](unsigned char c)
+                                                       { return std::isalnum(c) || c == '_'; });
             if (!isValidKeyspace)
             {
                 m_initFailed = true;
-                m_initError = DBException("7A3F9E2B5C8D", "Invalid keyspace name: " + keyspace, system_utils::captureCallStack());
+                m_initError = std::make_unique<DBException>("7A3F9E2B5C8D", "Invalid keyspace name: " + keyspace, system_utils::captureCallStack());
                 return;
             }
 
@@ -104,17 +102,16 @@ namespace cpp_dbc::ScyllaDB
             {
                 SCYLLADB_DEBUG("ScyllaDBConnection::constructor(nothrow) - Failed to use keyspace: " << keyspace);
                 m_initFailed = true;
-                m_initError = DBException("R9S0T1U2V3W4", "Failed to use keyspace " + keyspace, system_utils::captureCallStack());
+                m_initError = std::make_unique<DBException>("R9S0T1U2V3W4", "Failed to use keyspace " + keyspace, system_utils::captureCallStack());
                 return;
             }
         }
 
         m_closed = false;
-        // Cache the full URL including the cpp_dbc: prefix.
-        // Append the keyspace only when non-empty to avoid a trailing slash
-        // on connections that don't select a keyspace (e.g. "cpp_dbc:scylladb://host:port").
-        m_url = "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) +
-                (keyspace.empty() ? "" : "/" + keyspace);
+
+        // Cache the full URI including the cpp_dbc: prefix (reuse centralized builder for IPv6 bracket handling)
+        m_uri = system_utils::buildDBURI("cpp_dbc:scylladb://", host, port, keyspace);
+
         SCYLLADB_DEBUG("ScyllaDBConnection::constructor(nothrow) - Connection established");
     }
 
@@ -124,7 +121,7 @@ namespace cpp_dbc::ScyllaDB
         ScyllaDBConnection::close(std::nothrow);
     }
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     // DBConnection interface — throwing wrappers
 
     void ScyllaDBConnection::close()
@@ -155,9 +152,9 @@ namespace cpp_dbc::ScyllaDB
         return false;
     }
 
-    std::string ScyllaDBConnection::getURL() const
+    std::string ScyllaDBConnection::getURI() const
     {
-        return m_url;
+        return m_uri;
     }
 
     void ScyllaDBConnection::reset()
@@ -258,7 +255,27 @@ namespace cpp_dbc::ScyllaDB
         return result.value();
     }
 
-    #endif // __cpp_exceptions
+    std::string ScyllaDBConnection::getServerVersion()
+    {
+        auto result = getServerVersion(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::map<std::string, std::string> ScyllaDBConnection::getServerInfo()
+    {
+        auto result = getServerInfo(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::ScyllaDB
 

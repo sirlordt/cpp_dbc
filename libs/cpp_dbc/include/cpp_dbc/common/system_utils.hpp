@@ -53,7 +53,7 @@ namespace cpp_dbc::system_utils
 // "expression must be a modifiable lvalue" when writing to the arrays via strncpy.
 // The static constexpr members below remain the canonical, type-safe API for callers.
 // Each macro is #undef'd immediately after its struct to avoid namespace pollution.
-#define CPP_DBC_STACKFRAME_FILE_MAX     150
+#define CPP_DBC_STACKFRAME_FILE_MAX 150
 #define CPP_DBC_STACKFRAME_FUNCTION_MAX 150
 
     /**
@@ -67,12 +67,12 @@ namespace cpp_dbc::system_utils
      */
     struct StackFrame
     {
-        static constexpr std::size_t FILE_MAX     = CPP_DBC_STACKFRAME_FILE_MAX;     ///< Max bytes for source file path (incl. null); left-truncated if longer
+        static constexpr std::size_t FILE_MAX = CPP_DBC_STACKFRAME_FILE_MAX;         ///< Max bytes for source file path (incl. null); left-truncated if longer
         static constexpr std::size_t FUNCTION_MAX = CPP_DBC_STACKFRAME_FUNCTION_MAX; ///< Max bytes for function name (incl. null); left-truncated if longer
 
         char file[CPP_DBC_STACKFRAME_FILE_MAX]{};
         char function[CPP_DBC_STACKFRAME_FUNCTION_MAX]{};
-        int  line{0};
+        int line{0};
     };
 
 #undef CPP_DBC_STACKFRAME_FILE_MAX
@@ -91,21 +91,21 @@ namespace cpp_dbc::system_utils
     {
         static constexpr std::size_t MAX_FRAMES = CPP_DBC_CALLSTACK_MAX_FRAMES; ///< Maximum number of captured frames
 
-        StackFrame  frames[CPP_DBC_CALLSTACK_MAX_FRAMES]{};
+        StackFrame frames[CPP_DBC_CALLSTACK_MAX_FRAMES]{};
         std::size_t count{0};
     };
 
 #undef CPP_DBC_CALLSTACK_MAX_FRAMES
 
     /**
-     * @brief Result structure for parsing database connection URLs
+     * @brief Result structure for parsing database connection URIs
      *
-     * Used by parseDBURL to return the parsed components of a database URL.
-     * Supports URLs in the format: scheme://host:port/database
+     * Used by parseDBURI to return the parsed components of a database URI.
+     * Supports URIs in the format: scheme://host:port/database
      * Also supports IPv6 addresses: scheme://[::1]:port/database
      * And local connections (no host): scheme:///path/to/database
      */
-    struct ParsedDBURL
+    struct ParsedDBURI
     {
         std::string host;     ///< Host name or IP address (without brackets for IPv6)
         int port;             ///< Port number
@@ -187,38 +187,87 @@ namespace cpp_dbc::system_utils
     };
 
     /**
-     * @brief Parse a database connection URL into its components
+     * @brief Parse a database connection URI into its components
      *
-     * Parses URLs in the format: prefix://host:port/database
+     * Parses URIs in the format: prefix://host:port/database
      * Supports:
      * - IPv4 addresses and hostnames: prefix://localhost:3306/mydb
      * - IPv6 addresses with brackets: prefix://[::1]:3306/mydb
      * - Default ports: prefix://localhost/mydb (uses defaultPort)
      * - Local connections: prefix:///path/to/db (when allowLocalConnection is true)
-     * - URLs without database: prefix://localhost:3306 (when requireDatabase is false)
+     * - URIs without database: prefix://localhost:3306 (when requireDatabase is false)
      *
      * ```cpp
-     * cpp_dbc::system_utils::ParsedDBURL result;
-     * if (cpp_dbc::system_utils::parseDBURL("cpp_dbc:mysql://[::1]:3306/testdb",
+     * cpp_dbc::system_utils::ParsedDBURI result;
+     * if (cpp_dbc::system_utils::parseDBURI("cpp_dbc:mysql://[::1]:3306/testdb",
      *                                        "cpp_dbc:mysql://", 3306, result)) {
      *     // result.host = "::1", result.port = 3306, result.database = "testdb"
      * }
      * ```
      *
-     * @param url The full URL to parse
-     * @param expectedPrefix The expected URL prefix (e.g., "cpp_dbc:mysql://")
-     * @param defaultPort Default port to use if not specified in the URL
+     * @param uri The full URI to parse
+     * @param expectedPrefix The expected URI prefix (e.g., "cpp_dbc:mysql://")
+     * @param defaultPort Default port to use if not specified in the URI
      * @param result Output structure containing the parsed components
-     * @param allowLocalConnection If true, allows URLs without host (e.g., prefix:///path)
-     * @param requireDatabase If true, the URL must include a database/path component
+     * @param allowLocalConnection If true, allows URIs without host (e.g., prefix:///path)
+     * @param requireDatabase If true, the URI must include a database/path component
      * @return true if parsing succeeded, false otherwise
      */
-    bool parseDBURL(std::string_view url,
+    bool parseDBURI(std::string_view uri,
                     std::string_view expectedPrefix,
                     int defaultPort,
-                    ParsedDBURL &result,
+                    ParsedDBURI &result,
                     bool allowLocalConnection = false,
                     bool requireDatabase = true) noexcept;
+
+    /**
+     * @brief Build a canonical database connection URI from its components
+     *
+     * Inverse of parseDBURI. Produces a round-trippable URI string from
+     * individual components (prefix, host, port, database). Handles:
+     * - Empty host preserved as-is (produces "prefix:///database" for local URIs)
+     * - IPv6 bracket notation: raw "::1" → "[::1]" (already-bracketed hosts are preserved)
+     * - Port included when host is non-empty and port > 0
+     * - Optional database path: appended only when non-empty
+     *
+     * ```cpp
+     * auto uri = cpp_dbc::system_utils::buildDBURI("cpp_dbc:mysql://", "::1", 3306, "testdb");
+     * // uri = "cpp_dbc:mysql://[::1]:3306/testdb"
+     *
+     * auto uri2 = cpp_dbc::system_utils::buildDBURI("cpp_dbc:firebird://", "", 0, "/opt/db.fdb");
+     * // uri2 = "cpp_dbc:firebird:///opt/db.fdb"
+     * ```
+     *
+     * @param prefix The URI scheme prefix (e.g., "cpp_dbc:mysql://")
+     * @param host Host name or IP address; empty for local/embedded URIs
+     * @param port Port number (included only when host is non-empty and port > 0)
+     * @param database Database name or path (empty to omit)
+     * @return The canonical URI string
+     */
+    std::string buildDBURI(std::string_view prefix,
+                           std::string_view host,
+                           int port,
+                           std::string_view database = "") noexcept;
+
+    /**
+     * @brief Percent-encode a URI component per RFC 3986
+     *
+     * Encodes every character that is NOT an unreserved character
+     * (A-Z, a-z, 0-9, '-', '.', '_', '~') as %XX where XX is the
+     * uppercase hex representation of the byte value.
+     *
+     * Intended for encoding user credentials before embedding them
+     * in a connection URI (e.g. MongoDB connection strings).
+     *
+     * ```cpp
+     * auto encoded = cpp_dbc::system_utils::percentEncodeURIComponent("p@ss:word/1");
+     * // encoded = "p%40ss%3Aword%2F1"
+     * ```
+     *
+     * @param input The raw string to encode
+     * @return The percent-encoded string
+     */
+    std::string percentEncodeURIComponent(std::string_view input) noexcept;
 
     /**
      * @brief Thread-safe print function using a global mutex
@@ -270,8 +319,8 @@ namespace cpp_dbc::system_utils
         // std::format / std::chrono::format require GCC 13+; this project targets GCC 11.
         // The stack buffer + strftime + snprintf pattern is correct, zero-allocation, and
         // thread-safe via localtime_r/localtime_s.
-        char buf[16]; // NOSONAR(cpp:S5945) — see comment above
-        std::size_t n = std::strftime(buf, sizeof(buf), "%H:%M:%S.", &tm); // NOSONAR(cpp:S6229) — see comment above
+        char buf[16];                                                                  // NOSONAR(cpp:S5945) — see comment above
+        std::size_t n = std::strftime(buf, sizeof(buf), "%H:%M:%S.", &tm);             // NOSONAR(cpp:S6229) — see comment above
         std::snprintf(buf + n, sizeof(buf) - n, "%03d", static_cast<int>(ms.count())); // NOSONAR(cpp:S6494) — see comment above
         return buf;
     }
@@ -297,9 +346,9 @@ namespace cpp_dbc::system_utils
         // std::format / std::chrono::format require GCC 13+; this project targets GCC 11.
         // The stack buffer + strftime + snprintf pattern is correct, zero-allocation, and
         // thread-safe via localtime_r/localtime_s.
-        char buf[20]; // NOSONAR(cpp:S5945) — see comment above
+        char buf[20];                                                      // NOSONAR(cpp:S5945) — see comment above
         std::size_t n = std::strftime(buf, sizeof(buf), "%H:%M:%S.", &tm); // NOSONAR(cpp:S6229) — see comment above
-        std::snprintf(buf + n, sizeof(buf) - n, "%06ld", usecs); // NOSONAR(cpp:S6494) — see comment above; %06ld matches the actual type (long int)
+        std::snprintf(buf + n, sizeof(buf) - n, "%06ld", usecs);           // NOSONAR(cpp:S6494) — see comment above; %06ld matches the actual type (long int)
         return buf;
     }
 
@@ -323,8 +372,8 @@ namespace cpp_dbc::system_utils
         // std::format / std::chrono::format require GCC 13+; this project targets GCC 11.
         // The stack buffer + strftime + snprintf pattern is correct, zero-allocation, and
         // thread-safe via localtime_r/localtime_s.
-        char buf[28]; // NOSONAR(cpp:S5945) — see comment above
-        std::size_t n = std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S.", &tm); // NOSONAR(cpp:S6229) — see comment above
+        char buf[28];                                                                  // NOSONAR(cpp:S5945) — see comment above
+        std::size_t n = std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S.", &tm);    // NOSONAR(cpp:S6229) — see comment above
         std::snprintf(buf + n, sizeof(buf) - n, "%03d", static_cast<int>(ms.count())); // NOSONAR(cpp:S6494) — see comment above
         return buf;
     }

@@ -37,7 +37,41 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **CRTP `PooledDBConnectionBase<D,C,P>` — Unified Pooled Connection Logic** (2026-03-06 08:43 PST):
+1. **Unified version/info API across all drivers, MySQL code hardening, BlobStream connection validation** (2026-03-08 17:25 PST):
+   - **Unified version/info API:** `getDriverVersion()` moved from family driver bases to `DBDriver` base; `getServerVersion()` + `getServerInfo()` (throwing + nothrow) added to `DBConnection` base; all 7 drivers implement with driver-specific metadata
+   - **API naming:** MongoDB `getServerInfo()` → `getServerInfoAsDocument()` to avoid base class collision; `getServerInfo()` removed from `KVDBConnection` (now inherited from `DBConnection`)
+   - **BlobStream:** `isConnectionValid()` pure virtual added; all blob classes override with `const noexcept`
+   - **MySQL hardening:** ~60 error codes regenerated, `std::stoi` → `std::from_chars`, `memset` → aggregate init, index loop → `std::span`, constructor try/catch removed, SQL injection prevention via `validateIdentifier()` in blob, internal helpers renamed with `std::nothrow_t`
+   - **Pool:** version/info API delegated through all 4 family pooled connection wrappers via CRTP helpers
+   - **Tests:** New version/info test cases for all 7 drivers
+   - 66 files changed, +1760/-235 lines
+
+2. **Convention refinements: PrivateCtorTag unification, violations checklist reorganization, MySQL code cleanup** (2026-03-08 00:21 PST):
+   - **PrivateCtorTag naming unified:** `ConstructorTag` → `PrivateCtorTag` throughout convention docs; private constructors explicitly forbidden with migration rule
+   - **Violations checklist reorganized:** Flat list → 6 categorized sections (Error Codes, Memory Safety, Atomics, Error Handling, Class Layout, Naming); ~20 new checklist items added
+   - **MySQL code cleanup:** Added explicit destructors to `MySQLBlob`/`MySQLInputStream`; Allman brace formatting for `isResetting()`, lambdas in `connection_01.cpp`, and `mysql_internal.hpp` methods; fixed `connectRelational()` stub to delegate to nothrow; translated Spanish comments to English
+   - 9 files changed, +137/-69 lines
+
+3. **Unified URI API in DBDriver Base, PrivateCtorTag for MySQLBlob/InputStream, Expanded Conventions** (2026-03-07 13:34 PST):
+   - **DBDriver base class refactored:** `acceptsURL()` → `acceptURI()` (throwing + nothrow); new `parseURI()`, `buildURI()`, `getURIScheme()` pure virtuals — all with default `acceptURI` using `parseURI`
+   - **Family driver bases cleaned:** Removed `acceptsURL()`, `parseURL()`, `buildURL()` private helpers from `ColumnarDBDriver`, `DocumentDBDriver`, `KVDBDriver` (-130 lines)
+   - **All 7 drivers updated:** Implement new URI pure virtuals; all tests updated for `acceptURI`/`parseURI`/`buildURI`
+   - **MySQLBlob + MySQLInputStream:** PrivateCtorTag pattern with `m_initFailed`/`m_initError`, `#ifdef __cpp_exceptions` guards, nothrow static factories
+   - **Convention rules expanded:** 8 new sections in `cpp_dbc_conventions.md` (preprocessor directives flush left, Allman braces, NOSONAR with rule ID, bug-fix ISO 8601 format, no `(void)` cast, `private:` omit in class, PrivateCtorTag pattern, migration rule for private methods)
+   - **New convention violations report document:** `.claude/rules/cpp_dbc_conventions_violations_how_report_them.md` with structured format, severity levels, and comprehensive checklist
+   - Docs updated: cppdbc-docs-en/es, error_handling_patterns, how_add_new_db_drivers
+   - 49 files changed, +2938/-1354 lines
+
+2. **MySQL Driver — Full Nothrow-First Refactor, Static Factory Pattern, Result Set Registry** (2026-03-06 20:29 PST):
+   - **MySQLDBDriver:** Double-checked locking with `atomic<bool>` + `mutex` for library init; new `cleanup()` static method
+   - **MySQLDBConnection:** PrivateCtorTag pattern, nothrow constructor with `m_initFailed`/`m_initError`, result set registry (`m_activeResultSets`) with two-phase close, `getMySQLNativeHandle()`/`getConnectionMutex()` for child access, `m_resetting` anti-deadlock flag, friend declarations for PreparedStatement/ResultSet/Blob
+   - **MySQLDBPreparedStatement:** `weak_ptr<MySQLDBConnection>` replaces `weak_ptr<MYSQL>`, private nothrow constructor, `create(std::nothrow_t)` via `new`, `m_closed` atomic flag, `notifyConnClosing` returns `expected`
+   - **MySQLDBResultSet:** Private nothrow constructor, `weak_ptr<MySQLDBConnection>` for lifecycle, `notifyConnClosing(std::nothrow_t)`, `[[nodiscard]]` on all nothrow methods
+   - **mysql_internal.hpp:** `MySQLConnectionLock` RAII helper, `MYSQL_CONNECTION_LOCK_OR_RETURN` macro, `MYSQL_DEBUG` macro
+   - Dead try/catch eliminated across all MySQL `.cpp` files
+   - 17 files changed, +1559/-2202 lines (net reduction of ~643 lines)
+
+3. **CRTP `PooledDBConnectionBase<D,C,P>` — Unified Pooled Connection Logic** (2026-03-06 08:43 PST):
    - **New CRTP template:** `PooledDBConnectionBase<Derived, ConnType, PoolType>` in `pool/pooled_db_connection_base.hpp` + `.cpp` (~485 lines) — extracts close/returnToPool (race-condition fix), destructor cleanup, and pool metadata from all 4 family pooled connection wrappers
    - **Family wrappers now thin CRTP delegators:** One-line inline delegators resolve diamond inheritance; destructors changed to `= default`
    - **Dead try/catch removed** from all `create(std::nothrow_t)` factory methods (death-sentence exception rule)
@@ -45,7 +79,7 @@ Recent changes to the codebase include:
    - **`how_add_new_db_drivers.md`** updated with comprehensive connection pool integration guide (Scenario A: existing family, Scenario B: new family)
    - 17 files changed, +1312/-2230 lines (net reduction of ~918 lines)
 
-2. **Unified Connection Pool Base Class (`DBConnectionPoolBase`) — Extracted Common Pool Logic into `pool/` Directory** (2026-03-06 01:59 PST):
+4. **Unified Connection Pool Base Class (`DBConnectionPoolBase`) — Extracted Common Pool Logic into `pool/` Directory** (2026-03-06 01:59 PST):
    - **New `DBConnectionPoolBase`:** Single base class in `pool/connection_pool.hpp` + `pool/connection_pool.cpp` (955 lines) containing all pool infrastructure: connection acquisition with direct handoff, HikariCP validation skip, phase-based lock protocol, maintenance thread, `returnConnection()` with orphan detection
    - **`DBConnectionPooled` extended:** Added pool-internal lifecycle methods (`updateLastUsedTime`, `isPoolClosed`, `getClosedFlag`)
    - **Directory restructure:** All pool headers/sources moved from `core/` to `pool/` directory; new placeholder dirs for `pool/graph/`, `pool/timeseries/`
@@ -53,7 +87,7 @@ Recent changes to the codebase include:
    - **Include path updates:** All examples (16), tests (30+), internal sources updated from `core/` to `pool/` paths
    - 77 files changed, +6020/-8459 lines (net reduction of ~2400 lines of duplicated pool logic)
 
-3. **MongoDB Driver — Full Nothrow-First Refactor, Static Factory Pattern, `-fno-exceptions` Compatibility** (2026-03-04 14:29 PST):
+4. **MongoDB Driver — Full Nothrow-First Refactor, Static Factory Pattern, `-fno-exceptions` Compatibility** (2026-03-04 14:29 PST):
    - **Core Abstract Interfaces — `#ifdef __cpp_exceptions` Guard Separation:**
      - All 5 document interfaces guard throwing methods with `#ifdef __cpp_exceptions`; nothrow methods always compile under `-fno-exceptions`
      - `DocumentDBCursor`: +9 new nothrow pure-virtuals (`next`, `hasNext`, `count`, `getPosition`, `skip`, `limit`, `sort`, `isExhausted`, `rewind`)
@@ -79,7 +113,7 @@ Recent changes to the codebase include:
    - **Other:** KV `""` → `std::string{}`; Firebird stub fixes; MySQL/PostgreSQL blob `using MemoryBlob::copyFrom`
    - 41 files changed, +5956/-5321 lines
 
-4. **DBException Fixed-Size Refactor, Unified `ping()` Interface, `std::string_view` Return Types, and Build Optimizations** (2026-02-26 18:27 PST):
+5. **DBException Fixed-Size Refactor, Unified `ping()` Interface, `std::string_view` Return Types, and Build Optimizations** (2026-02-26 18:27 PST):
    - **`DBException` — Fixed-Size Memory Layout:**
      - Now inherits from `std::exception` (was `std::runtime_error`); constructor is `noexcept`
      - `m_mark[13]`, `m_message[257]`, `m_full_message[271]` — fixed-size char arrays (no heap allocation)
@@ -107,7 +141,7 @@ Recent changes to the codebase include:
      - `helper.sh`: `dw-on`/`dw-off` now deferred — later flags override earlier ones in same option list
      - `build_test_cpp_dbc.sh`: adds `-DCPP_DBC_BUILD_EXAMPLES=OFF -DCPP_DBC_BUILD_BENCHMARKS=OFF` to skip non-test targets
 
-5. **Full Nothrow Pool API, Atomic int64_t Last-Used Time, MySQL Atomic Closed Flag, Destructor Safety, and Debug Macro Truncation Detection** (2026-02-24 18:25 PST):
+6. **Full Nothrow Pool API, Atomic int64_t Last-Used Time, MySQL Atomic Closed Flag, Destructor Safety, and Debug Macro Truncation Detection** (2026-02-24 18:25 PST):
    - **Pool Factory — Nothrow `create()` (All Families):**
      - All `create()` factories return `expected<shared_ptr<Pool>, DBException>` with `std::nothrow_t` (breaking change)
      - All internal pool methods (createDBConnection, createPooledDBConnection, validateConnection, returnConnection, initializePool) return `expected<...>` noexcept
@@ -124,7 +158,7 @@ Recent changes to the codebase include:
    - **Conventions:** 4 new sections — in-class member init, `atomic.load(memory_order_acquire)`, nothrow calls nothrow, no redundant try/catch
    - **Minor fixes:** Shell `"$@"` quoting, `NO_REBUILD_DEPS` removed, Firebird null-check removed, "5ms" → "25ms" log, ScyllaDB captureCallStack + error code dedup
 
-6. **Unified Pool Mutex, Atomic Time-Point, Direct Handoff for All Pools, Notifications, and Test Quality Improvements** (2026-02-22 19:18 PST):
+7. **Unified Pool Mutex, Atomic Time-Point, Direct Handoff for All Pools, Notifications, and Test Quality Improvements** (2026-02-22 19:18 PST):
    - **Columnar/Document/KV Pools — Unified Mutex + Direct Handoff:**
      - 5 separate mutexes → single `m_mutexPool`; `getIdleDBConnection()` private method removed
      - `getXDBConnection()`: replaced 10ms-polling loop with `condition_variable::wait_until()` + FIFO wait loop
@@ -141,7 +175,7 @@ Recent changes to the codebase include:
    - **Firebird `role` Option:** `isc_dpb_sql_role_name` in DPB; YAML updated; new `prod_firebird` example; `READ_UNCOMMITTED` MVCC behavior test
    - **Test Quality:** All success thresholds → 95%; timeout 2000 ms → 3500 ms; pool tests use `WARN()` instead of hard `REQUIRE(failureCount == 0)`; PostgreSQL tests fixed (`returnToPool()`, removed inline `DROP TABLE`, added `rs->close()`); SQLite new test sections
 
-7. **Pool Lifecycle API Hardening, C++ Code Analysis Toolset, Docker Container Auto-Restart, and Valgrind Suppression Report** (2026-02-21 14:25 PST):
+8. **Pool Lifecycle API Hardening, C++ Code Analysis Toolset, Docker Container Auto-Restart, and Valgrind Suppression Report** (2026-02-21 14:25 PST):
    - **Pool Lifecycle Methods — Protected API:**
      - `prepareForPoolReturn()`, `prepareForBorrow()` (and nothrow versions) moved from `public` to `protected` in `RelationalDBConnection`
      - Forward declarations + `friend class RelationalDBConnectionPool` / `friend class RelationalPooledDBConnection` added — only pool infrastructure can call lifecycle methods
@@ -350,9 +384,9 @@ Recent changes to the codebase include:
      - Bug: `m_closed` was reset to `false` AFTER `returnConnection()` completed
      - Fix: Reset `m_closed` to `false` BEFORE calling `returnConnection()`
      - Added catch-all exception handlers to ensure correct state on any exception
-   - **Connection Pool ConstructorTag Pattern (PassKey Idiom):**
-     - Added `DBConnectionPool::ConstructorTag` struct to enable `std::make_shared` while enforcing factory pattern
-     - Updated all connection pool classes to use ConstructorTag
+   - **Connection Pool PrivateCtorTag Pattern (PassKey Idiom):**
+     - Added `DBConnectionPool::PrivateCtorTag` struct to enable `std::make_shared` while enforcing factory pattern
+     - Updated all connection pool classes to use PrivateCtorTag
      - Enables single memory allocation with `std::make_shared`
    - **SonarCloud Code Quality Fixes:**
      - Added NOSONAR comments with explanations for intentional code patterns

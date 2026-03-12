@@ -72,9 +72,8 @@ namespace cpp_dbc::ScyllaDB
             return cpp_dbc::unexpected(DBException("Y0Z1A2B3C4D5", "Failed to get result", system_utils::captureCallStack()));
         }
 
-        size_t rowCount = cass_result_row_count(result);
+        [[maybe_unused]] size_t rowCount = cass_result_row_count(result);
         SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeQuery - Query executed successfully, returned " << rowCount << " rows");
-        (void)rowCount;
 
         // After successful execution, we should prepare for next execution by recreating the statement
         // (Binding clears parameters or requires re-binding)
@@ -228,9 +227,8 @@ namespace cpp_dbc::ScyllaDB
                     return cpp_dbc::unexpected(DBException("UMTJYD4SYC1J", "Failed to bind bytes at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
                 }
             }
-            for (const auto &[idx, unused] : entry.nullParams)
+            for ([[maybe_unused]] const auto &[idx, unused] : entry.nullParams)
             {
-                (void)unused;
                 if (cass_statement_bind_null(stmt, idx) != CASS_OK)
                 {
                     return cpp_dbc::unexpected(DBException("UK2OCW8DCSIX", "Failed to bind null at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));

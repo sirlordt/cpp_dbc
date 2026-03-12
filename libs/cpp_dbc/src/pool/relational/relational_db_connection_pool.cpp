@@ -35,7 +35,7 @@ namespace cpp_dbc
     // ── Constructors (delegate to base) ──────────────────────────────────────
 
     RelationalDBConnectionPool::RelationalDBConnectionPool(DBConnectionPool::ConstructorTag,
-                                                           const std::string &url,
+                                                           const std::string &uri,
                                                            const std::string &username,
                                                            const std::string &password,
                                                            const std::map<std::string, std::string> &options,
@@ -49,7 +49,7 @@ namespace cpp_dbc
                                                            bool testOnBorrow,
                                                            bool testOnReturn,
                                                            TransactionIsolationLevel transactionIsolation) noexcept
-        : DBConnectionPoolBase(DBConnectionPool::ConstructorTag{}, url, username, password, options,
+        : DBConnectionPoolBase(DBConnectionPool::ConstructorTag{}, uri, username, password, options,
                                initialSize, maxSize, minIdle, maxWaitMillis, validationTimeoutMillis,
                                idleTimeoutMillis, maxLifetimeMillis, testOnBorrow, testOnReturn,
                                transactionIsolation)
@@ -73,7 +73,7 @@ namespace cpp_dbc
     cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>
     RelationalDBConnectionPool::createDBConnection(std::nothrow_t) const noexcept
     {
-        auto dbConnResult = DriverManager::getDBConnection(std::nothrow, getUrl(), getUsername(), getPassword(), getOptions());
+        auto dbConnResult = DriverManager::getDBConnection(std::nothrow, getUri(), getUsername(), getPassword(), getOptions());
         if (!dbConnResult.has_value())
         {
             return cpp_dbc::unexpected(dbConnResult.error());
@@ -128,7 +128,7 @@ namespace cpp_dbc
     // ── Static factories ─────────────────────────────────────────────────────
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBConnectionPool>, DBException> RelationalDBConnectionPool::create(std::nothrow_t,
-                                                                                                                   const std::string &url,
+                                                                                                                   const std::string &uri,
                                                                                                                    const std::string &username,
                                                                                                                    const std::string &password,
                                                                                                                    const std::map<std::string, std::string> &options,
@@ -144,7 +144,7 @@ namespace cpp_dbc
                                                                                                                    TransactionIsolationLevel transactionIsolation) noexcept
     {
         auto pool = std::make_shared<RelationalDBConnectionPool>(
-            DBConnectionPool::ConstructorTag{}, url, username, password, options, initialSize, maxSize, minIdle,
+            DBConnectionPool::ConstructorTag{}, uri, username, password, options, initialSize, maxSize, minIdle,
             maxWaitMillis, validationTimeoutMillis, idleTimeoutMillis, maxLifetimeMillis,
             testOnBorrow, testOnReturn, transactionIsolation);
 
@@ -184,12 +184,28 @@ namespace cpp_dbc
         return result.value();
     }
 
+    std::shared_ptr<RelationalDBConnection> RelationalDBConnectionPool::getRelationalDBConnection(size_t timeoutMs)
+    {
+        auto result = getRelationalDBConnection(std::nothrow, timeoutMs);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
 #endif // __cpp_exceptions
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>
     RelationalDBConnectionPool::getRelationalDBConnection(std::nothrow_t) noexcept
     {
-        auto result = acquireConnection(std::nothrow);
+        return getRelationalDBConnection(std::nothrow, 0);
+    }
+
+    cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>
+    RelationalDBConnectionPool::getRelationalDBConnection(std::nothrow_t, size_t timeoutMs) noexcept
+    {
+        auto result = acquireConnection(std::nothrow, timeoutMs);
         if (!result.has_value())
         {
             return cpp_dbc::unexpected(result.error());
@@ -452,10 +468,10 @@ namespace cpp_dbc
     namespace MySQL
     {
         MySQLConnectionPool::MySQLConnectionPool(DBConnectionPool::ConstructorTag,
-                                                 const std::string &url,
+                                                 const std::string &uri,
                                                  const std::string &username,
                                                  const std::string &password)
-            : RelationalDBConnectionPool(DBConnectionPool::ConstructorTag{}, url, username, password)
+            : RelationalDBConnectionPool(DBConnectionPool::ConstructorTag{}, uri, username, password)
         {
             // MySQL-specific initialization if needed
         }
@@ -468,11 +484,11 @@ namespace cpp_dbc
 
 #ifdef __cpp_exceptions
 
-        std::shared_ptr<MySQLConnectionPool> MySQLConnectionPool::create(const std::string &url,
+        std::shared_ptr<MySQLConnectionPool> MySQLConnectionPool::create(const std::string &uri,
                                                                          const std::string &username,
                                                                          const std::string &password)
         {
-            auto result = create(std::nothrow, url, username, password);
+            auto result = create(std::nothrow, uri, username, password);
             if (!result.has_value())
             {
                 throw result.error();
@@ -493,11 +509,11 @@ namespace cpp_dbc
 #endif // __cpp_exceptions
 
         cpp_dbc::expected<std::shared_ptr<MySQLConnectionPool>, DBException> MySQLConnectionPool::create(std::nothrow_t,
-                                                                                                         const std::string &url,
+                                                                                                         const std::string &uri,
                                                                                                          const std::string &username,
                                                                                                          const std::string &password) noexcept
         {
-            auto pool = std::make_shared<MySQLConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
+            auto pool = std::make_shared<MySQLConnectionPool>(DBConnectionPool::ConstructorTag{}, uri, username, password);
             auto initResult = pool->initializePool(std::nothrow);
             if (!initResult.has_value())
             {
@@ -522,10 +538,10 @@ namespace cpp_dbc
     namespace PostgreSQL
     {
         PostgreSQLConnectionPool::PostgreSQLConnectionPool(DBConnectionPool::ConstructorTag,
-                                                           const std::string &url,
+                                                           const std::string &uri,
                                                            const std::string &username,
                                                            const std::string &password)
-            : RelationalDBConnectionPool(DBConnectionPool::ConstructorTag{}, url, username, password)
+            : RelationalDBConnectionPool(DBConnectionPool::ConstructorTag{}, uri, username, password)
         {
             // PostgreSQL-specific initialization if needed
         }
@@ -538,11 +554,11 @@ namespace cpp_dbc
 
 #ifdef __cpp_exceptions
 
-        std::shared_ptr<PostgreSQLConnectionPool> PostgreSQLConnectionPool::create(const std::string &url,
+        std::shared_ptr<PostgreSQLConnectionPool> PostgreSQLConnectionPool::create(const std::string &uri,
                                                                                    const std::string &username,
                                                                                    const std::string &password)
         {
-            auto result = create(std::nothrow, url, username, password);
+            auto result = create(std::nothrow, uri, username, password);
             if (!result.has_value())
             {
                 throw result.error();
@@ -563,11 +579,11 @@ namespace cpp_dbc
 #endif // __cpp_exceptions
 
         cpp_dbc::expected<std::shared_ptr<PostgreSQLConnectionPool>, DBException> PostgreSQLConnectionPool::create(std::nothrow_t,
-                                                                                                                   const std::string &url,
+                                                                                                                   const std::string &uri,
                                                                                                                    const std::string &username,
                                                                                                                    const std::string &password) noexcept
         {
-            auto pool = std::make_shared<PostgreSQLConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
+            auto pool = std::make_shared<PostgreSQLConnectionPool>(DBConnectionPool::ConstructorTag{}, uri, username, password);
             auto initResult = pool->initializePool(std::nothrow);
             if (!initResult.has_value())
             {
@@ -592,10 +608,10 @@ namespace cpp_dbc
     namespace SQLite
     {
         SQLiteConnectionPool::SQLiteConnectionPool(DBConnectionPool::ConstructorTag,
-                                                   const std::string &url,
+                                                   const std::string &uri,
                                                    const std::string &username,
                                                    const std::string &password)
-            : RelationalDBConnectionPool(DBConnectionPool::ConstructorTag{}, url, username, password)
+            : RelationalDBConnectionPool(DBConnectionPool::ConstructorTag{}, uri, username, password)
         {
             // SQLite only supports SERIALIZABLE isolation level
             // Override the isolation level from the constructor
@@ -612,11 +628,11 @@ namespace cpp_dbc
 
 #ifdef __cpp_exceptions
 
-        std::shared_ptr<SQLiteConnectionPool> SQLiteConnectionPool::create(const std::string &url,
+        std::shared_ptr<SQLiteConnectionPool> SQLiteConnectionPool::create(const std::string &uri,
                                                                            const std::string &username,
                                                                            const std::string &password)
         {
-            auto result = create(std::nothrow, url, username, password);
+            auto result = create(std::nothrow, uri, username, password);
             if (!result.has_value())
             {
                 throw result.error();
@@ -637,11 +653,11 @@ namespace cpp_dbc
 #endif // __cpp_exceptions
 
         cpp_dbc::expected<std::shared_ptr<SQLiteConnectionPool>, DBException> SQLiteConnectionPool::create(std::nothrow_t,
-                                                                                                           const std::string &url,
+                                                                                                           const std::string &uri,
                                                                                                            const std::string &username,
                                                                                                            const std::string &password) noexcept
         {
-            auto pool = std::make_shared<SQLiteConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
+            auto pool = std::make_shared<SQLiteConnectionPool>(DBConnectionPool::ConstructorTag{}, uri, username, password);
             auto initResult = pool->initializePool(std::nothrow);
             if (!initResult.has_value())
             {
@@ -666,10 +682,10 @@ namespace cpp_dbc
     namespace Firebird
     {
         FirebirdConnectionPool::FirebirdConnectionPool(DBConnectionPool::ConstructorTag,
-                                                       const std::string &url,
+                                                       const std::string &uri,
                                                        const std::string &username,
                                                        const std::string &password)
-            : RelationalDBConnectionPool(DBConnectionPool::ConstructorTag{}, url, username, password)
+            : RelationalDBConnectionPool(DBConnectionPool::ConstructorTag{}, uri, username, password)
         {
             // Firebird-specific initialization if needed
         }
@@ -682,11 +698,11 @@ namespace cpp_dbc
 
 #ifdef __cpp_exceptions
 
-        std::shared_ptr<FirebirdConnectionPool> FirebirdConnectionPool::create(const std::string &url,
+        std::shared_ptr<FirebirdConnectionPool> FirebirdConnectionPool::create(const std::string &uri,
                                                                                const std::string &username,
                                                                                const std::string &password)
         {
-            auto result = create(std::nothrow, url, username, password);
+            auto result = create(std::nothrow, uri, username, password);
             if (!result.has_value())
             {
                 throw result.error();
@@ -707,11 +723,11 @@ namespace cpp_dbc
 #endif // __cpp_exceptions
 
         cpp_dbc::expected<std::shared_ptr<FirebirdConnectionPool>, DBException> FirebirdConnectionPool::create(std::nothrow_t,
-                                                                                                               const std::string &url,
+                                                                                                               const std::string &uri,
                                                                                                                const std::string &username,
                                                                                                                const std::string &password) noexcept
         {
-            auto pool = std::make_shared<FirebirdConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
+            auto pool = std::make_shared<FirebirdConnectionPool>(DBConnectionPool::ConstructorTag{}, uri, username, password);
             auto initResult = pool->initializePool(std::nothrow);
             if (!initResult.has_value())
             {

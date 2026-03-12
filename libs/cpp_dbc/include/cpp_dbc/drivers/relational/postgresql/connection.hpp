@@ -36,15 +36,29 @@ namespace cpp_dbc::PostgreSQL
      */
     class PostgreSQLDBConnection final : public RelationalDBConnection, public std::enable_shared_from_this<PostgreSQLDBConnection>
     {
+        /**
+         * @brief Private tag for the passkey idiom — enables std::make_shared
+         * from static factory methods while keeping the constructor
+         * effectively private (external code cannot construct PrivateCtorTag).
+         */
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
         PGconnHandle m_conn; // shared_ptr allows PreparedStatements to use weak_ptr
         bool m_closed{true};
+
+        // Stored by the create() factory so close() can unregister from the driver registry
+        // using owner_less comparison (raw 'this' won't work with the set's comparator).
+        std::weak_ptr<PostgreSQLDBConnection> m_self;
         bool m_autoCommit{true};
         bool m_transactionActive{false};
         int m_statementCounter{0};
         TransactionIsolationLevel m_isolationLevel{TransactionIsolationLevel::TRANSACTION_READ_COMMITTED};
 
-        /// @brief Cached URL string for getURL() method
-        std::string m_url;
+        /// @brief Cached URI string for getURI() method
+        std::string m_uri;
 
         /**
          * @brief Registry of active prepared statements using weak_ptr
@@ -151,6 +165,28 @@ namespace cpp_dbc::PostgreSQL
          */
         cpp_dbc::expected<void, DBException> closeAllStatements(std::nothrow_t) noexcept;
 
+        /**
+         * @brief Format a PQserverVersion() integer into a human-readable version string.
+         * @param version The integer returned by PQserverVersion() (e.g. 160004 → "16.4").
+         * @return Formatted version string: "major.minor" for PG >= 10, "major.minor.patch" for older.
+         */
+        std::string formatServerVersion(std::nothrow_t, int version) const noexcept;
+
+        /**
+         * @brief Flag indicating constructor initialization failed
+         *
+         * Set by the nothrow constructor when connection setup fails.
+         * Inspected by create(nothrow_t) to propagate the error via expected.
+         */
+        bool m_initFailed{false};
+
+        /**
+         * @brief Error captured when constructor initialization fails
+         *
+         * Holds the DBException that would have been thrown, for deferred delivery.
+         */
+        std::unique_ptr<DBException> m_initError{nullptr};
+
     protected:
         // Pool lifecycle overrides - only callable by pool infrastructure (via friend in RelationalDBConnection).
         cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
@@ -158,12 +194,23 @@ namespace cpp_dbc::PostgreSQL
         cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
 
     public:
-        PostgreSQLDBConnection(const std::string &host,
+        /**
+         * @brief Nothrow constructor — contains all connection logic.
+         *
+         * All PQconnectdb, PQstatus, and initial autocommit logic lives here.
+         * On failure, sets m_initFailed and m_initError instead of throwing.
+         *
+         * Public for std::make_shared access, but effectively private:
+         * external code cannot construct PrivateCtorTag.
+         */
+        PostgreSQLDBConnection(PrivateCtorTag,
+                               std::nothrow_t,
+                               const std::string &host,
                                int port,
                                const std::string &database,
                                const std::string &user,
                                const std::string &password,
-                               const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
+                               const std::map<std::string, std::string> &options) noexcept;
         ~PostgreSQLDBConnection() override;
 
         // Rule of 5: Non-copyable and non-movable (mutex member prevents copying/moving)
@@ -172,33 +219,7 @@ namespace cpp_dbc::PostgreSQL
         PostgreSQLDBConnection(PostgreSQLDBConnection &&) = delete;
         PostgreSQLDBConnection &operator=(PostgreSQLDBConnection &&) = delete;
 
-        static cpp_dbc::expected<std::shared_ptr<PostgreSQLDBConnection>, DBException>
-        create(std::nothrow_t,
-               const std::string &host,
-               int port,
-               const std::string &database,
-               const std::string &user,
-               const std::string &password,
-               const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
-        {
-            try
-            {
-                return std::make_shared<PostgreSQLDBConnection>(host, port, database, user, password, options);
-            }
-            catch (const DBException &ex)
-            {
-                return cpp_dbc::unexpected(ex);
-            }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("DDSL15R0G9AF", ex.what(), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("DB0GF9P3L5TI", "Unknown error creating PostgreSQLDBConnection", system_utils::captureCallStack()));
-            }
-        }
-
+#ifdef __cpp_exceptions
         static std::shared_ptr<PostgreSQLDBConnection>
         create(const std::string &host,
                int port,
@@ -214,6 +235,31 @@ namespace cpp_dbc::PostgreSQL
             }
             return r.value();
         }
+#endif
+
+        static cpp_dbc::expected<std::shared_ptr<PostgreSQLDBConnection>, DBException>
+        create(std::nothrow_t,
+               const std::string &host,
+               int port,
+               const std::string &database,
+               const std::string &user,
+               const std::string &password,
+               const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
+        {
+            // No try/catch: std::make_shared can only throw std::bad_alloc, which is a
+            // death-sentence exception — the heap is exhausted and no meaningful recovery
+            // is possible. Catching it would hide a catastrophic failure as a silent error
+            // return. Letting std::terminate fire is safer and more debuggable.
+            auto obj = std::make_shared<PostgreSQLDBConnection>(PrivateCtorTag{}, std::nothrow, host, port, database, user, password, options);
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            // Store a weak self-reference so close() can unregister from the driver's
+            // connection registry via owner_less comparison without calling shared_from_this().
+            obj->m_self = obj;
+            return obj;
+        }
 
 // DBConnection interface
 #ifdef __cpp_exceptions
@@ -222,7 +268,7 @@ namespace cpp_dbc::PostgreSQL
         bool isClosed() const override;
         void returnToPool() override;
         bool isPooled() const override;
-        std::string getURL() const override;
+        std::string getURI() const override;
         bool ping() override;
 
         // RelationalDBConnection interface
@@ -246,6 +292,9 @@ namespace cpp_dbc::PostgreSQL
         /** @brief Generate a unique name for server-side prepared statements */
         std::string generateStatementName();
 
+        std::string getServerVersion() override;
+        std::map<std::string, std::string> getServerInfo() override;
+
 #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
@@ -267,8 +316,10 @@ namespace cpp_dbc::PostgreSQL
         cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
-        cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<std::string, DBException> getURI(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(std::nothrow_t) noexcept override;
     };
 
 } // namespace cpp_dbc::PostgreSQL

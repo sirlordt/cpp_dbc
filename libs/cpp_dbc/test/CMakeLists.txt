@@ -82,6 +82,7 @@ add_executable(cpp_dbc_tests
     relational/mysql/20_011_test_mysql_real_db_config.cpp
     relational/mysql/20_021_test_mysql_real_driver.cpp
     relational/mysql/20_031_test_mysql_real.cpp
+    relational/mysql/20_035_test_mysql_real_prepared_executequery.cpp
 
     relational/mysql/20_041_test_mysql_real_connection.cpp
     relational/mysql/20_051_test_mysql_real_json.cpp

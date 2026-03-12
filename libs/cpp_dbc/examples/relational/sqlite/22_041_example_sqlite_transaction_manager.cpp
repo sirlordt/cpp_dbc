@@ -40,6 +40,7 @@
 #include <condition_variable>
 #include <queue>
 #include <functional>
+#include <random>
 
 #if USE_SQLITE
 #include <cpp_dbc/drivers/relational/driver_sqlite.hpp>
@@ -208,7 +209,7 @@ int main(int argc, char *argv[])
         // Create connection pool configuration
         logStep("Creating connection pool configuration...");
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(sqliteConfig.createConnectionString());
+        poolConfig.setUri(sqliteConfig.createConnectionString());
         poolConfig.setUsername(sqliteConfig.getUsername());
         poolConfig.setPassword(sqliteConfig.getPassword());
         poolConfig.setInitialSize(3);
@@ -266,17 +267,23 @@ int main(int argc, char *argv[])
 
             logData("Started transaction " + txnId);
 
-            // Create first task for this transaction
-            taskQueue.push(WorkflowTask(txnId, 1, [&txnManager, txnId]()
+            // Create first task for this transaction — capture i+1 as unique record ID
+            int recordId = i + 1;
+            taskQueue.push(WorkflowTask(txnId, 1, [&txnManager, txnId, recordId]()
                                         {
                 try {
+                    // Thread-local RNG for thread safety
+                    thread_local std::mt19937 rng{std::random_device{}()};
+                    std::uniform_int_distribution<int> dist(50, 149);
+
                     auto conn = txnManager.getTransactionDBConnection(txnId);
 
                     // Perform some database operations in this transaction
-                    conn->executeUpdate("INSERT INTO transaction_test (id, data) VALUES (1, 'Task 1 Data')");
+                    conn->executeUpdate("INSERT INTO transaction_test (id, data) VALUES (" +
+                        std::to_string(recordId) + ", 'Task " + std::to_string(recordId) + " Data')");
 
                     // Simulate work
-                    std::this_thread::sleep_for(std::chrono::milliseconds(50 + rand() % 100));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(dist(rng)));
                 }
                 catch (const std::exception& e) {
                     std::lock_guard<std::mutex> lock(consoleMutex);
@@ -289,18 +296,25 @@ int main(int argc, char *argv[])
         logMsg("");
         logMsg("--- Adding Update Tasks ---");
 
-        for (const auto &txnId : transactionIds)
+        for (size_t j = 0; j < transactionIds.size(); j++)
         {
-            taskQueue.push(WorkflowTask(txnId, 2, [&txnManager, txnId]()
+            const auto &txnId = transactionIds[j];
+            int recordId = static_cast<int>(j) + 1;
+            taskQueue.push(WorkflowTask(txnId, 2, [&txnManager, txnId, recordId]()
                                         {
                 try {
+                    // Thread-local RNG for thread safety
+                    thread_local std::mt19937 rng{std::random_device{}()};
+                    std::uniform_int_distribution<int> dist(50, 149);
+
                     auto conn = txnManager.getTransactionDBConnection(txnId);
 
                     // Perform more database operations in this transaction
-                    conn->executeUpdate("UPDATE transaction_test SET data = 'Task 2 Updated' WHERE id = 1");
+                    conn->executeUpdate("UPDATE transaction_test SET data = 'Task " +
+                        std::to_string(recordId) + " Updated' WHERE id = " + std::to_string(recordId));
 
                     // Simulate work
-                    std::this_thread::sleep_for(std::chrono::milliseconds(50 + rand() % 100));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(dist(rng)));
                 }
                 catch (const std::exception& e) {
                     std::lock_guard<std::mutex> lock(consoleMutex);

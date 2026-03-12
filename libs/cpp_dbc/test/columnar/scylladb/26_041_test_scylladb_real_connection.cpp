@@ -45,7 +45,7 @@ TEST_CASE("ScyllaDB connection test", "[26_041_01_scylladb_real_connection]")
     std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port);
 
     // Register the ScyllaDB driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(scylla_test_helpers::getScyllaDriver());
 
     SECTION("Test ScyllaDB connection without keyspace")
     {
@@ -64,16 +64,16 @@ TEST_CASE("ScyllaDB connection test", "[26_041_01_scylladb_real_connection]")
             REQUIRE(resultSet->next());
             REQUIRE_FALSE(resultSet->getString("release_version").empty());
 
-            // Verify connection state and URL
+            // Verify connection state and URI
             CHECK_FALSE(conn->isClosed());
 
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URL: " + conn->getURL());
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URI: " + conn->getURI());
 
-            auto url = conn->getURL();
-            REQUIRE_FALSE(url.empty());
-            REQUIRE(url.find(type) != std::string::npos);
+            auto uri = conn->getURI();
+            REQUIRE_FALSE(uri.empty());
+            REQUIRE(uri.find(type) != std::string::npos);
 
-            CHECK(conn->getURL() == connStr);
+            CHECK(conn->getURI() == connStr);
 
             // Close the connection
             conn->close();
@@ -150,6 +150,98 @@ TEST_CASE("ScyllaDB connection test", "[26_041_01_scylladb_real_connection]")
         }
     }
 }
+TEST_CASE("ScyllaDB getServerVersion and getServerInfo", "[26_041_03_scylladb_real_connection]")
+{
+    auto dbConfig = scylla_test_helpers::getScyllaConfig();
+    std::string username = dbConfig.getUsername();
+    std::string password = dbConfig.getPassword();
+    std::string connStr = dbConfig.createConnectionString();
+
+    cpp_dbc::DriverManager::registerDriver(scylla_test_helpers::getScyllaDriver());
+
+    SECTION("getServerVersion returns non-empty version string")
+    {
+        try
+        {
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+            REQUIRE(conn != nullptr);
+
+            auto version = conn->getServerVersion();
+            CHECK_FALSE(version.empty());
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "ScyllaDB server version: " + version);
+
+            conn->close();
+        }
+        catch (const cpp_dbc::DBException &ex)
+        {
+            WARN("ScyllaDB getServerVersion test skipped: " + std::string(ex.what_s()));
+        }
+    }
+
+    SECTION("getServerInfo returns map with ServerVersion key")
+    {
+        try
+        {
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+            REQUIRE(conn != nullptr);
+
+            auto info = conn->getServerInfo();
+            CHECK_FALSE(info.empty());
+            CHECK(info.count("ServerVersion") == 1);
+            CHECK_FALSE(info.at("ServerVersion").empty());
+
+            for (const auto &[key, value] : info)
+            {
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "  ScyllaDB ServerInfo [" + key + "] = " + value);
+            }
+
+            // Verify some ScyllaDB-specific keys
+            CHECK(info.count("ClusterName") == 1);
+            CHECK(info.count("DataCenter") == 1);
+
+            conn->close();
+        }
+        catch (const cpp_dbc::DBException &ex)
+        {
+            WARN("ScyllaDB getServerInfo test skipped: " + std::string(ex.what_s()));
+        }
+    }
+
+    SECTION("getServerVersion matches ServerVersion in getServerInfo")
+    {
+        try
+        {
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+            REQUIRE(conn != nullptr);
+
+            auto version = conn->getServerVersion();
+            auto info = conn->getServerInfo();
+
+            CHECK(version == info.at("ServerVersion"));
+
+            conn->close();
+        }
+        catch (const cpp_dbc::DBException &ex)
+        {
+            WARN("ScyllaDB version consistency test skipped: " + std::string(ex.what_s()));
+        }
+    }
+}
+TEST_CASE("ScyllaDB getDriverVersion", "[26_041_04_scylladb_real_connection]")
+{
+    auto driver = scylla_test_helpers::getScyllaDriver();
+
+    SECTION("getDriverVersion returns non-empty version string")
+    {
+        auto version = driver->getDriverVersion();
+        CHECK_FALSE(version.empty());
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "ScyllaDB driver version: " + version);
+    }
+}
+
 #else
 // Skip this test if ScyllaDB support is not enabled
 TEST_CASE("ScyllaDB connection test (skipped)", "[26_041_02_scylladb_real_connection]")

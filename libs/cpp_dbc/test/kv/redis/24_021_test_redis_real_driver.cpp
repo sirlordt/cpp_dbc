@@ -34,20 +34,43 @@ TEST_CASE("Redis driver tests", "[24_021_01_redis_real_driver]")
     SECTION("Redis driver URL acceptance")
     {
         // Create a Redis driver
-        cpp_dbc::Redis::RedisDBDriver driver;
+        auto driver = redis_test_helpers::getRedisDBDriver();
+        REQUIRE(driver != nullptr);
 
-        // Check that it accepts Redis URLs
-        REQUIRE(driver.acceptsURL("cpp_dbc:redis://localhost:6379/0"));
-        REQUIRE(driver.acceptsURL("cpp_dbc:redis://127.0.0.1:6379/0"));
-        REQUIRE(driver.acceptsURL("cpp_dbc:redis://db.example.com:6379/1"));
-        REQUIRE(driver.acceptsURL("cpp_dbc:redis://localhost:6379/15"));
+        // Check that it accepts Redis URIs
+        REQUIRE_NOTHROW(driver->acceptURI("cpp_dbc:redis://localhost:6379/0"));
+        REQUIRE_NOTHROW(driver->acceptURI("cpp_dbc:redis://127.0.0.1:6379/0"));
+        REQUIRE_NOTHROW(driver->acceptURI("cpp_dbc:redis://db.example.com:6379/1"));
+        REQUIRE_NOTHROW(driver->acceptURI("cpp_dbc:redis://localhost:6379/15"));
 
-        // Check that it rejects non-Redis URLs
-        REQUIRE_FALSE(driver.acceptsURL("cpp_dbc:mysql://localhost:3306/testdb"));
-        REQUIRE_FALSE(driver.acceptsURL("cpp_dbc:postgresql://localhost:5432/testdb"));
-        REQUIRE_FALSE(driver.acceptsURL("cpp_dbc:mongodb://localhost:27017/testdb"));
-        REQUIRE_FALSE(driver.acceptsURL("redis://localhost:6379/0"));
-        REQUIRE_FALSE(driver.acceptsURL("jdbc:redis://localhost:6379/0"));
+        // Check that it rejects non-Redis URIs
+        REQUIRE_THROWS_AS(driver->acceptURI("cpp_dbc:mysql://localhost:3306/testdb"), cpp_dbc::DBException);
+        REQUIRE_THROWS_AS(driver->acceptURI("cpp_dbc:postgresql://localhost:5432/testdb"), cpp_dbc::DBException);
+        REQUIRE_THROWS_AS(driver->acceptURI("cpp_dbc:mongodb://localhost:27017/testdb"), cpp_dbc::DBException);
+        REQUIRE_THROWS_AS(driver->acceptURI("redis://localhost:6379/0"), cpp_dbc::DBException);
+        REQUIRE_THROWS_AS(driver->acceptURI("jdbc:redis://localhost:6379/0"), cpp_dbc::DBException);
+    }
+
+    SECTION("Redis driver URI acceptance (nothrow)")
+    {
+        auto driver = redis_test_helpers::getRedisDBDriver();
+        REQUIRE(driver != nullptr);
+
+        // Valid Redis URIs — has_value() returns true
+        auto ok1 = driver->acceptURI(std::nothrow, "cpp_dbc:redis://localhost:6379/0");
+        REQUIRE(ok1.has_value());
+        auto ok2 = driver->acceptURI(std::nothrow, "cpp_dbc:redis://127.0.0.1:6379/0");
+        REQUIRE(ok2.has_value());
+        auto ok3 = driver->acceptURI(std::nothrow, "cpp_dbc:redis://db.example.com:6379/1");
+        REQUIRE(ok3.has_value());
+
+        // Wrong scheme — has_value() returns false with scheme mismatch error
+        auto no1 = driver->acceptURI(std::nothrow, "cpp_dbc:mysql://localhost:3306/testdb");
+        REQUIRE_FALSE(no1.has_value());
+        auto no2 = driver->acceptURI(std::nothrow, "cpp_dbc:mongodb://localhost:27017/testdb");
+        REQUIRE_FALSE(no2.has_value());
+        auto no3 = driver->acceptURI(std::nothrow, "redis://localhost:6379/0");
+        REQUIRE_FALSE(no3.has_value());
     }
 
     SECTION("Redis driver connection with config credentials")
@@ -67,8 +90,9 @@ TEST_CASE("Redis driver tests", "[24_021_01_redis_real_driver]")
         std::string password = dbConfig.getPassword();
 
         // Create a Redis driver and connect
-        cpp_dbc::Redis::RedisDBDriver driver;
-        auto conn = driver.connectKV(connStr, username, password);
+        auto driver = redis_test_helpers::getRedisDBDriver();
+        REQUIRE(driver != nullptr);
+        auto conn = driver->connectKV(connStr, username, password);
 
         // Verify connection is valid
         REQUIRE(conn != nullptr);
@@ -82,38 +106,40 @@ TEST_CASE("Redis driver tests", "[24_021_01_redis_real_driver]")
 
     SECTION("Redis driver rejects invalid URL format")
     {
-        cpp_dbc::Redis::RedisDBDriver driver;
+        auto driver = redis_test_helpers::getRedisDBDriver();
+        REQUIRE(driver != nullptr);
 
         // Invalid URL format should throw
         REQUIRE_THROWS_AS(
-            driver.connectKV("invalid://localhost:6379/0", "", ""),
+            driver->connectKV("invalid://localhost:6379/0", "", ""),
             cpp_dbc::DBException);
     }
 
     SECTION("Redis driver parseURI - valid URIs")
     {
-        cpp_dbc::Redis::RedisDBDriver driver;
+        auto driver = redis_test_helpers::getRedisDBDriver();
+        REQUIRE(driver != nullptr);
 
         // Full URI with host, port, and db index
-        auto params = driver.parseURI("cpp_dbc:redis://localhost:6379/0");
+        auto params = driver->parseURI("cpp_dbc:redis://localhost:6379/0");
         REQUIRE(params.at("host") == "localhost");
         REQUIRE(params.at("port") == "6379");
         REQUIRE(params.at("db") == "0");
 
         // URI with custom port and db index
-        params = driver.parseURI("cpp_dbc:redis://myhost:6380/5");
+        params = driver->parseURI("cpp_dbc:redis://myhost:6380/5");
         REQUIRE(params.at("host") == "myhost");
         REQUIRE(params.at("port") == "6380");
         REQUIRE(params.at("db") == "5");
 
         // URI without db index (should default to 0)
-        params = driver.parseURI("cpp_dbc:redis://localhost:6379");
+        params = driver->parseURI("cpp_dbc:redis://localhost:6379");
         REQUIRE(params.at("host") == "localhost");
         REQUIRE(params.at("port") == "6379");
         REQUIRE(params.at("db") == "0");
 
         // URI with IPv6 address
-        params = driver.parseURI("cpp_dbc:redis://[::1]:6379/0");
+        params = driver->parseURI("cpp_dbc:redis://[::1]:6379/0");
         REQUIRE(params.at("host") == "::1");
         REQUIRE(params.at("port") == "6379");
         REQUIRE(params.at("db") == "0");
@@ -121,11 +147,12 @@ TEST_CASE("Redis driver tests", "[24_021_01_redis_real_driver]")
 
     SECTION("Redis driver parseURI - invalid URIs")
     {
-        cpp_dbc::Redis::RedisDBDriver driver;
+        auto driver = redis_test_helpers::getRedisDBDriver();
+        REQUIRE(driver != nullptr);
 
         // Completely invalid URI
         REQUIRE_THROWS_AS(
-            driver.parseURI("not_a_valid_uri"),
+            driver->parseURI("not_a_valid_uri"),
             cpp_dbc::DBException);
     }
 }

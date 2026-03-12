@@ -13,11 +13,11 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file 22_021_example_sqlite_connection_info.cpp
- * @brief SQLite-specific example demonstrating connection URL information
+ * @brief SQLite-specific example demonstrating connection URI information
  *
  * This example demonstrates:
  * - Loading configuration from YAML file
- * - SQLite connection URL information
+ * - SQLite connection URI information
  * - In-memory database connection
  *
  * Usage:
@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
     try
     {
         logMsg("");
-        logMsg("--- SQLite Connection URL (from config) ---");
+        logMsg("--- SQLite Connection URI (from config) ---");
 
         logStep("Getting SQLite configuration...");
         auto sqliteResult = getDbConfig(configManager, args.dbName, "sqlite");
@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
             auto sqliteConn = sqliteConfig.createDBConnection();
             logOk("Connected");
 
-            logData("SQLite Connection URL: " + sqliteConn->getURL());
+            logData("SQLite Connection URI: " + sqliteConn->getURI());
 
             logStep("Closing connection...");
             sqliteConn->close();
@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
             "", "");
         logOk("Connected to in-memory database");
 
-        logData("SQLite In-Memory Connection URL: " + sqliteMemConn->getURL());
+        logData("SQLite In-Memory Connection URI: " + sqliteMemConn->getURI());
 
         logStep("Closing connection...");
         sqliteMemConn->close();

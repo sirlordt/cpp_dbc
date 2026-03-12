@@ -20,17 +20,26 @@
 - **MySQL Client Library**: For MySQL database connectivity
   - Uses the C API (`mysql.h`)
   - Requires libmysqlclient development package
-  - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory, double-checked locking for driver init, `-fno-exceptions` compatible
+  - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory (`PrivateCtorTag` pattern for `make_shared`), double-checked locking for driver init, `-fno-exceptions` compatible
+  - `MySQLDBConnection`: result set registry (`m_activeResultSets`) with two-phase close for pool lifecycle safety; `m_resetting` anti-deadlock flag; `getMySQLNativeHandle()`/`getConnectionMutex()` for child access
+  - `MySQLDBPreparedStatement`/`MySQLDBResultSet`: hold `weak_ptr<MySQLDBConnection>` (not `weak_ptr<MYSQL>`), access native handle and mutex through connection; private nothrow constructors with `m_initFailed`/`m_initError` error deferral
+  - `MySQLConnectionLock` RAII helper in `mysql_internal.hpp` for consistent lock-or-return pattern
+  - `MySQLBlob`/`MySQLInputStream` upgraded to PrivateCtorTag pattern with `m_initFailed`/`m_initError` and `#ifdef __cpp_exceptions` guards (2026-03-07)
+  - `getDriverVersion()` via `mysql_get_client_info()`; `getServerVersion()` via `mysql_get_server_info()`; `getServerInfo()` returns ServerVersion, HostInfo, ProtocolVersion, CharacterSet, ThreadId, ServerStatus (2026-03-08)
+  - SQL injection prevention: `validateIdentifier()` in `MySQLBlob` validates table/column names (2026-03-08)
+  - `std::stoi` → `std::from_chars` for nothrow timeout parsing; `memset` → aggregate init; index loop → `std::span` range (2026-03-08)
 
 - **PostgreSQL Client Library**: For PostgreSQL database connectivity
   - Uses the C API (`libpq-fe.h`)
   - Requires libpq development package
   - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory, double-checked locking for driver init, `-fno-exceptions` compatible
+  - `getDriverVersion()` via `PQlibVersion()`; `getServerVersion()` via `PQserverVersion()`; `getServerInfo()` returns ServerVersion, ProtocolVersion, ServerEncoding, ClientEncoding, TimeZone (2026-03-08)
 
 - **SQLite Library**: For SQLite database connectivity
   - Uses the C API (`sqlite3.h`)
   - Requires libsqlite3 development package
   - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory, double-checked locking for driver init, `-fno-exceptions` compatible
+  - `getDriverVersion()` via `sqlite3_libversion()`; `getServerInfo()` returns ServerVersion, ServerVersionNumeric, SourceId, ThreadSafe (2026-03-08)
 
 - **Firebird Client Library**: For Firebird SQL database connectivity
   - Uses the C API (`ibase.h`)
@@ -41,6 +50,7 @@
   - Database creation support via `createDatabase()` method
   - Driver-specific commands via `command()` method
   - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory `FirebirdDBConnection::create(std::nothrow_t)`, double-checked locking for driver init, `-fno-exceptions` compatible
+  - `getDriverVersion()` via `FB_API_VER`; `getServerVersion()` via `RDB$GET_CONTEXT('SYSTEM', 'ENGINE_VERSION')`; `getServerInfo()` returns ServerVersion, ODSMajorVersion, ODSMinorVersion, PageSize, SQLDialect (2026-03-08)
 
 - **MongoDB C++ Driver**: For MongoDB document database connectivity
   - Uses the MongoDB C driver API (`mongoc.h`, `bson.h`) via RAII handle wrappers
@@ -57,6 +67,7 @@
   - `-fno-exceptions` compatible: all abstract interfaces guard throwing methods with `#ifdef __cpp_exceptions`
   - Driver initialization: double-checked locking with `std::atomic<bool>` + `std::mutex` (replaces `std::once_flag`)
   - ID caching in `MongoDBDocument`: avoids repeated BSON traversal for `_id` field
+  - `getDriverVersion()` via `mongoc_get_version()`; `getServerVersion()` from buildInfo; `getServerInfo()` returns ServerVersion, GitVersion, Allocator, JavascriptEngine, Bits, MaxBsonObjectSize; `getServerInfoAsDocument()` replaces old `getServerInfo()` (2026-03-08)
 
 - **Cassandra/ScyllaDB Client Library**: For ScyllaDB columnar database connectivity
   - Uses the DataStax C++ driver for Apache Cassandra API (`cassandra.h`)
@@ -81,6 +92,7 @@
   - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory `ScyllaDBConnection::create(std::nothrow_t)`, double-checked locking for driver init
   - `-fno-exceptions` compatible: all abstract interfaces guard throwing methods; nothrow API always compiles
   - Build system: `USE_SCYLLADB` option (renamed from `USE_SCYLLA`)
+  - `getDriverVersion()` via Cassandra CPP driver version; `getServerVersion()` queries `system.local`; `getServerInfo()` returns ServerVersion, ClusterName, DataCenter, Rack, Partitioner, CQLVersion (2026-03-08)
 
 - **Redis Client Library**: For Redis key-value database connectivity
   - Uses the Hiredis C library API (`hiredis/hiredis.h`)
@@ -96,7 +108,8 @@
   - Sorted set operations with score handling
   - Counter operations: increment, decrement
   - Scan operations for pattern-based key discovery
-  - Server operations: `ping()` returns `bool` (true = server alive), `getServerInfo()`, `flushDB()`
+  - Server operations: `ping()` returns `bool` (true = server alive), `getServerInfo()` (std::map with `"ServerVersion"` key), `flushDB()`
+  - `getDriverVersion()` returns hiredis version; `getServerVersion()` extracts `redis_version` from INFO (2026-03-08)
   - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory `RedisDBConnection::create(std::nothrow_t)`, double-checked locking for driver init
   - `-fno-exceptions` compatible: all abstract interfaces guard throwing methods; nothrow API always compiles
 
@@ -158,7 +171,8 @@ The project uses:
   - `libs/cpp_dbc/docs/how_add_new_db_drivers.md`: Comprehensive guide for adding new database drivers (5 phases)
   - `libs/cpp_dbc/docs/error_handling_patterns.md`: Complete guide to DBException, error codes, and nothrow API
   - `libs/cpp_dbc/docs/shell_script_dependencies.md`: Shell script call hierarchy and dependencies
-  - `.claude/rules/cpp_dbc_conventions.md`: Project conventions including new driver guidelines
+  - `.claude/rules/cpp_dbc_conventions.md`: Project conventions — expanded with 8 new sections (preprocessor directives, Allman braces, NOSONAR, bug-fix comments, unused params, private access specifier, PrivateCtorTag, migration rule) (2026-03-07)
+  - `.claude/rules/cpp_dbc_conventions_violations_how_report_them.md`: Structured format for convention compliance analysis reports (2026-03-07)
 - Conditional compilation options:
   - `--yaml`: Enable YAML configuration support
   - `--examples`: Build example applications
@@ -287,9 +301,9 @@ The project now includes an automatic synchronization system for IntelliSense:
   - Added `isPoolValid()` helper method to check if pool is still alive
   - Pool sets `m_poolAlive` to `false` in `close()` before cleanup
   - Prevents use-after-free when pool is destroyed while connections are in use
-  - ConstructorTag pattern (PassKey idiom) enables `std::make_shared` while enforcing factory pattern:
+  - PrivateCtorTag pattern (PassKey idiom) enables `std::make_shared` while enforcing factory pattern:
     - Single memory allocation instead of separate allocations with `new`
-    - Protected `ConstructorTag` struct acts as access token for constructors
+    - Private `PrivateCtorTag` struct acts as access token for constructors
   - Race condition prevention in connection return flow:
     - `m_closed` flag reset BEFORE `returnConnection()` to prevent race window
 - Relies on RAII for proper cleanup even in case of exceptions

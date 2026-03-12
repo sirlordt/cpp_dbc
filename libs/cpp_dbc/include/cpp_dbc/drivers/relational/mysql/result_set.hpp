@@ -9,16 +9,20 @@
 
 #if USE_MYSQL
 
+#include <atomic>
 #include <cstdint>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <new>
+#include <optional>
 #include <string>
 #include <vector>
 
 namespace cpp_dbc::MySQL
 {
+    class MySQLDBConnection; // Forward declaration
+
     /**
      * @brief MySQL ResultSet implementation using the "Store Result" model
      *
@@ -83,7 +87,20 @@ namespace cpp_dbc::MySQL
      */
     class MySQLDBResultSet final : public RelationalDBResultSet
     {
-    private:
+        friend class MySQLDBConnection;
+
+        /**
+         * @brief Private tag for the passkey idiom — enables std::make_shared
+         * from static factory methods while keeping the constructor
+         * effectively private (external code cannot construct PrivateCtorTag).
+         */
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
+        // ── Member variables ──────────────────────────────────────────────────
+
         /**
          * @brief Smart pointer for MYSQL_RES - automatically calls mysql_free_result
          *
@@ -124,6 +141,31 @@ namespace cpp_dbc::MySQL
         size_t m_fieldCount{0};
         std::vector<std::string> m_columnNames;
         std::map<std::string, size_t> m_columnMap;
+        std::atomic<bool> m_closed{true};
+
+        /**
+         * @brief Weak reference to the parent connection for registration/unregistration
+         *
+         * @note This reference is used ONLY for lifecycle management (unregister on close).
+         * MySQL ResultSet operations do NOT communicate with the connection — all data
+         * is in client memory (MYSQL_RES*). The connection reference does NOT affect
+         * the mutex model: this ResultSet keeps its own independent m_mutex.
+         */
+        std::weak_ptr<MySQLDBConnection> m_connection;
+
+        /**
+         * @brief Materialized mode — true when row data was pre-fetched from a
+         * MYSQL_STMT (prepared statement executeQuery) instead of a MYSQL_RES*.
+         *
+         * In materialized mode m_result is nullptr. Row data lives in
+         * m_materializedRows. next() points m_currentRow at m_currentRowPtrs
+         * so that all existing getters work unchanged. Binary getters use
+         * m_currentLengths instead of mysql_fetch_lengths().
+         */
+        bool m_materialized{false};
+        std::vector<std::vector<std::optional<std::string>>> m_materializedRows;
+        std::vector<char *> m_currentRowPtrs;
+        std::vector<unsigned long> m_currentLengths;
 
 #if DB_DRIVER_THREAD_SAFE
         /**
@@ -155,6 +197,26 @@ namespace cpp_dbc::MySQL
 #endif
 
         /**
+         * @brief Flag indicating constructor initialization failed
+         *
+         * Set by the private nothrow constructor when column metadata initialization fails.
+         * Inspected by create(nothrow_t) to propagate the error via expected.
+         */
+        bool m_initFailed{false};
+
+        /**
+         * @brief Error captured when constructor initialization fails
+         *
+         * Holds the DBException that would have been thrown, for deferred delivery.
+         */
+        std::unique_ptr<DBException> m_initError{nullptr};
+
+        // ── Private helper methods ────────────────────────────────────────────
+
+        // Internal method called by connection when closing — marks this ResultSet as closed
+        cpp_dbc::expected<void, DBException> notifyConnClosing(std::nothrow_t) noexcept;
+
+        /**
          * @brief Validates that the result set is still valid (not closed)
          * @return unexpected(DBException) if m_result is nullptr
          */
@@ -167,38 +229,51 @@ namespace cpp_dbc::MySQL
         cpp_dbc::expected<void, DBException> validateCurrentRow(std::nothrow_t) const noexcept;
 
     public:
-        explicit MySQLDBResultSet(MYSQL_RES *res);
+        // ── PrivateCtorTag constructor ────────────────────────────────────────
+        /**
+         * @brief Nothrow constructor — contains all initialization logic.
+         *
+         * Initializes column metadata from MYSQL_RES. On failure, sets
+         * m_initFailed and m_initError instead of throwing.
+         * Public for std::make_shared access, but effectively private:
+         * external code cannot construct PrivateCtorTag.
+         */
+        MySQLDBResultSet(PrivateCtorTag,
+                         std::nothrow_t,
+                         MYSQL_RES *res,
+                         std::shared_ptr<MySQLDBConnection> conn) noexcept;
+
+        /**
+         * @brief Materialized-mode constructor — takes pre-fetched rows from a
+         * prepared statement executeQuery() instead of a MYSQL_RES*.
+         *
+         * In this mode m_result is nullptr and all data lives in
+         * m_materializedRows. next() populates m_currentRowPtrs and sets
+         * m_currentRow so that existing getters work unchanged.
+         */
+        MySQLDBResultSet(PrivateCtorTag,
+                         std::nothrow_t,
+                         std::vector<std::string> columnNames,
+                         std::vector<std::vector<std::optional<std::string>>> rows,
+                         std::shared_ptr<MySQLDBConnection> conn) noexcept;
+
+        // ── Destructor ────────────────────────────────────────────────────────
         ~MySQLDBResultSet() override;
 
+        // ── Deleted copy/move — non-copyable, non-movable ─────────────────────
         MySQLDBResultSet(const MySQLDBResultSet &) = delete;
         MySQLDBResultSet &operator=(const MySQLDBResultSet &) = delete;
         MySQLDBResultSet(MySQLDBResultSet &&) = delete;
         MySQLDBResultSet &operator=(MySQLDBResultSet &&) = delete;
 
-        static cpp_dbc::expected<std::shared_ptr<MySQLDBResultSet>, DBException>
-        create(std::nothrow_t, MYSQL_RES *res) noexcept
-        {
-            try
-            {
-                return std::make_shared<MySQLDBResultSet>(res);
-            }
-            catch (const DBException &ex)
-            {
-                return cpp_dbc::unexpected(ex);
-            }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("7P0XOLEF6UAN", ex.what(), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("LQB26FSO1V1W", "Unknown error creating MySQLDBResultSet", system_utils::captureCallStack()));
-            }
-        }
+        // ====================================================================
+        // THROWING API — requires exception support
+        // ====================================================================
 
-        static std::shared_ptr<MySQLDBResultSet> create(MYSQL_RES *res)
+#ifdef __cpp_exceptions
+        static std::shared_ptr<MySQLDBResultSet> create(MYSQL_RES *res, std::shared_ptr<MySQLDBConnection> conn)
         {
-            auto r = create(std::nothrow, res);
+            auto r = create(std::nothrow, res, std::move(conn));
             if (!r.has_value())
             {
                 throw r.error();
@@ -206,8 +281,19 @@ namespace cpp_dbc::MySQL
             return r.value();
         }
 
-// DBResultSet interface
-#ifdef __cpp_exceptions
+        static std::shared_ptr<MySQLDBResultSet> create(
+            std::vector<std::string> columnNames,
+            std::vector<std::vector<std::optional<std::string>>> rows,
+            std::shared_ptr<MySQLDBConnection> conn)
+        {
+            auto r = create(std::nothrow, std::move(columnNames), std::move(rows), std::move(conn));
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
+            return r.value();
+        }
+
         void close() override;
         bool isEmpty() override;
 
@@ -258,42 +344,75 @@ namespace cpp_dbc::MySQL
         std::vector<uint8_t> getBytes(const std::string &columnName) override;
 
 #endif // __cpp_exceptions
-       // ====================================================================
-       // NOTHROW VERSIONS - Exception-free API
-       // ====================================================================
 
-        cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<bool, DBException> isEmpty(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<bool, DBException> next(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<bool, DBException> isBeforeFirst(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<bool, DBException> isAfterLast(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<uint64_t, DBException> getRow(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, const std::string &columnName) noexcept override;
-        cpp_dbc::expected<int64_t, DBException> getLong(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<int64_t, DBException> getLong(std::nothrow_t, const std::string &columnName) noexcept override;
-        cpp_dbc::expected<double, DBException> getDouble(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<double, DBException> getDouble(std::nothrow_t, const std::string &columnName) noexcept override;
-        cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, const std::string &columnName) noexcept override;
-        cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, const std::string &columnName) noexcept override;
-        cpp_dbc::expected<bool, DBException> isNull(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<bool, DBException> isNull(std::nothrow_t, const std::string &columnName) noexcept override;
-        cpp_dbc::expected<std::string, DBException> getDate(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<std::string, DBException> getDate(std::nothrow_t, const std::string &columnName) noexcept override;
-        cpp_dbc::expected<std::string, DBException> getTimestamp(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<std::string, DBException> getTimestamp(std::nothrow_t, const std::string &columnName) noexcept override;
-        cpp_dbc::expected<std::string, DBException> getTime(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<std::string, DBException> getTime(std::nothrow_t, const std::string &columnName) noexcept override;
-        cpp_dbc::expected<std::vector<std::string>, DBException> getColumnNames(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<size_t, DBException> getColumnCount(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<std::shared_ptr<Blob>, DBException> getBlob(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<std::shared_ptr<Blob>, DBException> getBlob(std::nothrow_t, const std::string &columnName) noexcept override;
-        cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> getBinaryStream(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> getBinaryStream(std::nothrow_t, const std::string &columnName) noexcept override;
-        cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, const std::string &columnName) noexcept override;
+        // ====================================================================
+        // NOTHROW API — exception-free, always available
+        // ====================================================================
+
+        static cpp_dbc::expected<std::shared_ptr<MySQLDBResultSet>, DBException>
+        create(std::nothrow_t, MYSQL_RES *res, std::shared_ptr<MySQLDBConnection> conn) noexcept
+        {
+            // No try/catch: std::make_shared can only throw std::bad_alloc, which is a
+            // death-sentence exception — the heap is exhausted and no meaningful recovery
+            // is possible. Catching it would hide a catastrophic failure as a silent error
+            // return. Letting std::terminate fire is safer and more debuggable.
+            auto obj = std::make_shared<MySQLDBResultSet>(
+                PrivateCtorTag{}, std::nothrow, res, std::move(conn));
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            return obj;
+        }
+
+        static cpp_dbc::expected<std::shared_ptr<MySQLDBResultSet>, DBException>
+        create(std::nothrow_t,
+               std::vector<std::string> columnNames,
+               std::vector<std::vector<std::optional<std::string>>> rows,
+               std::shared_ptr<MySQLDBConnection> conn) noexcept
+        {
+            auto obj = std::make_shared<MySQLDBResultSet>(
+                PrivateCtorTag{}, std::nothrow,
+                std::move(columnNames), std::move(rows), std::move(conn));
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            return obj;
+        }
+
+        [[nodiscard]] cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<bool, DBException> isEmpty(std::nothrow_t) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<bool, DBException> next(std::nothrow_t) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<bool, DBException> isBeforeFirst(std::nothrow_t) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<bool, DBException> isAfterLast(std::nothrow_t) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<uint64_t, DBException> getRow(std::nothrow_t) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, const std::string &columnName) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<int64_t, DBException> getLong(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<int64_t, DBException> getLong(std::nothrow_t, const std::string &columnName) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<double, DBException> getDouble(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<double, DBException> getDouble(std::nothrow_t, const std::string &columnName) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, const std::string &columnName) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, const std::string &columnName) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<bool, DBException> isNull(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<bool, DBException> isNull(std::nothrow_t, const std::string &columnName) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::string, DBException> getDate(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::string, DBException> getDate(std::nothrow_t, const std::string &columnName) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::string, DBException> getTimestamp(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::string, DBException> getTimestamp(std::nothrow_t, const std::string &columnName) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::string, DBException> getTime(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::string, DBException> getTime(std::nothrow_t, const std::string &columnName) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::vector<std::string>, DBException> getColumnNames(std::nothrow_t) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<size_t, DBException> getColumnCount(std::nothrow_t) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::shared_ptr<Blob>, DBException> getBlob(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::shared_ptr<Blob>, DBException> getBlob(std::nothrow_t, const std::string &columnName) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> getBinaryStream(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> getBinaryStream(std::nothrow_t, const std::string &columnName) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, const std::string &columnName) noexcept override;
     };
 
 } // namespace cpp_dbc::MySQL

@@ -27,6 +27,7 @@
 #include <ranges>
 #include <sstream>
 #include <stdexcept>
+#include "cpp_dbc/common/system_constants.hpp"
 #include "cpp_dbc/common/system_utils.hpp"
 #include "mongodb_internal.hpp"
 
@@ -67,22 +68,33 @@ namespace cpp_dbc::MongoDB
                                          const std::string &user,
                                          const std::string &password,
                                          const std::map<std::string, std::string> &options)
-        : m_url(uri)
+        : m_uri(uri)
     {
         MONGODB_DEBUG("MongoDBConnection::constructor(nothrow) - Connecting to: " << uri);
-        // Build the connection URI with credentials if provided
+        // Strip cpp_dbc: prefix — mongoc expects native mongodb:// URIs
         std::string connectionUri = uri;
+        if (connectionUri.starts_with(system_constants::URI_PREFIX))
+        {
+            connectionUri = connectionUri.substr(system_constants::URI_PREFIX.size());
+        }
 
         // If user/password provided and not in URI, add them
-        if (!user.empty() && !uri.contains("@"))
+        // 2026-03-08T20:00:00Z
+        // Bug: Credential injection used the original `uri` (which may contain the
+        // "cpp_dbc:" prefix) instead of the already-stripped `connectionUri`,
+        // reintroducing the prefix and breaking mongoc_uri_new_with_error().
+        // Solution: Operate on `connectionUri` throughout so the stripped URI is preserved.
+        if (!user.empty() && !connectionUri.contains("@"))
         {
             // Parse the URI to insert credentials
-            size_t schemeEnd = uri.find("://");
+            size_t schemeEnd = connectionUri.find("://");
             if (schemeEnd != std::string::npos)
             {
-                std::string scheme = uri.substr(0, schemeEnd + 3);
-                std::string rest = uri.substr(schemeEnd + 3);
-                connectionUri = scheme + user + ":" + password + "@" + rest;
+                std::string scheme = connectionUri.substr(0, schemeEnd + 3);
+                std::string rest = connectionUri.substr(schemeEnd + 3);
+                connectionUri = scheme +
+                                system_utils::percentEncodeURIComponent(user) + ":" +
+                                system_utils::percentEncodeURIComponent(password) + "@" + rest;
             }
         }
 
@@ -108,7 +120,7 @@ namespace cpp_dbc::MongoDB
         if (!mongoUri)
         {
             m_initFailed = true;
-            m_initError = DBException("J4K5L6M7N8O9", std::string("Invalid MongoDB URI: ") + error.message, system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("J4K5L6M7N8O9", std::string("Invalid MongoDB URI: ") + error.message, system_utils::captureCallStack());
             return;
         }
 
@@ -124,7 +136,7 @@ namespace cpp_dbc::MongoDB
         if (!rawClient)
         {
             m_initFailed = true;
-            m_initError = DBException("K5L6M7N8O9P0", "Failed to create MongoDB client", system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("K5L6M7N8O9P0", "Failed to create MongoDB client", system_utils::captureCallStack());
             return;
         }
 
@@ -153,11 +165,12 @@ namespace cpp_dbc::MongoDB
         {
             m_client.reset();
             m_initFailed = true;
-            m_initError = DBException("L6M7N8O9P0Q1", std::string("Failed to connect to MongoDB: ") + error.message, system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("L6M7N8O9P0Q1", std::string("Failed to connect to MongoDB: ") + error.message, system_utils::captureCallStack());
             return;
         }
 
         m_closed.store(false, std::memory_order_release);
+
         MONGODB_DEBUG("MongoDBConnection::constructor(nothrow) - Connected successfully");
     }
 
@@ -172,7 +185,7 @@ namespace cpp_dbc::MongoDB
         MONGODB_DEBUG("MongoDBConnection::destructor - Done");
     }
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     // ============================================================================
     // MongoDBConnection Implementation - DBConnection Interface
     // ============================================================================
@@ -205,9 +218,9 @@ namespace cpp_dbc::MongoDB
         return m_pooled;
     }
 
-    std::string MongoDBConnection::getURL() const
+    std::string MongoDBConnection::getURI() const
     {
-        return m_url;
+        return m_uri;
     }
 
     void MongoDBConnection::reset()
@@ -270,7 +283,7 @@ namespace cpp_dbc::MongoDB
             throw result.error();
         }
     }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
     // ============================================================================
     // MongoDBConnection Implementation - Collection Registration (Public)
@@ -281,7 +294,8 @@ namespace cpp_dbc::MongoDB
         MONGODB_LOCK_GUARD(*m_connMutex);
         if (m_activeCollections.size() > 50)
         {
-            std::erase_if(m_activeCollections, [](const auto &w) { return w.expired(); });
+            std::erase_if(m_activeCollections, [](const auto &w)
+                          { return w.expired(); });
         }
         m_activeCollections.insert(std::move(collection));
         MONGODB_DEBUG("MongoDBConnection::registerCollection - Registered collection, total: " << m_activeCollections.size());
@@ -303,7 +317,8 @@ namespace cpp_dbc::MongoDB
         MONGODB_LOCK_GUARD(*m_connMutex);
         if (m_activeCursors.size() > 50)
         {
-            std::erase_if(m_activeCursors, [](const auto &w) { return w.expired(); });
+            std::erase_if(m_activeCursors, [](const auto &w)
+                          { return w.expired(); });
         }
         m_activeCursors.insert(std::move(cursor));
         MONGODB_DEBUG("MongoDBConnection::registerCursor - Registered cursor, total: " << m_activeCursors.size());

@@ -26,6 +26,7 @@
 #include <cstring>
 #include <sstream>
 #include <iostream>
+#include <span>
 #include <thread>
 #include <chrono>
 #include "cpp_dbc/common/system_utils.hpp"
@@ -40,6 +41,16 @@ namespace cpp_dbc::MySQL
     {
         // Note: This is called from other methods that already hold the lock,
         // so we don't acquire the lock here.
+        if (m_materialized)
+        {
+            // In materialized mode, m_result is nullptr by design.
+            // The ResultSet is valid as long as it has not been closed.
+            if (m_closed.load(std::memory_order_acquire))
+            {
+                return cpp_dbc::unexpected(DBException("LXRZWNZ6SGFE", "ResultSet has been closed", system_utils::captureCallStack()));
+            }
+            return {};
+        }
         if (!m_result)
         {
             return cpp_dbc::unexpected(DBException("RUZI7TWB4Y3G", "ResultSet has been closed or is invalid", system_utils::captureCallStack()));
@@ -63,7 +74,16 @@ namespace cpp_dbc::MySQL
         return {};
     }
 
-    MySQLDBResultSet::MySQLDBResultSet(MYSQL_RES *res) : m_result(res)
+    cpp_dbc::expected<void, DBException> MySQLDBResultSet::notifyConnClosing(std::nothrow_t) noexcept
+    {
+        m_closed.store(true, std::memory_order_release);
+        return {};
+    }
+
+    // ── PrivateCtorTag Constructor ──────────────────────────────────────────
+
+    MySQLDBResultSet::MySQLDBResultSet(PrivateCtorTag, std::nothrow_t, MYSQL_RES *res, std::shared_ptr<MySQLDBConnection> conn) noexcept
+        : m_result(res), m_connection(conn)
     {
         if (m_result)
         {
@@ -72,11 +92,12 @@ namespace cpp_dbc::MySQL
 
             // Store column names and create column name to index mapping
             const MYSQL_FIELD *fields = mysql_fetch_fields(m_result.get());
-            for (size_t i = 0; i < m_fieldCount; i++)
+            size_t idx = 0;
+            for (const auto &field : std::span(fields, m_fieldCount))
             {
-                std::string name = fields[i].name;
+                std::string name = field.name;
                 m_columnNames.push_back(name);
-                m_columnMap[name] = i;
+                m_columnMap[name] = idx++;
             }
         }
         else
@@ -84,6 +105,32 @@ namespace cpp_dbc::MySQL
             m_rowCount = 0;
             m_fieldCount = 0;
         }
+
+        m_closed.store(false, std::memory_order_release);
+    }
+
+    // ── Materialized-mode Constructor ──────────────────────────────────────
+    MySQLDBResultSet::MySQLDBResultSet(PrivateCtorTag,
+                                       std::nothrow_t,
+                                       std::vector<std::string> columnNames,
+                                       std::vector<std::vector<std::optional<std::string>>> rows,
+                                       std::shared_ptr<MySQLDBConnection> conn) noexcept
+        : m_connection(conn), m_materialized(true),
+          m_materializedRows(std::move(rows))
+    {
+        m_columnNames = std::move(columnNames);
+        m_fieldCount = m_columnNames.size();
+        m_rowCount = m_materializedRows.size();
+
+        size_t idx = 0;
+        for (const auto &name : m_columnNames)
+        {
+            m_columnMap[name] = idx++;
+        }
+
+        m_currentRowPtrs.resize(m_fieldCount, nullptr);
+        m_currentLengths.resize(m_fieldCount, 0);
+        m_closed.store(false, std::memory_order_release);
     }
 
     MySQLDBResultSet::~MySQLDBResultSet()
@@ -91,11 +138,11 @@ namespace cpp_dbc::MySQL
         auto closeResult = MySQLDBResultSet::close(std::nothrow);
         if (!closeResult.has_value())
         {
-            MYSQL_DEBUG("MySQLDBResultSet::destructor - close() failed: " << closeResult.error().what_s());
+            MYSQL_DEBUG("MySQLDBResultSet::destructor - close() failed: %s", closeResult.error().what_s().data());
         }
     }
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     void MySQLDBResultSet::close()
     {
         auto result = close(std::nothrow);
@@ -415,7 +462,7 @@ namespace cpp_dbc::MySQL
         }
         return *result;
     }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::MySQL
 

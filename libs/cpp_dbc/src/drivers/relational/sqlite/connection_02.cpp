@@ -501,6 +501,11 @@ namespace cpp_dbc::SQLite
                 m_db.reset();
                 m_closed = true;
 
+                // Unregister from the driver registry so getConnectionAlive() reflects
+                // actual live connections. The owner_less m_self weak_ptr is used for
+                // set lookup — raw 'this' would not match the set's comparator.
+                SQLiteDBDriver::unregisterConnection(std::nothrow, m_self);
+
                 // Sleep for 10ms to avoid problems with concurrency and memory stability
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
@@ -511,6 +516,7 @@ namespace cpp_dbc::SQLite
             // Ensure cleanup even on error
             m_db.reset();
             m_closed = true;
+            SQLiteDBDriver::unregisterConnection(std::nothrow, m_self);
             return cpp_dbc::unexpected(ex);
         }
         catch (const std::exception &ex)
@@ -518,6 +524,7 @@ namespace cpp_dbc::SQLite
             SQLITE_DEBUG("Exception during SQLite close: %s", ex.what());
             m_db.reset();
             m_closed = true;
+            SQLiteDBDriver::unregisterConnection(std::nothrow, m_self);
             return cpp_dbc::unexpected(DBException("GRFPVO09UYNU",
                                                    std::string("close failed: ") + ex.what(),
                                                    system_utils::captureCallStack()));
@@ -526,6 +533,7 @@ namespace cpp_dbc::SQLite
         {
             m_db.reset();
             m_closed = true;
+            SQLiteDBDriver::unregisterConnection(std::nothrow, m_self);
             return cpp_dbc::unexpected(DBException("FHR9J06XNVWS",
                                                    "close failed with unknown error",
                                                    system_utils::captureCallStack()));
@@ -576,9 +584,12 @@ namespace cpp_dbc::SQLite
         return false;
     }
 
-    cpp_dbc::expected<std::string, DBException> SQLiteDBConnection::getURL(std::nothrow_t) const noexcept
+    // No try/catch: the only possible throw is std::bad_alloc from the
+    // std::string copy, which is a death-sentence exception — no meaningful
+    // recovery is possible, so std::terminate is the correct response.
+    cpp_dbc::expected<std::string, DBException> SQLiteDBConnection::getURI(std::nothrow_t) const noexcept
     {
-        return m_url;
+        return m_uri;
     }
 
     cpp_dbc::expected<void, DBException> SQLiteDBConnection::prepareForPoolReturn(
@@ -616,6 +627,23 @@ namespace cpp_dbc::SQLite
     {
         // No-op for SQLite: no MVCC snapshot refresh needed
         return {};
+    }
+
+    cpp_dbc::expected<std::string, DBException> SQLiteDBConnection::getServerVersion(std::nothrow_t) noexcept
+    {
+        return std::string(sqlite3_libversion());
+    }
+
+    cpp_dbc::expected<std::map<std::string, std::string>, DBException> SQLiteDBConnection::getServerInfo(std::nothrow_t) noexcept
+    {
+        std::map<std::string, std::string> info;
+
+        info["ServerVersion"] = sqlite3_libversion();
+        info["ServerVersionNumeric"] = std::to_string(sqlite3_libversion_number());
+        info["SourceId"] = sqlite3_sourceid();
+        info["ThreadSafe"] = std::to_string(sqlite3_threadsafe());
+
+        return info;
     }
 
 } // namespace cpp_dbc::SQLite

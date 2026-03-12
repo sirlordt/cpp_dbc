@@ -59,8 +59,9 @@ TEST_CASE("MySQL TransactionContext tests", "[20_131_01_mysql_real_transaction_m
     std::string connStr = dbConfig.createConnectionString();
 
     // Create a real MySQL connection
-    cpp_dbc::MySQL::MySQLDBDriver driver;
-    auto connBase = driver.connect(connStr, username, password);
+    auto driver = mysql_test_helpers::getMySQLDriver();
+    REQUIRE(driver != nullptr);
+    auto connBase = driver->connect(connStr, username, password);
     auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(connBase);
     REQUIRE(conn != nullptr);
 

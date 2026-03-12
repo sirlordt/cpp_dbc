@@ -53,7 +53,7 @@ TEST_CASE("SQLite LEFT JOIN operations", "[22_081_01_sqlite_real_left_join]")
     std::string connStr = dbConfig.createConnectionString();
 
     // Register the SQLite driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(sqlite_test_helpers::getSQLiteDriver());
 
     try
     {

@@ -20,17 +20,17 @@
 
 #include "cpp_dbc/drivers/relational/driver_postgresql.hpp"
 
+#include <algorithm>
 #include <array>
+#include <charconv>
 #include <cstring>
-#include <sstream>
 #include <iostream>
 #include <thread>
 #include <chrono>
-#include <algorithm>
 #include <cctype>
 #include <iomanip>
-#include <charconv>
 
+#include "cpp_dbc/common/system_utils.hpp"
 #include "postgresql_internal.hpp"
 
 #if USE_POSTGRESQL
@@ -38,156 +38,252 @@
 namespace cpp_dbc::PostgreSQL
 {
 
-    // PostgreSQLDBDriver implementation
-    PostgreSQLDBDriver::PostgreSQLDBDriver() = default;
+    // ── Static member initialization ──────────────────────────────────────────
+    std::weak_ptr<PostgreSQLDBDriver> PostgreSQLDBDriver::s_instance;
+    std::mutex                        PostgreSQLDBDriver::s_instanceMutex;
+    std::mutex                        PostgreSQLDBDriver::s_registryMutex;
+    std::set<std::weak_ptr<PostgreSQLDBConnection>,
+             std::owner_less<std::weak_ptr<PostgreSQLDBConnection>>> PostgreSQLDBDriver::s_connectionRegistry;
 
-    PostgreSQLDBDriver::~PostgreSQLDBDriver()
+    // ============================================================================
+    // PostgreSQLDBDriver Implementation - Private Static Helpers
+    // ============================================================================
+
+    // PostgreSQL (libpq) does not require explicit global library initialization.
+    // The initialize() method exists for structural symmetry with other drivers.
+    cpp_dbc::expected<bool, DBException> PostgreSQLDBDriver::initialize(std::nothrow_t) noexcept
     {
-        // Sleep a bit to ensure all resources are properly released
+        // No initialization needed for libpq
+        return true;
+    }
+
+    void PostgreSQLDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<PostgreSQLDBConnection> conn) noexcept
+    {
+        std::scoped_lock lock(s_registryMutex);
+        s_connectionRegistry.insert(std::move(conn));
+    }
+
+    void PostgreSQLDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<PostgreSQLDBConnection> &conn) noexcept
+    {
+        std::scoped_lock lock(s_registryMutex);
+        s_connectionRegistry.erase(conn);
+    }
+
+    void PostgreSQLDBDriver::cleanup()
+    {
+        // PostgreSQL (libpq) does not require explicit global library cleanup.
+        // Sleep a bit to ensure all resources are properly released.
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
-    #ifdef __cpp_exceptions
-    std::shared_ptr<RelationalDBConnection> PostgreSQLDBDriver::connectRelational(const std::string &url,
-                                                                                  const std::string &user,
-                                                                                  const std::string &password,
-                                                                                  const std::map<std::string, std::string> &options)
+    // ============================================================================
+    // PostgreSQLDBDriver Implementation - Constructor + Destructor
+    // ============================================================================
+
+    PostgreSQLDBDriver::PostgreSQLDBDriver(PostgreSQLDBDriver::PrivateCtorTag, std::nothrow_t) noexcept
     {
-        auto result = connectRelational(std::nothrow, url, user, password, options);
+        auto result = initialize(std::nothrow);
+        if (!result.has_value())
+        {
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>(std::move(result.error()));
+        }
+    }
+
+    PostgreSQLDBDriver::~PostgreSQLDBDriver()
+    {
+        PG_DEBUG("PostgreSQLDBDriver::destructor - Destroying driver");
+        cleanup();
+    }
+
+    // ============================================================================
+    // PostgreSQLDBDriver Implementation - Singleton + Throwing API
+    // ============================================================================
+
+#ifdef __cpp_exceptions
+    std::shared_ptr<PostgreSQLDBDriver> PostgreSQLDBDriver::getInstance()
+    {
+        auto result = getInstance(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();
         }
         return result.value();
     }
-    #endif // __cpp_exceptions
 
-    bool PostgreSQLDBDriver::acceptsURL(const std::string &url) noexcept
+    std::shared_ptr<RelationalDBConnection> PostgreSQLDBDriver::connectRelational(const std::string &uri,
+                                                                                  const std::string &user,
+                                                                                  const std::string &password,
+                                                                                  const std::map<std::string, std::string> &options)
     {
-        return url.starts_with("cpp_dbc:postgresql://");
+        auto result = connectRelational(std::nothrow, uri, user, password, options);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
+#endif // __cpp_exceptions
 
-    bool PostgreSQLDBDriver::parseURL(const std::string &url,
-                                      std::string &host,
-                                      int &port,
-                                      std::string &database) const
+    cpp_dbc::expected<std::map<std::string, std::string>, DBException> PostgreSQLDBDriver::parseURI(
+        std::nothrow_t, const std::string &uri) noexcept
     {
-        // Use centralized URL parsing from system_utils
-        // PostgreSQL URLs: cpp_dbc:postgresql://host:port/database
+        if (!uri.starts_with("cpp_dbc:postgresql://"))
+        {
+            return cpp_dbc::unexpected(DBException("YPN18WI6BPTS",
+                                                   "Invalid PostgreSQL URI scheme: " + uri,
+                                                   system_utils::captureCallStack()));
+        }
+
+        // Use centralized URI parsing from system_utils
+        // PostgreSQL URIs: cpp_dbc:postgresql://host:port/database
         // Also supports IPv6: cpp_dbc:postgresql://[::1]:port/database
         constexpr int DEFAULT_POSTGRESQL_PORT = 5432;
 
-        system_utils::ParsedDBURL parsed;
-        if (!system_utils::parseDBURL(url, "cpp_dbc:postgresql://", DEFAULT_POSTGRESQL_PORT, parsed,
+        system_utils::ParsedDBURI parsed;
+        if (!system_utils::parseDBURI(uri, "cpp_dbc:postgresql://", DEFAULT_POSTGRESQL_PORT, parsed,
                                       false, // allowLocalConnection
                                       true)) // requireDatabase (PostgreSQL requires database)
         {
-            PG_DEBUG("PostgreSQLDBDriver::parseURL - Failed to parse URL: " << url);
-            return false;
+            PG_DEBUG("PostgreSQLDBDriver::parseURI - Failed to parse URI: " << uri);
+            return cpp_dbc::unexpected(DBException("1P567517HBSK",
+                                                   "Failed to parse PostgreSQL URI: " + uri,
+                                                   system_utils::captureCallStack()));
         }
 
-        host = parsed.host;
-        port = parsed.port;
-        database = parsed.database;
-        return true;
+        return std::map<std::string, std::string>{
+            {"host", parsed.host},
+            {"port", std::to_string(parsed.port)},
+            {"database", parsed.database}};
+    }
+
+    cpp_dbc::expected<std::string, DBException> PostgreSQLDBDriver::buildURI(
+        std::nothrow_t,
+        const std::string &host,
+        int port,
+        const std::string &database,
+        const std::map<std::string, std::string> & /*options*/) noexcept
+    {
+        if (host.empty())
+        {
+            return cpp_dbc::unexpected(DBException("WEBDF2PNV05L",
+                                                    "Cannot build PostgreSQL URI: host is required",
+                                                    system_utils::captureCallStack()));
+        }
+
+        if (database.empty())
+        {
+            return cpp_dbc::unexpected(DBException("2U5PU3Y1GHAX",
+                                                   "Cannot build PostgreSQL URI: database is required",
+                                                   system_utils::captureCallStack()));
+        }
+
+        return system_utils::buildDBURI("cpp_dbc:postgresql://", host, port, database);
+    }
+
+    // ============================================================================
+    // PostgreSQLDBDriver Implementation - Singleton (nothrow) + Connection Registry
+    // ============================================================================
+
+    cpp_dbc::expected<std::shared_ptr<PostgreSQLDBDriver>, DBException>
+    PostgreSQLDBDriver::getInstance(std::nothrow_t) noexcept
+    {
+        std::scoped_lock lock(s_instanceMutex);
+        auto existing = s_instance.lock();
+        if (existing)
+        {
+            return existing;
+        }
+        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+        // Constructor errors are captured in m_initFailed / m_initError.
+        auto inst = std::make_shared<PostgreSQLDBDriver>(PostgreSQLDBDriver::PrivateCtorTag{}, std::nothrow);
+        if (inst->m_initFailed)
+        {
+            return cpp_dbc::unexpected(std::move(*inst->m_initError));
+        }
+        s_instance = inst;
+        return inst;
+    }
+
+    size_t PostgreSQLDBDriver::getConnectionAlive() noexcept
+    {
+        std::scoped_lock lock(s_registryMutex);
+        return static_cast<size_t>(std::ranges::count_if(
+            s_connectionRegistry,
+            [](const auto &w) { return !w.expired(); }));
     }
 
     // Nothrow API implementation
     cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> PostgreSQLDBDriver::connectRelational(
         std::nothrow_t,
-        const std::string &url,
+        const std::string &uri,
         const std::string &user,
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
     {
-        try
+        auto parseResult = parseURI(std::nothrow, uri);
+        if (!parseResult.has_value())
         {
-            std::string host;
-            int port;
-            std::string database;
-
-            // Check if the URL is in the expected format
-            if (acceptsURL(url))
-            {
-                // URL is in the format cpp_dbc:postgresql://host:port/database
-                if (!parseURL(url, host, port, database))
-                {
-                    return cpp_dbc::unexpected<DBException>(DBException("1K2L3M4N5O6P", "Invalid PostgreSQL connection URL: " + url, system_utils::captureCallStack()));
-                }
-            }
-            else
-            {
-                // Try to extract host, port, and database directly
-                size_t hostStart = url.find("://");
-                if (hostStart != std::string::npos)
-                {
-                    std::string temp = url.substr(hostStart + 3);
-
-                    // Find host:port separator
-                    size_t hostEnd = temp.find(":");
-                    if (hostEnd == std::string::npos)
-                    {
-                        // Try to find database separator if no port is specified
-                        hostEnd = temp.find("/");
-                        if (hostEnd == std::string::npos)
-                        {
-                            return cpp_dbc::unexpected<DBException>(DBException("7Q8R9S0T1U2V", "Invalid PostgreSQL connection URL: " + url, system_utils::captureCallStack()));
-                        }
-
-                        host = temp.substr(0, hostEnd);
-                        port = 5432; // Default PostgreSQL port
-                    }
-                    else
-                    {
-                        host = temp.substr(0, hostEnd);
-
-                        // Find port/database separator
-                        size_t portEnd = temp.find("/", hostEnd + 1);
-                        if (portEnd == std::string::npos)
-                        {
-                            return cpp_dbc::unexpected<DBException>(DBException("5I6J7K8L9M0N", "Invalid PostgreSQL connection URL: " + url, system_utils::captureCallStack()));
-                        }
-
-                        std::string portStr = temp.substr(hostEnd + 1, portEnd - hostEnd - 1);
-                        try
-                        {
-                            port = std::stoi(portStr);
-                        }
-                        catch (...)
-                        {
-                            return cpp_dbc::unexpected<DBException>(DBException("1O2P3Q4R5S6T", "Invalid port in URL: " + url, system_utils::captureCallStack()));
-                        }
-
-                        // Extract database
-                        database = temp.substr(portEnd + 1);
-                    }
-                }
-                else
-                {
-                    return cpp_dbc::unexpected<DBException>(DBException("7U8V9W0X1Y2Z", "Invalid PostgreSQL connection URL: " + url, system_utils::captureCallStack()));
-                }
-            }
-
-            auto connection = std::make_shared<PostgreSQLDBConnection>(host, port, database, user, password, options);
-            return cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>(std::static_pointer_cast<RelationalDBConnection>(connection));
+            return cpp_dbc::unexpected(parseResult.error());
         }
-        catch (const DBException &ex)
+
+        auto &parsed = parseResult.value();
+        const std::string &host = parsed["host"];
+        const auto &portStr = parsed["port"];
+        int port = 0;
+        auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), port);
+        if (ec != std::errc{} || ptr != portStr.data() + portStr.size())
         {
-            return cpp_dbc::unexpected<DBException>(ex);
+            return cpp_dbc::unexpected(DBException("T3A7QUX6XNUT",
+                                                   "Invalid port number in URI: " + portStr,
+                                                   system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
+        const std::string &database = parsed["database"];
+
+        auto connResult = PostgreSQLDBConnection::create(std::nothrow, host, port, database, user, password, options);
+        if (!connResult.has_value())
         {
-            return cpp_dbc::unexpected<DBException>(DBException("2A3B4C5D6E7F", std::string("Exception in connectRelational: ") + ex.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(connResult.error());
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("8G9H0I1J2K3L", "Unknown exception in connectRelational", system_utils::captureCallStack()));
-        }
+        auto conn = connResult.value();
+        registerConnection(std::nothrow, conn);
+        return std::shared_ptr<RelationalDBConnection>(conn);
     }
 
     std::string PostgreSQLDBDriver::getName() const noexcept
     {
         return "postgresql";
+    }
+
+    std::string PostgreSQLDBDriver::getURIScheme() const noexcept
+    {
+        return "cpp_dbc:postgresql://<host>:<port>/<database>";
+    }
+
+    std::string PostgreSQLDBDriver::getDriverVersion() const noexcept
+    {
+        // 2026-03-08T19:00:00Z
+        // Bug: PQlibVersion() encoding changed in PostgreSQL 10+. Pre-10 uses
+        // major*10000 + minor*100 + patch (e.g. 9.6.3 → 90603). Post-10 uses
+        // major*10000 + minor (e.g. 16.3 → 160003). Old code always applied the
+        // pre-10 formula, producing "16.0.3" instead of "16.3".
+        // Solution: Detect the encoding by checking if ver >= 100000 (PostgreSQL 10+)
+        // and parse accordingly.
+        int ver = PQlibVersion();
+        if (ver >= 100000)
+        {
+            // PostgreSQL 10+: major*10000 + minor
+            int major = ver / 10000;
+            int minor = ver % 10000;
+            return std::to_string(major) + "." + std::to_string(minor);
+        }
+        // Pre-10: major*10000 + minor*100 + patch
+        int major = ver / 10000;
+        int minor = (ver / 100) % 100;
+        int patch = ver % 100;
+        return std::to_string(major) + "." +
+               std::to_string(minor) + "." +
+               std::to_string(patch);
     }
 
 } // namespace cpp_dbc::PostgreSQL

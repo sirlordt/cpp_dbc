@@ -290,6 +290,13 @@ namespace cpp_dbc::Redis
             }
         }
 
+        // Ensure "ServerVersion" is always present (standard key across all drivers)
+        auto it = result.find("redis_version");
+        if (it != result.end())
+        {
+            result["ServerVersion"] = it->second;
+        }
+
         return result;
     }
 
@@ -364,6 +371,27 @@ namespace cpp_dbc::Redis
         return cpp_dbc::unexpected(DBException("4Y6O0DLL7OEX",
                                                "Failed to select Redis database: " + std::to_string(index),
                                                system_utils::captureCallStack()));
+    }
+
+    cpp_dbc::expected<std::string, DBException> RedisDBConnection::getServerVersion(std::nothrow_t) noexcept
+    {
+        auto infoResult = getServerInfo(std::nothrow);
+        if (!infoResult.has_value())
+        {
+            return cpp_dbc::unexpected(infoResult.error());
+        }
+
+        const auto &info = infoResult.value();
+        auto it = info.find("ServerVersion");
+        if (it == info.end())
+        {
+            return cpp_dbc::unexpected(DBException(
+                "ECC2DGY7VHYU",
+                "Server INFO response does not contain 'ServerVersion'",
+                system_utils::captureCallStack()));
+        }
+
+        return it->second;
     }
 
 } // namespace cpp_dbc::Redis

@@ -2,29 +2,131 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. MongoDB was the last driver to adopt this architecture (2026-03-04). `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). The connection pool system is now fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
+The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. The `DBDriver` base class provides a unified URI API (`acceptURI`, `parseURI`, `buildURI`, `getURIScheme`) and a unified `getDriverVersion()` method. The `DBConnection` base class provides `getServerVersion()` and `getServerInfo()` for runtime introspection of database server versions and metadata across all drivers (2026-03-08). `MySQLBlob` and `MySQLInputStream` have been upgraded to the PrivateCtorTag creational pattern. The PrivateCtorTag naming is unified across the entire codebase. `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). The connection pool system is fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
 
-### Recent Improvements (2026-03-06 08:43 PST)
+### Recent Improvements (2026-03-08 17:25 PST)
 
-**CRTP `PooledDBConnectionBase<D,C,P>` — Unified Pooled Connection Logic via Template Inheritance:**
+**Unified version/info API across all drivers, MySQL code hardening, BlobStream connection validation:**
 
-1. **New CRTP Template — `PooledDBConnectionBase<Derived, ConnType, PoolType>`:**
-   - `pool/pooled_db_connection_base.hpp` + `.cpp` (~485 lines) — extracts close/returnToPool (race-condition fix), destructor cleanup, and pool metadata from all 4 family pooled connection wrappers
-   - `*Impl` methods for diamond-ambiguous DBConnection methods; `*Throw` methods under `#ifdef __cpp_exceptions`
-   - DBConnectionPooled interface overrides (no diamond): `isPoolValid`, `getCreationTime`, `getLastUsedTime`, `setActive`, `isActive`, etc.
-   - Explicit template instantiations for all 4 families
+1. **Core/Base Class — Unified Version and Info API:**
+   - `DBDriver::getDriverVersion()` pure virtual — returns underlying C/C++ client library version
+   - `DBConnection::getServerVersion()` + `getServerInfo()` pure virtuals (throwing + nothrow) — server version string and metadata map
+   - `BlobStream::isConnectionValid()` pure virtual — checks if underlying connection is alive
+   - `getDriverVersion()` removed from `ColumnarDBDriver`, `DocumentDBDriver`, `KVDBDriver` (consolidated into `DBDriver`)
+   - `getServerInfo()` removed from `KVDBConnection` (now inherited from `DBConnection`)
+   - MongoDB: `getServerInfo()` renamed to `getServerInfoAsDocument()` to avoid collision
 
-2. **Family Pooled Connections — Thin CRTP Delegators:**
-   - One-line inline throwing/nothrow delegators resolve diamond inheritance
-   - Destructors changed to `= default`; only family-specific methods remain
+2. **All 7 Drivers — Version/Info Implementation:**
+   - MySQL: ServerVersion, ServerVersionNumeric, HostInfo, ProtocolVersion, CharacterSet, ThreadId, ServerStatus
+   - PostgreSQL: ServerVersion, ServerVersionNumeric, ProtocolVersion, ServerEncoding, ClientEncoding, TimeZone
+   - SQLite: ServerVersion, ServerVersionNumeric, SourceId, ThreadSafe
+   - Firebird: ServerVersion, ODSMajorVersion, ODSMinorVersion, PageSize, SQLDialect
+   - MongoDB: ServerVersion, GitVersion, SysInfo, Allocator, JavascriptEngine, Bits, MaxBsonObjectSize
+   - Redis: ServerVersion (from redis_version) + all INFO fields
+   - ScyllaDB: ServerVersion, ClusterName, DataCenter, Rack, Partitioner, CQLVersion
 
-3. **Friend Declarations:** All 4 family connection classes + `DBConnectionPoolBase` gained `template <typename,typename,typename> friend class PooledDBConnectionBase;`
+3. **MySQL Driver — Code Hardening:**
+   - ~60 error codes regenerated with random 12-char codes
+   - `std::stoi()` → `std::from_chars()` (nothrow, locale-independent)
+   - `memset` → aggregate initialization (`MYSQL_BIND bind{}`)
+   - Index loop → `std::span` range in result set
+   - Constructor outer try/catch removed (MySQL C API never throws)
+   - SQL injection prevention: `validateIdentifier()` in `MySQLBlob`
+   - Internal helpers renamed with `std::nothrow_t` parameter
+   - `std::lock_guard` → `std::scoped_lock` in driver init/cleanup
 
-4. **Dead try/catch Elimination:** All `create(std::nothrow_t)` factory methods cleaned up
+4. **Pool — Version/Info Delegation:**
+   - `PooledDBConnectionBase`: new `getServerVersionImpl` + `getServerInfoImpl` CRTP helpers
+   - All 4 family pools delegate through pooled connection wrappers
 
-5. **Documentation:** `how_add_new_db_drivers.md` updated with pool integration guide (Scenario A/B)
+5. **Tests:** New version/info test cases for all 7 drivers
 
-6. **Impact:** 17 files changed, +1312/-2230 lines (net reduction of ~918 lines)
+6. **Impact:** 66 files changed, +1760/-235 lines
+
+### Recent Improvements (2026-03-08 00:21 PST)
+
+**Convention refinements: PrivateCtorTag unification, violations checklist reorganization, MySQL code cleanup:**
+
+1. **Convention Rules — PrivateCtorTag Unification:**
+   - `ConstructorTag` renamed to `PrivateCtorTag` throughout convention docs (pool class variant now matches driver class pattern)
+   - Private constructors explicitly forbidden — all constructors must be public, guarded by `PrivateCtorTag`
+   - Class layout template updated with `PrivateCtorTag` struct + construction state variables + public constructor
+   - Factory pattern updated: `PrivateCtorTag{}` + `m_initFailed` check instead of `initialize(std::nothrow)` call
+
+2. **Violations Checklist Reorganized:**
+   - Flat checklist → 6 categorized sections: Error Codes & Formatting, Memory Safety, Atomics & Thread Safety, Error Handling, Class Layout & Patterns, Naming Conventions
+   - ~20 new checklist items added (RAII handles, null checks, smart pointers, infallible helpers, namespace/class naming, etc.)
+
+3. **MySQL Driver — Code Cleanup:**
+   - `MySQLBlob`/`MySQLInputStream`: added `override = default` destructors
+   - Allman brace formatting: `isResetting()`, lambda bodies in `connection_01.cpp`, `isAcquired()`/`operator bool()` in `mysql_internal.hpp`
+   - `MySQLDBDriver` stub: `connectRelational()` now delegates to nothrow overload (was returning `nullptr`)
+   - Spanish comments → English in `connection_02.cpp`
+
+4. **Impact:** 9 files changed, +137/-69 lines
+
+### Recent Improvements (2026-03-07 13:34 PST)
+
+**Unified URI API in DBDriver Base, PrivateCtorTag for MySQLBlob/InputStream, Expanded Convention Rules:**
+
+1. **DBDriver Base Class — Unified URI API:**
+   - `acceptsURL()` renamed to `acceptURI()` with throwing + nothrow versions (throwing delegates to nothrow)
+   - New `parseURI(std::nothrow_t)` pure virtual — each driver implements URI parsing
+   - New `buildURI(std::nothrow_t)` pure virtual — each driver implements URI building from components
+   - New `getURIScheme()` pure virtual — returns human-readable URI template
+   - Default `acceptURI(std::nothrow_t)` implementation uses `parseURI()` (successful parse = accepted)
+   - Removed private helpers from family driver bases (`ColumnarDBDriver`, `DocumentDBDriver`, `KVDBDriver`): -130 lines
+
+2. **All 7 Drivers Updated for New URI API:**
+   - MySQL, PostgreSQL, SQLite, Firebird, MongoDB, Redis, ScyllaDB implement `acceptURI`, `parseURI`, `buildURI`, `getURIScheme`
+   - All driver `_01.cpp` files refactored; all test files updated
+
+3. **MySQLBlob + MySQLInputStream — PrivateCtorTag Pattern:**
+   - PrivateCtorTag + `m_initFailed`/`m_initError` for both classes
+   - `#ifdef __cpp_exceptions` guards on all throwing methods
+   - Nothrow static factories using `std::make_shared` with `PrivateCtorTag`
+
+4. **Convention Rules — Major Expansion:**
+   - 8 new sections: preprocessor directives flush left, Allman braces, NOSONAR with rule ID, bug-fix ISO 8601 format, no `(void)` cast, `private:` omit in class, PrivateCtorTag pattern, migration rule
+   - New convention violations reporting document with structured format and severity levels
+
+5. **Documentation Updates:**
+   - cppdbc-docs-en/es, error_handling_patterns, how_add_new_db_drivers updated for new URI API
+
+6. **Impact:** 49 files changed, +2938/-1354 lines
+
+### Recent Improvements (2026-03-06 20:29 PST)
+
+**MySQL Driver — Full Nothrow-First Refactor, Static Factory Pattern, Result Set Registry, and Dead try/catch Elimination:**
+
+1. **MySQLDBDriver — Double-Checked Locking:**
+   - `static std::atomic<bool> s_initialized` + `static std::mutex s_initMutex` with `initialize(std::nothrow_t)` double-checked locking
+   - New `static cleanup()` method for re-initialization after driver destruction
+
+2. **MySQLDBConnection — PrivateCtorTag + Result Set Registry:**
+   - PrivateCtorTag pattern for `std::make_shared` with effectively-private constructor
+   - Nothrow constructor with `m_initFailed`/`m_initError` error deferral
+   - Result set registry (`m_activeResultSets`) with `registerResultSet()`, `unregisterResultSet()`, `closeAllActiveResultSets()` — two-phase close pattern
+   - `getMySQLNativeHandle()`, `getConnectionMutex()`, `isResetting()` for child object access
+   - `m_resetting` anti-deadlock flag for `closeAllActiveResultSets()`/`closeAllStatements()`
+   - Friend declarations: `MySQLDBPreparedStatement`, `MySQLDBResultSet`, `MySQLBlob`
+
+3. **MySQLDBPreparedStatement — `weak_ptr<MySQLDBConnection>`:**
+   - `weak_ptr<MySQLDBConnection>` replaces `weak_ptr<MYSQL>` — accesses MYSQL* and mutex through connection
+   - Private nothrow constructor; `create(std::nothrow_t)` via `new` (not `make_shared`)
+   - `m_closed` atomic flag; `notifyConnClosing(std::nothrow_t)` returns `expected`
+
+4. **MySQLDBResultSet — Private Constructor + Connection Registration:**
+   - Private nothrow constructor with `m_initFailed`/`m_initError`; `create(std::nothrow_t)` via `new`
+   - `weak_ptr<MySQLDBConnection>` for lifecycle management; `notifyConnClosing(std::nothrow_t)`
+   - `[[nodiscard]]` on all nothrow methods
+
+5. **mysql_internal.hpp — RAII Helpers and Macros:**
+   - `MySQLConnectionLock` RAII helper; `MYSQL_CONNECTION_LOCK_OR_RETURN` macro; `MYSQL_DEBUG` macro
+
+6. **Dead try/catch Elimination:** All nothrow methods calling only nothrow methods cleaned up
+
+7. **Impact:** 17 files changed, +1559/-2202 lines (net reduction of ~643 lines)
 
 ### Recent Improvements (2026-03-06 01:59 PST)
 
@@ -849,9 +951,9 @@ Based on the current state of the project, potential areas for enhancement inclu
      - Bug: `m_closed` was reset to `false` AFTER `returnConnection()` completed
      - Fix: Reset `m_closed` to `false` BEFORE calling `returnConnection()`
      - Added catch-all exception handlers to ensure correct state on any exception
-   - **Connection Pool ConstructorTag Pattern (PassKey Idiom):**
-     - Added `DBConnectionPool::ConstructorTag` struct to enable `std::make_shared` while enforcing factory pattern
-     - Updated all connection pool classes to use ConstructorTag
+   - **Connection Pool PrivateCtorTag Pattern (PassKey Idiom):**
+     - Added `DBConnectionPool::PrivateCtorTag` struct to enable `std::make_shared` while enforcing factory pattern
+     - Updated all connection pool classes to use PrivateCtorTag
      - Enables single memory allocation with `std::make_shared`
    - **SonarCloud Code Quality Fixes:**
      - Added NOSONAR comments with explanations for intentional code patterns

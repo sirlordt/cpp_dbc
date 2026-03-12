@@ -247,7 +247,7 @@ int main(int argc, char *argv[])
 
         logStep("Creating ScyllaDB connection pool...");
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(dbConfig.createConnectionString());
+        poolConfig.setUri(dbConfig.createConnectionString());
         poolConfig.setUsername(dbConfig.getUsername());
         poolConfig.setPassword(dbConfig.getPassword());
         poolConfig.setInitialSize(3);

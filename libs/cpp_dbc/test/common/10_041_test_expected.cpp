@@ -425,15 +425,15 @@ TEST_CASE("expected - Database simulation", "[10_041_14_expected]")
         std::string name;
     };
 
-    auto connect = [](const std::string &url) -> expected<Connection, DBException>
+    auto connect = [](const std::string &uri) -> expected<Connection, DBException>
     {
-        if (url.empty())
+        if (uri.empty())
         {
-            return unexpected<DBException>(DBException("RWV8K036776H", "URL cannot be empty"));
+            return unexpected<DBException>(DBException("RWV8K036776H", "URI cannot be empty"));
         }
-        if (url == "invalid")
+        if (uri == "invalid")
         {
-            return unexpected<DBException>(DBException("4KOC988NR6DV", "Invalid URL"));
+            return unexpected<DBException>(DBException("4KOC988NR6DV", "Invalid URI"));
         }
         return Connection{1, "test_connection"};
     };
@@ -445,14 +445,14 @@ TEST_CASE("expected - Database simulation", "[10_041_14_expected]")
         REQUIRE(result->id == 1);
     }
 
-    SECTION("Empty URL error")
+    SECTION("Empty URI error")
     {
         auto result = connect("");
         REQUIRE_FALSE(result.has_value());
         REQUIRE(result.error().getMark() == "RWV8K036776H");
     }
 
-    SECTION("Invalid URL error")
+    SECTION("Invalid URI error")
     {
         auto result = connect("invalid");
         REQUIRE_FALSE(result.has_value());

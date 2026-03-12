@@ -67,14 +67,18 @@ namespace cpp_dbc::MongoDB
         std::string m_databaseName;
 
         /**
-         * @brief The connection URL
+         * @brief The connection URI
          */
-        std::string m_url;
+        std::string m_uri;
 
         /**
          * @brief Flag indicating if the connection is closed
          */
         std::atomic<bool> m_closed{true};
+
+        // Stored by the create() factory so close() can unregister from the driver registry
+        // using owner_less comparison (raw 'this' won't work with the set's comparator).
+        std::weak_ptr<MongoDBConnection> m_self;
 
         /**
          * @brief Flag indicating if the connection is pooled
@@ -138,8 +142,9 @@ namespace cpp_dbc::MongoDB
          * @brief Error captured when constructor initialization fails
          *
          * Holds the DBException that would have been thrown, for deferred delivery.
+         * Only allocated on the failure path (~256 bytes saved per successful instance).
          */
-        DBException m_initError{"31N7TQLDCNQT", "", {}};
+        std::unique_ptr<DBException> m_initError{nullptr};
         TransactionIsolationLevel m_transactionIsolation{TransactionIsolationLevel::TRANSACTION_NONE};
 
     public:
@@ -190,7 +195,7 @@ namespace cpp_dbc::MongoDB
         bool isClosed() const override;
         void returnToPool() override;
         bool isPooled() const override;
-        std::string getURL() const override;
+        std::string getURI() const override;
         void reset() override;
 
         std::string getDatabaseName() const override;
@@ -212,8 +217,10 @@ namespace cpp_dbc::MongoDB
 
         std::shared_ptr<DocumentDBData> runCommand(const std::string &command) override;
 
-        std::shared_ptr<DocumentDBData> getServerInfo() override;
+        std::shared_ptr<DocumentDBData> getServerInfoAsDocument() override;
         std::shared_ptr<DocumentDBData> getServerStatus() override;
+        std::string getServerVersion() override;
+        std::map<std::string, std::string> getServerInfo() override;
         bool ping() override;
 
         std::string startSession() override;
@@ -265,8 +272,11 @@ namespace cpp_dbc::MongoDB
             auto obj = std::make_shared<MongoDBConnection>(PrivateCtorTag{}, std::nothrow, uri, user, password, options);
             if (obj->m_initFailed)
             {
-                return cpp_dbc::unexpected(obj->m_initError);
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
             }
+            // Store a weak self-reference so close() can unregister from the driver's
+            // connection registry via owner_less comparison without calling shared_from_this().
+            obj->m_self = obj;
             return obj;
         }
 
@@ -299,7 +309,7 @@ namespace cpp_dbc::MongoDB
         expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
         expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
         expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
-        expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        expected<std::string, DBException> getURI(std::nothrow_t) const noexcept override;
 
         expected<std::string, DBException> getDatabaseName(std::nothrow_t) const noexcept override;
         expected<std::vector<std::string>, DBException> listDatabases(std::nothrow_t) noexcept override;
@@ -325,8 +335,10 @@ namespace cpp_dbc::MongoDB
             std::nothrow_t, const std::string &json) noexcept override;
         expected<std::shared_ptr<DocumentDBData>, DBException> runCommand(
             std::nothrow_t, const std::string &command) noexcept override;
-        expected<std::shared_ptr<DocumentDBData>, DBException> getServerInfo(std::nothrow_t) noexcept override;
+        expected<std::shared_ptr<DocumentDBData>, DBException> getServerInfoAsDocument(std::nothrow_t) noexcept override;
         expected<std::shared_ptr<DocumentDBData>, DBException> getServerStatus(std::nothrow_t) noexcept override;
+        expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override;
+        expected<std::map<std::string, std::string>, DBException> getServerInfo(std::nothrow_t) noexcept override;
         expected<bool, DBException> ping(std::nothrow_t) noexcept override;
         expected<std::string, DBException> startSession(std::nothrow_t) noexcept override;
         expected<void, DBException> endSession(

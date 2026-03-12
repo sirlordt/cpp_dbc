@@ -36,293 +36,182 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<size_t, DBException> MySQLDBResultSet::getColumnCount(std::nothrow_t) noexcept
     {
-        try
-        {
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
-            DB_DRIVER_LOCK_GUARD(m_mutex);
-
-            return m_fieldCount;
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("F8A4B0C6D3EA",
-                                                   std::string("getColumnCount failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("F8A4B0C6D3EB",
-                                                   "getColumnCount failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return m_fieldCount;
     }
 
     cpp_dbc::expected<std::shared_ptr<Blob>, DBException> MySQLDBResultSet::getBlob(std::nothrow_t, size_t columnIndex) noexcept
     {
-        try
+        DB_DRIVER_LOCK_GUARD(m_mutex);
+
+        auto validateResult = validateCurrentRow(std::nothrow);
+        if (!validateResult.has_value())
         {
-
-            DB_DRIVER_LOCK_GUARD(m_mutex);
-
-            auto validateResult = validateCurrentRow(std::nothrow);
-            if (!validateResult.has_value())
-            {
-                return cpp_dbc::unexpected(validateResult.error());
-            }
-
-            if (columnIndex < 1 || columnIndex > m_fieldCount)
-            {
-                return cpp_dbc::unexpected(DBException("LB0WW5CDQLVI", "Invalid column index for getBlob", system_utils::captureCallStack()));
-            }
-
-            // MySQL column indexes are 0-based, but our API is 1-based (like JDBC)
-            size_t idx = columnIndex - 1;
-            if (m_currentRow[idx] == nullptr)
-            {
-                // Return an empty blob with no connection (data is already loaded)
-                return std::shared_ptr<Blob>(std::make_shared<MySQL::MySQLBlob>(std::shared_ptr<MYSQL>()));
-            }
-
-            // Get the length of the BLOB data
-            const unsigned long *lengths = mysql_fetch_lengths(m_result.get());
-            if (!lengths)
-            {
-                return cpp_dbc::unexpected(DBException("Q0Z1A2B3C4D5", "Failed to get BLOB data length", system_utils::captureCallStack()));
-            }
-
-            // Create a new BLOB object with the data
-            // Note: We pass an empty shared_ptr because the data is already loaded
-            // and the blob won't need to query the database
-            std::vector<uint8_t> data;
-            if (lengths[idx] > 0)
-            {
-                data.resize(lengths[idx]);
-                std::memcpy(data.data(), m_currentRow[idx], lengths[idx]);
-            }
-
-            return std::shared_ptr<Blob>(std::make_shared<MySQL::MySQLBlob>(std::shared_ptr<MYSQL>(), data));
+            return cpp_dbc::unexpected(validateResult.error());
         }
-        catch (const DBException &ex)
+
+        if (columnIndex < 1 || columnIndex > m_fieldCount)
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(DBException("LB0WW5CDQLVI", "Invalid column index for getBlob", system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
+
+        // MySQL column indexes are 0-based, but our API is 1-based (like JDBC)
+        size_t idx = columnIndex - 1;
+        if (m_currentRow[idx] == nullptr)
         {
-            return cpp_dbc::unexpected(DBException("MY7G8H9I0J1K",
-                                                   std::string("getBlob failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
+            // Return an empty blob with no connection (data is already loaded)
+            auto blobResult = MySQL::MySQLBlob::create(std::nothrow, std::shared_ptr<MYSQL>());
+            if (!blobResult.has_value())
+            {
+                return cpp_dbc::unexpected(blobResult.error());
+            }
+            return std::shared_ptr<Blob>(blobResult.value());
         }
-        catch (...)
+
+        // Get the length of the BLOB data
+        const unsigned long *lengths = m_materialized
+            ? m_currentLengths.data()
+            : mysql_fetch_lengths(m_result.get());
+        if (!lengths)
         {
-            return cpp_dbc::unexpected(DBException("MY1A2B3C4D5E",
-                                                   "getBlob failed: unknown error",
-                                                   system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("8P8KDB7HDBNE", "Failed to get BLOB data length", system_utils::captureCallStack()));
         }
+
+        // Create a new BLOB object with the data
+        // Note: We pass an empty shared_ptr because the data is already loaded
+        // and the blob won't need to query the database
+        std::vector<uint8_t> data;
+        if (lengths[idx] > 0)
+        {
+            data.resize(lengths[idx]);
+            std::memcpy(data.data(), m_currentRow[idx], lengths[idx]);
+        }
+
+        auto blobResult = MySQL::MySQLBlob::create(std::nothrow, std::shared_ptr<MYSQL>(), data);
+        if (!blobResult.has_value())
+        {
+            return cpp_dbc::unexpected(blobResult.error());
+        }
+        return std::shared_ptr<Blob>(blobResult.value());
     }
 
     cpp_dbc::expected<std::shared_ptr<Blob>, DBException> MySQLDBResultSet::getBlob(std::nothrow_t, const std::string &columnName) noexcept
     {
-        try
+        auto it = m_columnMap.find(columnName);
+        if (it == m_columnMap.end())
         {
-            auto it = m_columnMap.find(columnName);
-            if (it == m_columnMap.end())
-            {
-                return cpp_dbc::unexpected(DBException("Q1Z2A3B4C5D6", "Column not found: " + columnName, system_utils::captureCallStack()));
-            }
-            return getBlob(std::nothrow, it->second + 1); // +1 because getBlob(int) is 1-based
+            return cpp_dbc::unexpected(DBException("MDWX3TY3ZNN4", "Column not found: " + columnName, system_utils::captureCallStack()));
         }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("A9B5C1D7E4F7",
-                                                   std::string("getBlob failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("A9B5C1D7E4F8",
-                                                   "getBlob failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return getBlob(std::nothrow, it->second + 1); // +1 because getBlob(int) is 1-based
     }
 
     cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> MySQLDBResultSet::getBinaryStream(std::nothrow_t, size_t columnIndex) noexcept
     {
-        try
+        DB_DRIVER_LOCK_GUARD(m_mutex);
+
+        auto validateResult = validateCurrentRow(std::nothrow);
+        if (!validateResult.has_value())
         {
-
-            DB_DRIVER_LOCK_GUARD(m_mutex);
-
-            auto validateResult = validateCurrentRow(std::nothrow);
-            if (!validateResult.has_value())
-            {
-                return cpp_dbc::unexpected(validateResult.error());
-            }
-
-            if (columnIndex < 1 || columnIndex > m_fieldCount)
-            {
-                return cpp_dbc::unexpected(DBException("Q2Z3A4B5C6D7", "Invalid column index for getBinaryStream", system_utils::captureCallStack()));
-            }
-
-            // MySQL column indexes are 0-based, but our API is 1-based (like JDBC)
-            size_t idx = columnIndex - 1;
-            if (m_currentRow[idx] == nullptr)
-            {
-                // Return an empty stream
-                return std::shared_ptr<InputStream>(std::make_shared<MySQL::MySQLInputStream>("", 0));
-            }
-
-            // Get the length of the BLOB data
-            const unsigned long *lengths = mysql_fetch_lengths(m_result.get());
-            if (!lengths)
-            {
-                return cpp_dbc::unexpected(DBException("Q3Z4A5B6C7D8", "Failed to get BLOB data length", system_utils::captureCallStack()));
-            }
-
-            // Create a new input stream with the data
-            return std::shared_ptr<InputStream>(std::make_shared<MySQL::MySQLInputStream>(m_currentRow[idx], lengths[idx]));
+            return cpp_dbc::unexpected(validateResult.error());
         }
-        catch (const DBException &ex)
+
+        if (columnIndex < 1 || columnIndex > m_fieldCount)
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(DBException("BARSF3FXQ52P", "Invalid column index for getBinaryStream", system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
+
+        // MySQL column indexes are 0-based, but our API is 1-based (like JDBC)
+        size_t idx = columnIndex - 1;
+        if (m_currentRow[idx] == nullptr)
         {
-            return cpp_dbc::unexpected(DBException("E8F4A0B6C3D9",
-                                                   std::string("getBinaryStream failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
+            // Return an empty stream
+            auto streamResult = MySQL::MySQLInputStream::create(std::nothrow, "", 0);
+            if (!streamResult.has_value())
+            {
+                return cpp_dbc::unexpected(streamResult.error());
+            }
+            return std::shared_ptr<InputStream>(streamResult.value());
         }
-        catch (...)
+
+        // Get the length of the BLOB data
+        const unsigned long *lengths = m_materialized
+            ? m_currentLengths.data()
+            : mysql_fetch_lengths(m_result.get());
+        if (!lengths)
         {
-            return cpp_dbc::unexpected(DBException("E8F4A0B6C3DA",
-                                                   "getBinaryStream failed: unknown error",
-                                                   system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("MKQTE8BTZAJY", "Failed to get BLOB data length", system_utils::captureCallStack()));
         }
+
+        // Create a new input stream with the data
+        auto streamResult = MySQL::MySQLInputStream::create(std::nothrow, m_currentRow[idx], lengths[idx]);
+        if (!streamResult.has_value())
+        {
+            return cpp_dbc::unexpected(streamResult.error());
+        }
+        return std::shared_ptr<InputStream>(streamResult.value());
     }
 
     cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> MySQLDBResultSet::getBinaryStream(std::nothrow_t, const std::string &columnName) noexcept
     {
-        try
+        auto it = m_columnMap.find(columnName);
+        if (it == m_columnMap.end())
         {
-            auto it = m_columnMap.find(columnName);
-            if (it == m_columnMap.end())
-            {
-                return cpp_dbc::unexpected(DBException("Q4Z5A6B7C8D9", "Column not found: " + columnName, system_utils::captureCallStack()));
-            }
-            return getBinaryStream(std::nothrow, it->second + 1); // +1 because getBinaryStream(int) is 1-based
+            return cpp_dbc::unexpected(DBException("0WMIY8KYPYQA", "Column not found: " + columnName, system_utils::captureCallStack()));
         }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("B0C6D2E8F5A8",
-                                                   std::string("getBinaryStream failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("B0C6D2E8F5A9",
-                                                   "getBinaryStream failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return getBinaryStream(std::nothrow, it->second + 1); // +1 because getBinaryStream(int) is 1-based
     }
 
     cpp_dbc::expected<std::vector<uint8_t>, DBException> MySQLDBResultSet::getBytes(std::nothrow_t, size_t columnIndex) noexcept
     {
-        try
+        DB_DRIVER_LOCK_GUARD(m_mutex);
+
+        auto validateResult = validateCurrentRow(std::nothrow);
+        if (!validateResult.has_value())
         {
-
-            DB_DRIVER_LOCK_GUARD(m_mutex);
-
-            auto validateResult = validateCurrentRow(std::nothrow);
-            if (!validateResult.has_value())
-            {
-                return cpp_dbc::unexpected(validateResult.error());
-            }
-
-            if (columnIndex < 1 || columnIndex > m_fieldCount)
-            {
-                return cpp_dbc::unexpected(DBException("Q5Z6A7B8C9D0", "Invalid column index for getBytes", system_utils::captureCallStack()));
-            }
-
-            // MySQL column indexes are 0-based, but our API is 1-based (like JDBC)
-            size_t idx = columnIndex - 1;
-            if (m_currentRow[idx] == nullptr)
-            {
-                return std::vector<uint8_t>();
-            }
-
-            // Get the length of the BLOB data
-            const unsigned long *lengths = mysql_fetch_lengths(m_result.get());
-            if (!lengths)
-            {
-                return cpp_dbc::unexpected(DBException("Q6Z7A8B9C0D1", "Failed to get BLOB data length", system_utils::captureCallStack()));
-            }
-
-            // Create a vector with the data
-            std::vector<uint8_t> data;
-            if (lengths[idx] > 0)
-            {
-                data.resize(lengths[idx]);
-                std::memcpy(data.data(), m_currentRow[idx], lengths[idx]);
-            }
-
-            return data;
+            return cpp_dbc::unexpected(validateResult.error());
         }
-        catch (const DBException &ex)
+
+        if (columnIndex < 1 || columnIndex > m_fieldCount)
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(DBException("3XVHIXH3HKXS", "Invalid column index for getBytes", system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
+
+        // MySQL column indexes are 0-based, but our API is 1-based (like JDBC)
+        size_t idx = columnIndex - 1;
+        if (m_currentRow[idx] == nullptr)
         {
-            return cpp_dbc::unexpected(DBException("F9A5B1C7D4E0",
-                                                   std::string("getBytes failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
+            return std::vector<uint8_t>();
         }
-        catch (...)
+
+        // Get the length of the BLOB data
+        const unsigned long *lengths = m_materialized
+            ? m_currentLengths.data()
+            : mysql_fetch_lengths(m_result.get());
+        if (!lengths)
         {
-            return cpp_dbc::unexpected(DBException("F9A5B1C7D4E1",
-                                                   "getBytes failed: unknown error",
-                                                   system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("9KU99I1V16QW", "Failed to get BLOB data length", system_utils::captureCallStack()));
         }
+
+        // Create a vector with the data
+        std::vector<uint8_t> data;
+        if (lengths[idx] > 0)
+        {
+            data.resize(lengths[idx]);
+            std::memcpy(data.data(), m_currentRow[idx], lengths[idx]);
+        }
+
+        return data;
     }
 
     cpp_dbc::expected<std::vector<uint8_t>, DBException> MySQLDBResultSet::getBytes(std::nothrow_t, const std::string &columnName) noexcept
     {
-        try
+        auto it = m_columnMap.find(columnName);
+        if (it == m_columnMap.end())
         {
-            auto it = m_columnMap.find(columnName);
-            if (it == m_columnMap.end())
-            {
-                return cpp_dbc::unexpected(DBException("X5Y6Z7A8B9C0", "Column not found: " + columnName, system_utils::captureCallStack()));
-            }
-            return getBytes(std::nothrow, it->second + 1); // +1 because getBytes(int) is 1-based
+            return cpp_dbc::unexpected(DBException("5DB9EL8OWXMD", "Column not found: " + columnName, system_utils::captureCallStack()));
         }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("C1D7E3F9A6B9",
-                                                   std::string("getBytes failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("C1D7E3F9A6BA",
-                                                   "getBytes failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return getBytes(std::nothrow, it->second + 1); // +1 because getBytes(int) is 1-based
     }
 
 } // namespace cpp_dbc::MySQL

@@ -35,7 +35,7 @@ namespace cpp_dbc
     // ── Constructors (delegate to base) ──────────────────────────────────────
 
     ColumnarDBConnectionPool::ColumnarDBConnectionPool(DBConnectionPool::ConstructorTag,
-                                                       const std::string &url,
+                                                       const std::string &uri,
                                                        const std::string &username,
                                                        const std::string &password,
                                                        const std::map<std::string, std::string> &options,
@@ -49,7 +49,7 @@ namespace cpp_dbc
                                                        bool testOnBorrow,
                                                        bool testOnReturn,
                                                        TransactionIsolationLevel transactionIsolation) noexcept
-        : DBConnectionPoolBase(DBConnectionPool::ConstructorTag{}, url, username, password, options,
+        : DBConnectionPoolBase(DBConnectionPool::ConstructorTag{}, uri, username, password, options,
                                initialSize, maxSize, minIdle, maxWaitMillis, validationTimeoutMillis,
                                idleTimeoutMillis, maxLifetimeMillis, testOnBorrow, testOnReturn,
                                transactionIsolation)
@@ -73,7 +73,7 @@ namespace cpp_dbc
     cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException>
     ColumnarDBConnectionPool::createDBConnection(std::nothrow_t) const noexcept
     {
-        auto dbConnResult = DriverManager::getDBConnection(std::nothrow, getUrl(), getUsername(), getPassword(), getOptions());
+        auto dbConnResult = DriverManager::getDBConnection(std::nothrow, getUri(), getUsername(), getPassword(), getOptions());
         if (!dbConnResult.has_value())
         {
             return cpp_dbc::unexpected(dbConnResult.error());
@@ -128,7 +128,7 @@ namespace cpp_dbc
     // ── Static factories ─────────────────────────────────────────────────────
 
     cpp_dbc::expected<std::shared_ptr<ColumnarDBConnectionPool>, DBException> ColumnarDBConnectionPool::create(std::nothrow_t,
-                                                                                                               const std::string &url,
+                                                                                                               const std::string &uri,
                                                                                                                const std::string &username,
                                                                                                                const std::string &password,
                                                                                                                const std::map<std::string, std::string> &options,
@@ -144,7 +144,7 @@ namespace cpp_dbc
                                                                                                                TransactionIsolationLevel transactionIsolation) noexcept
     {
         auto pool = std::make_shared<ColumnarDBConnectionPool>(
-            DBConnectionPool::ConstructorTag{}, url, username, password, options, initialSize, maxSize, minIdle,
+            DBConnectionPool::ConstructorTag{}, uri, username, password, options, initialSize, maxSize, minIdle,
             maxWaitMillis, validationTimeoutMillis, idleTimeoutMillis, maxLifetimeMillis,
             testOnBorrow, testOnReturn, transactionIsolation);
 
@@ -184,12 +184,28 @@ namespace cpp_dbc
         return result.value();
     }
 
+    std::shared_ptr<ColumnarDBConnection> ColumnarDBConnectionPool::getColumnarDBConnection(size_t timeoutMs)
+    {
+        auto result = getColumnarDBConnection(std::nothrow, timeoutMs);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
 #endif // __cpp_exceptions
 
     cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException>
     ColumnarDBConnectionPool::getColumnarDBConnection(std::nothrow_t) noexcept
     {
-        auto result = acquireConnection(std::nothrow);
+        return getColumnarDBConnection(std::nothrow, 0);
+    }
+
+    cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException>
+    ColumnarDBConnectionPool::getColumnarDBConnection(std::nothrow_t, size_t timeoutMs) noexcept
+    {
+        auto result = acquireConnection(std::nothrow, timeoutMs);
         if (!result.has_value())
         {
             return cpp_dbc::unexpected(result.error());
@@ -409,10 +425,10 @@ namespace cpp_dbc
 namespace cpp_dbc::ScyllaDB
 {
     ScyllaDBConnectionPool::ScyllaDBConnectionPool(DBConnectionPool::ConstructorTag,
-                                                   const std::string &url,
+                                                   const std::string &uri,
                                                    const std::string &username,
                                                    const std::string &password) noexcept
-        : ColumnarDBConnectionPool(DBConnectionPool::ConstructorTag{}, url, username, password)
+        : ColumnarDBConnectionPool(DBConnectionPool::ConstructorTag{}, uri, username, password)
     {
         // Scylla-specific initialization if needed
     }
@@ -425,11 +441,11 @@ namespace cpp_dbc::ScyllaDB
 
 #ifdef __cpp_exceptions
 
-    std::shared_ptr<ScyllaDBConnectionPool> ScyllaDBConnectionPool::create(const std::string &url,
+    std::shared_ptr<ScyllaDBConnectionPool> ScyllaDBConnectionPool::create(const std::string &uri,
                                                                            const std::string &username,
                                                                            const std::string &password)
     {
-        auto result = create(std::nothrow, url, username, password);
+        auto result = create(std::nothrow, uri, username, password);
         if (!result.has_value())
         {
             throw result.error();
@@ -450,11 +466,11 @@ namespace cpp_dbc::ScyllaDB
 #endif // __cpp_exceptions
 
     cpp_dbc::expected<std::shared_ptr<ScyllaDBConnectionPool>, DBException> ScyllaDBConnectionPool::create(std::nothrow_t,
-                                                                                                           const std::string &url,
+                                                                                                           const std::string &uri,
                                                                                                            const std::string &username,
                                                                                                            const std::string &password) noexcept
     {
-        auto pool = std::make_shared<ScyllaDBConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
+        auto pool = std::make_shared<ScyllaDBConnectionPool>(DBConnectionPool::ConstructorTag{}, uri, username, password);
         auto initResult = pool->initializePool(std::nothrow);
         if (!initResult.has_value())
         {

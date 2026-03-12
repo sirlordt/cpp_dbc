@@ -92,19 +92,19 @@ namespace cpp_dbc
         std::shared_ptr<std::atomic<bool>> m_poolAlive{std::make_shared<std::atomic<bool>>(true)};
 
         // Connection parameters
-        std::string m_url;
+        std::string m_uri;
         std::string m_username;
         std::string m_password;
         std::map<std::string, std::string> m_options;
         size_t m_initialSize{0};
-        size_t m_maxSize{0};
-        size_t m_minIdle{0};
-        size_t m_maxWaitMillis{0};
-        size_t m_validationTimeoutMillis{0};
-        size_t m_idleTimeoutMillis{0};
-        size_t m_maxLifetimeMillis{0};
-        bool m_testOnBorrow{false};
-        bool m_testOnReturn{false};
+        std::atomic<size_t> m_maxSize{0};
+        std::atomic<size_t> m_minIdle{0};
+        std::atomic<size_t> m_maxWaitMillis{0};
+        std::atomic<size_t> m_validationTimeoutMillis{0};
+        std::atomic<size_t> m_idleTimeoutMillis{0};
+        std::atomic<size_t> m_maxLifetimeMillis{0};
+        std::atomic<bool> m_testOnBorrow{false};
+        std::atomic<bool> m_testOnReturn{false};
         TransactionIsolationLevel m_transactionIsolation{TransactionIsolationLevel::TRANSACTION_READ_COMMITTED};
         std::vector<std::shared_ptr<DBConnectionPooled>> m_allConnections;
         std::queue<std::shared_ptr<DBConnectionPooled>> m_idleConnections;
@@ -153,7 +153,8 @@ namespace cpp_dbc
 
         // Core borrow logic — returns a pooled connection from the pool.
         // Protected so derived classes can implement typed getters (e.g., getRelationalDBConnection).
-        cpp_dbc::expected<std::shared_ptr<DBConnectionPooled>, DBException> acquireConnection(std::nothrow_t) noexcept;
+        // timeoutMs == 0 means use pool default (m_maxWaitMillis).
+        cpp_dbc::expected<std::shared_ptr<DBConnectionPooled>, DBException> acquireConnection(std::nothrow_t, size_t timeoutMs = 0) noexcept;
         // Sets the transaction isolation level for the pool
         void setPoolTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override
         {
@@ -189,7 +190,7 @@ namespace cpp_dbc
         // ACCESSORS — For use by derived classes in createPooledDBConnection()
         // ====================================================================
 
-        const std::string &getUrl() const noexcept { return m_url; }
+        const std::string &getUri() const noexcept { return m_uri; }
         const std::string &getUsername() const noexcept { return m_username; }
         const std::string &getPassword() const noexcept { return m_password; }
         const std::map<std::string, std::string> &getOptions() const noexcept { return m_options; }
@@ -204,7 +205,7 @@ namespace cpp_dbc
     public:
         // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
         DBConnectionPoolBase(DBConnectionPool::ConstructorTag,
-                             const std::string &url,
+                             const std::string &uri,
                              const std::string &username,
                              const std::string &password,
                              const std::map<std::string, std::string> &options = std::map<std::string, std::string>(),
@@ -231,6 +232,7 @@ namespace cpp_dbc
 #ifdef __cpp_exceptions
         // DBConnectionPool interface implementation
         std::shared_ptr<DBConnection> getDBConnection() override;
+        std::shared_ptr<DBConnection> getDBConnection(size_t timeoutMs) override;
 
         // Gets current pool statistics
         size_t getActiveDBConnectionCount() const override;
@@ -249,11 +251,110 @@ namespace cpp_dbc
        // ====================================================================
 
         cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> getDBConnection(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> getDBConnection(std::nothrow_t, size_t timeoutMs) noexcept override;
         cpp_dbc::expected<size_t, DBException> getActiveDBConnectionCount(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<size_t, DBException> getIdleDBConnectionCount(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<size_t, DBException> getTotalDBConnectionCount(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isRunning(std::nothrow_t) const noexcept override;
+
+        // ====================================================================
+        // Runtime pool configuration — setters apply to subsequent operations;
+        // calls already in progress keep their original values.
+        // ====================================================================
+
+        /**
+         * @brief Set the connection timeout (max wait time to borrow a connection)
+         * @param millis Timeout in milliseconds
+         */
+        void setConnectionTimeout(std::nothrow_t, size_t millis) noexcept;
+
+        /**
+         * @brief Get the current connection timeout
+         * @return Timeout in milliseconds
+         */
+        size_t getConnectionTimeout(std::nothrow_t) const noexcept;
+
+        /**
+         * @brief Set the idle timeout (how long an idle connection can sit before eviction)
+         * @param millis Timeout in milliseconds
+         */
+        void setIdleTimeout(std::nothrow_t, size_t millis) noexcept;
+
+        /**
+         * @brief Get the current idle timeout
+         * @return Timeout in milliseconds
+         */
+        size_t getIdleTimeout(std::nothrow_t) const noexcept;
+
+        /**
+         * @brief Set the maximum connection lifetime
+         * @param millis Maximum lifetime in milliseconds
+         */
+        void setMaxLifetimeMillis(std::nothrow_t, size_t millis) noexcept;
+
+        /**
+         * @brief Get the current maximum connection lifetime
+         * @return Maximum lifetime in milliseconds
+         */
+        size_t getMaxLifetimeMillis(std::nothrow_t) const noexcept;
+
+        /**
+         * @brief Set whether connections are validated before being handed out
+         * @param enabled true to validate on borrow
+         */
+        void setTestOnBorrow(std::nothrow_t, bool enabled) noexcept;
+
+        /**
+         * @brief Get whether connections are validated before being handed out
+         * @return true if validation on borrow is enabled
+         */
+        bool getTestOnBorrow(std::nothrow_t) const noexcept;
+
+        /**
+         * @brief Set whether connections are validated when returned to the pool
+         * @param enabled true to validate on return
+         */
+        void setTestOnReturn(std::nothrow_t, bool enabled) noexcept;
+
+        /**
+         * @brief Get whether connections are validated when returned to the pool
+         * @return true if validation on return is enabled
+         */
+        bool getTestOnReturn(std::nothrow_t) const noexcept;
+
+        /**
+         * @brief Set the maximum pool size
+         *
+         * If the new max is smaller than the current total, excess idle connections
+         * are evicted immediately. Active (borrowed) connections are not affected —
+         * they will not be replaced when returned if the pool is still over capacity.
+         *
+         * @param size New maximum pool size (must be > 0)
+         */
+        cpp_dbc::expected<void, DBException> setMaxSize(std::nothrow_t, size_t size) noexcept;
+
+        /**
+         * @brief Get the current maximum pool size
+         * @return Maximum pool size
+         */
+        size_t getMaxSize(std::nothrow_t) const noexcept;
+
+        /**
+         * @brief Set the minimum number of idle connections
+         *
+         * The maintenance thread will replenish connections on its next cycle
+         * if the pool is below the new minimum. Must not exceed maxSize.
+         *
+         * @param size New minimum idle count
+         */
+        cpp_dbc::expected<void, DBException> setMinIdle(std::nothrow_t, size_t size) noexcept;
+
+        /**
+         * @brief Get the current minimum idle count
+         * @return Minimum idle count
+         */
+        size_t getMinIdle(std::nothrow_t) const noexcept;
     };
 
 } // namespace cpp_dbc

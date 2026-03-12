@@ -12,6 +12,40 @@
 
 ## Completed Tasks
 
+- Unified version/info API across all drivers, MySQL code hardening, BlobStream connection validation (2026-03-08):
+  - `getDriverVersion()` moved from family driver bases to `DBDriver` base; implemented in all 7 drivers
+  - `getServerVersion()` + `getServerInfo()` (throwing + nothrow) added to `DBConnection` base; all 7 drivers return driver-specific metadata maps
+  - `BlobStream::isConnectionValid()` pure virtual added; all blob classes override with `const noexcept`
+  - MongoDB: `getServerInfo()` → `getServerInfoAsDocument()` to avoid base class collision
+  - MySQL: ~60 error codes regenerated, `std::stoi` → `std::from_chars`, `memset` → aggregate init, index loop → `std::span`, SQL injection prevention in blob
+  - Pool: version/info API delegated through all 4 family pooled connection wrappers
+  - Tests: new version/info test cases for all 7 drivers
+  - 66 files changed, +1760/-235 lines
+
+- Convention refinements: PrivateCtorTag unification, violations checklist reorganization, MySQL code cleanup (2026-03-08):
+  - `ConstructorTag` → `PrivateCtorTag` throughout convention docs; private constructors explicitly forbidden with migration rule
+  - Violations checklist reorganized into 6 categorized sections with ~20 new items
+  - MySQL: explicit destructors for `MySQLBlob`/`MySQLInputStream`, Allman brace formatting, stub `connectRelational()` fixed, Spanish → English comments
+  - 9 files changed, +137/-69 lines
+
+- Unified URI API in DBDriver Base, PrivateCtorTag for MySQLBlob/InputStream, Expanded Conventions (2026-03-07):
+  - `DBDriver` base class: `acceptsURL()` → `acceptURI()`, new `parseURI()` + `buildURI()` + `getURIScheme()` pure virtuals
+  - All 7 drivers updated to implement new URI pure virtuals; private helpers removed from family driver bases (-130 lines)
+  - `MySQLBlob` + `MySQLInputStream`: PrivateCtorTag pattern, `m_initFailed`/`m_initError`, `#ifdef __cpp_exceptions` guards
+  - `.claude/rules/cpp_dbc_conventions.md`: 8 new convention sections (preprocessor directives, Allman braces, NOSONAR, bug-fix comments, unused params, private access specifier, PrivateCtorTag, migration rule)
+  - New `.claude/rules/cpp_dbc_conventions_violations_how_report_them.md`: structured violation reporting format
+  - All tests updated for new URI API; docs updated (en/es, error_handling_patterns, how_add_new_db_drivers)
+  - 49 files changed, +2938/-1354 lines
+
+- MySQL Driver — Full Nothrow-First Refactor, Static Factory Pattern, Result Set Registry, and Dead try/catch Elimination (2026-03-06):
+  - `MySQLDBDriver`: double-checked locking with `atomic<bool>` + `mutex` for library init; new `cleanup()` static method
+  - `MySQLDBConnection`: PrivateCtorTag pattern, nothrow constructor with `m_initFailed`/`m_initError`, result set registry (`m_activeResultSets`) with two-phase close, `getMySQLNativeHandle()`/`getConnectionMutex()` for child access, `m_resetting` anti-deadlock flag
+  - `MySQLDBPreparedStatement`: `weak_ptr<MySQLDBConnection>` replaces `weak_ptr<MYSQL>`, private nothrow constructor, `create(std::nothrow_t)` via `new`, `m_closed` atomic flag
+  - `MySQLDBResultSet`: private nothrow constructor, `weak_ptr<MySQLDBConnection>` for lifecycle, `notifyConnClosing(std::nothrow_t)`, `[[nodiscard]]` on all nothrow methods
+  - `mysql_internal.hpp`: `MySQLConnectionLock` RAII helper, `MYSQL_CONNECTION_LOCK_OR_RETURN` macro, `MYSQL_DEBUG` macro
+  - Dead try/catch eliminated across all MySQL `.cpp` files (nothrow methods calling only nothrow methods)
+  - 17 files changed, +1559/-2202 lines (net reduction of ~643 lines)
+
 - CRTP `PooledDBConnectionBase<D,C,P>` — Unified Pooled Connection Logic via Template Inheritance (2026-03-06):
   - New CRTP template `PooledDBConnectionBase<Derived, ConnType, PoolType>` in `pool/pooled_db_connection_base.hpp` + `.cpp` (~485 lines) — extracts close/returnToPool (race-condition fix), destructor cleanup, and pool metadata from all 4 family pooled connection wrappers
   - All 4 family `PooledDBConnection` classes now inherit from the CRTP base with one-line inline delegators resolving diamond inheritance

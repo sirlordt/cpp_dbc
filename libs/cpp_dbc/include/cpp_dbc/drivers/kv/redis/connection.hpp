@@ -51,12 +51,15 @@ namespace cpp_dbc::Redis
         };
 
         std::shared_ptr<redisContext> m_context;
-        std::string m_url;
+        std::string m_uri;
         int m_dbIndex{0};
         std::atomic<bool> m_closed{false};
         mutable std::mutex m_mutex;
         bool m_initFailed{false};
-        std::optional<DBException> m_initError{std::nullopt};
+        std::unique_ptr<DBException> m_initError{nullptr};
+        // Stored by the create() factory so close() can unregister from the driver registry
+        // using owner_less comparison (raw 'this' won't work with the set's comparator).
+        std::weak_ptr<RedisDBConnection> m_self;
         TransactionIsolationLevel m_transactionIsolation{TransactionIsolationLevel::TRANSACTION_NONE};
 
         /**
@@ -154,7 +157,7 @@ namespace cpp_dbc::Redis
         bool isClosed() const override;
         void returnToPool() override;
         bool isPooled() const override;
-        std::string getURL() const override;
+        std::string getURI() const override;
         void reset() override;
 
         // KVDBConnection interface implementation - Basic key-value operations
@@ -209,6 +212,7 @@ namespace cpp_dbc::Redis
                                    const std::vector<std::string> &args = {}) override;
         bool flushDB(bool async = false) override;
         bool ping() override;
+        std::string getServerVersion() override;
         std::map<std::string, std::string> getServerInfo() override;
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
@@ -252,8 +256,11 @@ namespace cpp_dbc::Redis
                 PrivateCtorTag{}, std::nothrow, uri, user, password, options);
             if (conn->m_initFailed)
             {
-                return cpp_dbc::unexpected(*conn->m_initError);
+                return cpp_dbc::unexpected(std::move(*conn->m_initError));
             }
+            // Store a weak self-reference so close() can unregister from the driver's
+            // connection registry via owner_less comparison without calling shared_from_this().
+            conn->m_self = conn;
             return conn;
         }
 
@@ -262,7 +269,7 @@ namespace cpp_dbc::Redis
         cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
-        cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<std::string, DBException> getURI(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<void, DBException>
             setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
         cpp_dbc::expected<TransactionIsolationLevel, DBException>
@@ -380,6 +387,7 @@ namespace cpp_dbc::Redis
 
         cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
 
+        cpp_dbc::expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override;
         cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(
             std::nothrow_t) noexcept override;
 

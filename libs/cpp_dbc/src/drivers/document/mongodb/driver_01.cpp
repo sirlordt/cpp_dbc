@@ -18,8 +18,10 @@
 
 #include "cpp_dbc/drivers/document/driver_mongodb.hpp"
 
+#include <algorithm>
 #include <iostream>
 #include <sstream>
+#include "cpp_dbc/common/system_constants.hpp"
 #include "cpp_dbc/common/system_utils.hpp"
 #include "mongodb_internal.hpp"
 
@@ -27,12 +29,14 @@
 
 namespace cpp_dbc::MongoDB
 {
-    // ============================================================================
-    // Static member initialization
-    // ============================================================================
-
-    std::atomic<bool> MongoDBDriver::s_initialized{false}; // NOSONAR - Explicit template arg for clarity in static member definition
+    // ── Static member initialization ──────────────────────────────────────────
+    std::atomic<bool> MongoDBDriver::s_initialized{false}; // NOSONAR(cpp:S1197) — explicit template arg for clarity in static member definition
     std::mutex MongoDBDriver::s_initMutex;
+    std::weak_ptr<MongoDBDriver> MongoDBDriver::s_instance;
+    std::mutex                   MongoDBDriver::s_instanceMutex;
+    std::mutex                   MongoDBDriver::s_registryMutex;
+    std::set<std::weak_ptr<MongoDBConnection>,
+             std::owner_less<std::weak_ptr<MongoDBConnection>>> MongoDBDriver::s_connectionRegistry;
 
     // ============================================================================
     // MongoDBDriver Implementation
@@ -47,7 +51,7 @@ namespace cpp_dbc::MongoDB
         return true;
     }
 
-    MongoDBDriver::MongoDBDriver()
+    MongoDBDriver::MongoDBDriver(MongoDBDriver::PrivateCtorTag, std::nothrow_t) noexcept
     {
         MONGODB_DEBUG("MongoDBDriver::constructor - Creating driver");
         // Double-checked locking: compatible with -fno-exceptions (std::call_once can throw
@@ -67,19 +71,59 @@ namespace cpp_dbc::MongoDB
         MONGODB_DEBUG("MongoDBDriver::constructor - Done");
     }
 
+    // Note: The destructor does NOT call cleanup() because mongoc_cleanup() is destructive
+    // and irreversible within the same process. It frees global handshake data that was
+    // allocated via pthread_once during library loading (_dl_init). After mongoc_cleanup()
+    // runs, that data cannot be re-initialized — pthread_once has already fired and will
+    // not run again, even if mongoc_init() is called. Any subsequent MongoDB operation
+    // (e.g. a new connection in the next test case) will read freed memory, causing Valgrind
+    // to report hundreds of "Invalid read" errors (use-after-free in
+    // _mongoc_handshake_build_doc_with_application). Use cleanup() explicitly only at
+    // process exit if needed.
     MongoDBDriver::~MongoDBDriver()
     {
         MONGODB_DEBUG("MongoDBDriver::destructor - Destroying driver");
+        // cleanup();
+    }
+
+    void MongoDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<MongoDBConnection> conn) noexcept
+    {
+        std::scoped_lock lock(s_registryMutex);
+        s_connectionRegistry.insert(std::move(conn));
+    }
+
+    void MongoDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<MongoDBConnection> &conn) noexcept
+    {
+        std::scoped_lock lock(s_registryMutex);
+        s_connectionRegistry.erase(conn);
+    }
+
+    size_t MongoDBDriver::getConnectionAlive() noexcept
+    {
+        std::scoped_lock lock(s_registryMutex);
+        return static_cast<size_t>(std::ranges::count_if(
+            s_connectionRegistry,
+            [](const auto &w) { return !w.expired(); }));
     }
 
 #ifdef __cpp_exceptions
+    std::shared_ptr<MongoDBDriver> MongoDBDriver::getInstance()
+    {
+        auto result = getInstance(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
     std::shared_ptr<DocumentDBConnection> MongoDBDriver::connectDocument(
-        const std::string &url,
+        const std::string &uri,
         const std::string &user,
         const std::string &password,
         const std::map<std::string, std::string> &options)
     {
-        auto r = connectDocument(std::nothrow, url, user, password, options);
+        auto r = connectDocument(std::nothrow, uri, user, password, options);
         if (!r.has_value())
         {
             throw r.error();
@@ -87,63 +131,11 @@ namespace cpp_dbc::MongoDB
         return r.value();
     }
 
-    std::map<std::string, std::string> MongoDBDriver::parseURI(const std::string &uri)
-    {
-        auto r = parseURI(std::nothrow, uri);
-        if (!r.has_value())
-        {
-            throw r.error();
-        }
-        return r.value();
-    }
-
-    std::string MongoDBDriver::buildURI(
-        const std::string &host,
-        int port,
-        const std::string &database,
-        const std::map<std::string, std::string> &options)
-    {
-        std::ostringstream uri;
-
-        // Start with scheme
-        uri << "mongodb://";
-
-        // Add host
-        uri << (host.empty() ? "localhost" : host);
-
-        // Add port
-        if (port > 0)
-        {
-            uri << ":" << port;
-        }
-
-        // Add database
-        if (!database.empty())
-        {
-            uri << "/" << database;
-        }
-
-        // Add options
-        bool firstOption = true;
-        for (const auto &[key, value] : options)
-        {
-            uri << (firstOption ? "?" : "&");
-            uri << key << "=" << value;
-            firstOption = false;
-        }
-
-        return uri.str();
-    }
 #endif // __cpp_exceptions
-
-    bool MongoDBDriver::acceptsURL(const std::string &url) noexcept
-    {
-        return url.starts_with("cpp_dbc:mongodb://");
-    }
 
     std::string MongoDBDriver::getURIScheme() const noexcept
     {
-        return "cpp_dbc:mongodb://";
+        return "cpp_dbc:mongodb://<host>:<port>/<database>";
     }
 
     bool MongoDBDriver::supportsReplicaSets() const noexcept
@@ -179,8 +171,14 @@ namespace cpp_dbc::MongoDB
 
     bool MongoDBDriver::validateURI(const std::string &uri)
     {
+        // Strip cpp_dbc: prefix — mongoc expects native mongodb:// URIs
+        std::string nativeUri = uri;
+        if (nativeUri.starts_with(cpp_dbc::system_constants::URI_PREFIX))
+        {
+            nativeUri = nativeUri.substr(cpp_dbc::system_constants::URI_PREFIX.size());
+        }
         bson_error_t error;
-        mongoc_uri_t *mongoUri = mongoc_uri_new_with_error(uri.c_str(), &error);
+        mongoc_uri_t *mongoUri = mongoc_uri_new_with_error(nativeUri.c_str(), &error);
 
         if (mongoUri)
         {
@@ -195,30 +193,42 @@ namespace cpp_dbc::MongoDB
     // MongoDBDriver NOTHROW VERSIONS
     // ====================================================================
 
+    cpp_dbc::expected<std::shared_ptr<MongoDBDriver>, DBException>
+    MongoDBDriver::getInstance(std::nothrow_t) noexcept
+    {
+        std::scoped_lock lock(s_instanceMutex);
+        auto existing = s_instance.lock();
+        if (existing)
+        {
+            return existing;
+        }
+        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+        // MongoDBDriver constructor only calls initialize(std::nothrow) and debug
+        // macros — no recoverable exception is possible.
+        auto inst = std::make_shared<MongoDBDriver>(MongoDBDriver::PrivateCtorTag{}, std::nothrow);
+        s_instance = inst;
+        return inst;
+    }
+
     expected<std::shared_ptr<DocumentDBConnection>, DBException> MongoDBDriver::connectDocument(
         std::nothrow_t,
-        const std::string &url,
+        const std::string &uri,
         const std::string &user,
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
     {
-        MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connecting to: " << url);
+        MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connecting to: " << uri);
 
-        if (!acceptsURL(url))
+        auto uriCheck = acceptURI(std::nothrow, uri);
+        if (!uriCheck.has_value())
         {
-            return unexpected<DBException>(DBException(
-                "1C2D3E4F5A6B",
-                "Invalid MongoDB URL: " + url));
+            return unexpected<DBException>(uriCheck.error());
         }
 
-        // Strip the 'cpp_dbc:' prefix if present
-        std::string mongoUrl = url;
-        if (url.starts_with("cpp_dbc:"))
-        {
-            mongoUrl = url.substr(8);
-        }
-
-        auto connResult = MongoDBConnection::create(std::nothrow, mongoUrl, user, password, options);
+        // Pass the full canonical URI — MongoDBConnection strips the cpp_dbc:
+        // prefix internally before calling mongoc, while preserving the
+        // canonical URI in m_uri.
+        auto connResult = MongoDBConnection::create(std::nothrow, uri, user, password, options);
         if (!connResult.has_value())
         {
             MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connection failed: " << connResult.error().what());
@@ -226,16 +236,27 @@ namespace cpp_dbc::MongoDB
         }
 
         MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connection established");
-        return std::static_pointer_cast<DocumentDBConnection>(connResult.value());
+        auto conn = connResult.value();
+        registerConnection(std::nothrow, conn);
+        return std::static_pointer_cast<DocumentDBConnection>(conn);
     }
 
     expected<std::map<std::string, std::string>, DBException> MongoDBDriver::parseURI(
         std::nothrow_t, const std::string &uri) noexcept
     {
+        // Require cpp_dbc: prefix and strip it before passing to mongoc
+        if (!uri.starts_with(cpp_dbc::system_constants::URI_PREFIX))
+        {
+            return unexpected<DBException>(DBException(
+                "1C2D3E4F5A6B",
+                "Invalid MongoDB URI: " + uri));
+        }
+        std::string nativeUri = uri.substr(cpp_dbc::system_constants::URI_PREFIX.size());
+
         std::map<std::string, std::string> result;
 
         bson_error_t error;
-        MongoUriHandle mongoUri(mongoc_uri_new_with_error(uri.c_str(), &error));
+        MongoUriHandle mongoUri(mongoc_uri_new_with_error(nativeUri.c_str(), &error));
 
         if (!mongoUri)
         {
@@ -277,6 +298,57 @@ namespace cpp_dbc::MongoDB
         }
 
         return result;
+    }
+
+    cpp_dbc::expected<std::string, DBException> MongoDBDriver::buildURI(
+        std::nothrow_t,
+        const std::string &host,
+        int port,
+        const std::string &database,
+        const std::map<std::string, std::string> &options) noexcept
+    {
+        std::ostringstream uri;
+
+        // Start with scheme (cpp_dbc: prefix + native mongodb://)
+        uri << "cpp_dbc:mongodb://";
+
+        // Add host — bracket raw IPv6 (e.g. "::1" → "[::1]")
+        if (host.empty())
+        {
+            uri << "localhost";
+        }
+        else if (host.contains(':') &&
+                 !(host.front() == '[' && host.back() == ']'))
+        {
+            uri << "[" << host << "]";
+        }
+        else
+        {
+            uri << host;
+        }
+
+        // Add port
+        if (port > 0)
+        {
+            uri << ":" << port;
+        }
+
+        // Add database
+        if (!database.empty())
+        {
+            uri << "/" << database;
+        }
+
+        // Add options
+        bool firstOption = true;
+        for (const auto &[key, value] : options)
+        {
+            uri << (firstOption ? "?" : "&");
+            uri << key << "=" << value;
+            firstOption = false;
+        }
+
+        return uri.str();
     }
 
     std::string MongoDBDriver::getName() const noexcept

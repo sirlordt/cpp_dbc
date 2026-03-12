@@ -19,6 +19,7 @@
 */
 
 #include "cpp_dbc/cpp_dbc.hpp"
+#include "cpp_dbc/common/system_constants.hpp"
 #include "cpp_dbc/config/database_config.hpp"
 #include <iostream>
 
@@ -49,12 +50,12 @@ namespace cpp_dbc
 
 #ifdef __cpp_exceptions
 
-    std::shared_ptr<DBConnection> DriverManager::getDBConnection(const std::string &url,
+    std::shared_ptr<DBConnection> DriverManager::getDBConnection(const std::string &uri,
                                                                  const std::string &user,
                                                                  const std::string &password,
                                                                  const std::map<std::string, std::string> &options)
     {
-        auto result = getDBConnection(std::nothrow, url, user, password, options);
+        auto result = getDBConnection(std::nothrow, uri, user, password, options);
         if (!result.has_value())
         {
             throw result.error();
@@ -87,36 +88,35 @@ namespace cpp_dbc
 
     cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException>
     DriverManager::getDBConnection(std::nothrow_t,
-                                   const std::string &url,
+                                   const std::string &uri,
                                    const std::string &user,
                                    const std::string &password,
                                    const std::map<std::string, std::string> &options) noexcept
     {
-        // Parse the URL to determine which driver to use
-        // URL format: cpp_dbc:driverName://host:port/database
-        size_t prefixPos = url.find("cpp_dbc:");
-        if (prefixPos != 0)
+        // Parse the URI to determine which driver to use
+        // URI format: cpp_dbc:driverName://host:port/database
+        if (!uri.starts_with(system_constants::URI_PREFIX))
         {
-            return cpp_dbc::unexpected(DBException("1S2T3U4V5W6X", "Invalid URL format. Expected cpp_dbc:driverName://host:port/database", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("1S2T3U4V5W6X", "Invalid URI format. Expected cpp_dbc:driverName://host:port/database", system_utils::captureCallStack()));
         }
 
-        size_t driverEndPos = url.find("://", 7);
+        size_t driverEndPos = uri.find("://", system_constants::URI_PREFIX.size());
         if (driverEndPos == std::string::npos)
         {
-            return cpp_dbc::unexpected(DBException("7Y8Z9A0B1C2D", "Invalid URL format. Expected cpp_dbc:driverName://host:port/database", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("7Y8Z9A0B1C2D", "Invalid URI format. Expected cpp_dbc:driverName://host:port/database", system_utils::captureCallStack()));
         }
 
-        std::string driverName = url.substr(8, driverEndPos - 8);
+        std::string driverName = uri.substr(8, driverEndPos - 8);
 
         // Find the driver
         auto it = drivers.find(driverName);
         if (it == drivers.end())
         {
-            return cpp_dbc::unexpected(DBException("3E4F5G6H7I8J", "No suitable driver found for " + url, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("3E4F5G6H7I8J", "No suitable driver found for " + uri, system_utils::captureCallStack()));
         }
 
         // Use the driver to create a connection (nothrow overload — logic lives there)
-        return it->second->connect(std::nothrow, url, user, password, options);
+        return it->second->connect(std::nothrow, uri, user, password, options);
     }
 
     cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException>
@@ -180,5 +180,125 @@ namespace cpp_dbc
             return std::nullopt;
         }
         return it->second;
+    }
+
+    // ── initDrivers ──────────────────────────────────────────────────────────────
+
+    std::vector<DBException> DriverManager::initDrivers(std::nothrow_t) noexcept
+    {
+        std::vector<DBException> errors;
+
+        // Each driver uses the weak_ptr singleton pattern: getInstance(std::nothrow)
+        // returns the existing instance if alive, or creates a new one.
+        // If already registered, the contains() guard skips instantiation entirely —
+        // no constructor runs, no C library is touched. This makes initDrivers()
+        // idempotent: calling it N times is equivalent to calling it once.
+
+#if USE_MYSQL
+        if (!drivers.contains("mysql"))
+        {
+            auto result = cpp_dbc::MySQL::MySQLDBDriver::getInstance(std::nothrow);
+            if (result.has_value())
+            {
+                registerDriver(result.value());
+            }
+            else
+            {
+                errors.push_back(result.error());
+            }
+        }
+#endif
+
+#if USE_POSTGRESQL
+        if (!drivers.contains("postgresql"))
+        {
+            auto result = cpp_dbc::PostgreSQL::PostgreSQLDBDriver::getInstance(std::nothrow);
+            if (result.has_value())
+            {
+                registerDriver(result.value());
+            }
+            else
+            {
+                errors.push_back(result.error());
+            }
+        }
+#endif
+
+#if USE_SQLITE
+        if (!drivers.contains("sqlite"))
+        {
+            auto result = cpp_dbc::SQLite::SQLiteDBDriver::getInstance(std::nothrow);
+            if (result.has_value())
+            {
+                registerDriver(result.value());
+            }
+            else
+            {
+                errors.push_back(result.error());
+            }
+        }
+#endif
+
+#if USE_FIREBIRD
+        if (!drivers.contains("firebird"))
+        {
+            auto result = cpp_dbc::Firebird::FirebirdDBDriver::getInstance(std::nothrow);
+            if (result.has_value())
+            {
+                registerDriver(result.value());
+            }
+            else
+            {
+                errors.push_back(result.error());
+            }
+        }
+#endif
+
+#if USE_MONGODB
+        if (!drivers.contains("mongodb"))
+        {
+            auto result = cpp_dbc::MongoDB::MongoDBDriver::getInstance(std::nothrow);
+            if (result.has_value())
+            {
+                registerDriver(result.value());
+            }
+            else
+            {
+                errors.push_back(result.error());
+            }
+        }
+#endif
+
+#if USE_SCYLLADB
+        if (!drivers.contains("scylladb"))
+        {
+            auto result = cpp_dbc::ScyllaDB::ScyllaDBDriver::getInstance(std::nothrow);
+            if (result.has_value())
+            {
+                registerDriver(result.value());
+            }
+            else
+            {
+                errors.push_back(result.error());
+            }
+        }
+#endif
+
+#if USE_REDIS
+        if (!drivers.contains("redis"))
+        {
+            auto result = cpp_dbc::Redis::RedisDBDriver::getInstance(std::nothrow);
+            if (result.has_value())
+            {
+                registerDriver(result.value());
+            }
+            else
+            {
+                errors.push_back(result.error());
+            }
+        }
+#endif
+
+        return errors;
     }
 }

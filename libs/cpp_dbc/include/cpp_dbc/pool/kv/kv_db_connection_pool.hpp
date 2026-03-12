@@ -74,7 +74,7 @@ namespace cpp_dbc
     public:
         // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
         KVDBConnectionPool(DBConnectionPool::ConstructorTag,
-                           const std::string &url,
+                           const std::string &uri,
                            const std::string &username,
                            const std::string &password,
                            const std::map<std::string, std::string> &options = std::map<std::string, std::string>(),
@@ -100,7 +100,7 @@ namespace cpp_dbc
 
         // Static factory methods
         static cpp_dbc::expected<std::shared_ptr<KVDBConnectionPool>, DBException> create(std::nothrow_t,
-                                                                                          const std::string &url,
+                                                                                          const std::string &uri,
                                                                                           const std::string &username,
                                                                                           const std::string &password,
                                                                                           const std::map<std::string, std::string> &options = std::map<std::string, std::string>(),
@@ -120,10 +120,12 @@ namespace cpp_dbc
 #ifdef __cpp_exceptions
         // Family-specific typed getter (throwing)
         virtual std::shared_ptr<KVDBConnection> getKVDBConnection();
+        virtual std::shared_ptr<KVDBConnection> getKVDBConnection(size_t timeoutMs);
 #endif
 
         // Family-specific typed getter (nothrow)
         cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> getKVDBConnection(std::nothrow_t) noexcept;
+        cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> getKVDBConnection(std::nothrow_t, size_t timeoutMs) noexcept;
     };
 
     // KVPooledDBConnection wraps a physical KV database connection.
@@ -161,9 +163,11 @@ namespace cpp_dbc
         bool isClosed() const override { return this->isClosedThrow(); }
         void returnToPool() override { this->returnToPoolThrow(); }
         bool isPooled() const override { return this->isPooledThrow(); }
-        std::string getURL() const override { return this->getURLThrow(); }
+        std::string getURI() const override { return this->getURIThrow(); }
         void reset() override { this->resetThrow(); }
         bool ping() override { return this->pingThrow(); }
+        std::string getServerVersion() override { return this->getServerVersionThrow(); }
+        std::map<std::string, std::string> getServerInfo() override { return this->getServerInfoThrow(); }
 
         // ── KV-specific throwing methods ──
         bool setString(const std::string &key, const std::string &value,
@@ -201,7 +205,6 @@ namespace cpp_dbc
         std::vector<std::string> scanKeys(const std::string &pattern, int64_t count = 10) override;
         std::string executeCommand(const std::string &command, const std::vector<std::string> &args = {}) override;
         bool flushDB(bool async = false) override;
-        std::map<std::string, std::string> getServerInfo() override;
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
 
@@ -217,8 +220,10 @@ namespace cpp_dbc
         cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override { return this->isClosedImpl(std::nothrow); }
         cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override { return this->returnToPoolImpl(std::nothrow); }
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override { return this->isPooledImpl(std::nothrow); }
-        cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override { return this->getURLImpl(std::nothrow); }
+        cpp_dbc::expected<std::string, DBException> getURI(std::nothrow_t) const noexcept override { return this->getURIImpl(std::nothrow); }
         cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override { return this->pingImpl(std::nothrow); }
+        cpp_dbc::expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override { return this->getServerVersionImpl(std::nothrow); }
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(std::nothrow_t) noexcept override { return this->getServerInfoImpl(std::nothrow); }
 
         // ── KV-specific nothrow methods ──
         cpp_dbc::expected<bool, DBException> setString(
@@ -331,8 +336,6 @@ namespace cpp_dbc
         cpp_dbc::expected<bool, DBException> flushDB(
             std::nothrow_t, bool async = false) noexcept override;
 
-        cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(
-            std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException>
         setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
         cpp_dbc::expected<TransactionIsolationLevel, DBException>
@@ -352,7 +355,7 @@ namespace cpp_dbc::Redis
     public:
         // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
         RedisDBConnectionPool(DBConnectionPool::ConstructorTag,
-                              const std::string &url,
+                              const std::string &uri,
                               const std::string &username,
                               const std::string &password) noexcept;
 
@@ -367,7 +370,7 @@ namespace cpp_dbc::Redis
 
 #ifdef __cpp_exceptions
         // Throwing static factory methods
-        static std::shared_ptr<RedisDBConnectionPool> create(const std::string &url,
+        static std::shared_ptr<RedisDBConnectionPool> create(const std::string &uri,
                                                              const std::string &username,
                                                              const std::string &password);
 
@@ -376,7 +379,7 @@ namespace cpp_dbc::Redis
 
         // Nothrow static factory methods
         static cpp_dbc::expected<std::shared_ptr<RedisDBConnectionPool>, DBException> create(std::nothrow_t,
-                                                                                             const std::string &url,
+                                                                                             const std::string &uri,
                                                                                              const std::string &username,
                                                                                              const std::string &password) noexcept;
 

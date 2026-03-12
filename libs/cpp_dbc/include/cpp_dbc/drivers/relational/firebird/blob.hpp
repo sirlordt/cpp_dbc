@@ -290,7 +290,7 @@ namespace cpp_dbc::Firebird
          * @brief Check if the connection is still valid
          * @return true if the connection is still valid
          */
-        bool isConnectionValid() const
+        bool isConnectionValid() const noexcept override
         {
             return !m_connection.expired();
         }

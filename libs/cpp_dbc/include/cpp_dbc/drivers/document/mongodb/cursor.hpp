@@ -237,7 +237,7 @@ namespace cpp_dbc::MongoDB
          * @brief Check if the connection is still valid
          * @return true if the connection is valid
          */
-        bool isConnectionValid() const;
+        bool isConnectionValid() const noexcept;
 
         /**
          * @brief Get any error from the cursor

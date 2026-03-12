@@ -37,6 +37,7 @@
 #include <condition_variable>
 #include <queue>
 #include <functional>
+#include <random>
 
 #if USE_POSTGRESQL
 #include <cpp_dbc/drivers/relational/driver_postgresql.hpp>
@@ -205,7 +206,7 @@ int main(int argc, char *argv[])
         // Create connection pool configuration
         logStep("Creating connection pool configuration...");
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(pgConfig.createConnectionString());
+        poolConfig.setUri(pgConfig.createConnectionString());
         poolConfig.setUsername(pgConfig.getUsername());
         poolConfig.setPassword(pgConfig.getPassword());
         poolConfig.setInitialSize(5);
@@ -282,7 +283,8 @@ int main(int argc, char *argv[])
                                       std::to_string(recordId) + "')");
 
                     // Simulate work
-                    std::this_thread::sleep_for(std::chrono::milliseconds(100 + rand() % 200));
+                    thread_local std::mt19937 rng{std::random_device{}()};
+                    std::this_thread::sleep_for(std::chrono::milliseconds(std::uniform_int_distribution<int>(100, 299)(rng)));
                 }
                 catch (const std::exception& e) {
                     std::lock_guard<std::mutex> lock(consoleMutex);
@@ -309,7 +311,8 @@ int main(int argc, char *argv[])
                                       std::to_string(recordId) + "' WHERE id = " + std::to_string(recordId));
 
                     // Simulate work
-                    std::this_thread::sleep_for(std::chrono::milliseconds(150 + rand() % 250));
+                    thread_local std::mt19937 rng{std::random_device{}()};
+                    std::this_thread::sleep_for(std::chrono::milliseconds(std::uniform_int_distribution<int>(150, 399)(rng)));
                 }
                 catch (const std::exception& e) {
                     std::lock_guard<std::mutex> lock(consoleMutex);

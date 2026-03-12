@@ -114,7 +114,7 @@ namespace sqlite_test_helpers
     std::shared_ptr<cpp_dbc::SQLite::SQLiteDBDriver> getSQLiteDriver()
     {
         static std::shared_ptr<cpp_dbc::SQLite::SQLiteDBDriver> driver =
-            std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>();
+            cpp_dbc::SQLite::SQLiteDBDriver::getInstance(std::nothrow).value_or(nullptr);
         return driver;
     }
 

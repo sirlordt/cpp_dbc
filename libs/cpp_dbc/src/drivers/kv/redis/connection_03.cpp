@@ -53,6 +53,12 @@ namespace cpp_dbc::Redis
             REDIS_DEBUG("RedisDBConnection::close(nothrow) - Closing connection");
             m_context.reset();
             m_closed.store(true, std::memory_order_release);
+
+            // Unregister from the driver registry so getConnectionAlive() reflects
+            // actual live connections. The owner_less m_self weak_ptr is used for
+            // set lookup — raw 'this' would not match the set's comparator.
+            RedisDBDriver::unregisterConnection(std::nothrow, m_self);
+
             REDIS_DEBUG("RedisDBConnection::close(nothrow) - Connection closed");
             return {};
         }
@@ -95,24 +101,12 @@ namespace cpp_dbc::Redis
         return false;
     }
 
-    cpp_dbc::expected<std::string, DBException> RedisDBConnection::getURL(std::nothrow_t) const noexcept
+    // No try/catch: the only possible throw is std::bad_alloc from the
+    // std::string copy, which is a death-sentence exception — no meaningful
+    // recovery is possible, so std::terminate is the correct response.
+    cpp_dbc::expected<std::string, DBException> RedisDBConnection::getURI(std::nothrow_t) const noexcept
     {
-        try
-        {
-            return m_url;
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("LE7RHOIPQSA5",
-                std::string("Exception in getURL: ") + ex.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("JKHJGVFHTG27",
-                "Unknown exception in getURL",
-                system_utils::captureCallStack()));
-        }
+        return m_uri;
     }
 
     cpp_dbc::expected<void, DBException>

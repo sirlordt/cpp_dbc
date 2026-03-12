@@ -118,7 +118,7 @@ namespace mysql_test_helpers
     std::shared_ptr<cpp_dbc::MySQL::MySQLDBDriver> getMySQLDriver()
     {
         static std::shared_ptr<cpp_dbc::MySQL::MySQLDBDriver> driver =
-            std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>();
+            cpp_dbc::MySQL::MySQLDBDriver::getInstance(std::nothrow).value_or(nullptr);
         return driver;
     }
 

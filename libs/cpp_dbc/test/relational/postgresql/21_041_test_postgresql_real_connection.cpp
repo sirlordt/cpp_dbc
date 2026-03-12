@@ -32,54 +32,121 @@
 // Test case to verify PostgreSQL connection
 TEST_CASE("PostgreSQL connection test", "[21_041_01_postgresql_real_connection]")
 {
-    // Get PostgreSQL configuration
-    auto dbConfig = postgresql_test_helpers::getPostgreSQLConfig("dev_postgresql");
+    if (!postgresql_test_helpers::canConnectToPostgreSQL())
+    {
+        SKIP("Cannot connect to PostgreSQL database");
+        return;
+    }
 
-    // Extract connection parameters
+    auto dbConfig = postgresql_test_helpers::getPostgreSQLConfig("dev_postgresql");
     std::string username = dbConfig.getUsername();
     std::string password = dbConfig.getPassword();
     std::string connStr = dbConfig.createConnectionString();
 
-    // Register the PostgreSQL driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(postgresql_test_helpers::getPostgreSQLDriver());
 
     SECTION("Test PostgreSQL connection")
     {
-        try
-        {
-            // Attempt to connect to PostgreSQL
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to PostgreSQL with connection string: " + connStr);
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Username: " + username + ", Password: " + password);
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to PostgreSQL with connection string: " + connStr);
 
-            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
-                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
-            REQUIRE(conn != nullptr);
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+            cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+        REQUIRE(conn != nullptr);
 
-            // Execute a simple query to verify the connection
-            auto resultSet = conn->executeQuery("SELECT 1 as test_value");
-            REQUIRE(resultSet->next());
-            REQUIRE(resultSet->getInt("test_value") == 1);
+        // Execute a simple query to verify the connection
+        auto resultSet = conn->executeQuery("SELECT 1 as test_value");
+        REQUIRE(resultSet->next());
+        REQUIRE(resultSet->getInt("test_value") == 1);
 
-            // Verify connection state and URL
-            CHECK_FALSE(conn->isClosed());
+        // Verify connection state and URI
+        CHECK_FALSE(conn->isClosed());
 
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URL: " + conn->getURL());
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URI: " + conn->getURI());
 
-            CHECK(conn->getURL() == connStr);
+        CHECK(conn->getURI() == connStr);
 
-            // Close the connection
-            conn->close();
-            CHECK(conn->isClosed());
-        }
-        catch (const cpp_dbc::DBException &ex)
-        {
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "PostgreSQL connection error: " + std::string(ex.what_s()));
-            WARN("PostgreSQL connection failed: " + std::string(ex.what_s()));
-            WARN("This is expected if PostgreSQL is not installed or the database doesn't exist");
-            WARN("The test is still considered successful for CI purposes");
-        }
+        // Close the connection
+        conn->close();
+        CHECK(conn->isClosed());
     }
 }
+TEST_CASE("PostgreSQL getServerVersion and getServerInfo", "[21_041_03_postgresql_real_connection]")
+{
+    if (!postgresql_test_helpers::canConnectToPostgreSQL())
+    {
+        SKIP("Cannot connect to PostgreSQL database");
+        return;
+    }
+
+    auto dbConfig = postgresql_test_helpers::getPostgreSQLConfig("dev_postgresql");
+    std::string username = dbConfig.getUsername();
+    std::string password = dbConfig.getPassword();
+    std::string connStr = dbConfig.createConnectionString();
+
+    cpp_dbc::DriverManager::registerDriver(postgresql_test_helpers::getPostgreSQLDriver());
+
+    SECTION("getServerVersion returns non-empty version string")
+    {
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+            cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+        REQUIRE(conn != nullptr);
+
+        auto version = conn->getServerVersion();
+        CHECK_FALSE(version.empty());
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "PostgreSQL server version: " + version);
+
+        conn->close();
+    }
+
+    SECTION("getServerInfo returns map with ServerVersion key")
+    {
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+            cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+        REQUIRE(conn != nullptr);
+
+        auto info = conn->getServerInfo();
+        CHECK_FALSE(info.empty());
+        CHECK(info.count("ServerVersion") == 1);
+        CHECK_FALSE(info.at("ServerVersion").empty());
+
+        for (const auto &[key, value] : info)
+        {
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "  PostgreSQL ServerInfo [" + key + "] = " + value);
+        }
+
+        // Verify some PostgreSQL-specific keys
+        CHECK(info.count("ProtocolVersion") == 1);
+        CHECK(info.count("ServerEncoding") == 1);
+
+        conn->close();
+    }
+
+    SECTION("getServerVersion matches ServerVersion in getServerInfo")
+    {
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+            cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+        REQUIRE(conn != nullptr);
+
+        auto version = conn->getServerVersion();
+        auto info = conn->getServerInfo();
+
+        CHECK(version == info.at("ServerVersion"));
+
+        conn->close();
+    }
+}
+TEST_CASE("PostgreSQL getDriverVersion", "[21_041_04_postgresql_real_connection]")
+{
+    auto driver = postgresql_test_helpers::getPostgreSQLDriver();
+
+    SECTION("getDriverVersion returns non-empty version string")
+    {
+        auto version = driver->getDriverVersion();
+        CHECK_FALSE(version.empty());
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "PostgreSQL driver version: " + version);
+    }
+}
+
 #else
 // Skip this test if PostgreSQL support is not enabled
 TEST_CASE("PostgreSQL connection test (skipped)", "[21_041_02_postgresql_real_connection]")

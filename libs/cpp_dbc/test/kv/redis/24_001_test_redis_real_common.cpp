@@ -76,7 +76,7 @@ namespace redis_test_helpers
     std::shared_ptr<cpp_dbc::Redis::RedisDBDriver> getRedisDBDriver()
     {
         static std::shared_ptr<cpp_dbc::Redis::RedisDBDriver> driver =
-            std::make_shared<cpp_dbc::Redis::RedisDBDriver>();
+            cpp_dbc::Redis::RedisDBDriver::getInstance(std::nothrow).value_or(nullptr);
         return driver;
     }
 

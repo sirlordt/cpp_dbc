@@ -55,11 +55,36 @@ Represents SQL parameter types.
 All BLOB implementations use smart pointers (`std::weak_ptr`) for safe connection references:
 
 - **FirebirdBlob**: Uses `weak_ptr<FirebirdConnection>` with `getConnection()` helper
-- **MySQLBlob**: Uses `weak_ptr<MYSQL>` with `getMySQLConnection()` helper
+- **MySQLBlob**: Uses `weak_ptr<MySQLDBConnection>` for safe connection access
 - **PostgreSQLBlob**: Uses `weak_ptr<PGconn>` with `getPGConnection()` helper
 - **SQLiteBlob**: Uses `weak_ptr<sqlite3>` with `getSQLiteConnection()` helper
 
-All BLOB classes have an `isConnectionValid()` method to check if the connection is still valid. Operations throw `DBException` if the connection has been closed, preventing use-after-free errors.
+All BLOB classes have an `isConnectionValid()` method to check if the connection is still valid. Operations throw `DBException` if the connection has been closed, preventing use-after-free errors. The `BlobStream` base class declares `isConnectionValid()` as a pure virtual, and `MemoryBlob` (in-memory BLOBs with no database connection) always returns `true`.
+
+### Version and Info API
+
+All drivers expose a unified version/info introspection API through the base classes:
+
+**`DBDriver` (base class):**
+- `getDriverVersion()`: Returns the version string of the underlying C/C++ client library (e.g., `mysql_get_client_info()`, `PQlibVersion()`, `sqlite3_libversion()`)
+
+**`DBConnection` (base class):**
+- `getServerVersion()` / `getServerVersion(std::nothrow_t)`: Returns the database server's version string
+- `getServerInfo()` / `getServerInfo(std::nothrow_t)`: Returns `std::map<std::string, std::string>` with at least `"ServerVersion"` plus driver-specific metadata keys
+
+**Driver-specific metadata keys:**
+
+| Driver | Keys in `getServerInfo()` |
+|--------|--------------------------|
+| MySQL | ServerVersion, ServerVersionNumeric, HostInfo, ProtocolVersion, CharacterSet, ThreadId, ServerStatus |
+| PostgreSQL | ServerVersion, ServerVersionNumeric, ProtocolVersion, ServerEncoding, ClientEncoding, TimeZone, IntegerDatetimes, StandardConformingStrings |
+| SQLite | ServerVersion, ServerVersionNumeric, SourceId, ThreadSafe |
+| Firebird | ServerVersion, ODSMajorVersion, ODSMinorVersion, PageSize, SQLDialect |
+| MongoDB | ServerVersion, GitVersion, SysInfo, Allocator, JavascriptEngine, Bits, MaxBsonObjectSize |
+| Redis | ServerVersion + all INFO response fields |
+| ScyllaDB | ServerVersion, ClusterName, DataCenter, Rack, Partitioner, CQLVersion |
+
+**Note:** MongoDB also provides `getServerInfoAsDocument()` which returns the full buildInfo response as a rich document object, separate from the `std::map`-based `getServerInfo()`.
 
 ### TransactionIsolationLevel Enum
 Represents transaction isolation levels following the JDBC standard.
@@ -124,7 +149,7 @@ An abstract base class representing a database driver.
 **Methods:**
 - `connect(string, string, string, map<string, string>)`: Establishes a connection to the database with optional connection options.
 - `connectRelational(string, string, string, map<string, string>)`: Establishes a relational database connection with optional connection options.
-- `acceptsURL(string)`: Returns true if the driver can connect to the given URL.
+- `acceptURI(string)`: Returns true if the driver can connect to the given URL.
 
 ### DriverManager
 A manager class to register and retrieve driver instances.
@@ -306,7 +331,7 @@ Implementation of Driver for Firebird SQL.
 Same as Driver, plus:
 - `FirebirdDBDriver()`: Constructor.
 - `parseURL(string, string&, int&, string&)`: Parses a connection URL.
-- `acceptsURL(string)`: Returns true only for `cpp_dbc:firebird://` URLs.
+- `acceptURI(string)`: Returns true only for `cpp_dbc:firebird://` URLs.
 - `command(map<string, any>)`: Executes driver-specific commands (e.g., "create_database").
 - `createDatabase(string, string, string, map<string, string>)`: Creates a new Firebird database with optional page size and charset.
 
@@ -401,7 +426,7 @@ An abstract base class representing a document database driver.
 
 **Methods:**
 - `connectDocument(string, string, string, map<string, string>)`: Establishes a document database connection.
-- `acceptsURL(string)`: Returns true if the driver can connect to the given URL.
+- `acceptURI(string)`: Returns true if the driver can connect to the given URL.
 
 ### MongoDBDocument (formerly MongoDBData)
 Implementation of DocumentDBData for MongoDB. Uses static factory pattern for construction.
@@ -441,7 +466,7 @@ Implementation of DocumentDBConnection for MongoDB. Uses static factory pattern 
 
 **Methods:**
 Same as DocumentDBConnection, plus:
-- `getURL()`: Returns the connection URL.
+- `getURI()`: Returns the connection URI.
 
 **Smart Pointer Usage:**
 - Uses smart pointers for proper resource management
@@ -455,7 +480,7 @@ Implementation of DocumentDBDriver for MongoDB.
 
 **Methods:**
 Same as DocumentDBDriver, plus:
-- `acceptsURL(string)`: Returns true only for `cpp_dbc:mongodb://` URLs.
+- `acceptURI(string)`: Returns true only for `cpp_dbc:mongodb://` URLs.
 - `cleanup()`: Resets initialization state, allowing re-initialization.
 - `isInitialized()`: Checks if the C library is initialized.
 
@@ -567,7 +592,7 @@ Wraps a physical connection to provide pooling functionality. All family-specifi
 - `m_poolAlive`: Shared flag to check if pool is still alive (`shared_ptr<atomic<bool>>`)
 - `m_creationTime`, `m_lastUsedTimeNs` (atomic int64_t), `m_active` (atomic bool), `m_closed` (atomic bool)
 
-**Diamond-Resolving Impl Methods:** `closeImpl`, `returnToPoolImpl`, `isClosedImpl`, `isPooledImpl`, `getURLImpl`, `resetImpl`, `pingImpl`, `prepareForPoolReturnImpl`, `prepareForBorrowImpl`
+**Diamond-Resolving Impl Methods:** `closeImpl`, `returnToPoolImpl`, `isClosedImpl`, `isPooledImpl`, `getURIImpl`, `resetImpl`, `pingImpl`, `prepareForPoolReturnImpl`, `prepareForBorrowImpl`
 
 **DBConnectionPooled Interface Methods:**
 - `getCreationTime(std::nothrow_t)`: Returns the creation time of the connection.

@@ -24,6 +24,7 @@
 #include "cpp_dbc/common/system_utils.hpp"
 #include "connection_pool_internal.hpp"
 #include <algorithm>
+#include <ranges>
 
 namespace cpp_dbc
 {
@@ -31,7 +32,7 @@ namespace cpp_dbc
     // ── Constructors ──────────────────────────────────────────────────────────
 
     DBConnectionPoolBase::DBConnectionPoolBase(DBConnectionPool::ConstructorTag,
-                                               const std::string &url,
+                                               const std::string &uri,
                                                const std::string &username,
                                                const std::string &password,
                                                const std::map<std::string, std::string> &options,
@@ -45,7 +46,7 @@ namespace cpp_dbc
                                                bool testOnBorrow,
                                                bool testOnReturn,
                                                TransactionIsolationLevel transactionIsolation) noexcept
-        : m_url(url),
+        : m_uri(uri),
           m_username(username),
           m_password(password),
           m_options(options),
@@ -64,7 +65,7 @@ namespace cpp_dbc
     }
 
     DBConnectionPoolBase::DBConnectionPoolBase(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config) noexcept
-        : m_url(config.getUrl()),
+        : m_uri(config.getUri()),
           m_username(config.getUsername()),
           m_password(config.getPassword()),
           m_options(config.getOptions()),
@@ -172,7 +173,7 @@ namespace cpp_dbc
         bool valid = true;
 
         // Phase 1: I/O outside lock (validation and pool-return prep)
-        if (m_testOnReturn)
+        if (m_testOnReturn.load(std::memory_order_acquire))
         {
             auto valResult = validateConnection(std::nothrow, conn->getUnderlyingConnection(std::nothrow));
             valid = valResult.has_value() && valResult.value();
@@ -318,18 +319,20 @@ namespace cpp_dbc
                         continue;
                     }
 
-                    auto idleTime = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                        now - pooledConn->getLastUsedTime(std::nothrow))
-                                        .count();
+                    auto idleTime = static_cast<size_t>(
+                        std::chrono::duration_cast<std::chrono::milliseconds>(
+                            now - pooledConn->getLastUsedTime(std::nothrow))
+                            .count());
 
-                    auto lifeTime = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                        now - pooledConn->getCreationTime(std::nothrow))
-                                        .count();
+                    auto lifeTime = static_cast<size_t>(
+                        std::chrono::duration_cast<std::chrono::milliseconds>(
+                            now - pooledConn->getCreationTime(std::nothrow))
+                            .count());
 
-                    bool expired = (idleTime > m_idleTimeoutMillis) ||
-                                   (lifeTime > m_maxLifetimeMillis);
+                    bool expired = (idleTime > m_idleTimeoutMillis.load(std::memory_order_acquire)) ||
+                                   (lifeTime > m_maxLifetimeMillis.load(std::memory_order_acquire));
 
-                    if (expired && m_allConnections.size() > m_minIdle)
+                    if (expired && m_allConnections.size() > m_minIdle.load(std::memory_order_acquire))
                     {
                         // Remove from idle queue if present
                         std::queue<std::shared_ptr<DBConnectionPooled>> tempQueue;
@@ -363,7 +366,7 @@ namespace cpp_dbc
             {
                 {
                     std::scoped_lock lock(m_mutexPool);
-                    if (m_replenishNeeded == 0 || m_allConnections.size() + m_pendingCreations >= m_maxSize)
+                    if (m_replenishNeeded == 0 || m_allConnections.size() + m_pendingCreations >= m_maxSize.load(std::memory_order_acquire))
                     {
                         m_replenishNeeded = 0; // Clear if pool already at max
                         break;
@@ -415,7 +418,7 @@ namespace cpp_dbc
             {
                 {
                     std::scoped_lock lock(m_mutexPool);
-                    if (m_allConnections.size() + m_pendingCreations >= m_minIdle)
+                    if (m_allConnections.size() + m_pendingCreations >= m_minIdle.load(std::memory_order_acquire))
                     {
                         break;
                     }
@@ -462,23 +465,25 @@ namespace cpp_dbc
     cpp_dbc::expected<void, DBException> DBConnectionPoolBase::initializePool(std::nothrow_t) noexcept
     {
         // Validate pool configuration before allocating any resources
-        if (m_maxSize == 0)
+        auto maxSize = m_maxSize.load(std::memory_order_acquire);
+        auto minIdle = m_minIdle.load(std::memory_order_acquire);
+        if (maxSize == 0)
         {
             return cpp_dbc::unexpected(DBException("NHGHX12485KU", "Invalid pool configuration: maxSize must be greater than 0", system_utils::captureCallStack()));
         }
-        if (m_initialSize > m_maxSize)
+        if (m_initialSize > maxSize)
         {
-            return cpp_dbc::unexpected(DBException("XH0BG16TH5ZA", "Invalid pool configuration: initialSize (" + std::to_string(m_initialSize) + ") exceeds maxSize (" + std::to_string(m_maxSize) + ")", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("XH0BG16TH5ZA", "Invalid pool configuration: initialSize (" + std::to_string(m_initialSize) + ") exceeds maxSize (" + std::to_string(maxSize) + ")", system_utils::captureCallStack()));
         }
-        if (m_minIdle > m_maxSize)
+        if (minIdle > maxSize)
         {
-            return cpp_dbc::unexpected(DBException("0VESO2SABTOP", "Invalid pool configuration: minIdle (" + std::to_string(m_minIdle) + ") exceeds maxSize (" + std::to_string(m_maxSize) + ")", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("0VESO2SABTOP", "Invalid pool configuration: minIdle (" + std::to_string(minIdle) + ") exceeds maxSize (" + std::to_string(maxSize) + ")", system_utils::captureCallStack()));
         }
 
         try
         {
             // Reserve space for connections — can throw std::bad_alloc (no nothrow overload)
-            m_allConnections.reserve(m_maxSize);
+            m_allConnections.reserve(maxSize);
 
             // Create initial connections
             for (size_t i = 0; i < m_initialSize; i++)
@@ -539,6 +544,16 @@ namespace cpp_dbc
     std::shared_ptr<DBConnection> DBConnectionPoolBase::getDBConnection()
     {
         auto result = getDBConnection(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    std::shared_ptr<DBConnection> DBConnectionPoolBase::getDBConnection(size_t timeoutMs)
+    {
+        auto result = getDBConnection(std::nothrow, timeoutMs);
         if (!result.has_value())
         {
             throw result.error();
@@ -609,10 +624,20 @@ namespace cpp_dbc
         return std::static_pointer_cast<DBConnection>(result.value());
     }
 
-    cpp_dbc::expected<std::shared_ptr<DBConnectionPooled>, DBException> DBConnectionPoolBase::acquireConnection(std::nothrow_t) noexcept
+    cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> DBConnectionPoolBase::getDBConnection(std::nothrow_t, size_t timeoutMs) noexcept
+    {
+        auto result = acquireConnection(std::nothrow, timeoutMs);
+        if (!result.has_value())
+        {
+            return cpp_dbc::unexpected(result.error());
+        }
+        return std::static_pointer_cast<DBConnection>(result.value());
+    }
+
+    cpp_dbc::expected<std::shared_ptr<DBConnectionPooled>, DBException> DBConnectionPoolBase::acquireConnection(std::nothrow_t, size_t timeoutMs) noexcept
     {
         using namespace std::chrono;
-        auto deadline = steady_clock::now() + milliseconds(m_maxWaitMillis);
+        auto deadline = steady_clock::now() + milliseconds(timeoutMs > 0 ? timeoutMs : m_maxWaitMillis.load(std::memory_order_acquire));
 
         while (true)
         {
@@ -643,10 +668,10 @@ namespace cpp_dbc
                     }
 
                     // Step 2: Create new connection if pool not full
-                    if (m_allConnections.size() + m_pendingCreations < m_maxSize)
+                    if (m_allConnections.size() + m_pendingCreations < m_maxSize.load(std::memory_order_acquire))
                     {
                         CP_DEBUG("DBConnectionPoolBase::acquireConnection - CREATING: total=%zu, pending=%zu, max=%zu",
-                                 m_allConnections.size(), m_pendingCreations, m_maxSize);
+                                 m_allConnections.size(), m_pendingCreations, m_maxSize.load(std::memory_order_acquire));
                         m_pendingCreations++;
                         lockPool.unlock();
 
@@ -666,7 +691,7 @@ namespace cpp_dbc
                                 auto newConn = newConnResult.value();
                                 // Recheck size under lock (another thread may have filled the pool
                                 // while we were creating outside the lock)
-                                if (m_allConnections.size() < m_maxSize)
+                                if (m_allConnections.size() < m_maxSize.load(std::memory_order_acquire))
                                 {
                                     m_allConnections.push_back(newConn);
                                     result = newConn;
@@ -674,7 +699,7 @@ namespace cpp_dbc
                                 else
                                 {
                                     // Pool became full — discard candidate
-                                    CP_DEBUG("DBConnectionPoolBase::acquireConnection - DISCARD candidate: total=%zu >= max=%zu", m_allConnections.size(), m_maxSize);
+                                    CP_DEBUG("DBConnectionPoolBase::acquireConnection - DISCARD candidate: total=%zu >= max=%zu", m_allConnections.size(), m_maxSize.load(std::memory_order_acquire));
                                     newConn->markPoolClosed(std::nothrow, true); // Prevent destructor returnToPool()
                                     lockPool.unlock();
                                     auto closeResult = newConn->getUnderlyingConnection(std::nothrow)->close(std::nothrow);
@@ -791,15 +816,16 @@ namespace cpp_dbc
             }
 
             // Phase 2: HikariCP validation skip (outside lock)
-            if (m_testOnBorrow)
+            if (m_testOnBorrow.load(std::memory_order_acquire))
             {
                 auto lastUsed = result->getLastUsedTime(std::nothrow);
                 auto now = steady_clock::now();
-                auto timeSinceLastUse = duration_cast<milliseconds>(now - lastUsed).count();
+                auto timeSinceLastUse = static_cast<size_t>(duration_cast<milliseconds>(now - lastUsed).count());
+                auto validationTimeout = m_validationTimeoutMillis.load(std::memory_order_acquire);
 
-                if (timeSinceLastUse > m_validationTimeoutMillis)
+                if (timeSinceLastUse > validationTimeout)
                 {
-                    CP_DEBUG("DBConnectionPoolBase::acquireConnection - VALIDATING (timeSinceLastUse=%lld ms > %zu ms)", (long long)timeSinceLastUse, m_validationTimeoutMillis);
+                    CP_DEBUG("DBConnectionPoolBase::acquireConnection - VALIDATING (timeSinceLastUse=%zu ms > %zu ms)", timeSinceLastUse, validationTimeout);
                     auto valResult = validateConnection(std::nothrow, result->getUnderlyingConnection(std::nothrow));
                     bool validationPassed = valResult.has_value() && valResult.value();
 
@@ -993,6 +1019,137 @@ namespace cpp_dbc
     cpp_dbc::expected<bool, DBException> DBConnectionPoolBase::isRunning(std::nothrow_t) const noexcept
     {
         return m_running.load(std::memory_order_acquire);
+    }
+
+    void DBConnectionPoolBase::setConnectionTimeout(std::nothrow_t, size_t millis) noexcept
+    {
+        m_maxWaitMillis.store(millis, std::memory_order_release);
+    }
+
+    size_t DBConnectionPoolBase::getConnectionTimeout(std::nothrow_t) const noexcept
+    {
+        return m_maxWaitMillis.load(std::memory_order_acquire);
+    }
+
+    void DBConnectionPoolBase::setIdleTimeout(std::nothrow_t, size_t millis) noexcept
+    {
+        m_idleTimeoutMillis.store(millis, std::memory_order_release);
+    }
+
+    size_t DBConnectionPoolBase::getIdleTimeout(std::nothrow_t) const noexcept
+    {
+        return m_idleTimeoutMillis.load(std::memory_order_acquire);
+    }
+
+    void DBConnectionPoolBase::setMaxLifetimeMillis(std::nothrow_t, size_t millis) noexcept
+    {
+        m_maxLifetimeMillis.store(millis, std::memory_order_release);
+    }
+
+    size_t DBConnectionPoolBase::getMaxLifetimeMillis(std::nothrow_t) const noexcept
+    {
+        return m_maxLifetimeMillis.load(std::memory_order_acquire);
+    }
+
+    void DBConnectionPoolBase::setTestOnBorrow(std::nothrow_t, bool enabled) noexcept
+    {
+        m_testOnBorrow.store(enabled, std::memory_order_release);
+    }
+
+    bool DBConnectionPoolBase::getTestOnBorrow(std::nothrow_t) const noexcept
+    {
+        return m_testOnBorrow.load(std::memory_order_acquire);
+    }
+
+    void DBConnectionPoolBase::setTestOnReturn(std::nothrow_t, bool enabled) noexcept
+    {
+        m_testOnReturn.store(enabled, std::memory_order_release);
+    }
+
+    bool DBConnectionPoolBase::getTestOnReturn(std::nothrow_t) const noexcept
+    {
+        return m_testOnReturn.load(std::memory_order_acquire);
+    }
+
+    cpp_dbc::expected<void, DBException> DBConnectionPoolBase::setMaxSize(std::nothrow_t, size_t size) noexcept
+    {
+        if (size == 0)
+        {
+            return cpp_dbc::unexpected(DBException("YN8DO1FJUKH8",
+                "maxSize must be greater than 0",
+                system_utils::captureCallStack()));
+        }
+
+        std::vector<std::shared_ptr<DBConnectionPooled>> toEvict;
+
+        {
+            std::scoped_lock lock(m_mutexPool);
+
+            if (size < m_minIdle.load(std::memory_order_acquire))
+            {
+                m_minIdle.store(size, std::memory_order_release);
+            }
+
+            m_maxSize.store(size, std::memory_order_release);
+
+            // Evict excess idle connections
+            while (m_allConnections.size() > m_maxSize.load(std::memory_order_acquire) && !m_idleConnections.empty())
+            {
+                auto conn = m_idleConnections.front();
+                m_idleConnections.pop();
+                conn->markPoolClosed(std::nothrow, true);
+
+                // Remove from m_allConnections
+                auto it = std::ranges::find(m_allConnections, conn);
+                if (it != m_allConnections.end())
+                {
+                    m_allConnections.erase(it);
+                }
+
+                toEvict.push_back(conn);
+            }
+        }
+
+        // Close evicted connections outside lock (I/O)
+        for (const auto &conn : toEvict)
+        {
+            auto closeResult = conn->getUnderlyingConnection(std::nothrow)->close(std::nothrow);
+            if (!closeResult.has_value())
+            {
+                CP_DEBUG("DBConnectionPoolBase::setMaxSize - close() on evicted connection failed: %s",
+                         closeResult.error().what_s().data());
+            }
+        }
+
+        return {};
+    }
+
+    size_t DBConnectionPoolBase::getMaxSize(std::nothrow_t) const noexcept
+    {
+        return m_maxSize.load(std::memory_order_acquire);
+    }
+
+    cpp_dbc::expected<void, DBException> DBConnectionPoolBase::setMinIdle(std::nothrow_t, size_t size) noexcept
+    {
+        auto currentMaxSize = m_maxSize.load(std::memory_order_acquire);
+        if (size > currentMaxSize)
+        {
+            return cpp_dbc::unexpected(DBException("XLIRPO4B4K8S",
+                "minIdle (" + std::to_string(size) + ") cannot exceed maxSize (" + std::to_string(currentMaxSize) + ")",
+                system_utils::captureCallStack()));
+        }
+
+        m_minIdle.store(size, std::memory_order_release);
+
+        // Wake maintenance thread so it can replenish if needed
+        m_maintenanceCondition.notify_one();
+
+        return {};
+    }
+
+    size_t DBConnectionPoolBase::getMinIdle(std::nothrow_t) const noexcept
+    {
+        return m_minIdle.load(std::memory_order_acquire);
     }
 
 } // namespace cpp_dbc

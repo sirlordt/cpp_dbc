@@ -9,6 +9,7 @@
 #if USE_SQLITE
 
 #include <map>
+#include <set>
 #include <string>
 #include <memory>
 #include <atomic>
@@ -16,6 +17,8 @@
 
 namespace cpp_dbc::SQLite
 {
+    class SQLiteDBConnection; // forward declaration for registry
+
     /**
      * @brief SQLite database driver implementation
      *
@@ -24,7 +27,7 @@ namespace cpp_dbc::SQLite
      * or `cpp_dbc:sqlite::memory:` for in-memory databases.
      *
      * ```cpp
-     * auto driver = std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>();
+     * auto driver = cpp_dbc::SQLite::SQLiteDBDriver::getInstance();
      * cpp_dbc::DriverManager::registerDriver(driver);
      * auto conn = driver->connectRelational("cpp_dbc:sqlite:/tmp/test.db", "", "");
      * ```
@@ -33,13 +36,36 @@ namespace cpp_dbc::SQLite
      */
     class SQLiteDBDriver final : public RelationalDBDriver
     {
-    private:
+        // ── PrivateCtorTag — prevents direct construction; use getInstance() ──
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
         // Static members to ensure SQLite is configured only once
         static std::atomic<bool> s_initialized;
         static std::mutex s_initMutex;
 
+        // ── Singleton state ───────────────────────────────────────────────────
+        static std::weak_ptr<SQLiteDBDriver> s_instance;
+        static std::mutex                    s_instanceMutex;
+
+        // ── Connection registry ───────────────────────────────────────────────
+        static std::mutex                                                        s_registryMutex;
+        static std::set<std::weak_ptr<SQLiteDBConnection>,
+                        std::owner_less<std::weak_ptr<SQLiteDBConnection>>>      s_connectionRegistry;
+
+        static void registerConnection(std::nothrow_t, std::weak_ptr<SQLiteDBConnection> conn) noexcept;
+        static void unregisterConnection(std::nothrow_t, const std::weak_ptr<SQLiteDBConnection> &conn) noexcept;
+
+        friend class SQLiteDBConnection;
+
+        // ── Construction state ────────────────────────────────────────────────
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
+
     public:
-        SQLiteDBDriver();
+        SQLiteDBDriver(PrivateCtorTag, std::nothrow_t) noexcept;
         ~SQLiteDBDriver() override;
 
         // ====================================================================
@@ -47,7 +73,16 @@ namespace cpp_dbc::SQLite
         // ====================================================================
 
 #ifdef __cpp_exceptions
-        std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
+        using DBDriver::parseURI;
+        using DBDriver::buildURI;
+
+        /**
+         * @brief Return the singleton SQLiteDBDriver instance, creating it if necessary.
+         * @throws DBException if library initialization fails.
+         */
+        static std::shared_ptr<SQLiteDBDriver> getInstance();
+
+        std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &uri,
                                                                   const std::string &user,
                                                                   const std::string &password,
                                                                   const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
@@ -57,24 +92,41 @@ namespace cpp_dbc::SQLite
         // NOTHROW API — exception-free, always available
         // ====================================================================
 
-        bool acceptsURL(const std::string &url) noexcept override;
-
         /**
-         * @brief Parse a SQLite URL and extract the database path
-         * @param url URL in format "cpp_dbc:sqlite:/path/to/db" or "cpp_dbc:sqlite::memory:"
-         * @param database Output: extracted database path
-         * @return true if parsing succeeded
+         * @brief Return the singleton SQLiteDBDriver instance, creating it if necessary.
+         * @return The shared instance, or an error if initialization fails.
          */
-        bool parseURL(const std::string &url, std::string &database);
+        static cpp_dbc::expected<std::shared_ptr<SQLiteDBDriver>, DBException> getInstance(std::nothrow_t) noexcept;
+
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(
+            std::nothrow_t, const std::string &uri) noexcept override;
+
+        cpp_dbc::expected<std::string, DBException> buildURI(
+            std::nothrow_t,
+            const std::string &host,
+            int port,
+            const std::string &database,
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
             std::nothrow_t,
-            const std::string &url,
+            const std::string &uri,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
 
         std::string getName() const noexcept override;
+        std::string getURIScheme() const noexcept override;
+        std::string getDriverVersion() const noexcept override;
+
+        static void cleanup();
+
+        /**
+         * @brief Return the number of live connections tracked by the registry.
+         *
+         * Counts non-expired entries in the static connection registry.
+         */
+        static size_t getConnectionAlive() noexcept;
     };
 
 } // namespace cpp_dbc::SQLite
@@ -101,12 +153,20 @@ namespace cpp_dbc::SQLite
         // ====================================================================
 
 #ifdef __cpp_exceptions
-        std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
-                                                                  const std::string &,
-                                                                  const std::string &,
-                                                                  const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
+        using DBDriver::parseURI;
+        using DBDriver::buildURI;
+
+        std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &uri,
+                                                                  const std::string &user,
+                                                                  const std::string &password,
+                                                                  const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
         {
-            return nullptr;
+            auto r = connectRelational(std::nothrow, uri, user, password, options);
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
+            return r.value();
         }
 #endif // __cpp_exceptions
 
@@ -114,20 +174,26 @@ namespace cpp_dbc::SQLite
         // NOTHROW API — exception-free, always available
         // ====================================================================
 
-        bool acceptsURL(const std::string &url) noexcept override
+
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(
+            std::nothrow_t, const std::string & /*uri*/) noexcept override
         {
-            return url.starts_with("cpp_dbc:sqlite:");
+            return cpp_dbc::unexpected(DBException("MAGZJXNF89IG", "SQLite support is not enabled in this build", system_utils::captureCallStack()));
         }
 
-        bool parseURL(const std::string & /*url*/, std::string &database) const
+        cpp_dbc::expected<std::string, DBException> buildURI(
+            std::nothrow_t,
+            const std::string & /*host*/,
+            int /*port*/,
+            const std::string & /*database*/,
+            const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override
         {
-            database.clear();
-            return false;
+            return cpp_dbc::unexpected(DBException("KNJHPWDXS1Z6", "SQLite support is not enabled in this build", system_utils::captureCallStack()));
         }
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
             std::nothrow_t,
-            const std::string & /*url*/,
+            const std::string & /*uri*/,
             const std::string & /*user*/,
             const std::string & /*password*/,
             const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override
@@ -137,7 +203,17 @@ namespace cpp_dbc::SQLite
 
         std::string getName() const noexcept override
         {
-            return "SQLite (disabled)";
+            return "sqlite/disabled";
+        }
+
+        std::string getURIScheme() const noexcept override
+        {
+            return "cpp_dbc:sqlite://<path>";
+        }
+
+        std::string getDriverVersion() const noexcept override
+        {
+            return "unknown";
         }
     };
 } // namespace cpp_dbc::SQLite
