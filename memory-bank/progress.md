@@ -4,6 +4,35 @@
 
 The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. The `DBDriver` base class provides a unified URI API (`acceptURI`, `parseURI`, `buildURI`, `getURIScheme`) and a unified `getDriverVersion()` method. The `DBConnection` base class provides `getServerVersion()` and `getServerInfo()` for runtime introspection of database server versions and metadata across all drivers (2026-03-08). Both MySQL and PostgreSQL drivers now follow the same architecture: connection owns mutex directly, PreparedStatement/ResultSet hold `weak_ptr<Connection>` and acquire the mutex via RAII lock helpers (`MySQLConnectionLock` / `PostgreSQLConnectionLock`), PrivateCtorTag pattern with `m_initFailed`/`m_initError`, `std::atomic<bool> m_closed`, result set registry in connection with `notifyConnClosing()` lifecycle management (2026-03-12). `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). The connection pool system is fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
 
+### Recent Improvements (2026-03-12 21:09 PDT)
+
+**Build System — CMake Cache Invalidation Fix, Lock Macro Unification Across Drivers:**
+
+1. **CMake Cache Invalidation Fix:**
+   - Redundant `build_test_cpp_dbc.sh` call removed from `build_cpp_dbc.sh` (was causing double compilation)
+   - `BACKWARD_HAS_DW` default aligned to `OFF` in both build scripts
+   - `CMAKE_CXX_FLAGS` built dynamically to avoid trailing spaces that invalidate cache
+   - `CPP_DBC_BUILD_EXAMPLES`/`CPP_DBC_BUILD_BENCHMARKS` no longer hardcoded `OFF` in `build_test_cpp_dbc.sh`
+   - `--mc-combo-01`/`--mc-combo-02` now include benchmarks in build options
+
+2. **Lock Macro Unification for Statement/ResultSet Registry:**
+   - MySQL: `registerStatement/unregisterStatement/closeAllStatements/registerResultSet/unregisterResultSet/closeAllActiveResultSets` now use `MYSQL_CONNECTION_LOCK_OR_RETURN` + `stmtLock`
+   - PostgreSQL: Same pattern with `PG_CONNECTION_LOCK_OR_RETURN` + `stmtLock`
+   - SQLite: Manual `std::lock_guard<std::recursive_mutex>` replaced with `SQLITE_CONNECTION_LOCK_OR_RETURN` / `SQLITE_STMT_LOCK_OR_RETURN` macros
+
+3. **New SQLite Lock Macros (`sqlite_internal.hpp`):**
+   - `SQLITE_CONNECTION_LOCK_OR_RETURN(mark, msg)` — locks `m_globalFileMutex`, returns unexpected if closed
+   - `SQLITE_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()` — idempotent variant for `close()`
+   - `SQLITE_STMT_LOCK_OR_RETURN(mark, msg)` — for PreparedStatement, checks `m_stmt` instead of `m_db`
+
+4. **PostgreSQL Header Cleanup:**
+   - `connection.hpp`: `m_initFailed`/`m_initError` moved to dedicated "Construction state" section
+
+5. **Documentation:**
+   - `shell_script_dependencies.md`: New "CMake Cache Invalidation — Shared Build Directory" section
+
+6. **Impact:** 11 files changed, +280/-140 lines
+
 ### Recent Improvements (2026-03-12 12:24 PDT)
 
 **PostgreSQL Driver — Shared-Mutex Refactoring, PrivateCtorTag Pattern, Convention Compliance:**

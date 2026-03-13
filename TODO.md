@@ -12,6 +12,13 @@
 
 ## Completed Tasks
 
+- Build System — CMake Cache Invalidation Fix, Lock Macro Unification Across Drivers (2026-03-12):
+  - CMake cache invalidation fixed: redundant `build_test_cpp_dbc.sh` call removed, `BACKWARD_HAS_DW` aligned to `OFF`, `CMAKE_CXX_FLAGS` built dynamically, `EXAMPLES`/`BENCHMARKS` no longer hardcoded in test script
+  - `--mc-combo-01/02` now include benchmarks
+  - MySQL/PostgreSQL/SQLite: statement/result-set registry methods unified with driver-specific `*_LOCK_OR_RETURN` macros
+  - New SQLite lock macros: `SQLITE_CONNECTION_LOCK_OR_RETURN`, `SQLITE_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED`, `SQLITE_STMT_LOCK_OR_RETURN`
+  - 11 files changed, +280/-140 lines
+
 - PostgreSQL Driver — Shared-Mutex Refactoring, PrivateCtorTag Pattern, Convention Compliance (2026-03-12):
   - `SharedConnMutex` (shared_ptr<recursive_mutex>) replaced with direct `std::recursive_mutex` in `PostgreSQLDBConnection`
   - `PostgreSQLConnectionLock` RAII helper with double-checked locking through `weak_ptr<PostgreSQLDBConnection>`

@@ -53,7 +53,8 @@ namespace cpp_dbc::MySQL
      */
     cpp_dbc::expected<void, DBException> MySQLDBConnection::registerStatement(std::nothrow_t, std::weak_ptr<MySQLDBPreparedStatement> stmt) noexcept
     {
-        std::scoped_lock lock(m_statementsMutex);
+        MYSQL_CONNECTION_LOCK_OR_RETURN("DKD0ELB34FWB", "Cannot register statement");
+        std::scoped_lock stmtLock(m_statementsMutex);
         if (m_activeStatements.size() > 50)
         {
             std::erase_if(m_activeStatements, [](const auto &w)
@@ -79,7 +80,8 @@ namespace cpp_dbc::MySQL
      */
     cpp_dbc::expected<void, DBException> MySQLDBConnection::unregisterStatement(std::nothrow_t, std::weak_ptr<MySQLDBPreparedStatement> stmt) noexcept
     {
-        std::scoped_lock lock(m_statementsMutex);
+        MYSQL_CONNECTION_LOCK_OR_RETURN("JBY9J0S3WA21", "Cannot unregister statement");
+        std::scoped_lock stmtLock(m_statementsMutex);
         // Remove expired weak_ptrs and the specified one
         auto stmtLocked = stmt.lock();
         std::erase_if(m_activeStatements, [&stmtLocked](const auto &w)
@@ -114,7 +116,7 @@ namespace cpp_dbc::MySQL
         // the connection internally, so concurrent access causes corruption.
         // Note: m_statementsMutex is not needed here because registerStatement() is only
         // called from prepareStatement() which also holds m_connMutex, so we're protected.
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        MYSQL_CONNECTION_LOCK_OR_RETURN("LX3QVYCUH301", "Cannot close statements");
 
         for (auto &weak_stmt : m_activeStatements)
         {
@@ -137,7 +139,8 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<void, DBException> MySQLDBConnection::registerResultSet(std::nothrow_t, std::weak_ptr<MySQLDBResultSet> rs) noexcept
     {
-        std::scoped_lock lock(m_statementsMutex);
+        MYSQL_CONNECTION_LOCK_OR_RETURN("ITMTI3YZKJBP", "Cannot register result set");
+        std::scoped_lock stmtLock(m_statementsMutex);
         if (m_activeResultSets.size() > 50)
         {
             std::erase_if(m_activeResultSets, [](const auto &w)
@@ -149,19 +152,22 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<void, DBException> MySQLDBConnection::unregisterResultSet(std::nothrow_t, std::weak_ptr<MySQLDBResultSet> rs) noexcept
     {
-        std::scoped_lock lock(m_statementsMutex);
+        MYSQL_CONNECTION_LOCK_OR_RETURN("W22R28ZZ6UYC", "Cannot unregister result set");
+        std::scoped_lock stmtLock(m_statementsMutex);
         m_activeResultSets.erase(rs);
         return {};
     }
 
     cpp_dbc::expected<void, DBException> MySQLDBConnection::closeAllActiveResultSets(std::nothrow_t) noexcept
     {
+        MYSQL_CONNECTION_LOCK_OR_RETURN("DQWSBJXW849G", "Cannot close result sets");
+
         // Two-phase pattern: collect shared_ptrs under lock, then close outside
         // the lock to prevent iterator invalidation if close() triggers unregister
         std::vector<std::shared_ptr<MySQLDBResultSet>> resultSetsToClose;
 
         {
-            std::scoped_lock lock(m_statementsMutex);
+            std::scoped_lock stmtLock(m_statementsMutex);
             for (auto &weakRs : m_activeResultSets)
             {
                 if (auto rs = weakRs.lock())

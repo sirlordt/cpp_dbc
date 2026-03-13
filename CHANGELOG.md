@@ -1,6 +1,41 @@
 # Changelog
 
-## 2026-03-12 12:24:00 PDT [Current]
+## 2026-03-12 21:09:00 PDT [Current]
+
+### Build System — CMake Cache Invalidation Fix, Lock Macro Unification Across Drivers
+
+This release fixes a CMake cache invalidation problem that caused double compilation when `build_cpp_dbc.sh` and `build_test_cpp_dbc.sh` ran in sequence. It also unifies the lock-or-return macro pattern across MySQL, PostgreSQL, and SQLite drivers for statement/result-set registry methods, and adds new SQLite-specific lock macros. Total: **11 files changed, +280/-140 lines**.
+
+#### Build System — CMake Cache Invalidation Fix
+
+- **Redundant `build_test_cpp_dbc.sh` call removed** from `build_cpp_dbc.sh`: The cmake invocation already compiles library+tests+examples in one pass; calling `build_test_cpp_dbc.sh` afterward invalidated the CMake cache and forced full recompilation
+- **`BACKWARD_HAS_DW` default aligned to `OFF`** in `build_cpp_dbc.sh`: Was `ON`, mismatching `build_test_cpp_dbc.sh` default of `OFF` — caused cache invalidation
+- **`CMAKE_CXX_FLAGS` built dynamically** in both scripts: Avoids trailing spaces from empty `${SANITIZER_FLAGS}` / `${ANALYZER_FLAG}` that would invalidate the CMake cache
+- **`CPP_DBC_BUILD_EXAMPLES` / `CPP_DBC_BUILD_BENCHMARKS` no longer hardcoded `OFF`** in `build_test_cpp_dbc.sh`: Prevents cache invalidation when test runner follows `--mc-combo-01/02` build
+- **`--mc-combo-01` / `--mc-combo-02` now include benchmarks**: `BUILD_OPTIONS` updated to append `benchmarks`
+- **`benchmark_common.cpp`**: Added missing `#include <unordered_set>`
+
+#### MySQL, PostgreSQL, SQLite — Lock Macro Unification for Statement/ResultSet Registry
+
+- **MySQL `connection_01.cpp`**: `registerStatement()`, `unregisterStatement()`, `closeAllStatements()`, `registerResultSet()`, `unregisterResultSet()`, `closeAllActiveResultSets()` now use `MYSQL_CONNECTION_LOCK_OR_RETURN` macro + renamed inner lock to `stmtLock` for clarity
+- **PostgreSQL `connection_01.cpp`**: Same pattern — `PG_CONNECTION_LOCK_OR_RETURN` macro + `stmtLock` for `registerStatement()`, `unregisterStatement()`, `closeAllStatements()`, `registerResultSet()`, `unregisterResultSet()`, `closeAllResultSets()`
+- **PostgreSQL `connection.hpp`**: `m_initFailed`/`m_initError` moved to dedicated "Construction state" section with proper comments
+
+#### SQLite — New Lock Macros in `sqlite_internal.hpp`
+
+- **`SQLITE_CONNECTION_LOCK_OR_RETURN(mark, msg)`**: Locks `m_globalFileMutex` and returns `unexpected` if connection is closed — replaces manual `std::lock_guard` + closed check in connection methods
+- **`SQLITE_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()`**: Idempotent variant for `close()` — returns `{}` (success) if already closed
+- **`SQLITE_STMT_LOCK_OR_RETURN(mark, msg)`**: Same for `PreparedStatement` — checks `m_stmt` instead of `m_db`
+- **SQLite `connection_01.cpp`**: All 6 registry methods (`register/unregister/closeAll` for statements and result sets) now use `SQLITE_CONNECTION_LOCK_OR_RETURN`
+- **SQLite `prepared_statement_01.cpp`**: All 3 registry methods (`register/unregister/closeAll` for result sets) now use `SQLITE_STMT_LOCK_OR_RETURN`
+
+#### Documentation
+
+- **`shell_script_dependencies.md`**: New "CMake Cache Invalidation — Shared Build Directory" section documenting the problem, root causes, fixes, and when recompilation is expected
+
+---
+
+## 2026-03-12 12:24:00 PDT
 
 ### PostgreSQL Driver — Shared-Mutex Refactoring, PrivateCtorTag Pattern, Convention Compliance, and Lifecycle Management
 

@@ -50,7 +50,7 @@ namespace cpp_dbc::SQLite
         // Now ALL access to m_activeStatements is consistently protected by
         // m_globalFileMutex, which is the file-level lock that protects the entire
         // SQLite connection state.
-        std::lock_guard<std::recursive_mutex> lock(*m_globalFileMutex);
+        SQLITE_CONNECTION_LOCK_OR_RETURN("3N95KEM5ON6S", "Cannot register statement");
         if (m_activeStatements.size() > 50)
         {
             std::erase_if(m_activeStatements, [](const auto &w) { return w.expired(); });
@@ -65,7 +65,7 @@ namespace cpp_dbc::SQLite
         // m_globalFileMutex for consistency with closeAllStatements() and
         // registerStatement(). All modifications to m_activeStatements must use
         // the same mutex to prevent data races.
-        std::lock_guard<std::recursive_mutex> lock(*m_globalFileMutex);
+        SQLITE_CONNECTION_LOCK_OR_RETURN("610ERYQ21GDY", "Cannot unregister statement");
         // Remove expired weak_ptrs and the specified one
         for (auto it = m_activeStatements.begin(); it != m_activeStatements.end();)
         {
@@ -110,7 +110,7 @@ namespace cpp_dbc::SQLite
         // the SQLite connection (prepareStatement, executeQuery, executeUpdate, etc.).
         // This provides sufficient synchronization without introducing lock ordering
         // issues.
-        std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
+        SQLITE_CONNECTION_LOCK_OR_RETURN("SC4B8YEQV0UV", "Cannot close statements");
 
         // CRITICAL: Copy weak_ptrs to temporary vector to avoid iterator invalidation.
         // When we call stmt->close(), it may call unregisterStatement() which modifies
@@ -166,7 +166,7 @@ namespace cpp_dbc::SQLite
         // Now ALL access to m_activeResultSets is consistently protected by
         // m_globalFileMutex, which is the file-level lock that protects the entire
         // SQLite connection state.
-        std::lock_guard<std::recursive_mutex> lock(*m_globalFileMutex);
+        SQLITE_CONNECTION_LOCK_OR_RETURN("4YYPPGK3MX58", "Cannot register result set");
         if (m_activeResultSets.size() > 50)
         {
             std::erase_if(m_activeResultSets, [](const auto &w) { return w.expired(); });
@@ -181,7 +181,7 @@ namespace cpp_dbc::SQLite
         // m_globalFileMutex for consistency with closeAllResultSets() and
         // registerResultSet(). All modifications to m_activeResultSets must use
         // the same mutex to prevent data races.
-        std::lock_guard<std::recursive_mutex> lock(*m_globalFileMutex);
+        SQLITE_CONNECTION_LOCK_OR_RETURN("238KFPCDSBRF", "Cannot unregister result set");
         // Remove expired weak_ptrs and the specified one
         for (auto it = m_activeResultSets.begin(); it != m_activeResultSets.end();)
         {
@@ -227,7 +227,7 @@ namespace cpp_dbc::SQLite
         // issues.
         //
         // Reference: Helgrind error logs in logs/test/2026-02-15-18-46-52/22_RUN02_fail.log
-        std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
+        SQLITE_CONNECTION_LOCK_OR_RETURN("227RAX807NHS", "Cannot close result sets");
 
         // CRITICAL: Copy weak_ptrs to temporary vector to avoid iterator invalidation.
         // When we call rs->close(), it calls unregisterResultSet() which modifies

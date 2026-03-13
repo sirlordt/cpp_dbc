@@ -31,7 +31,7 @@ DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
 DEBUG_REDIS=OFF
 DEBUG_ALL=OFF
-BACKWARD_HAS_DW=ON
+BACKWARD_HAS_DW=OFF
 DB_DRIVER_THREAD_SAFE=ON
 
 # Parse command line arguments
@@ -543,6 +543,14 @@ else
     echo "GCC Static Analyzer is disabled (use --gcc-analyzer to enable)"
 fi
 
+# Build CMAKE_CXX_FLAGS string — only append non-empty flags to avoid trailing spaces
+# that would invalidate the CMake cache and force a full recompilation
+CXX_BASE_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align"
+CXX_ALL_FLAGS="$CXX_BASE_FLAGS"
+if [ -n "$ANALYZER_FLAG" ]; then
+    CXX_ALL_FLAGS="$CXX_ALL_FLAGS $ANALYZER_FLAG"
+fi
+
 # Configure with CMake
 echo "Configuring with CMake..."
 
@@ -586,7 +594,7 @@ cmake "${SCRIPT_DIR}" \
       -DDB_DRIVER_THREAD_SAFE=$DB_DRIVER_THREAD_SAFE \
       -DENABLE_ASAN=$ENABLE_ASAN \
       -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE \
-      -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align ${ANALYZER_FLAG}" \
+      -DCMAKE_CXX_FLAGS="$CXX_ALL_FLAGS" \
       -Wno-dev
 
 # Build and install the library
@@ -597,107 +605,116 @@ echo "cpp_dbc library build completed successfully."
 echo "The library has been installed to: ${INSTALL_DIR}"
 echo ""
 
-# If tests are enabled, call build_test_cpp_dbc.sh with the appropriate parameters
-if [ "$BUILD_TESTS" = "ON" ]; then
-    echo "Building tests using build_test_cpp_dbc.sh..."
-    
-    # Prepare parameters to pass to build_test_cpp_dbc.sh
-    TEST_PARAMS=""
-
-    # Pass Yaml configuration
-    if [ "$USE_CPP_YAML" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --yaml"
-    else
-        TEST_PARAMS="$TEST_PARAMS --yaml-off"
-    fi
-    
-    # Pass MySQL configuration
-    if [ "$USE_MYSQL" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --mysql"
-    else
-        TEST_PARAMS="$TEST_PARAMS --mysql-off"
-    fi
-    
-    # Pass PostgreSQL configuration
-    if [ "$USE_POSTGRESQL" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --postgres"
-    fi
-    
-    # Pass SQLite configuration
-    if [ "$USE_SQLITE" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --sqlite"
-    fi
-    
-    # Pass Firebird configuration
-    if [ "$USE_FIREBIRD" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --firebird"
-    fi
-    
-    # Pass MongoDB configuration
-    if [ "$USE_MONGODB" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --mongodb"
-    fi
-
-    # Pass ScyllaDB configuration
-    if [ "$USE_SCYLLADB" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --scylladb"
-    fi
-    
-    # Pass Redis configuration
-    if [ "$USE_REDIS" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --redis"
-    fi
-    
-    # Pass build type
-    if [ "$BUILD_TYPE" = "Release" ]; then
-        TEST_PARAMS="$TEST_PARAMS --release"
-    fi
-
-    if [ "$ENABLE_GCC_ANALYZER" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --gcc-analyzer"
-    fi
-
-    if [ "$ENABLE_ASAN" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --asan"
-    fi
-    
-    # Pass debug options
-    if [ "$DEBUG_CONNECTION_POOL" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --debug-pool"
-    fi
-    
-    if [ "$DEBUG_TRANSACTION_MANAGER" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --debug-txmgr"
-    fi
-    
-    if [ "$DEBUG_SQLITE" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --debug-sqlite"
-    fi
-    
-    if [ "$DEBUG_FIREBIRD" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --debug-firebird"
-    fi
-    
-    if [ "$DEBUG_MONGODB" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --debug-mongodb"
-    fi
-
-    if [ "$DEBUG_SCYLLADB" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --debug-scylladb"
-    fi
-    
-    if [ "$DEBUG_REDIS" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --debug-redis"
-    fi
-    
-    if [ "$DEBUG_ALL" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --debug-all"
-    fi
-    
-    # Call build_test_cpp_dbc.sh with the parameters
-    echo "Running: ${SCRIPT_DIR}/build_test_cpp_dbc.sh $TEST_PARAMS"
-    "${SCRIPT_DIR}/build_test_cpp_dbc.sh" $TEST_PARAMS
-fi
+# 2026-03-12T02:30:00Z
+# Disabled: build_test_cpp_dbc.sh call is redundant when BUILD_TESTS=ON.
+# The cmake invocation above (line 563-594) already compiles the library, tests, and examples
+# in a single pass via -DCPP_DBC_BUILD_TESTS=ON. Calling build_test_cpp_dbc.sh afterward
+# re-runs cmake on the SAME build directory with different flags (EXAMPLES=OFF, BENCHMARKS=OFF,
+# BACKWARD_HAS_DW=OFF, extra ${SANITIZER_FLAGS} in CMAKE_CXX_FLAGS), which invalidates the
+# CMake cache and forces a full recompilation of every .o file — doubling the build time.
+# build_test_cpp_dbc.sh remains available as a standalone script for test runners
+# (run_test.sh, run_test_parallel.sh) that need to rebuild with TSAN/ASAN flags.
+#
+# if [ "$BUILD_TESTS" = "ON" ]; then
+#     echo "Building tests using build_test_cpp_dbc.sh..."
+#
+#     # Prepare parameters to pass to build_test_cpp_dbc.sh
+#     TEST_PARAMS=""
+#
+#     # Pass Yaml configuration
+#     if [ "$USE_CPP_YAML" = "ON" ]; then
+#         TEST_PARAMS="$TEST_PARAMS --yaml"
+#     else
+#         TEST_PARAMS="$TEST_PARAMS --yaml-off"
+#     fi
+#
+#     # Pass MySQL configuration
+#     if [ "$USE_MYSQL" = "ON" ]; then
+#         TEST_PARAMS="$TEST_PARAMS --mysql"
+#     else
+#         TEST_PARAMS="$TEST_PARAMS --mysql-off"
+#     fi
+#
+#     # Pass PostgreSQL configuration
+#     if [ "$USE_POSTGRESQL" = "ON" ]; then
+#         TEST_PARAMS="$TEST_PARAMS --postgres"
+#     fi
+#
+#     # Pass SQLite configuration
+#     if [ "$USE_SQLITE" = "ON" ]; then
+#         TEST_PARAMS="$TEST_PARAMS --sqlite"
+#     fi
+#
+#     # Pass Firebird configuration
+#     if [ "$USE_FIREBIRD" = "ON" ]; then
+#         TEST_PARAMS="$TEST_PARAMS --firebird"
+#     fi
+#
+#     # Pass MongoDB configuration
+#     if [ "$USE_MONGODB" = "ON" ]; then
+#         TEST_PARAMS="$TEST_PARAMS --mongodb"
+#     fi
+#
+#     # Pass ScyllaDB configuration
+#     if [ "$USE_SCYLLADB" = "ON" ]; then
+#         TEST_PARAMS="$TEST_PARAMS --scylladb"
+#     fi
+#
+#     # Pass Redis configuration
+#     if [ "$USE_REDIS" = "ON" ]; then
+#         TEST_PARAMS="$TEST_PARAMS --redis"
+#     fi
+#
+#     # Pass build type
+#     if [ "$BUILD_TYPE" = "Release" ]; then
+#         TEST_PARAMS="$TEST_PARAMS --release"
+#     fi
+#
+#     if [ "$ENABLE_GCC_ANALYZER" = "ON" ]; then
+#         TEST_PARAMS="$TEST_PARAMS --gcc-analyzer"
+#     fi
+#
+#     if [ "$ENABLE_ASAN" = "ON" ]; then
+#         TEST_PARAMS="$TEST_PARAMS --asan"
+#     fi
+#
+#     # Pass debug options
+#     if [ "$DEBUG_CONNECTION_POOL" = "ON" ]; then
+#         TEST_PARAMS="$TEST_PARAMS --debug-pool"
+#     fi
+#
+#     if [ "$DEBUG_TRANSACTION_MANAGER" = "ON" ]; then
+#         TEST_PARAMS="$TEST_PARAMS --debug-txmgr"
+#     fi
+#
+#     if [ "$DEBUG_SQLITE" = "ON" ]; then
+#         TEST_PARAMS="$TEST_PARAMS --debug-sqlite"
+#     fi
+#
+#     if [ "$DEBUG_FIREBIRD" = "ON" ]; then
+#         TEST_PARAMS="$TEST_PARAMS --debug-firebird"
+#     fi
+#
+#     if [ "$DEBUG_MONGODB" = "ON" ]; then
+#         TEST_PARAMS="$TEST_PARAMS --debug-mongodb"
+#     fi
+#
+#     if [ "$DEBUG_SCYLLADB" = "ON" ]; then
+#         TEST_PARAMS="$TEST_PARAMS --debug-scylladb"
+#     fi
+#
+#     if [ "$DEBUG_REDIS" = "ON" ]; then
+#         TEST_PARAMS="$TEST_PARAMS --debug-redis"
+#     fi
+#
+#     if [ "$DEBUG_ALL" = "ON" ]; then
+#         TEST_PARAMS="$TEST_PARAMS --debug-all"
+#     fi
+#
+#     # Call build_test_cpp_dbc.sh with the parameters
+#     echo "Running: ${SCRIPT_DIR}/build_test_cpp_dbc.sh $TEST_PARAMS"
+#     "${SCRIPT_DIR}/build_test_cpp_dbc.sh" $TEST_PARAMS
+# fi
 
 echo "Database driver status:"
 echo "  MySQL: $USE_MYSQL"

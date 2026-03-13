@@ -39,6 +39,37 @@
 #define DB_DRIVER_UNIQUE_LOCK(mutex) (void)0
 #endif
 
+// SQLite uses m_globalFileMutex (file-level mutex from FileMutexRegistry) instead of
+// m_connMutex. The lock is always acquired regardless of DB_DRIVER_THREAD_SAFE because
+// the file mutex exists for sanitizer compatibility and cross-connection synchronization.
+
+// For nothrow SQLiteDBConnection methods — locks file mutex and returns unexpected if closed
+#define SQLITE_CONNECTION_LOCK_OR_RETURN(mark, msg)                                         \
+    std::lock_guard<std::recursive_mutex> lock(*m_globalFileMutex);                         \
+    if (m_closed || !m_db)                                                                  \
+    {                                                                                       \
+        return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",            \
+                                               cpp_dbc::system_utils::captureCallStack())); \
+    }
+
+// For close() — locks file mutex and returns success if already closed (idempotent)
+#define SQLITE_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()                                \
+    std::lock_guard<std::recursive_mutex> lock(*m_globalFileMutex);                         \
+    if (m_closed || !m_db)                                                                  \
+    {                                                                                       \
+        return {}; /* Already closed = success (idempotent) */                              \
+    }
+
+// For nothrow SQLiteDBPreparedStatement methods — locks file mutex and returns unexpected if closed
+// Uses m_stmt instead of m_db since PreparedStatement owns a statement handle, not a db handle.
+#define SQLITE_STMT_LOCK_OR_RETURN(mark, msg)                                               \
+    std::lock_guard<std::recursive_mutex> lock(*m_globalFileMutex);                         \
+    if (m_closed || !m_stmt)                                                                \
+    {                                                                                       \
+        return cpp_dbc::unexpected(DBException(mark, msg " (statement closed)",             \
+                                               cpp_dbc::system_utils::captureCallStack())); \
+    }
+
 // Debug output is controlled by -DDEBUG_SQLITE=1 or -DDEBUG_ALL=1 CMake option
 #if (defined(DEBUG_SQLITE) && DEBUG_SQLITE) || (defined(DEBUG_ALL) && DEBUG_ALL)
 #define SQLITE_DEBUG(format, ...)                                                     \

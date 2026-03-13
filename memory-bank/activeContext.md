@@ -37,7 +37,15 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **PostgreSQL Driver — Shared-Mutex Refactoring, PrivateCtorTag Pattern, Convention Compliance** (2026-03-12 12:24 PDT):
+1. **Build System — CMake Cache Invalidation Fix, Lock Macro Unification Across Drivers** (2026-03-12 21:09 PDT):
+   - **CMake cache invalidation fixed:** Redundant `build_test_cpp_dbc.sh` call removed from `build_cpp_dbc.sh`; `BACKWARD_HAS_DW` default aligned to `OFF`; `CMAKE_CXX_FLAGS` built dynamically to avoid trailing spaces; `EXAMPLES`/`BENCHMARKS` no longer hardcoded `OFF` in test build script
+   - **`--mc-combo-01/02` now include benchmarks**
+   - **MySQL/PostgreSQL/SQLite lock macro unification:** Statement/result-set registry methods now use driver-specific `*_LOCK_OR_RETURN` macros + `stmtLock` naming for inner lock
+   - **SQLite new macros:** `SQLITE_CONNECTION_LOCK_OR_RETURN`, `SQLITE_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED`, `SQLITE_STMT_LOCK_OR_RETURN` in `sqlite_internal.hpp`
+   - **PostgreSQL `connection.hpp`:** `m_initFailed`/`m_initError` moved to dedicated "Construction state" section
+   - 11 files changed, +280/-140 lines
+
+2. **PostgreSQL Driver — Shared-Mutex Refactoring, PrivateCtorTag Pattern, Convention Compliance** (2026-03-12 12:24 PDT):
    - **Connection mutex ownership:** `SharedConnMutex` (shared_ptr<recursive_mutex>) replaced with direct `std::recursive_mutex m_connMutex` in `PostgreSQLDBConnection`; new `getConnectionMutex()` method for child access
    - **`PostgreSQLConnectionLock` RAII helper:** New class in `postgresql_internal.hpp` acquires connection mutex through `weak_ptr<PostgreSQLDBConnection>` with double-checked locking; marks object closed if connection expired
    - **`m_closed` → `std::atomic<bool>`:** Connection, PreparedStatement, and ResultSet all use atomic closed flag with proper memory ordering
@@ -49,7 +57,7 @@ Recent changes to the codebase include:
    - **`DB_DRIVER_LOCK_GUARD` → `std::scoped_lock`**
    - 18 files changed, +733/-655 lines
 
-2. **Unified version/info API across all drivers, MySQL code hardening, BlobStream connection validation** (2026-03-08 17:25 PST):
+3. **Unified version/info API across all drivers, MySQL code hardening, BlobStream connection validation** (2026-03-08 17:25 PST):
    - **Unified version/info API:** `getDriverVersion()` moved from family driver bases to `DBDriver` base; `getServerVersion()` + `getServerInfo()` (throwing + nothrow) added to `DBConnection` base; all 7 drivers implement with driver-specific metadata
    - **API naming:** MongoDB `getServerInfo()` → `getServerInfoAsDocument()` to avoid base class collision; `getServerInfo()` removed from `KVDBConnection` (now inherited from `DBConnection`)
    - **BlobStream:** `isConnectionValid()` pure virtual added; all blob classes override with `const noexcept`

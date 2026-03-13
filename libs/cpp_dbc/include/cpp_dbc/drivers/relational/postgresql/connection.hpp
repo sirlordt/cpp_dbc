@@ -115,6 +115,11 @@ namespace cpp_dbc::PostgreSQL
         std::recursive_mutex m_connMutex;
 #endif
 
+        // ── Construction state ────────────────────────────────────────────────
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
+
+        // ── Private helpers ───────────────────────────────────────────────────
         cpp_dbc::expected<void, DBException> registerStatement(std::nothrow_t, std::weak_ptr<PostgreSQLDBPreparedStatement> stmt) noexcept;
         cpp_dbc::expected<void, DBException> unregisterStatement(std::nothrow_t, std::weak_ptr<PostgreSQLDBPreparedStatement> stmt) noexcept;
         cpp_dbc::expected<void, DBException> closeAllStatements(std::nothrow_t) noexcept;
@@ -132,9 +137,6 @@ namespace cpp_dbc::PostgreSQL
 
         /** @brief Generate a unique name for server-side prepared statements */
         std::string generateStatementName(std::nothrow_t) noexcept;
-
-        bool m_initFailed{false};
-        std::unique_ptr<DBException> m_initError{nullptr};
 
     protected:
         // Pool lifecycle overrides - only callable by pool infrastructure (via friend in RelationalDBConnection).

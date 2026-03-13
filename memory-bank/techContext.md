@@ -45,6 +45,7 @@
   - Requires libsqlite3 development package
   - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory, double-checked locking for driver init, `-fno-exceptions` compatible
   - `getDriverVersion()` via `sqlite3_libversion()`; `getServerInfo()` returns ServerVersion, ServerVersionNumeric, SourceId, ThreadSafe (2026-03-08)
+  - `SQLITE_CONNECTION_LOCK_OR_RETURN` / `SQLITE_STMT_LOCK_OR_RETURN` macros in `sqlite_internal.hpp` for consistent lock-or-return pattern in statement/result-set registry methods (2026-03-12)
 
 - **Firebird Client Library**: For Firebird SQL database connectivity
   - Uses the C API (`ibase.h`)
@@ -175,7 +176,7 @@ The project uses:
 - **Developer Documentation:**
   - `libs/cpp_dbc/docs/how_add_new_db_drivers.md`: Comprehensive guide for adding new database drivers (5 phases)
   - `libs/cpp_dbc/docs/error_handling_patterns.md`: Complete guide to DBException, error codes, and nothrow API
-  - `libs/cpp_dbc/docs/shell_script_dependencies.md`: Shell script call hierarchy and dependencies
+  - `libs/cpp_dbc/docs/shell_script_dependencies.md`: Shell script call hierarchy, dependencies, and CMake cache invalidation documentation
   - `.claude/rules/cpp_dbc_conventions.md`: Project conventions — expanded with 8 new sections (preprocessor directives, Allman braces, NOSONAR, bug-fix comments, unused params, private access specifier, PrivateCtorTag, migration rule) (2026-03-07)
   - `.claude/rules/cpp_dbc_conventions_violations_how_report_them.md`: Structured format for convention compliance analysis reports (2026-03-07)
 - Conditional compilation options:
@@ -183,7 +184,7 @@ The project uses:
   - `--examples`: Build example applications
   - `--test`: Build unit tests
   - `--release`: Build in Release mode instead of Debug mode
-  - `--dw-on`: Enable libdw support for stack traces (opt-in; default for tests is OFF since 2026-02-22)
+  - `--dw-on`: Enable libdw support for stack traces (opt-in; default is OFF in both build scripts since 2026-03-12)
   - `--dw-off`: Disable libdw support for stack traces (no-op; already disabled by default)
   - `--debug-pool`: Enable debug output for ConnectionPool
   - `--debug-txmgr`: Enable debug output for TransactionManager

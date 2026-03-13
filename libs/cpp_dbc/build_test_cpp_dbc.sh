@@ -419,6 +419,17 @@ elif [ "${ENABLE_TSAN}" = "ON" ]; then
     SANITIZER_LINKER_FLAGS="-fsanitize=thread"
 fi
 
+# Build CMAKE_CXX_FLAGS string — only append non-empty flags to avoid trailing spaces
+# that would invalidate the CMake cache and force a full recompilation
+CXX_BASE_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align"
+CXX_ALL_FLAGS="$CXX_BASE_FLAGS"
+if [ -n "$SANITIZER_FLAGS" ]; then
+    CXX_ALL_FLAGS="$CXX_ALL_FLAGS $SANITIZER_FLAGS"
+fi
+if [ -n "$ANALYZER_FLAG" ]; then
+    CXX_ALL_FLAGS="$CXX_ALL_FLAGS $ANALYZER_FLAG"
+fi
+
 # Configure with CMake
 echo "Configuring with CMake..."
 cmake "${CPP_DBC_DIR}" \
@@ -433,8 +444,6 @@ cmake "${CPP_DBC_DIR}" \
       -DUSE_SCYLLADB=$USE_SCYLLADB \
       -DUSE_REDIS=$USE_REDIS \
       -DCPP_DBC_BUILD_TESTS=ON \
-      -DCPP_DBC_BUILD_EXAMPLES=OFF \
-      -DCPP_DBC_BUILD_BENCHMARKS=OFF \
       -DENABLE_ASAN=$ENABLE_ASAN \
       -DENABLE_TSAN=$ENABLE_TSAN \
       -DDEBUG_CONNECTION_POOL=$DEBUG_CONNECTION_POOL \
@@ -448,7 +457,7 @@ cmake "${CPP_DBC_DIR}" \
       -DDEBUG_REDIS=$DEBUG_REDIS \
       -DBACKWARD_HAS_DW=$BACKWARD_HAS_DW \
       -DDB_DRIVER_THREAD_SAFE=$DB_DRIVER_THREAD_SAFE \
-      -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align ${SANITIZER_FLAGS} ${ANALYZER_FLAG}" \
+      -DCMAKE_CXX_FLAGS="$CXX_ALL_FLAGS" \
       -DCMAKE_EXE_LINKER_FLAGS="${SANITIZER_LINKER_FLAGS}" \
       -Wno-dev
 
