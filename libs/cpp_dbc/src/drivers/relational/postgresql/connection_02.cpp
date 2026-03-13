@@ -75,16 +75,15 @@ namespace cpp_dbc::PostgreSQL
             return cpp_dbc::unexpected<DBException>(DBException("3C4D5E6F7G8H", "Connection is closed", system_utils::captureCallStack()));
         }
 
-        PGresult *result = PQexec(m_conn.get(), sql.c_str());
-        if (PQresultStatus(result) != PGRES_TUPLES_OK)
+        PGresultHandle result(PQexec(m_conn.get(), sql.c_str()));
+        if (PQresultStatus(result.get()) != PGRES_TUPLES_OK)
         {
-            std::string error = PQresultErrorMessage(result);
-            PQclear(result);
+            std::string error = PQresultErrorMessage(result.get());
             return cpp_dbc::unexpected<DBException>(DBException("9I0J1K2L3M4N", "Query failed: " + error, system_utils::captureCallStack()));
         }
 
         auto rsResult = PostgreSQLDBResultSet::create(std::nothrow,
-            std::weak_ptr<PostgreSQLDBConnection>(shared_from_this()), result);
+            std::weak_ptr<PostgreSQLDBConnection>(shared_from_this()), result.release());
         if (!rsResult.has_value())
         {
             return cpp_dbc::unexpected(rsResult.error());
@@ -106,24 +105,26 @@ namespace cpp_dbc::PostgreSQL
             return cpp_dbc::unexpected<DBException>(DBException("5O6P7Q8R9S0T", "Connection is closed", system_utils::captureCallStack()));
         }
 
-        PGresult *result = PQexec(m_conn.get(), sql.c_str());
-        if (PQresultStatus(result) != PGRES_COMMAND_OK)
+        PGresultHandle result(PQexec(m_conn.get(), sql.c_str()));
+        if (PQresultStatus(result.get()) != PGRES_COMMAND_OK)
         {
-            std::string error = PQresultErrorMessage(result);
-            PQclear(result);
+            std::string error = PQresultErrorMessage(result.get());
             return cpp_dbc::unexpected<DBException>(DBException("1U2V3W4X5Y6Z", "Update failed: " + error, system_utils::captureCallStack()));
         }
 
         // Get the number of affected rows
-        const char *affectedRows = PQcmdTuples(result);
+        const char *affectedRows = PQcmdTuples(result.get());
         uint64_t rowCount = 0;
         if (affectedRows && affectedRows[0] != '\0')
         {
             std::string_view affectedRowsView(affectedRows);
-            std::from_chars(affectedRowsView.data(), affectedRowsView.data() + affectedRowsView.size(), rowCount);
+            auto [ptr, ec] = std::from_chars(affectedRowsView.data(), affectedRowsView.data() + affectedRowsView.size(), rowCount);
+            if (ec != std::errc{})
+            {
+                return cpp_dbc::unexpected<DBException>(DBException("JH2IMLZPHQKD", "Failed to parse affected row count", system_utils::captureCallStack()));
+            }
         }
 
-        PQclear(result);
         return rowCount;
     }
 
@@ -206,36 +207,30 @@ namespace cpp_dbc::PostgreSQL
             beginCmd = "BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE";
 
             // Execute the BEGIN command
-            PGresult *dummyResult = PQexec(m_conn.get(), beginCmd.c_str());
-            if (PQresultStatus(dummyResult) != PGRES_COMMAND_OK)
+            PGresultHandle dummyResult(PQexec(m_conn.get(), beginCmd.c_str()));
+            if (PQresultStatus(dummyResult.get()) != PGRES_COMMAND_OK)
             {
-                std::string error = PQresultErrorMessage(dummyResult);
-                PQclear(dummyResult);
+                std::string error = PQresultErrorMessage(dummyResult.get());
                 return cpp_dbc::unexpected<DBException>(DBException("3G4H5I6J7K8L", "Failed to start SERIALIZABLE transaction: " + error, system_utils::captureCallStack()));
             }
-            PQclear(dummyResult);
 
             // Force snapshot acquisition with a dummy query
-            PGresult *snapshotResult = PQexec(m_conn.get(), "SELECT 1");
-            if (PQresultStatus(snapshotResult) != PGRES_TUPLES_OK)
+            PGresultHandle snapshotResult(PQexec(m_conn.get(), "SELECT 1"));
+            if (PQresultStatus(snapshotResult.get()) != PGRES_TUPLES_OK)
             {
-                std::string error = PQresultErrorMessage(snapshotResult);
-                PQclear(snapshotResult);
+                std::string error = PQresultErrorMessage(snapshotResult.get());
                 return cpp_dbc::unexpected<DBException>(DBException("9M0N1O2P3Q4R", "Failed to acquire snapshot: " + error, system_utils::captureCallStack()));
             }
-            PQclear(snapshotResult);
         }
         else
         {
             // Standard BEGIN for other isolation levels
-            PGresult *result = PQexec(m_conn.get(), beginCmd.c_str());
-            if (PQresultStatus(result) != PGRES_COMMAND_OK)
+            PGresultHandle result(PQexec(m_conn.get(), beginCmd.c_str()));
+            if (PQresultStatus(result.get()) != PGRES_COMMAND_OK)
             {
-                std::string error = PQresultErrorMessage(result);
-                PQclear(result);
+                std::string error = PQresultErrorMessage(result.get());
                 return cpp_dbc::unexpected<DBException>(DBException("5S6T7U8V9W0X", "Failed to start transaction: " + error, system_utils::captureCallStack()));
             }
-            PQclear(result);
         }
 
         m_autoCommit = false;

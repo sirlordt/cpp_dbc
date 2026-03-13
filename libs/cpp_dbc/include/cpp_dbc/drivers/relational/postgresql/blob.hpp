@@ -2,9 +2,9 @@
 
 #include "../../../cpp_dbc.hpp"
 #include "../../../blob.hpp"
+#include "handles.hpp"
 
 #if USE_POSTGRESQL
-#include <libpq-fe.h>
 #include <memory>
 #include <cstring>
 #include <string>
@@ -95,6 +95,8 @@ namespace cpp_dbc::PostgreSQL
 
         PostgreSQLBlob(const PostgreSQLBlob &) = delete;
         PostgreSQLBlob &operator=(const PostgreSQLBlob &) = delete;
+        PostgreSQLBlob(PostgreSQLBlob &&) = delete;
+        PostgreSQLBlob &operator=(PostgreSQLBlob &&) = delete;
 
 #ifdef __cpp_exceptions
         static std::shared_ptr<PostgreSQLBlob> create(std::shared_ptr<PGconn> conn)
@@ -331,19 +333,17 @@ namespace cpp_dbc::PostgreSQL
             }
             PGconn *conn = connResult.value();
 
-            PGresult *res = PQexec(conn, "BEGIN");
-            if (PQresultStatus(res) != PGRES_COMMAND_OK)
+            PGresultHandle beginRes(PQexec(conn, "BEGIN"));
+            if (PQresultStatus(beginRes.get()) != PGRES_COMMAND_OK)
             {
-                std::string error = PQresultErrorMessage(res);
-                PQclear(res);
+                std::string error = PQresultErrorMessage(beginRes.get());
                 return cpp_dbc::unexpected(DBException("PLX9YW4JL8V7", "Failed to start transaction for BLOB loading: " + error, system_utils::captureCallStack()));
             }
-            PQclear(res);
 
             int fd = lo_open(conn, m_lobOid, INV_READ);
             if (fd < 0)
             {
-                PQexec(conn, "ROLLBACK");
+                PGresultHandle rbRes(PQexec(conn, "ROLLBACK"));
                 return cpp_dbc::unexpected(DBException("4LLXBMB5AMJ9", "Failed to open large object: " + std::to_string(m_lobOid), system_utils::captureCallStack()));
             }
 
@@ -357,7 +357,7 @@ namespace cpp_dbc::PostgreSQL
                 if (bytesRead != loSize)
                 {
                     lo_close(conn, fd);
-                    PQexec(conn, "ROLLBACK");
+                    PGresultHandle rbRes(PQexec(conn, "ROLLBACK"));
                     return cpp_dbc::unexpected(DBException("GO1IJP3EU26A", "Failed to read large object data", system_utils::captureCallStack()));
                 }
             }
@@ -368,14 +368,12 @@ namespace cpp_dbc::PostgreSQL
 
             lo_close(conn, fd);
 
-            res = PQexec(conn, "COMMIT");
-            if (PQresultStatus(res) != PGRES_COMMAND_OK)
+            PGresultHandle commitRes(PQexec(conn, "COMMIT"));
+            if (PQresultStatus(commitRes.get()) != PGRES_COMMAND_OK)
             {
-                std::string error = PQresultErrorMessage(res);
-                PQclear(res);
+                std::string error = PQresultErrorMessage(commitRes.get());
                 return cpp_dbc::unexpected(DBException("PYQGW1S0NFFX", "Failed to commit transaction for BLOB loading: " + error, system_utils::captureCallStack()));
             }
-            PQclear(res);
 
             m_loaded = true;
             return {};
@@ -466,21 +464,19 @@ namespace cpp_dbc::PostgreSQL
             }
             PGconn *conn = connResult.value();
 
-            PGresult *res = PQexec(conn, "BEGIN");
-            if (PQresultStatus(res) != PGRES_COMMAND_OK)
+            PGresultHandle beginRes(PQexec(conn, "BEGIN"));
+            if (PQresultStatus(beginRes.get()) != PGRES_COMMAND_OK)
             {
-                std::string error = PQresultErrorMessage(res);
-                PQclear(res);
+                std::string error = PQresultErrorMessage(beginRes.get());
                 return cpp_dbc::unexpected(DBException("MP57LH4DNE61", "Failed to start transaction for BLOB saving: " + error, system_utils::captureCallStack()));
             }
-            PQclear(res);
 
             if (m_lobOid == 0)
             {
                 m_lobOid = lo_creat(conn, INV_WRITE);
                 if (m_lobOid == 0)
                 {
-                    PQexec(conn, "ROLLBACK");
+                    PGresultHandle rbRes(PQexec(conn, "ROLLBACK"));
                     return cpp_dbc::unexpected(DBException("4KAPV652CRQU", "Failed to create large object", system_utils::captureCallStack()));
                 }
             }
@@ -488,7 +484,7 @@ namespace cpp_dbc::PostgreSQL
             int fd = lo_open(conn, m_lobOid, INV_WRITE);
             if (fd < 0)
             {
-                PQexec(conn, "ROLLBACK");
+                PGresultHandle rbRes(PQexec(conn, "ROLLBACK"));
                 return cpp_dbc::unexpected(DBException("N38L3OFZ9NK6", "Failed to open large object for writing", system_utils::captureCallStack()));
             }
 
@@ -500,21 +496,19 @@ namespace cpp_dbc::PostgreSQL
                 if (bytesWritten != static_cast<int>(m_data.size()))
                 {
                     lo_close(conn, fd);
-                    PQexec(conn, "ROLLBACK");
+                    PGresultHandle rbRes(PQexec(conn, "ROLLBACK"));
                     return cpp_dbc::unexpected(DBException("PV3L5F2NMUOH", "Failed to write large object data", system_utils::captureCallStack()));
                 }
             }
 
             lo_close(conn, fd);
 
-            res = PQexec(conn, "COMMIT");
-            if (PQresultStatus(res) != PGRES_COMMAND_OK)
+            PGresultHandle commitRes(PQexec(conn, "COMMIT"));
+            if (PQresultStatus(commitRes.get()) != PGRES_COMMAND_OK)
             {
-                std::string error = PQresultErrorMessage(res);
-                PQclear(res);
+                std::string error = PQresultErrorMessage(commitRes.get());
                 return cpp_dbc::unexpected(DBException("AZ9LET1SNHY9", "Failed to commit transaction for BLOB saving: " + error, system_utils::captureCallStack()));
             }
-            PQclear(res);
 
             return m_lobOid;
         }
@@ -528,21 +522,14 @@ namespace cpp_dbc::PostgreSQL
                 if (conn)
                 {
                     // Start a transaction if not already in one
-                    PGresult *res = PQexec(conn.get(), "BEGIN");
-                    if (PQresultStatus(res) == PGRES_COMMAND_OK)
+                    PGresultHandle beginRes(PQexec(conn.get(), "BEGIN"));
+                    if (PQresultStatus(beginRes.get()) == PGRES_COMMAND_OK)
                     {
-                        PQclear(res);
-
                         // Delete the large object
                         lo_unlink(conn.get(), m_lobOid);
 
                         // Commit the transaction
-                        res = PQexec(conn.get(), "COMMIT");
-                        PQclear(res);
-                    }
-                    else
-                    {
-                        PQclear(res);
+                        PGresultHandle commitRes(PQexec(conn.get(), "COMMIT"));
                     }
                 }
 

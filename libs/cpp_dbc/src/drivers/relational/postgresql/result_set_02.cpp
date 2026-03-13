@@ -77,16 +77,19 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBResultSet::isBeforeFirst(std::nothrow_t) noexcept
     {
+        PG_STMT_LOCK_OR_RETURN("IJQSRD95YK97", "ResultSet closed");
         return m_rowPosition == 0;
     }
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBResultSet::isAfterLast(std::nothrow_t) noexcept
     {
+        PG_STMT_LOCK_OR_RETURN("HLFS518ZZMZC", "ResultSet closed");
         return m_result && m_rowPosition > m_rowCount;
     }
 
     cpp_dbc::expected<uint64_t, DBException> PostgreSQLDBResultSet::getRow(std::nothrow_t) noexcept
     {
+        PG_STMT_LOCK_OR_RETURN("89CFESJGIUQG", "ResultSet closed");
         return m_rowPosition;
     }
 

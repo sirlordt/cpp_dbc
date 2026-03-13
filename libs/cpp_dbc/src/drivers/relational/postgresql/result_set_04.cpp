@@ -214,7 +214,11 @@ namespace cpp_dbc::PostgreSQL
                         {
                             // Convert hex pair to byte
                             uint8_t byte = 0;
-                            std::from_chars(hexData + i, hexData + i + 2, byte, 16);
+                            auto [hptr, hec] = std::from_chars(hexData + i, hexData + i + 2, byte, 16);
+                            if (hec != std::errc{})
+                            {
+                                return cpp_dbc::unexpected<DBException>(DBException("5BI6PCYRI5NO", "Failed to parse hex byte in bytea data", system_utils::captureCallStack()));
+                            }
                             data.push_back(byte);
                         }
                     }

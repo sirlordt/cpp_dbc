@@ -32,6 +32,7 @@
 #include <cctype>
 #include <iomanip>
 #include <charconv>
+#include <ranges>
 
 #if defined(__cpp_lib_format) && __cpp_lib_format >= 201907L
 #include <format>
@@ -188,13 +189,10 @@ namespace cpp_dbc::PostgreSQL
         m_streamObjects.resize(paramCount);
 
         // Default to text format for all parameters
-        for (int i = 0; i < paramCount; i++)
-        {
-            m_paramValues[i] = "";
-            m_paramLengths[i] = 0;
-            m_paramFormats[i] = 0; // 0 = text, 1 = binary
-            m_paramTypes[i] = 0;   // 0 = let server guess
-        }
+        std::ranges::fill(m_paramValues, "");
+        std::ranges::fill(m_paramLengths, 0);
+        std::ranges::fill(m_paramFormats, 0); // 0 = text, 1 = binary
+        std::ranges::fill(m_paramTypes, 0);   // 0 = let server guess
 
         m_closed.store(false, std::memory_order_release);
     }

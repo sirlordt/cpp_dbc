@@ -53,14 +53,12 @@ namespace cpp_dbc::PostgreSQL
             return {};
         }
 
-        PGresult *result = PQexec(m_conn.get(), "COMMIT");
-        if (PQresultStatus(result) != PGRES_COMMAND_OK)
+        PGresultHandle result(PQexec(m_conn.get(), "COMMIT"));
+        if (PQresultStatus(result.get()) != PGRES_COMMAND_OK)
         {
-            std::string error = PQresultErrorMessage(result);
-            PQclear(result);
+            std::string error = PQresultErrorMessage(result.get());
             return cpp_dbc::unexpected<DBException>(DBException("3K4L5M6N7O8P", "Commit failed: " + error, system_utils::captureCallStack()));
         }
-        PQclear(result);
 
         m_transactionActive = false;
         m_autoCommit = true;
@@ -83,14 +81,12 @@ namespace cpp_dbc::PostgreSQL
             return {};
         }
 
-        PGresult *result = PQexec(m_conn.get(), "ROLLBACK");
-        if (PQresultStatus(result) != PGRES_COMMAND_OK)
+        PGresultHandle result(PQexec(m_conn.get(), "ROLLBACK"));
+        if (PQresultStatus(result.get()) != PGRES_COMMAND_OK)
         {
-            std::string error = PQresultErrorMessage(result);
-            PQclear(result);
+            std::string error = PQresultErrorMessage(result.get());
             return cpp_dbc::unexpected<DBException>(DBException("1C2D3E4F5G6H", "Rollback failed: " + error, system_utils::captureCallStack()));
         }
-        PQclear(result);
 
         m_transactionActive = false;
         m_autoCommit = true;
@@ -128,14 +124,14 @@ namespace cpp_dbc::PostgreSQL
             return cpp_dbc::unexpected<DBException>(DBException("9U0V1W2X3Y4Z", "Unsupported transaction isolation level", system_utils::captureCallStack()));
         }
 
-        PGresult *result = PQexec(m_conn.get(), query.c_str());
-        if (PQresultStatus(result) != PGRES_COMMAND_OK)
         {
-            std::string error = PQresultErrorMessage(result);
-            PQclear(result);
-            return cpp_dbc::unexpected<DBException>(DBException("3Q37JJHOWQJE", "Failed to set transaction isolation level: " + error, system_utils::captureCallStack()));
+            PGresultHandle result(PQexec(m_conn.get(), query.c_str()));
+            if (PQresultStatus(result.get()) != PGRES_COMMAND_OK)
+            {
+                std::string error = PQresultErrorMessage(result.get());
+                return cpp_dbc::unexpected<DBException>(DBException("3Q37JJHOWQJE", "Failed to set transaction isolation level: " + error, system_utils::captureCallStack()));
+            }
         }
-        PQclear(result);
 
         this->m_isolationLevel = level;
 
@@ -143,49 +139,41 @@ namespace cpp_dbc::PostgreSQL
         // for the new isolation level to take effect
         if (!m_autoCommit)
         {
-            result = PQexec(m_conn.get(), "COMMIT");
-            if (PQresultStatus(result) != PGRES_COMMAND_OK)
+            PGresultHandle commitResult(PQexec(m_conn.get(), "COMMIT"));
+            if (PQresultStatus(commitResult.get()) != PGRES_COMMAND_OK)
             {
-                std::string error = PQresultErrorMessage(result);
-                PQclear(result);
+                std::string error = PQresultErrorMessage(commitResult.get());
                 return cpp_dbc::unexpected<DBException>(DBException("1G2H3I4J5K6L", "Failed to commit transaction: " + error, system_utils::captureCallStack()));
             }
-            PQclear(result);
 
             // For SERIALIZABLE isolation, we need special handling
             if (m_isolationLevel == TRANSACTION_SERIALIZABLE)
             {
                 std::string beginCmd = "BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE";
-                result = PQexec(m_conn.get(), beginCmd.c_str());
-                if (PQresultStatus(result) != PGRES_COMMAND_OK)
+                PGresultHandle beginResult(PQexec(m_conn.get(), beginCmd.c_str()));
+                if (PQresultStatus(beginResult.get()) != PGRES_COMMAND_OK)
                 {
-                    std::string error = PQresultErrorMessage(result);
-                    PQclear(result);
+                    std::string error = PQresultErrorMessage(beginResult.get());
                     return cpp_dbc::unexpected<DBException>(DBException("V8W9X0Y1Z2A3", "Failed to start SERIALIZABLE transaction: " + error, system_utils::captureCallStack()));
                 }
-                PQclear(result);
 
                 // Force snapshot acquisition with a dummy query
-                PGresult *snapshotResult = PQexec(m_conn.get(), "SELECT 1");
-                if (PQresultStatus(snapshotResult) != PGRES_TUPLES_OK)
+                PGresultHandle snapshotResult(PQexec(m_conn.get(), "SELECT 1"));
+                if (PQresultStatus(snapshotResult.get()) != PGRES_TUPLES_OK)
                 {
-                    std::string error = PQresultErrorMessage(snapshotResult);
-                    PQclear(snapshotResult);
+                    std::string error = PQresultErrorMessage(snapshotResult.get());
                     return cpp_dbc::unexpected<DBException>(DBException("3S4T5U6V7W8X", "Failed to acquire snapshot: " + error, system_utils::captureCallStack()));
                 }
-                PQclear(snapshotResult);
             }
             else
             {
                 // Standard BEGIN for other isolation levels
-                result = PQexec(m_conn.get(), "BEGIN");
-                if (PQresultStatus(result) != PGRES_COMMAND_OK)
+                PGresultHandle beginResult(PQexec(m_conn.get(), "BEGIN"));
+                if (PQresultStatus(beginResult.get()) != PGRES_COMMAND_OK)
                 {
-                    std::string error = PQresultErrorMessage(result);
-                    PQclear(result);
+                    std::string error = PQresultErrorMessage(beginResult.get());
                     return cpp_dbc::unexpected<DBException>(DBException("9Y0Z1A2B3C4D", "Failed to start transaction: " + error, system_utils::captureCallStack()));
                 }
-                PQclear(result);
             }
         }
 
@@ -202,22 +190,19 @@ namespace cpp_dbc::PostgreSQL
         }
 
         // Query the current isolation level
-        PGresult *result = PQexec(m_conn.get(), "SHOW transaction_isolation");
-        if (PQresultStatus(result) != PGRES_TUPLES_OK)
+        PGresultHandle result(PQexec(m_conn.get(), "SHOW transaction_isolation"));
+        if (PQresultStatus(result.get()) != PGRES_TUPLES_OK)
         {
-            std::string error = PQresultErrorMessage(result);
-            PQclear(result);
+            std::string error = PQresultErrorMessage(result.get());
             return cpp_dbc::unexpected<DBException>(DBException("3W4X5Y6Z7A8B", "Failed to get transaction isolation level: " + error, system_utils::captureCallStack()));
         }
 
-        if (PQntuples(result) == 0)
+        if (PQntuples(result.get()) == 0)
         {
-            PQclear(result);
             return cpp_dbc::unexpected<DBException>(DBException("9C0D1E2F3G4H", "Failed to fetch transaction isolation level", system_utils::captureCallStack()));
         }
 
-        std::string level = PQgetvalue(result, 0, 0);
-        PQclear(result);
+        std::string level = PQgetvalue(result.get(), 0, 0);
 
         // Convert the string value to the enum - handle both formats
         std::string levelLower = level;

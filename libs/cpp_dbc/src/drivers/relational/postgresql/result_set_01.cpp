@@ -32,6 +32,7 @@
 #include <cctype>
 #include <iomanip>
 #include <charconv>
+#include <ranges>
 
 #include "postgresql_internal.hpp"
 
@@ -50,7 +51,7 @@ namespace cpp_dbc::PostgreSQL
             m_fieldCount = PQnfields(m_result.get());
 
             // Store column names and create column name to index mapping
-            for (int i = 0; i < m_fieldCount; i++)
+            for (int i : std::views::iota(0, m_fieldCount))
             {
                 std::string name = PQfname(m_result.get(), i);
                 m_columnNames.push_back(name);

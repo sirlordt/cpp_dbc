@@ -32,6 +32,7 @@
 #include <cctype>
 #include <iomanip>
 #include <charconv>
+#include <ranges>
 
 #include "postgresql_internal.hpp"
 
@@ -54,29 +55,25 @@ namespace cpp_dbc::PostgreSQL
         // Prepare the statement if not already prepared
         if (!m_prepared)
         {
-            PGresult *prepareResult = PQprepare(pgConn, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data());
-            if (PQresultStatus(prepareResult) != PGRES_COMMAND_OK)
+            PGresultHandle prepareResult(PQprepare(pgConn, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data()));
+            if (PQresultStatus(prepareResult.get()) != PGRES_COMMAND_OK)
             {
-                std::string error = PQresultErrorMessage(prepareResult);
-                PQclear(prepareResult);
+                std::string error = PQresultErrorMessage(prepareResult.get());
                 return cpp_dbc::unexpected<DBException>(DBException("3U4V5W6X7Y8Z", "Failed to prepare statement: " + error, system_utils::captureCallStack()));
             }
-            PQclear(prepareResult);
             m_prepared = true;
         }
 
         // Convert parameter values to C-style array of char pointers
         std::vector<const char *> paramValuePtrs(m_paramValues.size());
-        for (size_t i = 0; i < m_paramValues.size(); i++)
-        {
-            paramValuePtrs[i] = m_paramValues[i].empty() ? nullptr : m_paramValues[i].c_str();
-        }
+        std::ranges::transform(m_paramValues, paramValuePtrs.begin(),
+            [](const std::string &v) -> const char * { return v.empty() ? nullptr : v.c_str(); });
 
         // Execute the prepared statement
         // Create temporary vector of ints for parameter lengths
         std::vector<int> paramLengthsInt(m_paramLengths.begin(), m_paramLengths.end());
 
-        PGresult *result = PQexecPrepared(
+        PGresultHandle result(PQexecPrepared(
             pgConn,
             m_stmtName.c_str(),
             static_cast<int>(m_paramValues.size()),
@@ -84,17 +81,16 @@ namespace cpp_dbc::PostgreSQL
             paramLengthsInt.data(),
             m_paramFormats.data(),
             0 // Result format (0 = text)
-        );
+        ));
 
-        if (PQresultStatus(result) != PGRES_TUPLES_OK)
+        if (PQresultStatus(result.get()) != PGRES_TUPLES_OK)
         {
-            std::string error = PQresultErrorMessage(result);
-            PQclear(result);
+            std::string error = PQresultErrorMessage(result.get());
             return cpp_dbc::unexpected<DBException>(DBException("7ZYR9G76KRKT", "Failed to execute query: " + error, system_utils::captureCallStack()));
         }
 
         // Create ResultSet with connection reference for lifecycle management
-        auto rsResult = PostgreSQLDBResultSet::create(std::nothrow, m_connection, result);
+        auto rsResult = PostgreSQLDBResultSet::create(std::nothrow, m_connection, result.release());
         if (!rsResult.has_value())
         {
             return cpp_dbc::unexpected(rsResult.error());
@@ -118,29 +114,25 @@ namespace cpp_dbc::PostgreSQL
         // Prepare the statement if not already prepared
         if (!m_prepared)
         {
-            PGresult *prepareResult = PQprepare(pgConn, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data());
-            if (PQresultStatus(prepareResult) != PGRES_COMMAND_OK)
+            PGresultHandle prepareResult(PQprepare(pgConn, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data()));
+            if (PQresultStatus(prepareResult.get()) != PGRES_COMMAND_OK)
             {
-                std::string error = PQresultErrorMessage(prepareResult);
-                PQclear(prepareResult);
+                std::string error = PQresultErrorMessage(prepareResult.get());
                 return cpp_dbc::unexpected<DBException>(DBException("LV8VBI4QT5XS", "Failed to prepare statement: " + error, system_utils::captureCallStack()));
             }
-            PQclear(prepareResult);
             m_prepared = true;
         }
 
         // Convert parameter values to C-style array of char pointers
         std::vector<const char *> paramValuePtrs(m_paramValues.size());
-        for (size_t i = 0; i < m_paramValues.size(); i++)
-        {
-            paramValuePtrs[i] = m_paramValues[i].empty() ? nullptr : m_paramValues[i].c_str();
-        }
+        std::ranges::transform(m_paramValues, paramValuePtrs.begin(),
+            [](const std::string &v) -> const char * { return v.empty() ? nullptr : v.c_str(); });
 
         // Execute the prepared statement
         // Create temporary vector of ints for parameter lengths
         std::vector<int> paramLengthsInt(m_paramLengths.begin(), m_paramLengths.end());
 
-        PGresult *result = PQexecPrepared(
+        PGresultHandle result(PQexecPrepared(
             pgConn,
             m_stmtName.c_str(),
             static_cast<int>(m_paramValues.size()),
@@ -148,25 +140,26 @@ namespace cpp_dbc::PostgreSQL
             paramLengthsInt.data(),
             m_paramFormats.data(),
             0 // Result format (0 = text)
-        );
+        ));
 
-        if (PQresultStatus(result) != PGRES_COMMAND_OK)
+        if (PQresultStatus(result.get()) != PGRES_COMMAND_OK)
         {
-            std::string error = PQresultErrorMessage(result);
-            PQclear(result);
+            std::string error = PQresultErrorMessage(result.get());
             return cpp_dbc::unexpected<DBException>(DBException("7S8T9U0V1W2X", "Failed to execute update: " + error, system_utils::captureCallStack()));
         }
 
         // Get the number of affected rows
-        const char *affectedRows = PQcmdTuples(result);
+        const char *affectedRows = PQcmdTuples(result.get());
         uint64_t rowCount = 0;
         if (affectedRows && affectedRows[0] != '\0')
         {
             std::string_view affectedRowsView(affectedRows);
-            std::from_chars(affectedRowsView.data(), affectedRowsView.data() + affectedRowsView.size(), rowCount);
+            auto [ptr, ec] = std::from_chars(affectedRowsView.data(), affectedRowsView.data() + affectedRowsView.size(), rowCount);
+            if (ec != std::errc{})
+            {
+                return cpp_dbc::unexpected<DBException>(DBException("79JETX112U63", "Failed to parse affected row count", system_utils::captureCallStack()));
+            }
         }
-
-        PQclear(result);
 
         return rowCount;
     }
@@ -186,29 +179,25 @@ namespace cpp_dbc::PostgreSQL
         // Prepare the statement if not already prepared
         if (!m_prepared)
         {
-            PGresult *prepareResult = PQprepare(pgConn, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data());
-            if (PQresultStatus(prepareResult) != PGRES_COMMAND_OK)
+            PGresultHandle prepareResult(PQprepare(pgConn, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data()));
+            if (PQresultStatus(prepareResult.get()) != PGRES_COMMAND_OK)
             {
-                std::string error = PQresultErrorMessage(prepareResult);
-                PQclear(prepareResult);
+                std::string error = PQresultErrorMessage(prepareResult.get());
                 return cpp_dbc::unexpected<DBException>(DBException("9E0F1G2H3I4J", "Failed to prepare statement: " + error, system_utils::captureCallStack()));
             }
-            PQclear(prepareResult);
             m_prepared = true;
         }
 
         // Convert parameter values to C-style array of char pointers
         std::vector<const char *> paramValuePtrs(m_paramValues.size());
-        for (size_t i = 0; i < m_paramValues.size(); i++)
-        {
-            paramValuePtrs[i] = m_paramValues[i].empty() ? nullptr : m_paramValues[i].c_str();
-        }
+        std::ranges::transform(m_paramValues, paramValuePtrs.begin(),
+            [](const std::string &v) -> const char * { return v.empty() ? nullptr : v.c_str(); });
 
         // Execute the prepared statement
         // Create temporary vector of ints for parameter lengths
         std::vector<int> paramLengthsInt(m_paramLengths.begin(), m_paramLengths.end());
 
-        PGresult *result = PQexecPrepared(
+        PGresultHandle result(PQexecPrepared(
             pgConn,
             m_stmtName.c_str(),
             static_cast<int>(m_paramValues.size()),
@@ -216,20 +205,18 @@ namespace cpp_dbc::PostgreSQL
             paramLengthsInt.data(),
             m_paramFormats.data(),
             0 // Result format (0 = text)
-        );
+        ));
 
-        ExecStatusType status = PQresultStatus(result);
+        ExecStatusType status = PQresultStatus(result.get());
         bool hasResultSet = (status == PGRES_TUPLES_OK);
 
         // Clean up if there was an error
         if (status != PGRES_TUPLES_OK && status != PGRES_COMMAND_OK)
         {
-            std::string error = PQresultErrorMessage(result);
-            PQclear(result);
+            std::string error = PQresultErrorMessage(result.get());
             return cpp_dbc::unexpected<DBException>(DBException("5K6L7M8N9O0P", "Failed to execute statement: " + error, system_utils::captureCallStack()));
         }
 
-        PQclear(result);
         return hasResultSet;
     }
 
@@ -247,11 +234,7 @@ namespace cpp_dbc::PostgreSQL
             if (conn && conn->m_conn)
             {
                 std::string deallocateSQL = "DEALLOCATE " + m_stmtName;
-                PGresult *res = PQexec(conn->m_conn.get(), deallocateSQL.c_str());
-                if (res)
-                {
-                    PQclear(res);
-                }
+                PGresultHandle res(PQexec(conn->m_conn.get(), deallocateSQL.c_str()));
             }
             m_prepared = false;
         }

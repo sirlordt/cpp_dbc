@@ -79,6 +79,13 @@ namespace cpp_dbc::PostgreSQL
                           reinterpret_cast<const uint8_t *>(endResult.value()));
         }
 
+        ~PostgreSQLInputStream() override = default;
+
+        PostgreSQLInputStream(const PostgreSQLInputStream &) = delete;
+        PostgreSQLInputStream &operator=(const PostgreSQLInputStream &) = delete;
+        PostgreSQLInputStream(PostgreSQLInputStream &&) = delete;
+        PostgreSQLInputStream &operator=(PostgreSQLInputStream &&) = delete;
+
 #ifdef __cpp_exceptions
         static std::shared_ptr<PostgreSQLInputStream> create(const char *buffer, size_t length)
         {
