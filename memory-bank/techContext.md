@@ -330,10 +330,10 @@ The project now includes an automatic synchronization system for IntelliSense:
        - Methods to retrieve and print stack traces
        - `what_s()` returns `std::string_view` (was `const std::string&`); `getMark()` same (since 2026-02-26)
        - `getCallStack()` returns `std::span<const system_utils::StackFrame>` (was `const std::vector<StackFrame>&`)
-       - **Fixed-size layout (since 2026-02-26):** inherits `std::exception`, constructor is `noexcept`, fields are char arrays (`m_mark[13]`, `m_message[257]`, `m_full_message[271]`)
+       - **Hybrid fixed/dynamic storage (since 2026-03-13):** `class DBException final : public std::exception`, constructor is `noexcept`, `m_full_message[79]` fixed buffer (12 mark + 2 ": " + 64 msg + 1 null), `m_overflow` (`shared_ptr<char[]>`) for messages > 64 chars via `new(std::nothrow)`, graceful degradation (~120 bytes object size)
        - Call stack stored as `std::shared_ptr<CallStackCapture>` — optional, heap-allocated once, shared on copy
        - `captureCallStack()` returns `std::shared_ptr<CallStackCapture>` with fixed `StackFrame frames[10]`
-       - Virtual destructor for correct inheritance hierarchy
+       - Class is `final` — no virtual destructor needed
      - Client code should handle DBException appropriately
      - Stack traces provide detailed information about error origins
 

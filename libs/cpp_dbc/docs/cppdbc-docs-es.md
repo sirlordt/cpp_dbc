@@ -28,14 +28,14 @@ Este documento proporciona una guía completa de la biblioteca CPP_DBC, una bibl
 *Componentes definidos en cpp_dbc.hpp*
 
 ### DBException
-Una clase de excepción personalizada para errores relacionados con la base de datos.
+Clase de excepción `final` para errores relacionados con la base de datos. Almacenamiento híbrido fijo/dinámico, constructible `noexcept` (~120 bytes tamaño del objeto). Hereda de `std::exception`. Un buffer fijo de 79 bytes almacena el mark y hasta 64 caracteres de mensaje sin asignación de heap. Mensajes mayores a 64 caracteres se almacenan en un buffer de desborde (`shared_ptr<char[]>`) asignado en el heap; si la asignación falla, `what()` retorna el buffer fijo truncado (degradación elegante).
 
 **Métodos:**
-- `DBException(const std::string& message)`: Constructor que toma un mensaje de error.
-- `DBException(const std::string& mark, const std::string& message, const std::vector<system_utils::StackFrame>& callStack)`: Constructor que toma una marca de error, mensaje y pila de llamadas.
-- `what_s()`: Devuelve el mensaje de error como un std::string (más seguro que what()).
-- `getMark()`: Devuelve la marca única de error.
-- `getCallStack()`: Devuelve la pila de llamadas capturada cuando se creó la excepción.
+- `DBException(const std::string& mark, const std::string& message, std::shared_ptr<system_utils::CallStackCapture> callstack)`: Constructor (noexcept) que toma un código de error (12 caracteres), mensaje y pila de llamadas opcional.
+- `what()`: Retorna el mensaje completo (`const char*`) del buffer de desborde si existe, del buffer fijo en caso contrario.
+- `what_s()`: Devuelve el mensaje de error como `std::string_view` (misma fuente que `what()`).
+- `getMark()`: Devuelve la marca única de error como `std::string_view` (siempre del buffer fijo).
+- `getCallStack()`: Devuelve la pila de llamadas como `std::span<const system_utils::StackFrame>`.
 - `printCallStack()`: Imprime la pila de llamadas en la salida de error estándar.
 
 ### Enum Types

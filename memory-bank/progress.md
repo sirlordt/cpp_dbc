@@ -2,7 +2,28 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. The `DBDriver` base class provides a unified URI API (`acceptURI`, `parseURI`, `buildURI`, `getURIScheme`) and a unified `getDriverVersion()` method. The `DBConnection` base class provides `getServerVersion()` and `getServerInfo()` for runtime introspection of database server versions and metadata across all drivers (2026-03-08). Both MySQL and PostgreSQL drivers now follow the same architecture: connection owns mutex directly, PreparedStatement/ResultSet hold `weak_ptr<Connection>` and acquire the mutex via RAII lock helpers (`MySQLConnectionLock` / `PostgreSQLConnectionLock`), PrivateCtorTag pattern with `m_initFailed`/`m_initError`, `std::atomic<bool> m_closed`, result set registry in connection with `notifyConnClosing()` lifecycle management (2026-03-12). `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). The connection pool system is fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
+The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. The `DBDriver` base class provides a unified URI API (`acceptURI`, `parseURI`, `buildURI`, `getURIScheme`) and a unified `getDriverVersion()` method. The `DBConnection` base class provides `getServerVersion()` and `getServerInfo()` for runtime introspection of database server versions and metadata across all drivers (2026-03-08). Both MySQL and PostgreSQL drivers now follow the same architecture: connection owns mutex directly, PreparedStatement/ResultSet hold `weak_ptr<Connection>` and acquire the mutex via RAII lock helpers (`MySQLConnectionLock` / `PostgreSQLConnectionLock`), PrivateCtorTag pattern with `m_initFailed`/`m_initError`, `std::atomic<bool> m_closed`, result set registry in connection with `notifyConnClosing()` lifecycle management (2026-03-12). `DBException` is a `final`, `noexcept`-constructible hybrid fixed/dynamic storage class (~120 bytes object size): a 79-byte fixed buffer holds mark + up to 64 chars of message; longer messages spill to a heap-allocated `shared_ptr<char[]>` overflow buffer via `new(std::nothrow)` with graceful degradation (2026-03-13). The connection pool system is fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
+
+### Recent Improvements (2026-03-13 10:40 PDT)
+
+**DBException Hybrid Storage, Build System TSAN/Debug Flags, Test Runner Sanitizer Label:**
+
+1. **DBException — Hybrid Fixed/Dynamic Storage:**
+   - Fixed buffer reduced from 271 to 79 bytes; new `MSG_CAP` macro (64 chars)
+   - `shared_ptr<char[]> m_overflow` for messages > 64 chars, allocated via `new(std::nothrow)`
+   - Graceful degradation: `what()` returns truncated fixed buffer on alloc failure
+   - Class made `final`; `what_s()` no longer virtual; `#include <new>` added
+   - Object size ~120 bytes (down from ~287 bytes) in common case
+
+2. **Build System — TSAN Support + Debug Flags:**
+   - `build_cpp_dbc.sh`: `--tsan` flag, unified `SANITIZER_FLAGS`/`SANITIZER_LINKER_FLAGS`, `CMAKE_EXE_LINKER_FLAGS`, `--debug-mysql`/`--debug-postgresql`
+   - `build_test_cpp_dbc.sh`: absolute `PROJECT_ROOT` path resolution, `INSTALL_DIR`, explicit `EXAMPLES=OFF`/`BENCHMARKS=OFF`, `DEBUG_ALL` forwarded
+
+3. **Test Runner — Sanitizer Label:**
+   - `SANITIZER_LABEL` detected from pass-through args (helgrind-gs, helgrind-s, helgrind, drd-gs, drd-s, drd, valgrind)
+   - TUI status bar shows `" | Tool: <label>"` when active
+
+4. **Impact:** 4 files changed, +151/-33 lines
 
 ### Recent Improvements (2026-03-12 21:09 PDT)
 
@@ -260,12 +281,12 @@ The CPP_DBC library is in active development. All 7 database drivers (MySQL, Pos
 
 **DBException Fixed-Size Refactor, Unified `ping()` Interface, `std::string_view` Return Types, and Build Optimizations:**
 
-1. **`DBException` — Fixed-Size Memory Layout:**
-   - Inherits from `std::exception` (was `std::runtime_error`); constructor is `noexcept`
-   - Fixed char arrays: `m_mark[13]`, `m_message[257]`, `m_full_message[271]`
+1. **`DBException` — Hybrid Fixed/Dynamic Storage (updated 2026-03-13):**
+   - `class DBException final : public std::exception`; constructor is `noexcept`
+   - `m_full_message[79]` fixed buffer + `shared_ptr<char[]> m_overflow` for messages > 64 chars via `new(std::nothrow)` (~120 bytes object)
    - Call stack: `std::shared_ptr<CallStackCapture>` — one allocation, shared across copies
    - `what_s()` / `getMark()` return `std::string_view`; `getCallStack()` returns `std::span<const StackFrame>`
-   - `what()` returns pre-computed `m_full_message` (zero-cost); long values left-truncated with `...[TRUNCATED]`
+   - `what()` returns overflow buffer when available, fixed buffer otherwise — graceful degradation
 
 2. **`system_utils::CallStackCapture` — Fixed-Size Stack:**
    - `StackFrame` uses `char file[150]`, `char function[150]` (was `std::string`)

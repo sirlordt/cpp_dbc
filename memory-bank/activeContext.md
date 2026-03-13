@@ -37,7 +37,14 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Build System — CMake Cache Invalidation Fix, Lock Macro Unification Across Drivers** (2026-03-12 21:09 PDT):
+1. **DBException Hybrid Storage, Build System TSAN/Debug Flags, Test Runner Sanitizer Label** (2026-03-13 10:40 PDT):
+   - **DBException hybrid storage:** Fixed buffer reduced from 271 to 79 bytes (12 mark + 2 ": " + 64 msg + 1 null); new `shared_ptr<char[]> m_overflow` for messages > 64 chars allocated via `new(std::nothrow)`; graceful degradation to truncated buffer on alloc failure; class made `final`; `what_s()` no longer virtual; object size ~120 bytes (down from ~287)
+   - **`build_cpp_dbc.sh`:** New `--tsan` flag for ThreadSanitizer; unified `SANITIZER_FLAGS`/`SANITIZER_LINKER_FLAGS` variables; `CMAKE_EXE_LINKER_FLAGS` now passed to CMake; new `--debug-mysql`/`--debug-postgresql` flags; CMake variable ordering cleaned up
+   - **`build_test_cpp_dbc.sh`:** `PROJECT_ROOT` resolved to absolute path for consistent `CMAKE_INSTALL_PREFIX`; new `INSTALL_DIR` variable; `CPP_DBC_BUILD_EXAMPLES=OFF`/`CPP_DBC_BUILD_BENCHMARKS=OFF` explicitly passed; `DEBUG_ALL` now forwarded
+   - **`run_test_parallel.sh`:** New `SANITIZER_LABEL` variable detected from pass-through args; TUI status bar shows `" | Tool: <label>"` when sanitizer/tool active
+   - 4 files changed, +151/-33 lines
+
+2. **Build System — CMake Cache Invalidation Fix, Lock Macro Unification Across Drivers** (2026-03-12 21:09 PDT):
    - **CMake cache invalidation fixed:** Redundant `build_test_cpp_dbc.sh` call removed from `build_cpp_dbc.sh`; `BACKWARD_HAS_DW` default aligned to `OFF`; `CMAKE_CXX_FLAGS` built dynamically to avoid trailing spaces; `EXAMPLES`/`BENCHMARKS` no longer hardcoded `OFF` in test build script
    - **`--mc-combo-01/02` now include benchmarks**
    - **MySQL/PostgreSQL/SQLite lock macro unification:** Statement/result-set registry methods now use driver-specific `*_LOCK_OR_RETURN` macros + `stmtLock` naming for inner lock
@@ -134,14 +141,12 @@ Recent changes to the codebase include:
    - 41 files changed, +5956/-5321 lines
 
 5. **DBException Fixed-Size Refactor, Unified `ping()` Interface, `std::string_view` Return Types, and Build Optimizations** (2026-02-26 18:27 PST):
-   - **`DBException` — Fixed-Size Memory Layout:**
-     - Now inherits from `std::exception` (was `std::runtime_error`); constructor is `noexcept`
-     - `m_mark[13]`, `m_message[257]`, `m_full_message[271]` — fixed-size char arrays (no heap allocation)
-     - `m_callStack` stored as `std::shared_ptr<CallStackCapture>` — one allocation shared across copies
-     - `what_s()` returns `std::string_view` (was `const std::string&`); `getMark()` same
-     - `getCallStack()` returns `std::span<const StackFrame>` (was `const std::vector<StackFrame>&`)
-     - Pre-computed `m_full_message` in constructor — `what()` is zero-cost
-     - Long marks/messages left-truncated with `...[TRUNCATED]` marker
+   - **`DBException` — Hybrid Fixed/Dynamic Storage (updated 2026-03-13):**
+     - `class DBException final : public std::exception`; constructor is `noexcept`
+     - `m_full_message[79]` fixed buffer (12 mark + 2 ": " + 64 msg + 1 null); `shared_ptr<char[]> m_overflow` for messages > 64 chars via `new(std::nothrow)` — graceful degradation (~120 bytes object)
+     - `m_callstack` stored as `std::shared_ptr<CallStackCapture>` — one allocation shared across copies
+     - `what_s()` returns `std::string_view`; `getMark()` same; `getCallStack()` returns `std::span<const StackFrame>`
+     - `what()` returns overflow buffer when available, fixed buffer otherwise
    - **`system_utils::CallStackCapture` — Fixed-Size Stack Capture:**
      - `StackFrame` now uses `char file[150]`, `char function[150]` (was `std::string`)
      - New `CallStackCapture` struct: `StackFrame frames[10]`, `int count` — max 10 frames

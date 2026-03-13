@@ -27,13 +27,13 @@ This document provides a comprehensive guide to the CPP_DBC library, a C++ Datab
 *Components defined in cpp_dbc.hpp*
 
 ### DBException
-A custom exception class for database-related errors. Fixed-size, `noexcept`-constructible value type (~560 bytes). Inherits from `std::exception`.
+A `final` exception class for database-related errors. Hybrid fixed/dynamic storage, `noexcept`-constructible (~120 bytes object size). Inherits from `std::exception`. A 79-byte fixed buffer holds the mark and up to 64 characters of message with zero heap allocation. Messages longer than 64 chars spill to a heap-allocated `shared_ptr<char[]>` overflow buffer; if the allocation fails, `what()` returns the truncated fixed buffer (graceful degradation).
 
 **Methods:**
-- `DBException(const std::string& mark, const std::string& message, std::shared_ptr<system_utils::CallStackCapture> callStack)`: Constructor (noexcept) that takes an error mark (12-char code), message, and call stack.
-- `what()`: Returns pre-computed `const char*` message (zero-cost).
-- `what_s()`: Returns the error message as `std::string_view`.
-- `getMark()`: Returns the unique error mark as `std::string_view`.
+- `DBException(const std::string& mark, const std::string& message, std::shared_ptr<system_utils::CallStackCapture> callstack)`: Constructor (noexcept) that takes an error mark (12-char code), message, and optional call stack.
+- `what()`: Returns full message (`const char*`) from overflow buffer if available, fixed buffer otherwise.
+- `what_s()`: Returns the error message as `std::string_view` (same source as `what()`).
+- `getMark()`: Returns the unique error mark as `std::string_view` (always from fixed buffer).
 - `getCallStack()`: Returns the call stack as `std::span<const system_utils::StackFrame>`.
 - `printCallStack()`: Prints the call stack to standard error.
 

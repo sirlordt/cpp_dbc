@@ -34,40 +34,45 @@ All cpp_dbc errors are wrapped in `DBException`:
 ```cpp
 // Location: libs/cpp_dbc/include/cpp_dbc/core/db_exception.hpp
 
-class DBException : public std::exception
+class DBException final : public std::exception
 {
 private:
-    char m_mark[13]{};           // 12-char error code + NUL (fixed-size)
-    char m_message[257]{};       // Human-readable message (fixed-size)
-    char m_full_message[271]{};  // Pre-computed "MARK: message" (fixed-size)
-    std::shared_ptr<system_utils::CallStackCapture> m_callStack; // optional
+    // Fixed buffer: "XXXXXXXXXXXX: <message>\0" (79 bytes max)
+    // Always populated — serves as fallback if heap allocation fails
+    char m_full_message[79]{};                       // 12 mark + 2 ": " + 64 msg + 1 null
+
+    // Heap overflow for messages > 64 chars (nullptr when not needed or alloc failed)
+    std::shared_ptr<char[]> m_overflow{};             // allocated via new(std::nothrow)
+
+    std::shared_ptr<system_utils::CallStackCapture> m_callstack{}; // optional
 
 public:
-    // Constructor — noexcept: no heap allocations that can throw
+    // Constructor — noexcept: fixed buffer always written, heap alloc via new(std::nothrow)
     explicit DBException(
         const std::string &mark,      // 12-char error code
-        const std::string &message,   // Human-readable message
-        std::shared_ptr<system_utils::CallStackCapture> callStack = nullptr
+        const std::string &message,   // Human-readable message (truncated at 64 chars in fixed buffer)
+        std::shared_ptr<system_utils::CallStackCapture> callstack = nullptr
     ) noexcept;
 
     // Methods
-    std::string_view what_s() const noexcept;   // Full message (zero-copy)
-    std::string_view getMark() const noexcept;  // Error code (zero-copy)
-    void printCallStack() const;                // Print stack trace
+    const char *what() const noexcept override;       // Full message (overflow or fixed)
+    std::string_view what_s() const noexcept;         // Full message as string_view
+    std::string_view getMark() const noexcept;        // Error code (zero-copy, always from fixed buffer)
+    void printCallStack() const;                      // Print stack trace
     std::span<const system_utils::StackFrame> getCallStack() const; // Stack frames
 };
+// Object size: ~120 bytes (best case). Overflow and callstack are heap-allocated on demand.
 ```
 
 ### Key Members
 
 | Member | Type | Description |
 |--------|------|-------------|
-| `m_mark[13]` | `char[]` | 12-character unique error code (fixed-size) |
-| `m_message[257]` | `char[]` | Human-readable message (fixed-size) |
-| `m_full_message[271]` | `char[]` | Pre-computed "CODE: message" string (fixed-size) |
-| `m_callStack` | `shared_ptr<CallStackCapture>` | Optional stack trace (heap, shared on copy) |
+| `m_full_message[79]` | `char[]` | Fixed buffer: "MARK: message" (12 mark + 2 ": " + 64 msg + 1 null) |
+| `m_overflow` | `shared_ptr<char[]>` | Heap buffer for messages > 64 chars; `nullptr` when not needed or alloc failed |
+| `m_callstack` | `shared_ptr<CallStackCapture>` | Optional stack trace (heap, shared on copy) |
 
-> **Note:** Long marks or messages are left-truncated with a `...[TRUNCATED]` marker. Total object size is ~560 bytes.
+> **Note:** Object size is ~120 bytes. Messages longer than 64 chars spill to the heap overflow buffer via `new(std::nothrow)`. On allocation failure, `what()` returns the truncated fixed buffer (graceful degradation).
 
 ---
 

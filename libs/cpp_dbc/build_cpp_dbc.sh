@@ -19,6 +19,7 @@ USE_REDIS=OFF
 USE_CPP_YAML=OFF
 ENABLE_GCC_ANALYZER=OFF
 ENABLE_ASAN=OFF
+ENABLE_TSAN=OFF
 BUILD_TYPE=Debug
 BUILD_TESTS=OFF
 BUILD_EXAMPLES=OFF
@@ -26,6 +27,8 @@ BUILD_BENCHMARKS=OFF
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+DEBUG_MYSQL=OFF
+DEBUG_POSTGRES=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
@@ -118,6 +121,10 @@ do
         ENABLE_ASAN=ON
         shift
         ;;
+        --tsan)
+        ENABLE_TSAN=ON
+        shift
+        ;;
         --test)
         BUILD_TESTS=ON
         shift
@@ -142,6 +149,14 @@ do
         DEBUG_SQLITE=ON
         shift
         ;;
+        --debug-mysql)
+        DEBUG_MYSQL=ON
+        shift
+        ;;
+        --debug-postgresql)
+        DEBUG_POSTGRES=ON
+        shift
+        ;;
         --debug-firebird)
         DEBUG_FIREBIRD=ON
         shift
@@ -162,6 +177,8 @@ do
         DEBUG_CONNECTION_POOL=ON
         DEBUG_TRANSACTION_MANAGER=ON
         DEBUG_SQLITE=ON
+        DEBUG_MYSQL=ON
+        DEBUG_POSTGRES=ON
         DEBUG_FIREBIRD=ON
         DEBUG_MONGODB=ON
         DEBUG_SCYLLADB=ON
@@ -199,12 +216,15 @@ do
         echo "  --release              Build in Release mode"
         echo "  --gcc-analyzer         Enable GCC Static Analyzer (GCC 10+)"
         echo "  --asan                 Enable AddressSanitizer"
+        echo "  --tsan                 Enable ThreadSanitizer"
         echo "  --test                 Build cpp_dbc tests"
         echo "  --examples             Build cpp_dbc examples"
         echo "  --benchmarks           Build cpp_dbc benchmarks"
         echo "  --debug-pool           Enable debug output for ConnectionPool"
         echo "  --debug-txmgr          Enable debug output for TransactionManager"
         echo "  --debug-sqlite         Enable debug output for SQLite driver"
+        echo "  --debug-mysql          Enable debug output for MySQL driver"
+        echo "  --debug-postgresql     Enable debug output for PostgreSQL driver"
         echo "  --debug-firebird       Enable debug output for Firebird driver"
         echo "  --debug-mongodb        Enable debug output for MongoDB driver"
         echo "  --debug-scylladb         Enable debug output for ScyllaDB driver"
@@ -543,10 +563,24 @@ else
     echo "GCC Static Analyzer is disabled (use --gcc-analyzer to enable)"
 fi
 
+# Build sanitizer flags if enabled
+SANITIZER_FLAGS=""
+SANITIZER_LINKER_FLAGS=""
+if [ "${ENABLE_ASAN}" = "ON" ]; then
+    SANITIZER_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+    SANITIZER_LINKER_FLAGS="-fsanitize=address,undefined"
+elif [ "${ENABLE_TSAN}" = "ON" ]; then
+    SANITIZER_FLAGS="-fsanitize=thread -fno-omit-frame-pointer"
+    SANITIZER_LINKER_FLAGS="-fsanitize=thread"
+fi
+
 # Build CMAKE_CXX_FLAGS string — only append non-empty flags to avoid trailing spaces
 # that would invalidate the CMake cache and force a full recompilation
 CXX_BASE_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align"
 CXX_ALL_FLAGS="$CXX_BASE_FLAGS"
+if [ -n "$SANITIZER_FLAGS" ]; then
+    CXX_ALL_FLAGS="$CXX_ALL_FLAGS $SANITIZER_FLAGS"
+fi
 if [ -n "$ANALYZER_FLAG" ]; then
     CXX_ALL_FLAGS="$CXX_ALL_FLAGS $ANALYZER_FLAG"
 fi
@@ -569,7 +603,9 @@ fi
 echo "Using toolchain file: $TOOLCHAIN_FILE"
 
 cmake "${SCRIPT_DIR}" \
+      -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE \
       -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
+      -DUSE_CPP_YAML=$USE_CPP_YAML \
       -DUSE_MYSQL=$USE_MYSQL \
       -DUSE_POSTGRESQL=$USE_POSTGRESQL \
       -DUSE_SQLITE=$USE_SQLITE \
@@ -577,14 +613,17 @@ cmake "${SCRIPT_DIR}" \
       -DUSE_MONGODB=$USE_MONGODB \
       -DUSE_SCYLLADB=$USE_SCYLLADB \
       -DUSE_REDIS=$USE_REDIS \
-      -DUSE_CPP_YAML=$USE_CPP_YAML \
       -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
       -DCPP_DBC_BUILD_TESTS=$BUILD_TESTS \
       -DCPP_DBC_BUILD_EXAMPLES=$BUILD_EXAMPLES \
       -DCPP_DBC_BUILD_BENCHMARKS=$BUILD_BENCHMARKS \
+      -DENABLE_ASAN=$ENABLE_ASAN \
+      -DENABLE_TSAN=$ENABLE_TSAN \
       -DDEBUG_CONNECTION_POOL=$DEBUG_CONNECTION_POOL \
       -DDEBUG_TRANSACTION_MANAGER=$DEBUG_TRANSACTION_MANAGER \
       -DDEBUG_SQLITE=$DEBUG_SQLITE \
+      -DDEBUG_MYSQL=$DEBUG_MYSQL \
+      -DDEBUG_POSTGRES=$DEBUG_POSTGRES \
       -DDEBUG_FIREBIRD=$DEBUG_FIREBIRD \
       -DDEBUG_MONGODB=$DEBUG_MONGODB \
       -DDEBUG_SCYLLADB=$DEBUG_SCYLLADB \
@@ -592,9 +631,8 @@ cmake "${SCRIPT_DIR}" \
       -DDEBUG_ALL=$DEBUG_ALL \
       -DBACKWARD_HAS_DW=$BACKWARD_HAS_DW \
       -DDB_DRIVER_THREAD_SAFE=$DB_DRIVER_THREAD_SAFE \
-      -DENABLE_ASAN=$ENABLE_ASAN \
-      -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE \
       -DCMAKE_CXX_FLAGS="$CXX_ALL_FLAGS" \
+      -DCMAKE_EXE_LINKER_FLAGS="${SANITIZER_LINKER_FLAGS}" \
       -Wno-dev
 
 # Build and install the library

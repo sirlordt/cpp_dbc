@@ -171,10 +171,10 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
 - RAII (Resource Acquisition Is Initialization) principle is followed for resource cleanup even in case of exceptions
 
 ### Error Handling
-- Custom `DBException` class for consistent error reporting; inherits `std::exception` (not `std::runtime_error` since 2026-02-26)
+- Custom `DBException final` class for consistent error reporting; inherits `std::exception` (not `std::runtime_error` since 2026-02-26)
 - Exceptions are used for error propagation throughout the library
-- **`DBException` — Fixed-Size Value Type (2026-02-26):**
-  - `m_mark[13]`, `m_message[257]`, `m_full_message[271]` — fixed char arrays, stack-allocatable (~560 bytes)
+- **`DBException` — Hybrid Fixed/Dynamic Storage (2026-03-13):**
+  - `m_full_message[79]` — fixed buffer (12 mark + 2 ": " + 64 msg + 1 null), `m_overflow` (`shared_ptr<char[]>`) — heap buffer for messages > 64 chars via `new(std::nothrow)`, graceful degradation to truncated fixed buffer (~120 bytes object size)
   - Constructor is `noexcept` — no heap allocations that can throw
   - Call stack stored as `std::shared_ptr<CallStackCapture>` (optional, allocated once, shared across copies)
   - `what()` returns pre-computed `m_full_message` (zero-cost, no concatenation)

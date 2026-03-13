@@ -359,9 +359,14 @@ if [ "$USE_SCYLLADB" = "ON" ]; then
         exit 1
     fi
 fi
+# Resolve the project root to an absolute path (same as build_cpp_dbc.sh)
+# so both scripts produce identical CMAKE_INSTALL_PREFIX strings in the cache.
+PROJECT_ROOT="$( cd "${CPP_DBC_DIR}/../.." &> /dev/null && pwd )"
+
 # Use unified build directory for both library and tests
 # This ensures the library is compiled once and tests link against it
-BUILD_DIR="${CPP_DBC_DIR}/../../build/libs/cpp_dbc/build"
+BUILD_DIR="${PROJECT_ROOT}/build/libs/cpp_dbc/build"
+INSTALL_DIR="${PROJECT_ROOT}/build/libs/cpp_dbc"
 
 mkdir -p "${BUILD_DIR}"
 cd "${BUILD_DIR}"
@@ -370,7 +375,7 @@ cd "${BUILD_DIR}"
 set -x
 
 # Define Conan directory in the project root's build directory
-CONAN_DIR="${CPP_DBC_DIR}/../../build/libs/cpp_dbc/conan"
+CONAN_DIR="${PROJECT_ROOT}/build/libs/cpp_dbc/conan"
 mkdir -p "${CONAN_DIR}"
 
 # Install dependencies with Conan
@@ -444,6 +449,9 @@ cmake "${CPP_DBC_DIR}" \
       -DUSE_SCYLLADB=$USE_SCYLLADB \
       -DUSE_REDIS=$USE_REDIS \
       -DCPP_DBC_BUILD_TESTS=ON \
+      -DCPP_DBC_BUILD_EXAMPLES=OFF \
+      -DCPP_DBC_BUILD_BENCHMARKS=OFF \
+      -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
       -DENABLE_ASAN=$ENABLE_ASAN \
       -DENABLE_TSAN=$ENABLE_TSAN \
       -DDEBUG_CONNECTION_POOL=$DEBUG_CONNECTION_POOL \
@@ -455,6 +463,7 @@ cmake "${CPP_DBC_DIR}" \
       -DDEBUG_MONGODB=$DEBUG_MONGODB \
       -DDEBUG_SCYLLADB=$DEBUG_SCYLLADB \
       -DDEBUG_REDIS=$DEBUG_REDIS \
+      -DDEBUG_ALL=$DEBUG_ALL \
       -DBACKWARD_HAS_DW=$BACKWARD_HAS_DW \
       -DDB_DRIVER_THREAD_SAFE=$DB_DRIVER_THREAD_SAFE \
       -DCMAKE_CXX_FLAGS="$CXX_ALL_FLAGS" \

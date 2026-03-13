@@ -1,6 +1,48 @@
 # Changelog
 
-## 2026-03-12 21:09:00 PDT [Current]
+## 2026-03-13 10:40:00 PDT [Current]
+
+### DBException Hybrid Storage, Build System TSAN/Debug Flags, Test Runner Sanitizer Label
+
+This release redesigns `DBException` from a fixed-size 271-byte buffer to a hybrid fixed/dynamic storage model (~120 bytes object size), adds ThreadSanitizer and MySQL/PostgreSQL debug flags to build scripts, fixes `build_test_cpp_dbc.sh` path resolution for shared build directories, and adds sanitizer/tool label display to the `run_test_parallel.sh` TUI status bar. Total: **4 files changed, +151/-33 lines**.
+
+#### DBException — Hybrid Fixed/Dynamic Storage (`db_exception.hpp`)
+
+- **Fixed buffer reduced**: `m_full_message` shrunk from 271 bytes (`FULL_MSG_MAX`) to 79 bytes (12 mark + 2 separator + 64 message + 1 null). New `CPP_DBC_DB_EXCEPTION_MSG_CAP` macro defines the 64-char message capacity
+- **Heap overflow buffer**: New `std::shared_ptr<char[]> m_overflow` member stores the full untruncated message when it exceeds 64 chars. Allocated via `new(std::nothrow)` — never throws, graceful degradation to truncated fixed buffer on allocation failure
+- **`what()` / `what_s()` updated**: Return `m_overflow` content when available, fixed buffer otherwise
+- **Object size reduced**: ~120 bytes (down from ~287 bytes) in the common case (message ≤ 64 chars, no callstack). Overflow and callstack are heap-allocated only when needed
+- **Class made `final`**: `DBException` is now `class DBException final : public std::exception` — prevents unintended inheritance
+- **`what_s()` no longer `virtual`**: Removed `virtual` qualifier since class is `final`
+- **`#include <new>`**: Added for `std::nothrow` placement new support
+- **Copy/move remain `= default`**: `shared_ptr<char[]>` enables safe sharing of overflow buffer across copies without deep allocation
+
+#### Build System — TSAN Support, MySQL/PostgreSQL Debug Flags (`build_cpp_dbc.sh`)
+
+- **`--tsan` flag**: New option to enable ThreadSanitizer (`-fsanitize=thread -fno-omit-frame-pointer`). Mutually exclusive with `--asan` (ASAN takes precedence if both specified)
+- **Sanitizer flags unified**: New `SANITIZER_FLAGS` / `SANITIZER_LINKER_FLAGS` variables built before `CMAKE_CXX_FLAGS` — avoids trailing spaces that invalidate CMake cache
+- **`CMAKE_EXE_LINKER_FLAGS`**: Now passed to CMake with sanitizer linker flags for proper link-time instrumentation
+- **`--debug-mysql` / `--debug-postgresql`**: New debug output flags for MySQL and PostgreSQL drivers; included in `--debug-all`
+- **`-DENABLE_TSAN`**: New CMake variable forwarded from build script
+- **`-DDEBUG_MYSQL` / `-DDEBUG_POSTGRES`**: New CMake variables forwarded from build script
+- **CMake variable ordering**: `CMAKE_TOOLCHAIN_FILE` and `USE_CPP_YAML` moved to top of cmake invocation; `ENABLE_ASAN`/`ENABLE_TSAN` grouped together; `CMAKE_CXX_FLAGS`/`CMAKE_EXE_LINKER_FLAGS` at the bottom
+
+#### Build System — Test Build Script Path Fix (`build_test_cpp_dbc.sh`)
+
+- **Absolute path resolution**: `PROJECT_ROOT` computed via `cd "${CPP_DBC_DIR}/../.." && pwd` so both `build_cpp_dbc.sh` and `build_test_cpp_dbc.sh` produce identical `CMAKE_INSTALL_PREFIX` strings — prevents CMake cache invalidation from relative vs absolute path mismatch
+- **`INSTALL_DIR`**: New variable derived from `PROJECT_ROOT` for consistent install prefix
+- **`CMAKE_INSTALL_PREFIX`**: Now explicitly passed to cmake invocation
+- **`CPP_DBC_BUILD_EXAMPLES=OFF` / `CPP_DBC_BUILD_BENCHMARKS=OFF`**: Explicitly passed to prevent cache invalidation when switching between build modes
+- **`DEBUG_ALL`**: Now forwarded to cmake (was missing)
+
+#### Test Runner — Sanitizer Label in TUI Status Bar (`run_test_parallel.sh`)
+
+- **`SANITIZER_LABEL` variable**: Detected from `PASS_THROUGH_ARGS` after argument parsing; recognizes `--helgrind-gs`, `--helgrind-s`, `--helgrind`, `--drd-gs`, `--drd-s`, `--drd`, `--valgrind`
+- **Status bar updated**: Shows `" | Tool: <label>"` suffix when a sanitizer/tool is active (e.g., `Running: 3 | Completed: 5 | Failed: 0 | Time: 01:23 | Tool: helgrind-gs`)
+
+---
+
+## 2026-03-12 21:09:00 PDT
 
 ### Build System — CMake Cache Invalidation Fix, Lock Macro Unification Across Drivers
 
