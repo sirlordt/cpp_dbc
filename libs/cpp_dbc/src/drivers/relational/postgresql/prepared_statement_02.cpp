@@ -50,6 +50,7 @@ namespace cpp_dbc::PostgreSQL
 
         int idx = parameterIndex - 1;
         m_paramValues[idx] = std::to_string(value);
+        m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
         m_paramFormats[idx] = 0; // Text format
         m_paramTypes[idx] = 23;  // INT4OID
@@ -68,6 +69,7 @@ namespace cpp_dbc::PostgreSQL
 
         int idx = parameterIndex - 1;
         m_paramValues[idx] = std::to_string(value);
+        m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
         m_paramFormats[idx] = 0; // Text format
         m_paramTypes[idx] = 20;  // INT8OID
@@ -86,6 +88,7 @@ namespace cpp_dbc::PostgreSQL
 
         int idx = parameterIndex - 1;
         m_paramValues[idx] = std::to_string(value);
+        m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
         m_paramFormats[idx] = 0; // Text format
         m_paramTypes[idx] = 701; // FLOAT8OID
@@ -104,6 +107,7 @@ namespace cpp_dbc::PostgreSQL
 
         int idx = parameterIndex - 1;
         m_paramValues[idx] = value;
+        m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
         m_paramFormats[idx] = 0; // Text format
         m_paramTypes[idx] = 25;  // TEXTOID
@@ -122,6 +126,7 @@ namespace cpp_dbc::PostgreSQL
 
         int idx = parameterIndex - 1;
         m_paramValues[idx] = value ? "t" : "f"; // PostgreSQL uses 't' and 'f' for boolean values
+        m_paramIsNull[idx] = false;
         m_paramLengths[idx] = 1;
         m_paramFormats[idx] = 0; // Text format
         m_paramTypes[idx] = 16;  // BOOLOID
@@ -141,6 +146,7 @@ namespace cpp_dbc::PostgreSQL
         int idx = parameterIndex - 1;
 
         // Set the value to NULL
+        m_paramIsNull[idx] = true;
         m_paramValues[idx] = "";
 
         // Set the OID type based on our Types enum
@@ -194,6 +200,7 @@ namespace cpp_dbc::PostgreSQL
 
         int idx = parameterIndex - 1;
         m_paramValues[idx] = value;
+        m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
         m_paramFormats[idx] = 0;  // Text format
         m_paramTypes[idx] = 1082; // DATEOID
@@ -212,6 +219,7 @@ namespace cpp_dbc::PostgreSQL
 
         int idx = parameterIndex - 1;
         m_paramValues[idx] = value;
+        m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
         m_paramFormats[idx] = 0;  // Text format
         m_paramTypes[idx] = 1114; // TIMESTAMPOID
@@ -230,6 +238,7 @@ namespace cpp_dbc::PostgreSQL
 
         int idx = parameterIndex - 1;
         m_paramValues[idx] = value;
+        m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
         m_paramFormats[idx] = 0;  // Text format
         m_paramTypes[idx] = 1083; // TIMEOID

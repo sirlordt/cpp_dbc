@@ -56,6 +56,7 @@ namespace cpp_dbc::PostgreSQL
         if (!x)
         {
             // Set to NULL
+            m_paramIsNull[idx] = true;
             m_paramValues[idx] = "";
             m_paramLengths[idx] = 0;
             m_paramFormats[idx] = 0; // Text format
@@ -79,8 +80,9 @@ namespace cpp_dbc::PostgreSQL
         m_blobValues[idx] = std::move(bytesResult.value());
 
         // Use binary format for BYTEA data
+        m_paramIsNull[idx] = false;
         m_paramValues[idx].resize(m_blobValues[idx].size());
-        std::memcpy(&m_paramValues[idx][0], m_blobValues[idx].data(), m_blobValues[idx].size());
+        std::memcpy(m_paramValues[idx].data(), m_blobValues[idx].data(), m_blobValues[idx].size());
 
         m_paramLengths[idx] = m_blobValues[idx].size();
         m_paramFormats[idx] = 1; // Binary format
@@ -106,6 +108,7 @@ namespace cpp_dbc::PostgreSQL
         if (!x)
         {
             // Set to NULL
+            m_paramIsNull[idx] = true;
             m_paramValues[idx] = "";
             m_paramLengths[idx] = 0;
             m_paramFormats[idx] = 0; // Text format
@@ -135,8 +138,9 @@ namespace cpp_dbc::PostgreSQL
         m_blobValues[idx] = std::move(data);
 
         // Use binary format for BYTEA data
+        m_paramIsNull[idx] = false;
         m_paramValues[idx].resize(m_blobValues[idx].size());
-        std::memcpy(&m_paramValues[idx][0], m_blobValues[idx].data(), m_blobValues[idx].size());
+        std::memcpy(m_paramValues[idx].data(), m_blobValues[idx].data(), m_blobValues[idx].size());
 
         m_paramLengths[idx] = m_blobValues[idx].size();
         m_paramFormats[idx] = 1; // Binary format
@@ -162,6 +166,7 @@ namespace cpp_dbc::PostgreSQL
         if (!x)
         {
             // Set to NULL
+            m_paramIsNull[idx] = true;
             m_paramValues[idx] = "";
             m_paramLengths[idx] = 0;
             m_paramFormats[idx] = 0; // Text format
@@ -194,8 +199,9 @@ namespace cpp_dbc::PostgreSQL
         m_blobValues[idx] = std::move(data);
 
         // Use binary format for BYTEA data
+        m_paramIsNull[idx] = false;
         m_paramValues[idx].resize(m_blobValues[idx].size());
-        std::memcpy(&m_paramValues[idx][0], m_blobValues[idx].data(), m_blobValues[idx].size());
+        std::memcpy(m_paramValues[idx].data(), m_blobValues[idx].data(), m_blobValues[idx].size());
 
         m_paramLengths[idx] = m_blobValues[idx].size();
         m_paramFormats[idx] = 1; // Binary format
@@ -219,8 +225,9 @@ namespace cpp_dbc::PostgreSQL
         m_blobValues[idx] = x;
 
         // Use binary format for BYTEA data
+        m_paramIsNull[idx] = false;
         m_paramValues[idx].resize(m_blobValues[idx].size());
-        std::memcpy(&m_paramValues[idx][0], m_blobValues[idx].data(), m_blobValues[idx].size());
+        std::memcpy(m_paramValues[idx].data(), m_blobValues[idx].data(), m_blobValues[idx].size());
 
         m_paramLengths[idx] = m_blobValues[idx].size();
         m_paramFormats[idx] = 1; // Binary format
@@ -243,6 +250,7 @@ namespace cpp_dbc::PostgreSQL
         if (!x)
         {
             // Set to NULL
+            m_paramIsNull[idx] = true;
             m_paramValues[idx] = "";
             m_paramLengths[idx] = 0;
             m_paramFormats[idx] = 0; // Text format
@@ -255,8 +263,9 @@ namespace cpp_dbc::PostgreSQL
         std::memcpy(m_blobValues[idx].data(), x, length);
 
         // Use binary format for BYTEA data
+        m_paramIsNull[idx] = false;
         m_paramValues[idx].resize(m_blobValues[idx].size());
-        std::memcpy(&m_paramValues[idx][0], m_blobValues[idx].data(), m_blobValues[idx].size());
+        std::memcpy(m_paramValues[idx].data(), m_blobValues[idx].data(), m_blobValues[idx].size());
 
         m_paramLengths[idx] = m_blobValues[idx].size();
         m_paramFormats[idx] = 1; // Binary format

@@ -222,11 +222,13 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<std::vector<std::string>, DBException> PostgreSQLDBResultSet::getColumnNames(std::nothrow_t) noexcept
     {
+        PG_STMT_LOCK_OR_RETURN("3M2OHVMXOP8C", "ResultSet closed");
         return m_columnNames;
     }
 
     cpp_dbc::expected<size_t, DBException> PostgreSQLDBResultSet::getColumnCount(std::nothrow_t) noexcept
     {
+        PG_STMT_LOCK_OR_RETURN("YV461RAC7DJI", "ResultSet closed");
         return m_fieldCount;
     }
 

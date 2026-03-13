@@ -2261,6 +2261,8 @@ tui_draw_status_bar() {
         sanitizer_info=" | Tool: $SANITIZER_LABEL"
     fi
     local status_text=" Running: $running | Completed: $completed | Failed: $failed | Time: $total_elapsed_str$sanitizer_info "
+    # Truncate to terminal width to prevent line wrapping in TUI
+    status_text="${status_text:0:$TERM_COLS}"
     printf "%-${TERM_COLS}s" "$status_text"
     printf "${NC}"
 

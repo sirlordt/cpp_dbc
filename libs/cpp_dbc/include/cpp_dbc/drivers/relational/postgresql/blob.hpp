@@ -58,6 +58,114 @@ namespace cpp_dbc::PostgreSQL
             return conn.get();
         }
 
+        /**
+         * @brief Begin a transaction scope for large-object operations
+         *
+         * PostgreSQL requires all lo_* calls to occur within a transaction.
+         * If the caller is already inside a transaction, a SAVEPOINT is used
+         * to avoid committing the caller's work. If idle, BEGIN is issued.
+         *
+         * @param conn Raw PGconn pointer
+         * @param savepointName Unique name for the savepoint
+         * @param[out] ownTransaction Set to true if BEGIN was issued, false if SAVEPOINT
+         * @return Empty on success, DBException on failure
+         */
+        cpp_dbc::expected<void, DBException> beginLobScope(std::nothrow_t, PGconn *conn,
+                                                            const char *savepointName,
+                                                            bool &ownTransaction) const noexcept
+        {
+            ownTransaction = (PQtransactionStatus(conn) == PQTRANS_IDLE);
+            if (ownTransaction)
+            {
+                PGresultHandle res(PQexec(conn, "BEGIN"));
+                if (PQresultStatus(res.get()) != PGRES_COMMAND_OK)
+                {
+                    std::string error = PQresultErrorMessage(res.get());
+                    return cpp_dbc::unexpected(DBException("PLX9YW4JL8V7",
+                        "Failed to start transaction for BLOB operation: " + error,
+                        system_utils::captureCallStack()));
+                }
+            }
+            else
+            {
+                std::string sql = "SAVEPOINT ";
+                sql += savepointName;
+                PGresultHandle res(PQexec(conn, sql.c_str()));
+                if (PQresultStatus(res.get()) != PGRES_COMMAND_OK)
+                {
+                    std::string error = PQresultErrorMessage(res.get());
+                    return cpp_dbc::unexpected(DBException("PLX9YW4JL8V7",
+                        "Failed to create savepoint for BLOB operation: " + error,
+                        system_utils::captureCallStack()));
+                }
+            }
+            return {};
+        }
+
+        /**
+         * @brief Commit/release a transaction scope for large-object operations
+         *
+         * Issues COMMIT if we own the transaction, RELEASE SAVEPOINT otherwise.
+         */
+        cpp_dbc::expected<void, DBException> commitLobScope(std::nothrow_t, PGconn *conn,
+                                                             const char *savepointName,
+                                                             bool ownTransaction) const noexcept
+        {
+            if (ownTransaction)
+            {
+                PGresultHandle res(PQexec(conn, "COMMIT"));
+                if (PQresultStatus(res.get()) != PGRES_COMMAND_OK)
+                {
+                    std::string error = PQresultErrorMessage(res.get());
+                    return cpp_dbc::unexpected(DBException("PYQGW1S0NFFX",
+                        "Failed to commit transaction for BLOB operation: " + error,
+                        system_utils::captureCallStack()));
+                }
+            }
+            else
+            {
+                std::string sql = "RELEASE SAVEPOINT ";
+                sql += savepointName;
+                PGresultHandle res(PQexec(conn, sql.c_str()));
+                if (PQresultStatus(res.get()) != PGRES_COMMAND_OK)
+                {
+                    std::string error = PQresultErrorMessage(res.get());
+                    return cpp_dbc::unexpected(DBException("PYQGW1S0NFFX",
+                        "Failed to release savepoint for BLOB operation: " + error,
+                        system_utils::captureCallStack()));
+                }
+            }
+            return {};
+        }
+
+        /**
+         * @brief Rollback a transaction scope for large-object operations
+         *
+         * Issues ROLLBACK if we own the transaction, ROLLBACK TO SAVEPOINT + RELEASE otherwise.
+         * Best-effort — errors are silently ignored since we are already on an error path.
+         */
+        void rollbackLobScope(std::nothrow_t, PGconn *conn,
+                              const char *savepointName,
+                              bool ownTransaction) const noexcept
+        {
+            if (ownTransaction)
+            {
+                PGresultHandle res(PQexec(conn, "ROLLBACK"));
+                // Intentionally ignoring errors — already on error path
+            }
+            else
+            {
+                std::string rbSql = "ROLLBACK TO SAVEPOINT ";
+                rbSql += savepointName;
+                PGresultHandle rbRes(PQexec(conn, rbSql.c_str()));
+
+                std::string rlSql = "RELEASE SAVEPOINT ";
+                rlSql += savepointName;
+                PGresultHandle rlRes(PQexec(conn, rlSql.c_str()));
+                // Intentionally ignoring errors — already on error path
+            }
+        }
+
     public:
         /**
          * @brief Constructor for creating a new BLOB
@@ -333,22 +441,34 @@ namespace cpp_dbc::PostgreSQL
             }
             PGconn *conn = connResult.value();
 
-            PGresultHandle beginRes(PQexec(conn, "BEGIN"));
-            if (PQresultStatus(beginRes.get()) != PGRES_COMMAND_OK)
+            bool ownTx = false;
+            auto scopeResult = beginLobScope(std::nothrow, conn, "cpp_dbc_blob_load", ownTx);
+            if (!scopeResult.has_value())
             {
-                std::string error = PQresultErrorMessage(beginRes.get());
-                return cpp_dbc::unexpected(DBException("PLX9YW4JL8V7", "Failed to start transaction for BLOB loading: " + error, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(scopeResult.error());
             }
 
             int fd = lo_open(conn, m_lobOid, INV_READ);
             if (fd < 0)
             {
-                PGresultHandle rbRes(PQexec(conn, "ROLLBACK"));
+                rollbackLobScope(std::nothrow, conn, "cpp_dbc_blob_load", ownTx);
                 return cpp_dbc::unexpected(DBException("4LLXBMB5AMJ9", "Failed to open large object: " + std::to_string(m_lobOid), system_utils::captureCallStack()));
             }
 
             int loSize = lo_lseek(conn, fd, 0, SEEK_END);
-            lo_lseek(conn, fd, 0, SEEK_SET);
+            if (loSize < 0)
+            {
+                lo_close(conn, fd);
+                rollbackLobScope(std::nothrow, conn, "cpp_dbc_blob_load", ownTx);
+                return cpp_dbc::unexpected(DBException("GO1IJP3EU26A", "Failed to determine large object size (lo_lseek SEEK_END)", system_utils::captureCallStack()));
+            }
+
+            if (lo_lseek(conn, fd, 0, SEEK_SET) < 0)
+            {
+                lo_close(conn, fd);
+                rollbackLobScope(std::nothrow, conn, "cpp_dbc_blob_load", ownTx);
+                return cpp_dbc::unexpected(DBException("GO1IJP3EU26A", "Failed to reset large object position (lo_lseek SEEK_SET)", system_utils::captureCallStack()));
+            }
 
             if (loSize > 0)
             {
@@ -357,7 +477,7 @@ namespace cpp_dbc::PostgreSQL
                 if (bytesRead != loSize)
                 {
                     lo_close(conn, fd);
-                    PGresultHandle rbRes(PQexec(conn, "ROLLBACK"));
+                    rollbackLobScope(std::nothrow, conn, "cpp_dbc_blob_load", ownTx);
                     return cpp_dbc::unexpected(DBException("GO1IJP3EU26A", "Failed to read large object data", system_utils::captureCallStack()));
                 }
             }
@@ -368,11 +488,10 @@ namespace cpp_dbc::PostgreSQL
 
             lo_close(conn, fd);
 
-            PGresultHandle commitRes(PQexec(conn, "COMMIT"));
-            if (PQresultStatus(commitRes.get()) != PGRES_COMMAND_OK)
+            auto commitResult = commitLobScope(std::nothrow, conn, "cpp_dbc_blob_load", ownTx);
+            if (!commitResult.has_value())
             {
-                std::string error = PQresultErrorMessage(commitRes.get());
-                return cpp_dbc::unexpected(DBException("PYQGW1S0NFFX", "Failed to commit transaction for BLOB loading: " + error, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(commitResult.error());
             }
 
             m_loaded = true;
@@ -464,11 +583,11 @@ namespace cpp_dbc::PostgreSQL
             }
             PGconn *conn = connResult.value();
 
-            PGresultHandle beginRes(PQexec(conn, "BEGIN"));
-            if (PQresultStatus(beginRes.get()) != PGRES_COMMAND_OK)
+            bool ownTx = false;
+            auto scopeResult = beginLobScope(std::nothrow, conn, "cpp_dbc_blob_save", ownTx);
+            if (!scopeResult.has_value())
             {
-                std::string error = PQresultErrorMessage(beginRes.get());
-                return cpp_dbc::unexpected(DBException("MP57LH4DNE61", "Failed to start transaction for BLOB saving: " + error, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(scopeResult.error());
             }
 
             if (m_lobOid == 0)
@@ -476,7 +595,7 @@ namespace cpp_dbc::PostgreSQL
                 m_lobOid = lo_creat(conn, INV_WRITE);
                 if (m_lobOid == 0)
                 {
-                    PGresultHandle rbRes(PQexec(conn, "ROLLBACK"));
+                    rollbackLobScope(std::nothrow, conn, "cpp_dbc_blob_save", ownTx);
                     return cpp_dbc::unexpected(DBException("4KAPV652CRQU", "Failed to create large object", system_utils::captureCallStack()));
                 }
             }
@@ -484,7 +603,7 @@ namespace cpp_dbc::PostgreSQL
             int fd = lo_open(conn, m_lobOid, INV_WRITE);
             if (fd < 0)
             {
-                PGresultHandle rbRes(PQexec(conn, "ROLLBACK"));
+                rollbackLobScope(std::nothrow, conn, "cpp_dbc_blob_save", ownTx);
                 return cpp_dbc::unexpected(DBException("N38L3OFZ9NK6", "Failed to open large object for writing", system_utils::captureCallStack()));
             }
 
@@ -496,18 +615,17 @@ namespace cpp_dbc::PostgreSQL
                 if (bytesWritten != static_cast<int>(m_data.size()))
                 {
                     lo_close(conn, fd);
-                    PGresultHandle rbRes(PQexec(conn, "ROLLBACK"));
+                    rollbackLobScope(std::nothrow, conn, "cpp_dbc_blob_save", ownTx);
                     return cpp_dbc::unexpected(DBException("PV3L5F2NMUOH", "Failed to write large object data", system_utils::captureCallStack()));
                 }
             }
 
             lo_close(conn, fd);
 
-            PGresultHandle commitRes(PQexec(conn, "COMMIT"));
-            if (PQresultStatus(commitRes.get()) != PGRES_COMMAND_OK)
+            auto commitResult = commitLobScope(std::nothrow, conn, "cpp_dbc_blob_save", ownTx);
+            if (!commitResult.has_value())
             {
-                std::string error = PQresultErrorMessage(commitRes.get());
-                return cpp_dbc::unexpected(DBException("AZ9LET1SNHY9", "Failed to commit transaction for BLOB saving: " + error, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(commitResult.error());
             }
 
             return m_lobOid;
@@ -521,19 +639,37 @@ namespace cpp_dbc::PostgreSQL
                 auto conn = m_conn.lock();
                 if (conn)
                 {
-                    // Start a transaction if not already in one
-                    PGresultHandle beginRes(PQexec(conn.get(), "BEGIN"));
-                    if (PQresultStatus(beginRes.get()) == PGRES_COMMAND_OK)
+                    bool ownTx = false;
+                    auto scopeResult = beginLobScope(std::nothrow, conn.get(), "cpp_dbc_blob_free", ownTx);
+                    if (scopeResult.has_value())
                     {
-                        // Delete the large object
-                        lo_unlink(conn.get(), m_lobOid);
-
-                        // Commit the transaction
-                        PGresultHandle commitRes(PQexec(conn.get(), "COMMIT"));
+                        int unlinkResult = lo_unlink(conn.get(), m_lobOid);
+                        if (unlinkResult == 1)
+                        {
+                            auto commitResult = commitLobScope(std::nothrow, conn.get(), "cpp_dbc_blob_free", ownTx);
+                            if (commitResult.has_value())
+                            {
+                                m_lobOid = 0;
+                            }
+                            else
+                            {
+                                // Commit failed — large object may still exist
+                                rollbackLobScope(std::nothrow, conn.get(), "cpp_dbc_blob_free", ownTx);
+                            }
+                        }
+                        else
+                        {
+                            // lo_unlink failed — large object still exists
+                            rollbackLobScope(std::nothrow, conn.get(), "cpp_dbc_blob_free", ownTx);
+                        }
                     }
+                    // If beginLobScope failed, m_lobOid is not cleared — object still exists
                 }
-
-                m_lobOid = 0;
+                else
+                {
+                    // Connection is gone — cannot delete server-side, clear local state only
+                    m_lobOid = 0;
+                }
             }
 
             auto r = MemoryBlob::free(std::nothrow);

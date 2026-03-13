@@ -94,7 +94,7 @@
   - 41 files changed, +5956/-5321 lines
 
 - DBException Fixed-Size Refactor, Unified `ping()` Interface, `std::string_view` Return Types, and Build Optimizations (2026-02-26):
-  - `DBException` now inherits `std::exception`; constructor is `noexcept`; hybrid fixed/dynamic storage: `m_full_message[79]` fixed buffer + `shared_ptr<char[]> m_overflow` for long messages (~120 bytes object, updated 2026-03-13)
+  - `DBException` now inherits `std::exception`; constructor is `noexcept`; hybrid fixed/dynamic storage: `m_full_message[79]` fixed buffer + `shared_ptr<char[]> m_overflow` for long messages (object size depends on platform/ABI)
   - `DBException::what_s()` and `getMark()` now return `std::string_view` (was `const std::string&`)
   - `DBException::getCallStack()` returns `std::span<const system_utils::StackFrame>` (was `const std::vector<StackFrame>&`)
   - `system_utils::StackFrame` uses fixed `char file[150]`, `char function[150]` arrays (was `std::string`)

@@ -142,15 +142,16 @@ namespace cpp_dbc::PostgreSQL
         {
             if (!autoCommitFlag)
             {
-                // Si estamos desactivando autoCommit, iniciar una transacción explícita
-                // PostgreSQL está siempre en modo autocommit hasta que se inicia una transacción
-                this->m_autoCommit = false;
-
+                // Disabling autoCommit — start an explicit transaction first.
+                // PostgreSQL is always in autocommit mode until a transaction is started.
+                // Only flip the flag after BEGIN succeeds to avoid inconsistent state.
                 auto result = beginTransaction(std::nothrow);
                 if (!result.has_value())
                 {
                     return cpp_dbc::unexpected<DBException>(result.error());
                 }
+
+                this->m_autoCommit = false;
             }
             else
             {

@@ -235,7 +235,12 @@ namespace cpp_dbc::PostgreSQL
     {                                                                                             \
         char debug_buffer[1024];                                                                  \
         int pg_debug_n = std::snprintf(debug_buffer, sizeof(debug_buffer), format, ##__VA_ARGS__);\
-        if (pg_debug_n >= static_cast<int>(sizeof(debug_buffer)))                                 \
+        if (pg_debug_n < 0)                                                                       \
+        {                                                                                         \
+            static constexpr const char pg_fallback[] = "PostgreSQL debug formatting failed";     \
+            std::memcpy(debug_buffer, pg_fallback, sizeof(pg_fallback));                          \
+        }                                                                                         \
+        else if (pg_debug_n >= static_cast<int>(sizeof(debug_buffer)))                            \
         {                                                                                         \
             static constexpr const char pg_trunc[] = "...[TRUNCATED]";                            \
             std::memcpy(debug_buffer + sizeof(debug_buffer) - sizeof(pg_trunc),                   \

@@ -30,15 +30,6 @@
 #include <string_view>
 #include "cpp_dbc/common/system_utils.hpp"
 
-// #define used for array dimensions inside DBException so IntelliSense sees preprocessor
-// literals rather than static constexpr member references — which trigger a false-positive
-// "expression must be a modifiable lvalue" when writing to the arrays via snprintf.
-// #undef'd after the class definition to avoid polluting other translation units.
-#define CPP_DBC_DB_EXCEPTION_MARK_LEN 12
-#define CPP_DBC_DB_EXCEPTION_MSG_CAP 64
-// 12 (mark) + 2 (": ") + 64 (message) + 1 (null)
-#define CPP_DBC_DB_EXCEPTION_FULL_MSG_MAX 79
-
 namespace cpp_dbc
 {
 
@@ -85,6 +76,12 @@ namespace cpp_dbc
      */
     class DBException final : public std::exception
     {
+        // Storage constants for the fixed buffer layout.
+        static constexpr std::size_t MARK_LEN = 12;
+        static constexpr std::size_t MSG_CAP = 64;
+        // 12 (mark) + 2 (": ") + 64 (message) + 1 (null)
+        static constexpr std::size_t FULL_MSG_MAX = 79;
+
         // Fixed buffer layout: "XXXXXXXXXXXX: <message>\0"
         // - bytes [0,  MARK_LEN)         → mark, always exactly MARK_LEN chars (padded/truncated)
         // - bytes [MARK_LEN, MARK_LEN+2) → ": " separator, always present
@@ -93,7 +90,7 @@ namespace cpp_dbc
         // NOSONAR(cpp:S5945) — char[] required: allocation-free by design so the constructor
         // is noexcept; std::array<char,N> is layout-identical but forces .data() at every
         // C-API boundary (snprintf, what()) with zero benefit.
-        char m_full_message[CPP_DBC_DB_EXCEPTION_FULL_MSG_MAX]{}; // NOSONAR(cpp:S5945)
+        char m_full_message[FULL_MSG_MAX]{}; // NOSONAR(cpp:S5945)
 
         // Heap-allocated full (untruncated) message for messages exceeding MSG_CAP chars.
         // nullptr when: (a) message fits in fixed buffer, or (b) heap allocation failed.
@@ -102,7 +99,9 @@ namespace cpp_dbc
         // catch-and-propagate patterns (894 occurrences across 104 files); the overflow
         // buffer is immutable after construction, so sharing via ref-count is safe and
         // keeps copy/move = default.
-        std::shared_ptr<char[]> m_overflow{};
+        // NOSONAR(cpp:S5945) — char[] allocated via new(std::nothrow) for noexcept safety;
+        // std::string constructor can throw std::bad_alloc, defeating the noexcept guarantee.
+        std::shared_ptr<char[]> m_overflow{}; // NOSONAR(cpp:S5945)
 
         std::shared_ptr<system_utils::CallStackCapture> m_callstack{};
 
@@ -144,15 +143,16 @@ namespace cpp_dbc
             // If the message exceeds the fixed capacity, attempt to allocate a heap
             // buffer for the full (untruncated) message. On allocation failure,
             // what() gracefully degrades to the truncated fixed buffer.
-            if (message.size() > CPP_DBC_DB_EXCEPTION_MSG_CAP)
+            if (message.size() > MSG_CAP)
             {
                 const std::size_t fullSize =
-                    CPP_DBC_DB_EXCEPTION_MARK_LEN + 2 + message.size() + 1;
+                    MARK_LEN + 2 + message.size() + 1;
                 // new(std::nothrow) returns nullptr on allocation failure — never throws.
                 auto *buf = new(std::nothrow) char[fullSize]; // NOSONAR(cpp:S5945)
                 if (buf)
                 {
-                    std::snprintf(buf, fullSize,
+                    // NOSONAR(cpp:S6494) — noexcept + allocation-free; std::format can throw and heap-allocates
+                    std::snprintf(buf, fullSize, // NOSONAR(cpp:S6494)
                                   "%-12.12s: %s", effectiveMark, message.c_str());
                     m_overflow.reset(buf, std::default_delete<char[]>{});
                 }
@@ -213,7 +213,7 @@ namespace cpp_dbc
         {
             // The mark always occupies bytes [0, MARK_LEN) — guaranteed by the constructor
             // which uses %-12.12s to pad/truncate to exactly MARK_LEN chars.
-            return std::string_view{m_full_message, CPP_DBC_DB_EXCEPTION_MARK_LEN};
+            return std::string_view{m_full_message, MARK_LEN};
         }
 
         /**
@@ -246,9 +246,5 @@ namespace cpp_dbc
     };
 
 } // namespace cpp_dbc
-
-#undef CPP_DBC_DB_EXCEPTION_MARK_LEN
-#undef CPP_DBC_DB_EXCEPTION_MSG_CAP
-#undef CPP_DBC_DB_EXCEPTION_FULL_MSG_MAX
 
 #endif // CPP_DBC_CORE_DB_EXCEPTION_HPP

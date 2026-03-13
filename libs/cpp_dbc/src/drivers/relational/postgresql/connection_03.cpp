@@ -61,7 +61,18 @@ namespace cpp_dbc::PostgreSQL
         }
 
         m_transactionActive = false;
-        m_autoCommit = true;
+
+        // If autoCommit is still false, start a new transaction automatically.
+        // PostgreSQL (unlike MySQL) does not implicitly start a new transaction
+        // after COMMIT — an explicit BEGIN is required.
+        if (!m_autoCommit)
+        {
+            PGresultHandle beginRes(PQexec(m_conn.get(), "BEGIN"));
+            if (PQresultStatus(beginRes.get()) == PGRES_COMMAND_OK)
+            {
+                m_transactionActive = true;
+            }
+        }
 
         return {};
     }
@@ -89,7 +100,18 @@ namespace cpp_dbc::PostgreSQL
         }
 
         m_transactionActive = false;
-        m_autoCommit = true;
+
+        // If autoCommit is still false, start a new transaction automatically.
+        // PostgreSQL (unlike MySQL) does not implicitly start a new transaction
+        // after ROLLBACK — an explicit BEGIN is required.
+        if (!m_autoCommit)
+        {
+            PGresultHandle beginRes(PQexec(m_conn.get(), "BEGIN"));
+            if (PQresultStatus(beginRes.get()) == PGRES_COMMAND_OK)
+            {
+                m_transactionActive = true;
+            }
+        }
 
         return {};
     }
@@ -124,6 +146,17 @@ namespace cpp_dbc::PostgreSQL
             return cpp_dbc::unexpected<DBException>(DBException("9U0V1W2X3Y4Z", "Unsupported transaction isolation level", system_utils::captureCallStack()));
         }
 
+        // Cannot change isolation level while a transaction is active — the caller
+        // must commit or rollback first. Silently committing would destroy in-flight work.
+        if (m_transactionActive)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("USA7EDKRMV5D",
+                "Cannot change transaction isolation level while a transaction is active",
+                system_utils::captureCallStack()));
+        }
+
+        // SET SESSION CHARACTERISTICS applies to future transactions, not the current one.
+        // Safe to execute outside a transaction.
         {
             PGresultHandle result(PQexec(m_conn.get(), query.c_str()));
             if (PQresultStatus(result.get()) != PGRES_COMMAND_OK)
@@ -133,21 +166,11 @@ namespace cpp_dbc::PostgreSQL
             }
         }
 
-        this->m_isolationLevel = level;
-
-        // If we're in a transaction (autoCommit = false), we need to restart it
-        // for the new isolation level to take effect
+        // If autoCommit is false, start a new transaction with the new isolation level.
+        // m_transactionActive is false here (checked above), so we need a fresh BEGIN.
         if (!m_autoCommit)
         {
-            PGresultHandle commitResult(PQexec(m_conn.get(), "COMMIT"));
-            if (PQresultStatus(commitResult.get()) != PGRES_COMMAND_OK)
-            {
-                std::string error = PQresultErrorMessage(commitResult.get());
-                return cpp_dbc::unexpected<DBException>(DBException("1G2H3I4J5K6L", "Failed to commit transaction: " + error, system_utils::captureCallStack()));
-            }
-
-            // For SERIALIZABLE isolation, we need special handling
-            if (m_isolationLevel == TRANSACTION_SERIALIZABLE)
+            if (level == TRANSACTION_SERIALIZABLE)
             {
                 std::string beginCmd = "BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE";
                 PGresultHandle beginResult(PQexec(m_conn.get(), beginCmd.c_str()));
@@ -167,7 +190,6 @@ namespace cpp_dbc::PostgreSQL
             }
             else
             {
-                // Standard BEGIN for other isolation levels
                 PGresultHandle beginResult(PQexec(m_conn.get(), "BEGIN"));
                 if (PQresultStatus(beginResult.get()) != PGRES_COMMAND_OK)
                 {
@@ -175,7 +197,12 @@ namespace cpp_dbc::PostgreSQL
                     return cpp_dbc::unexpected<DBException>(DBException("9Y0Z1A2B3C4D", "Failed to start transaction: " + error, system_utils::captureCallStack()));
                 }
             }
+
+            m_transactionActive = true;
         }
+
+        // Only update m_isolationLevel after the full sequence succeeds
+        this->m_isolationLevel = level;
 
         return {};
     }

@@ -179,6 +179,7 @@ namespace cpp_dbc::PostgreSQL
 
         // Initialize parameter arrays
         m_paramValues.resize(paramCount);
+        m_paramIsNull.resize(paramCount, true);
         m_paramLengths.resize(paramCount);
         m_paramFormats.resize(paramCount);
         m_paramTypes.resize(paramCount);

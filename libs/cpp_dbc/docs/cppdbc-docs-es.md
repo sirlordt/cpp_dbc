@@ -770,6 +770,325 @@ conn->close();
 
 ---
 
+## Implementación ScyllaDB
+*Componentes definidos en drivers/columnar/driver_scylladb.hpp y src/drivers/columnar/scylladb/*
+
+ScyllaDB es una base de datos columnar compatible con Apache Cassandra, diseñada para alto rendimiento y baja latencia. La biblioteca CPP_DBC proporciona una implementación completa del controlador ScyllaDB con soporte para sentencias preparadas, operaciones por lotes (batch), tipos de datos CQL nativos (UUID, timestamp, date, time) y streaming binario. El controlador sigue el patrón dual-API nothrow-first y utiliza handles RAII para todos los recursos del driver C de Cassandra.
+
+### Handles RAII (ScyllaDB)
+Definidos en `drivers/columnar/scylladb/handles.hpp`. Wrappers `std::unique_ptr` con deleters personalizados para los objetos del driver C de Cassandra:
+
+- `CassClusterHandle` — configuración del cluster (`cass_cluster_free`)
+- `CassSessionHandle` — sesión activa (`cass_session_free`)
+- `CassFutureHandle` — futuro asíncrono (`cass_future_free`)
+- `CassStatementHandle` — sentencia bound (`cass_statement_free`)
+- `CassPreparedHandle` — sentencia preparada (`cass_prepared_free`)
+- `CassResultHandle` — resultado de consulta (`cass_result_free`)
+- `CassIteratorHandle` — iterador de filas (`cass_iterator_free`)
+
+### ColumnarDBConnection
+Clase base abstracta que representa una conexión a una base de datos columnar.
+
+**Métodos:**
+- `close()`: Cierra la conexión.
+- `isClosed()`: Devuelve true si la conexión está cerrada.
+- `prepareStatement(string)`: Prepara una sentencia CQL.
+- `executeQuery(string)`: Ejecuta una consulta que retorna resultados.
+- `executeUpdate(string)`: Ejecuta una sentencia de modificación.
+- `beginTransaction()` / `commit()` / `rollback()`: Gestión de transacciones (limitado por Cassandra LWT).
+- `getServerVersion()` / `getServerInfo()`: Información del servidor.
+
+### ColumnarDBPreparedStatement
+Clase base abstracta para sentencias preparadas columnares.
+
+**Métodos:**
+- Setters por índice: `setInt`, `setLong`, `setDouble`, `setString`, `setBoolean`, `setNull`, `setDate`, `setTimestamp`, `setTime`, `setUUID`, `setBinaryStream`, `setBytes`.
+- `executeQuery()`: Ejecuta y retorna un ResultSet.
+- `executeUpdate()`: Ejecuta y retorna filas afectadas.
+- `execute()`: Ejecuta y retorna si hay ResultSet.
+- `addBatch()` / `clearBatch()` / `executeBatch()`: Operaciones por lotes.
+- `close()`: Cierra la sentencia.
+
+### ColumnarDBResultSet
+Clase base abstracta para conjuntos de resultados columnares.
+
+**Métodos:**
+- Navegación: `next()`, `isBeforeFirst()`, `isAfterLast()`, `getRow()`, `isEmpty()`, `close()`.
+- Getters tipados (por índice y por nombre): `getInt`, `getLong`, `getDouble`, `getString`, `getBoolean`, `isNull`, `getUUID`, `getDate`, `getTimestamp`, `getTime`.
+- Datos binarios: `getBinaryStream`, `getBytes`.
+- Metadatos: `getColumnNames()`, `getColumnCount()`.
+
+### ColumnarDBDriver
+Clase base abstracta para controladores de bases de datos columnares.
+
+**Métodos:**
+- `connectColumnar(uri, user, password, options)`: Establece una conexión.
+- `acceptURI(string)`: Verifica si el controlador soporta la URI.
+- `supportsClustering()` / `supportsAsync()`: Capacidades del controlador.
+
+### ScyllaDBResultSet
+Implementación de ColumnarDBResultSet para ScyllaDB.
+
+**Construcción:**
+- `ScyllaDBResultSet(const CassResult *res)`: Constructor público que toma ownership del resultado.
+
+**Métodos:**
+Los mismos que ColumnarDBResultSet. Los getters tipados retornan valores por defecto para columnas NULL (`getInt(NULL)` → `0`, `getString(NULL)` → `""`). Usar `isNull(columnIndex)` para distinguir NULL de valores reales.
+
+### ScyllaDBPreparedStatement
+Implementación de ColumnarDBPreparedStatement para ScyllaDB. Usa patrón de fábrica estática.
+
+**Construcción:**
+- `ScyllaDBPreparedStatement::create(std::nothrow_t, session, query, prepared)`: Fábrica estática (noexcept).
+
+**Métodos:**
+Los mismos que ColumnarDBPreparedStatement, más soporte completo de operaciones batch con `addBatch()` / `executeBatch()`.
+
+### ScyllaDBConnection
+Implementación de ColumnarDBConnection para ScyllaDB. Usa patrón de fábrica estática.
+
+**Construcción:**
+- `ScyllaDBConnection::create(std::nothrow_t, host, port, keyspace, user, password, options)`: Fábrica estática (noexcept), retorna `expected<shared_ptr<ScyllaDBConnection>, DBException>`.
+
+**Métodos:**
+Los mismos que ColumnarDBConnection, más:
+- `ping()`: Verifica si la conexión está activa.
+- `reset()`: Reinicia el estado de la conexión.
+- `getURI()`: Devuelve la URI de conexión.
+
+**Uso de Punteros Inteligentes:**
+- `shared_ptr<CassSession>` compartido con PreparedStatement vía `weak_ptr`.
+- Operaciones thread-safe (compiladas condicionalmente con `DB_DRIVER_THREAD_SAFE`).
+
+### ScyllaDBDriver
+Implementación de ColumnarDBDriver para ScyllaDB. Singleton con registro de conexiones.
+
+**Construcción:**
+- `ScyllaDBDriver::getInstance(std::nothrow_t)`: Singleton (noexcept). Usa double-checked locking con `std::weak_ptr` + `std::mutex`.
+
+**Métodos:**
+Los mismos que ColumnarDBDriver, más:
+- `cleanup()`: Limpia el estado de inicialización.
+- `getConnectionAlive()`: Retorna el número de conexiones activas en el registro.
+- `getDriverVersion()` / `getName()`: Metadatos del controlador.
+
+**Formato de URL de Conexión:**
+```
+cpp_dbc:scylladb://host:puerto/keyspace
+```
+
+**Ejemplo de Uso:**
+```cpp
+#include <cpp_dbc/cpp_dbc.hpp>
+#if USE_SCYLLADB
+#include <cpp_dbc/drivers/columnar/driver_scylladb.hpp>
+
+// Obtener instancia del controlador (singleton)
+auto driverResult = cpp_dbc::ScyllaDB::ScyllaDBDriver::getInstance(std::nothrow);
+auto driver = driverResult.value();
+
+// Conectar a ScyllaDB
+auto connResult = driver->connectColumnar(std::nothrow,
+    "cpp_dbc:scylladb://localhost:9042/test_keyspace", "cassandra", "cassandra");
+auto conn = connResult.value();
+
+// Ejecutar una consulta
+auto rsResult = conn->executeQuery(std::nothrow,
+    "SELECT id, name, age FROM users WHERE age > 25 ALLOW FILTERING");
+auto rs = rsResult.value();
+
+// Iterar resultados
+while (rs->next(std::nothrow).value())
+{
+    auto id = rs->getUUID(std::nothrow, 1).value();
+    auto name = rs->getString(std::nothrow, 2).value();
+    auto age = rs->getInt(std::nothrow, 3).value();
+}
+
+// Sentencia preparada con batch
+auto stmtResult = conn->prepareStatement(std::nothrow,
+    "INSERT INTO users (id, name, age) VALUES (?, ?, ?)");
+auto stmt = stmtResult.value();
+
+stmt->setUUID(std::nothrow, 1, "550e8400-e29b-41d4-a716-446655440000");
+stmt->setString(std::nothrow, 2, "Ana");
+stmt->setInt(std::nothrow, 3, 28);
+stmt->addBatch(std::nothrow);
+
+stmt->setUUID(std::nothrow, 1, "550e8400-e29b-41d4-a716-446655440001");
+stmt->setString(std::nothrow, 2, "Luis");
+stmt->setInt(std::nothrow, 3, 35);
+stmt->addBatch(std::nothrow);
+
+auto batchResult = stmt->executeBatch(std::nothrow);
+
+// Cerrar recursos
+stmt->close(std::nothrow);
+rs->close(std::nothrow);
+conn->close(std::nothrow);
+#endif
+```
+
+---
+
+## Implementación Redis
+*Componentes definidos en drivers/kv/driver_redis.hpp y src/drivers/kv/redis/*
+
+Redis es un almacén de datos clave-valor en memoria con soporte para múltiples estructuras de datos. La biblioteca CPP_DBC proporciona una implementación completa del controlador Redis con soporte para operaciones sobre strings, listas, hashes, conjuntos (sets), conjuntos ordenados (sorted sets) y comandos de administración del servidor. El controlador sigue el patrón dual-API nothrow-first y utiliza handles RAII para los recursos de hiredis.
+
+### Handles RAII (Redis)
+Definidos en `drivers/kv/redis/handles.hpp`. Wrappers `std::unique_ptr` con deleters personalizados para los objetos de hiredis:
+
+- `RedisReplyHandle` — respuesta de comando (`freeReplyObject`)
+- `RedisContextDeleter` — contexto de conexión (`redisFree`)
+
+### KVDBConnection
+Clase base abstracta que representa una conexión a una base de datos clave-valor.
+
+**Métodos — Operaciones de String:**
+- `setString(key, value, expirySeconds)`: Establece un valor con TTL opcional.
+- `getString(key)`: Obtiene el valor de una clave.
+
+**Métodos — Operaciones de Clave:**
+- `exists(key)`: Verifica si una clave existe.
+- `deleteKey(key)` / `deleteKeys(keys)`: Elimina una o varias claves.
+- `expire(key, seconds)`: Establece el TTL de una clave.
+- `getTTL(key)`: Obtiene el TTL restante.
+
+**Métodos — Contadores:**
+- `increment(key, by)` / `decrement(key, by)`: Incrementa/decrementa un valor numérico.
+
+**Métodos — Listas:**
+- `listPushLeft` / `listPushRight`: Inserta al inicio/final de la lista.
+- `listPopLeft` / `listPopRight`: Extrae del inicio/final de la lista.
+- `listRange(key, start, stop)`: Obtiene un rango de elementos.
+- `listLength(key)`: Retorna la longitud de la lista.
+
+**Métodos — Hashes:**
+- `hashSet(key, field, value)` / `hashGet(key, field)`: Establece/obtiene un campo.
+- `hashDelete(key, field)` / `hashExists(key, field)`: Elimina/verifica un campo.
+- `hashGetAll(key)`: Obtiene todos los campos y valores.
+- `hashLength(key)`: Retorna el número de campos.
+
+**Métodos — Conjuntos (Sets):**
+- `setAdd` / `setRemove` / `setIsMember`: Agregar, eliminar, verificar miembro.
+- `setMembers(key)`: Obtiene todos los miembros.
+- `setSize(key)`: Retorna el tamaño del conjunto.
+
+**Métodos — Conjuntos Ordenados (Sorted Sets):**
+- `sortedSetAdd(key, score, member)` / `sortedSetRemove(key, member)`: Agregar/eliminar.
+- `sortedSetScore(key, member)`: Obtiene el score de un miembro.
+- `sortedSetRange(key, start, stop)`: Obtiene un rango por posición.
+- `sortedSetSize(key)`: Retorna el tamaño.
+
+**Métodos — Escaneo:**
+- `scanKeys(pattern, count)`: Escanea claves que coinciden con el patrón.
+
+**Métodos — Servidor:**
+- `executeCommand(command, args)`: Ejecuta un comando Redis arbitrario.
+- `flushDB(async)`: Limpia la base de datos actual.
+- `ping()`: Verifica la conectividad.
+- `getServerVersion()` / `getServerInfo()`: Información del servidor.
+
+### KVDBDriver
+Clase base abstracta para controladores de bases de datos clave-valor.
+
+**Métodos:**
+- `connectKV(uri, user, password, options)`: Establece una conexión.
+- `acceptURI(string)`: Verifica si el controlador soporta la URI.
+- `supportsClustering()` / `supportsReplication()`: Capacidades del controlador.
+
+### RedisDBConnection
+Implementación de KVDBConnection para Redis. Usa patrón de fábrica estática.
+
+**Construcción:**
+- `RedisDBConnection::create(std::nothrow_t, uri, user, password, options)`: Fábrica estática (noexcept), retorna `expected<shared_ptr<RedisDBConnection>, DBException>`.
+
+**Métodos:**
+Los mismos que KVDBConnection, más:
+- `executeRaw(command, args)`: Ejecuta un comando y retorna el `RedisReplyHandle` crudo.
+- `selectDatabase(index)`: Cambia la base de datos activa (comando `SELECT`).
+- `getDatabaseIndex()`: Retorna el índice de la base de datos actual.
+- `reset()`: Reinicia el estado de la conexión.
+- `getURI()`: Devuelve la URI de conexión.
+
+**Mutex:**
+- Usa `std::mutex` (no `recursive_mutex`) ya que las operaciones Redis son síncronas.
+
+### RedisDBDriver
+Implementación de KVDBDriver para Redis. Singleton con registro de conexiones.
+
+**Construcción:**
+- `RedisDBDriver::getInstance(std::nothrow_t)`: Singleton (noexcept). Usa double-checked locking con `std::weak_ptr` + `std::mutex`.
+
+**Métodos:**
+Los mismos que KVDBDriver, más:
+- `cleanup()`: Limpia el estado de inicialización.
+- `getConnectionAlive()`: Retorna el número de conexiones activas en el registro.
+- `getDriverVersion()` / `getName()`: Metadatos del controlador.
+
+**Formato de URL de Conexión:**
+```
+cpp_dbc:redis://host:puerto/base_de_datos
+```
+
+**Ejemplo de Uso:**
+```cpp
+#include <cpp_dbc/cpp_dbc.hpp>
+#if USE_REDIS
+#include <cpp_dbc/drivers/kv/driver_redis.hpp>
+
+// Obtener instancia del controlador (singleton)
+auto driverResult = cpp_dbc::Redis::RedisDBDriver::getInstance(std::nothrow);
+auto driver = driverResult.value();
+
+// Conectar a Redis
+auto connResult = driver->connectKV(std::nothrow,
+    "cpp_dbc:redis://localhost:6379/0", "", "");
+auto conn = connResult.value();
+
+// Operaciones con strings
+conn->setString(std::nothrow, "nombre", "Juan", 3600); // TTL 1 hora
+auto valor = conn->getString(std::nothrow, "nombre").value();
+
+// Contadores
+conn->increment(std::nothrow, "visitas");
+auto count = conn->increment(std::nothrow, "visitas", 5).value();
+
+// Operaciones con listas
+conn->listPushRight(std::nothrow, "cola", "tarea1");
+conn->listPushRight(std::nothrow, "cola", "tarea2");
+auto tarea = conn->listPopLeft(std::nothrow, "cola").value();
+
+// Operaciones con hashes
+conn->hashSet(std::nothrow, "usuario:1", "nombre", "Ana");
+conn->hashSet(std::nothrow, "usuario:1", "edad", "28");
+auto todos = conn->hashGetAll(std::nothrow, "usuario:1").value();
+
+// Operaciones con conjuntos
+conn->setAdd(std::nothrow, "tags", "cpp");
+conn->setAdd(std::nothrow, "tags", "database");
+auto miembros = conn->setMembers(std::nothrow, "tags").value();
+
+// Operaciones con conjuntos ordenados
+conn->sortedSetAdd(std::nothrow, "ranking", 100.0, "jugador1");
+conn->sortedSetAdd(std::nothrow, "ranking", 200.0, "jugador2");
+auto top = conn->sortedSetRange(std::nothrow, "ranking", 0, -1).value();
+
+// Escaneo de claves
+auto claves = conn->scanKeys(std::nothrow, "usuario:*", 100).value();
+
+// Información del servidor
+auto version = conn->getServerVersion(std::nothrow).value();
+auto info = conn->getServerInfo(std::nothrow).value();
+
+// Cerrar la conexión
+conn->close(std::nothrow);
+#endif
+```
+
+---
+
 ## Pool de Conexiones
 *Componentes definidos en pool/connection_pool.hpp, pool/pooled_db_connection_base.hpp, y pool/\<familia\>/\<familia\>_db_connection_pool.hpp*
 

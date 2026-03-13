@@ -32,7 +32,6 @@
 #include <cctype>
 #include <iomanip>
 #include <charconv>
-#include <ranges>
 
 #include "postgresql_internal.hpp"
 
@@ -56,6 +55,11 @@ namespace cpp_dbc::PostgreSQL
         if (!m_prepared)
         {
             PGresultHandle prepareResult(PQprepare(pgConn, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data()));
+            if (!prepareResult.get())
+            {
+                std::string error = PQerrorMessage(pgConn);
+                return cpp_dbc::unexpected<DBException>(DBException("PGPD6BK2UCL6", "Failed to prepare statement (OOM): " + error, system_utils::captureCallStack()));
+            }
             if (PQresultStatus(prepareResult.get()) != PGRES_COMMAND_OK)
             {
                 std::string error = PQresultErrorMessage(prepareResult.get());
@@ -65,9 +69,12 @@ namespace cpp_dbc::PostgreSQL
         }
 
         // Convert parameter values to C-style array of char pointers
+        // Use m_paramIsNull to distinguish SQL NULL from empty strings
         std::vector<const char *> paramValuePtrs(m_paramValues.size());
-        std::ranges::transform(m_paramValues, paramValuePtrs.begin(),
-            [](const std::string &v) -> const char * { return v.empty() ? nullptr : v.c_str(); });
+        for (size_t i = 0; i < m_paramValues.size(); ++i)
+        {
+            paramValuePtrs[i] = m_paramIsNull[i] ? nullptr : m_paramValues[i].c_str();
+        }
 
         // Execute the prepared statement
         // Create temporary vector of ints for parameter lengths
@@ -83,6 +90,11 @@ namespace cpp_dbc::PostgreSQL
             0 // Result format (0 = text)
         ));
 
+        if (!result.get())
+        {
+            std::string error = PQerrorMessage(pgConn);
+            return cpp_dbc::unexpected<DBException>(DBException("FTQ9GYKU1XCO", "Failed to execute query (OOM): " + error, system_utils::captureCallStack()));
+        }
         if (PQresultStatus(result.get()) != PGRES_TUPLES_OK)
         {
             std::string error = PQresultErrorMessage(result.get());
@@ -95,8 +107,16 @@ namespace cpp_dbc::PostgreSQL
         {
             return cpp_dbc::unexpected(rsResult.error());
         }
+        auto rs = rsResult.value();
 
-        return cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>{rsResult.value()};
+        // Register the result set so closeAllResultSets()/notifyConnClosing() can track it
+        auto conn = m_connection.lock();
+        if (conn)
+        {
+            [[maybe_unused]] auto regResult = conn->registerResultSet(std::nothrow, std::weak_ptr<PostgreSQLDBResultSet>(rs));
+        }
+
+        return cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>{std::static_pointer_cast<RelationalDBResultSet>(rs)};
     }
 
     cpp_dbc::expected<uint64_t, DBException> PostgreSQLDBPreparedStatement::executeUpdate(std::nothrow_t) noexcept
@@ -115,6 +135,11 @@ namespace cpp_dbc::PostgreSQL
         if (!m_prepared)
         {
             PGresultHandle prepareResult(PQprepare(pgConn, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data()));
+            if (!prepareResult.get())
+            {
+                std::string error = PQerrorMessage(pgConn);
+                return cpp_dbc::unexpected<DBException>(DBException("IP3PHU0JXZIW", "Failed to prepare statement (OOM): " + error, system_utils::captureCallStack()));
+            }
             if (PQresultStatus(prepareResult.get()) != PGRES_COMMAND_OK)
             {
                 std::string error = PQresultErrorMessage(prepareResult.get());
@@ -124,9 +149,12 @@ namespace cpp_dbc::PostgreSQL
         }
 
         // Convert parameter values to C-style array of char pointers
+        // Use m_paramIsNull to distinguish SQL NULL from empty strings
         std::vector<const char *> paramValuePtrs(m_paramValues.size());
-        std::ranges::transform(m_paramValues, paramValuePtrs.begin(),
-            [](const std::string &v) -> const char * { return v.empty() ? nullptr : v.c_str(); });
+        for (size_t i = 0; i < m_paramValues.size(); ++i)
+        {
+            paramValuePtrs[i] = m_paramIsNull[i] ? nullptr : m_paramValues[i].c_str();
+        }
 
         // Execute the prepared statement
         // Create temporary vector of ints for parameter lengths
@@ -142,6 +170,11 @@ namespace cpp_dbc::PostgreSQL
             0 // Result format (0 = text)
         ));
 
+        if (!result.get())
+        {
+            std::string error = PQerrorMessage(pgConn);
+            return cpp_dbc::unexpected<DBException>(DBException("TNAEVF96910P", "Failed to execute update (OOM): " + error, system_utils::captureCallStack()));
+        }
         if (PQresultStatus(result.get()) != PGRES_COMMAND_OK)
         {
             std::string error = PQresultErrorMessage(result.get());
@@ -180,6 +213,11 @@ namespace cpp_dbc::PostgreSQL
         if (!m_prepared)
         {
             PGresultHandle prepareResult(PQprepare(pgConn, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data()));
+            if (!prepareResult.get())
+            {
+                std::string error = PQerrorMessage(pgConn);
+                return cpp_dbc::unexpected<DBException>(DBException("QFLWTX453CXM", "Failed to prepare statement (OOM): " + error, system_utils::captureCallStack()));
+            }
             if (PQresultStatus(prepareResult.get()) != PGRES_COMMAND_OK)
             {
                 std::string error = PQresultErrorMessage(prepareResult.get());
@@ -189,9 +227,12 @@ namespace cpp_dbc::PostgreSQL
         }
 
         // Convert parameter values to C-style array of char pointers
+        // Use m_paramIsNull to distinguish SQL NULL from empty strings
         std::vector<const char *> paramValuePtrs(m_paramValues.size());
-        std::ranges::transform(m_paramValues, paramValuePtrs.begin(),
-            [](const std::string &v) -> const char * { return v.empty() ? nullptr : v.c_str(); });
+        for (size_t i = 0; i < m_paramValues.size(); ++i)
+        {
+            paramValuePtrs[i] = m_paramIsNull[i] ? nullptr : m_paramValues[i].c_str();
+        }
 
         // Execute the prepared statement
         // Create temporary vector of ints for parameter lengths
@@ -206,6 +247,12 @@ namespace cpp_dbc::PostgreSQL
             m_paramFormats.data(),
             0 // Result format (0 = text)
         ));
+
+        if (!result.get())
+        {
+            std::string error = PQerrorMessage(pgConn);
+            return cpp_dbc::unexpected<DBException>(DBException("VDVYWHQIK712", "Failed to execute statement (OOM): " + error, system_utils::captureCallStack()));
+        }
 
         ExecStatusType status = PQresultStatus(result.get());
         bool hasResultSet = (status == PGRES_TUPLES_OK);

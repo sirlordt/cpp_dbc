@@ -23,7 +23,6 @@
 #if USE_POSTGRESQL
 
 #include <array>
-#include <cstring>
 #include <sstream>
 #include <iostream>
 #include <thread>
@@ -112,8 +111,9 @@ namespace cpp_dbc::PostgreSQL
         }
 
         const char *value = PQgetvalue(m_result.get(), row, idx);
+        int length = PQgetlength(m_result.get(), row, idx);
         int result = 0;
-        auto [ptr, ec] = std::from_chars(value, value + std::strlen(value), result);
+        auto [ptr, ec] = std::from_chars(value, value + length, result);
         if (ec != std::errc{})
         {
             return cpp_dbc::unexpected<DBException>(DBException("GV1IE638SARF", "Failed to convert value to int", system_utils::captureCallStack()));
@@ -150,8 +150,9 @@ namespace cpp_dbc::PostgreSQL
         }
 
         const char *value = PQgetvalue(m_result.get(), row, idx);
+        int length = PQgetlength(m_result.get(), row, idx);
         int64_t result = 0;
-        auto [ptr, ec] = std::from_chars(value, value + std::strlen(value), result);
+        auto [ptr, ec] = std::from_chars(value, value + length, result);
         if (ec != std::errc{})
         {
             return cpp_dbc::unexpected<DBException>(DBException("PRTK87X1YSDK", "Failed to convert value to int64", system_utils::captureCallStack()));
@@ -188,8 +189,9 @@ namespace cpp_dbc::PostgreSQL
         }
 
         const char *value = PQgetvalue(m_result.get(), row, idx);
+        int length = PQgetlength(m_result.get(), row, idx);
         double result = 0.0;
-        auto [ptr, ec] = std::from_chars(value, value + std::strlen(value), result);
+        auto [ptr, ec] = std::from_chars(value, value + length, result);
         if (ec != std::errc{})
         {
             return cpp_dbc::unexpected<DBException>(DBException("9O0P1Q2R3S4T", "Failed to convert value to double", system_utils::captureCallStack()));
