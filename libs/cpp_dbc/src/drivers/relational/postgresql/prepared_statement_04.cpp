@@ -51,6 +51,17 @@ namespace cpp_dbc::PostgreSQL
         }
         PGconn *pgConn = connResult.value();
 
+        // Validate all parameters have been explicitly bound before execution
+        for (size_t i = 0; i < m_paramBound.size(); ++i)
+        {
+            if (!m_paramBound[i])
+            {
+                return cpp_dbc::unexpected<DBException>(DBException("WH9WBVBQJS9F",
+                    "Parameter " + std::to_string(i + 1) + " has not been bound",
+                    system_utils::captureCallStack()));
+            }
+        }
+
         // Prepare the statement if not already prepared
         if (!m_prepared)
         {
@@ -77,8 +88,19 @@ namespace cpp_dbc::PostgreSQL
         }
 
         // Execute the prepared statement
-        // Create temporary vector of ints for parameter lengths
-        std::vector<int> paramLengthsInt(m_paramLengths.begin(), m_paramLengths.end());
+        // Validate and narrow m_paramLengths (size_t) to int for PQexecPrepared
+        std::vector<int> paramLengthsInt;
+        paramLengthsInt.reserve(m_paramLengths.size());
+        for (size_t i = 0; i < m_paramLengths.size(); ++i)
+        {
+            if (m_paramLengths[i] > static_cast<size_t>(std::numeric_limits<int>::max()))
+            {
+                return cpp_dbc::unexpected<DBException>(DBException("JVNPXBDM3DHV",
+                    "Parameter " + std::to_string(i + 1) + " length exceeds INT_MAX",
+                    system_utils::captureCallStack()));
+            }
+            paramLengthsInt.push_back(static_cast<int>(m_paramLengths[i]));
+        }
 
         PGresultHandle result(PQexecPrepared(
             pgConn,
@@ -131,6 +153,17 @@ namespace cpp_dbc::PostgreSQL
         }
         PGconn *pgConn = connResult.value();
 
+        // Validate all parameters have been explicitly bound before execution
+        for (size_t i = 0; i < m_paramBound.size(); ++i)
+        {
+            if (!m_paramBound[i])
+            {
+                return cpp_dbc::unexpected<DBException>(DBException("6FHS6NF8NUM7",
+                    "Parameter " + std::to_string(i + 1) + " has not been bound",
+                    system_utils::captureCallStack()));
+            }
+        }
+
         // Prepare the statement if not already prepared
         if (!m_prepared)
         {
@@ -157,8 +190,19 @@ namespace cpp_dbc::PostgreSQL
         }
 
         // Execute the prepared statement
-        // Create temporary vector of ints for parameter lengths
-        std::vector<int> paramLengthsInt(m_paramLengths.begin(), m_paramLengths.end());
+        // Validate and narrow m_paramLengths (size_t) to int for PQexecPrepared
+        std::vector<int> paramLengthsInt;
+        paramLengthsInt.reserve(m_paramLengths.size());
+        for (size_t i = 0; i < m_paramLengths.size(); ++i)
+        {
+            if (m_paramLengths[i] > static_cast<size_t>(std::numeric_limits<int>::max()))
+            {
+                return cpp_dbc::unexpected<DBException>(DBException("8007SVCYGWJS",
+                    "Parameter " + std::to_string(i + 1) + " length exceeds INT_MAX",
+                    system_utils::captureCallStack()));
+            }
+            paramLengthsInt.push_back(static_cast<int>(m_paramLengths[i]));
+        }
 
         PGresultHandle result(PQexecPrepared(
             pgConn,
@@ -209,6 +253,17 @@ namespace cpp_dbc::PostgreSQL
         }
         PGconn *pgConn = connResult.value();
 
+        // Validate all parameters have been explicitly bound before execution
+        for (size_t i = 0; i < m_paramBound.size(); ++i)
+        {
+            if (!m_paramBound[i])
+            {
+                return cpp_dbc::unexpected<DBException>(DBException("962WU9V3M2G6",
+                    "Parameter " + std::to_string(i + 1) + " has not been bound",
+                    system_utils::captureCallStack()));
+            }
+        }
+
         // Prepare the statement if not already prepared
         if (!m_prepared)
         {
@@ -235,8 +290,19 @@ namespace cpp_dbc::PostgreSQL
         }
 
         // Execute the prepared statement
-        // Create temporary vector of ints for parameter lengths
-        std::vector<int> paramLengthsInt(m_paramLengths.begin(), m_paramLengths.end());
+        // Validate and narrow m_paramLengths (size_t) to int for PQexecPrepared
+        std::vector<int> paramLengthsInt;
+        paramLengthsInt.reserve(m_paramLengths.size());
+        for (size_t i = 0; i < m_paramLengths.size(); ++i)
+        {
+            if (m_paramLengths[i] > static_cast<size_t>(std::numeric_limits<int>::max()))
+            {
+                return cpp_dbc::unexpected<DBException>(DBException("WDQ33T32M053",
+                    "Parameter " + std::to_string(i + 1) + " length exceeds INT_MAX",
+                    system_utils::captureCallStack()));
+            }
+            paramLengthsInt.push_back(static_cast<int>(m_paramLengths[i]));
+        }
 
         PGresultHandle result(PQexecPrepared(
             pgConn,

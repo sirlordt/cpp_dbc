@@ -30,6 +30,7 @@
 #include <cstdlib>
 #include <sstream>
 #include <thread>
+#include <vector>
 
 #include "cpp_dbc/common/system_utils.hpp"
 #include "firebird_internal.hpp"
@@ -76,6 +77,33 @@ namespace cpp_dbc::Firebird
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
+    void FirebirdDBDriver::closeAllOpenConnections(std::nothrow_t) noexcept
+    {
+        // Mark driver as closed — reject any new connection attempts
+        m_closed.store(true, std::memory_order_release);
+
+        // Close all open connections before releasing library resources.
+        // Collect under lock first, then close outside the lock to avoid
+        // deadlock with unregisterConnection() (which also acquires s_registryMutex).
+        std::vector<std::shared_ptr<FirebirdDBConnection>> connectionsToClose;
+        {
+            std::scoped_lock lock(s_registryMutex);
+            for (const auto &weak : s_connectionRegistry)
+            {
+                auto conn = weak.lock();
+                if (conn)
+                {
+                    connectionsToClose.push_back(std::move(conn));
+                }
+            }
+            s_connectionRegistry.clear();
+        }
+        for (const auto &conn : connectionsToClose)
+        {
+            [[maybe_unused]] auto closeResult = conn->close(std::nothrow);
+        }
+    }
+
     // ============================================================================
     // FirebirdDBDriver Implementation - Constructor + Destructor
     // ============================================================================
@@ -93,6 +121,9 @@ namespace cpp_dbc::Firebird
     FirebirdDBDriver::~FirebirdDBDriver()
     {
         FIREBIRD_DEBUG("FirebirdDBDriver::destructor - Destroying driver");
+
+        closeAllOpenConnections(std::nothrow);
+
         cleanup();
     }
 
@@ -313,6 +344,13 @@ namespace cpp_dbc::Firebird
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
     {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("H8LMRV3JYD1N",
+                                                   "Driver is closed, no more connections allowed",
+                                                   system_utils::captureCallStack()));
+        }
+
         auto parseResult = parseURI(std::nothrow, uri);
         if (!parseResult.has_value())
         {

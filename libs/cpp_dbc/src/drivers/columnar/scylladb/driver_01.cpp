@@ -26,6 +26,7 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <vector>
 #include <iomanip>
 #include <charconv>
 #include "cpp_dbc/common/system_utils.hpp"
@@ -81,6 +82,9 @@ namespace cpp_dbc::ScyllaDB
     ScyllaDBDriver::~ScyllaDBDriver()
     {
         SCYLLADB_DEBUG("ScyllaDBDriver::destructor - Destroying driver");
+
+        closeAllOpenConnections(std::nothrow);
+
         cleanup();
     }
 
@@ -104,6 +108,33 @@ namespace cpp_dbc::ScyllaDB
     {
         std::lock_guard<std::mutex> lock(s_registryMutex);
         s_connectionRegistry.erase(conn);
+    }
+
+    void ScyllaDBDriver::closeAllOpenConnections(std::nothrow_t) noexcept
+    {
+        // Mark driver as closed — reject any new connection attempts
+        m_closed.store(true, std::memory_order_release);
+
+        // Close all open connections before releasing library resources.
+        // Collect under lock first, then close outside the lock to avoid
+        // deadlock with unregisterConnection() (which also acquires s_registryMutex).
+        std::vector<std::shared_ptr<ScyllaDBConnection>> connectionsToClose;
+        {
+            std::scoped_lock lock(s_registryMutex);
+            for (const auto &weak : s_connectionRegistry)
+            {
+                auto conn = weak.lock();
+                if (conn)
+                {
+                    connectionsToClose.push_back(std::move(conn));
+                }
+            }
+            s_connectionRegistry.clear();
+        }
+        for (const auto &conn : connectionsToClose)
+        {
+            [[maybe_unused]] auto closeResult = conn->close(std::nothrow);
+        }
     }
 
     size_t ScyllaDBDriver::getConnectionAlive() noexcept
@@ -198,6 +229,13 @@ namespace cpp_dbc::ScyllaDB
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
     {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("J9PTMS7FBHR2",
+                                                   "Driver is closed, no more connections allowed",
+                                                   system_utils::captureCallStack()));
+        }
+
         SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Connecting to " << uri);
 
         auto params = parseURI(std::nothrow, uri);

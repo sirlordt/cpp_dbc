@@ -577,7 +577,7 @@ driver->createDatabase(
 ```
 
 **Formato de URL de Conexión:**
-```
+```text
 cpp_dbc:firebird://host:port/ruta/a/base_de_datos.fdb
 ```
 
@@ -723,7 +723,7 @@ Los mismos que DocumentDBDriver, más:
 - `isInitialized()`: Verifica si la biblioteca C está inicializada.
 
 **Formato de URL de Conexión:**
-```
+```text
 cpp_dbc:mongodb://host:puerto/base_de_datos
 cpp_dbc:mongodb://usuario:contraseña@host:puerto/base_de_datos?authSource=admin
 ```
@@ -873,7 +873,7 @@ Los mismos que ColumnarDBDriver, más:
 - `getDriverVersion()` / `getName()`: Metadatos del controlador.
 
 **Formato de URL de Conexión:**
-```
+```text
 cpp_dbc:scylladb://host:puerto/keyspace
 ```
 
@@ -1028,7 +1028,7 @@ Los mismos que KVDBDriver, más:
 - `getDriverVersion()` / `getName()`: Metadatos del controlador.
 
 **Formato de URL de Conexión:**
-```
+```text
 cpp_dbc:redis://host:puerto/base_de_datos
 ```
 

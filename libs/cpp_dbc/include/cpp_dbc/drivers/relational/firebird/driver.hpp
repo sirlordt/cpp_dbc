@@ -29,6 +29,7 @@
 #endif
 
 #if USE_FIREBIRD
+#include <atomic>
 #include <map>
 #include <set>
 #include <string>
@@ -79,6 +80,8 @@ namespace cpp_dbc::Firebird
 
         static void cleanup();
 
+        void closeAllOpenConnections(std::nothrow_t) noexcept;
+
         /**
          * @brief Parsed URI components for Firebird connections.
          */
@@ -102,6 +105,11 @@ namespace cpp_dbc::Firebird
         // ── Construction state ────────────────────────────────────────────────
         bool m_initFailed{false};
         std::unique_ptr<DBException> m_initError{nullptr};
+
+        // ── Driver state ──────────────────────────────────────────────────────
+        // Set to true by the destructor before releasing resources.
+        // Prevents new connection attempts during and after driver teardown.
+        std::atomic<bool> m_closed{false};
 
     public:
         // ── Constructor ───────────────────────────────────────────────────────

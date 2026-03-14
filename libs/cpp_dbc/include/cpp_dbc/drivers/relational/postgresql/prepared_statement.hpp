@@ -49,6 +49,7 @@ namespace cpp_dbc::PostgreSQL
         std::string m_stmtName;
         std::vector<std::string> m_paramValues;
         std::vector<bool> m_paramIsNull;
+        std::vector<bool> m_paramBound;
         std::vector<size_t> m_paramLengths;
         std::vector<int> m_paramFormats;
         std::vector<Oid> m_paramTypes;

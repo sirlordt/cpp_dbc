@@ -592,7 +592,7 @@ Any single difference in a cmake `-D` variable that affects compilation flags tr
 
 #### 3. `CPP_DBC_BUILD_EXAMPLES` and `CPP_DBC_BUILD_BENCHMARKS` hardcoded to `OFF` in `build_test_cpp_dbc.sh`
 
-`build_test_cpp_dbc.sh` hardcodes `-DCPP_DBC_BUILD_EXAMPLES=OFF -DCPP_DBC_BUILD_BENCHMARKS=OFF` in its CMake invocation. This is intentional: the script is a **test-only** build tool used by `run_test.sh` and `run_test_parallel.sh`, so it skips examples and benchmarks to reduce build time. To build examples or benchmarks, use `build_cpp_dbc.sh` with `--mc-combo-01`/`--mc-combo-02` instead.
+`build_test_cpp_dbc.sh` hardcodes `-DCPP_DBC_BUILD_EXAMPLES=OFF -DCPP_DBC_BUILD_BENCHMARKS=OFF` in its CMake invocation. This is intentional: the script is a **test-only** build tool used by `run_test.sh` and `run_test_parallel.sh`, so it skips examples and benchmarks to reduce build time. To build examples or benchmarks, use `./helper.sh --mc-combo-01` (clean build) or `./helper.sh --mc-combo-02` (incremental build) instead. Both combo flags internally call `build_cpp_dbc.sh` with examples and benchmarks enabled.
 
 #### 4. `CMAKE_CXX_FLAGS` built dynamically to avoid trailing spaces
 

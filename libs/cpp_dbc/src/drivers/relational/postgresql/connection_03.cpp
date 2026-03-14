@@ -68,10 +68,14 @@ namespace cpp_dbc::PostgreSQL
         if (!m_autoCommit)
         {
             PGresultHandle beginRes(PQexec(m_conn.get(), "BEGIN"));
-            if (PQresultStatus(beginRes.get()) == PGRES_COMMAND_OK)
+            if (PQresultStatus(beginRes.get()) != PGRES_COMMAND_OK)
             {
-                m_transactionActive = true;
+                std::string error = PQresultErrorMessage(beginRes.get());
+                return cpp_dbc::unexpected<DBException>(DBException("PQ6YETSTZ1VH",
+                    "Failed to restart transaction after commit: " + error,
+                    system_utils::captureCallStack()));
             }
+            m_transactionActive = true;
         }
 
         return {};
@@ -107,10 +111,14 @@ namespace cpp_dbc::PostgreSQL
         if (!m_autoCommit)
         {
             PGresultHandle beginRes(PQexec(m_conn.get(), "BEGIN"));
-            if (PQresultStatus(beginRes.get()) == PGRES_COMMAND_OK)
+            if (PQresultStatus(beginRes.get()) != PGRES_COMMAND_OK)
             {
-                m_transactionActive = true;
+                std::string error = PQresultErrorMessage(beginRes.get());
+                return cpp_dbc::unexpected<DBException>(DBException("C0JFJM05WL73",
+                    "Failed to restart transaction after rollback: " + error,
+                    system_utils::captureCallStack()));
             }
+            m_transactionActive = true;
         }
 
         return {};
@@ -185,6 +193,10 @@ namespace cpp_dbc::PostgreSQL
                 if (PQresultStatus(snapshotResult.get()) != PGRES_TUPLES_OK)
                 {
                     std::string error = PQresultErrorMessage(snapshotResult.get());
+                    // BEGIN succeeded above, so the server is inside an open transaction.
+                    // Roll it back before returning to keep the server state consistent
+                    // with the client object (m_transactionActive is still false here).
+                    [[maybe_unused]] PGresultHandle rollbackResult(PQexec(m_conn.get(), "ROLLBACK"));
                     return cpp_dbc::unexpected<DBException>(DBException("3S4T5U6V7W8X", "Failed to acquire snapshot: " + error, system_utils::captureCallStack()));
                 }
             }

@@ -49,6 +49,7 @@ namespace cpp_dbc::PostgreSQL
         }
 
         int idx = parameterIndex - 1;
+        m_paramBound[idx] = true;
 
         // Store the blob object to keep it alive
         m_blobObjects[idx] = x;
@@ -101,6 +102,7 @@ namespace cpp_dbc::PostgreSQL
         }
 
         int idx = parameterIndex - 1;
+        m_paramBound[idx] = true;
 
         // Store the stream object to keep it alive
         m_streamObjects[idx] = x;
@@ -159,6 +161,7 @@ namespace cpp_dbc::PostgreSQL
         }
 
         int idx = parameterIndex - 1;
+        m_paramBound[idx] = true;
 
         // Store the stream object to keep it alive
         m_streamObjects[idx] = x;
@@ -220,6 +223,7 @@ namespace cpp_dbc::PostgreSQL
         }
 
         int idx = parameterIndex - 1;
+        m_paramBound[idx] = true;
 
         // Store the data in our vector to keep it alive
         m_blobValues[idx] = x;
@@ -246,14 +250,24 @@ namespace cpp_dbc::PostgreSQL
         }
 
         int idx = parameterIndex - 1;
+        m_paramBound[idx] = true;
 
         if (!x)
         {
-            // Set to NULL
-            m_paramIsNull[idx] = true;
-            m_paramValues[idx] = "";
+            if (length > 0)
+            {
+                return cpp_dbc::unexpected<DBException>(DBException("0123JWAENYHP",
+                    "setBytes: null pointer with non-zero length is invalid; use setNull() to bind SQL NULL",
+                    system_utils::captureCallStack()));
+            }
+
+            // nullptr + length==0: empty BYTEA (zero bytes, not SQL NULL).
+            // Callers who intend SQL NULL must use setNull().
+            m_paramIsNull[idx] = false;
+            m_blobValues[idx].clear();
+            m_paramValues[idx].clear();
             m_paramLengths[idx] = 0;
-            m_paramFormats[idx] = 0; // Text format
+            m_paramFormats[idx] = 1; // Binary format
             m_paramTypes[idx] = 17;  // BYTEAOID
             return {};
         }

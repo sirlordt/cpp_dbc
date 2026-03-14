@@ -641,29 +641,28 @@ namespace cpp_dbc::PostgreSQL
                 {
                     bool ownTx = false;
                     auto scopeResult = beginLobScope(std::nothrow, conn.get(), "cpp_dbc_blob_free", ownTx);
-                    if (scopeResult.has_value())
+                    if (!scopeResult.has_value())
                     {
-                        int unlinkResult = lo_unlink(conn.get(), m_lobOid);
-                        if (unlinkResult == 1)
-                        {
-                            auto commitResult = commitLobScope(std::nothrow, conn.get(), "cpp_dbc_blob_free", ownTx);
-                            if (commitResult.has_value())
-                            {
-                                m_lobOid = 0;
-                            }
-                            else
-                            {
-                                // Commit failed — large object may still exist
-                                rollbackLobScope(std::nothrow, conn.get(), "cpp_dbc_blob_free", ownTx);
-                            }
-                        }
-                        else
-                        {
-                            // lo_unlink failed — large object still exists
-                            rollbackLobScope(std::nothrow, conn.get(), "cpp_dbc_blob_free", ownTx);
-                        }
+                        return cpp_dbc::unexpected(scopeResult.error());
                     }
-                    // If beginLobScope failed, m_lobOid is not cleared — object still exists
+
+                    int unlinkResult = lo_unlink(conn.get(), m_lobOid);
+                    if (unlinkResult != 1)
+                    {
+                        rollbackLobScope(std::nothrow, conn.get(), "cpp_dbc_blob_free", ownTx);
+                        return cpp_dbc::unexpected(DBException("EMRA89D8U2RC",
+                            "lo_unlink failed: large object still exists on server",
+                            system_utils::captureCallStack()));
+                    }
+
+                    auto commitResult = commitLobScope(std::nothrow, conn.get(), "cpp_dbc_blob_free", ownTx);
+                    if (!commitResult.has_value())
+                    {
+                        rollbackLobScope(std::nothrow, conn.get(), "cpp_dbc_blob_free", ownTx);
+                        return cpp_dbc::unexpected(commitResult.error());
+                    }
+
+                    m_lobOid = 0;
                 }
                 else
                 {

@@ -58,11 +58,18 @@ namespace cpp_dbc::SQLite
         static void registerConnection(std::nothrow_t, std::weak_ptr<SQLiteDBConnection> conn) noexcept;
         static void unregisterConnection(std::nothrow_t, const std::weak_ptr<SQLiteDBConnection> &conn) noexcept;
 
+        void closeAllOpenConnections(std::nothrow_t) noexcept;
+
         friend class SQLiteDBConnection;
 
         // ── Construction state ────────────────────────────────────────────────
         bool m_initFailed{false};
         std::unique_ptr<DBException> m_initError{nullptr};
+
+        // ── Driver state ──────────────────────────────────────────────────────
+        // Set to true by the destructor before releasing resources.
+        // Prevents new connection attempts during and after driver teardown.
+        std::atomic<bool> m_closed{false};
 
     public:
         SQLiteDBDriver(PrivateCtorTag, std::nothrow_t) noexcept;

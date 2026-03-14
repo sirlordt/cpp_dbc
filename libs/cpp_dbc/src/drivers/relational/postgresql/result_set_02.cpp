@@ -65,8 +65,16 @@ namespace cpp_dbc::PostgreSQL
     {
         PG_STMT_LOCK_OR_RETURN("5WZNXG6OE0UP", "ResultSet closed");
 
-        if (!m_result || m_rowPosition >= m_rowCount)
+        if (!m_result)
         {
+            return false;
+        }
+
+        if (m_rowPosition >= m_rowCount)
+        {
+            // Set the explicit after-last sentinel so isAfterLast() returns true
+            // and getRow() returns 0 for all subsequent calls.
+            m_rowPosition = m_rowCount + 1;
             return false;
         }
 
@@ -89,6 +97,12 @@ namespace cpp_dbc::PostgreSQL
     cpp_dbc::expected<uint64_t, DBException> PostgreSQLDBResultSet::getRow(std::nothrow_t) noexcept
     {
         PG_STMT_LOCK_OR_RETURN("89CFESJGIUQG", "ResultSet closed");
+
+        if (!m_result || m_rowPosition == 0 || m_rowPosition > m_rowCount)
+        {
+            return 0; // before-first, no result, or after-last sentinel
+        }
+
         return m_rowPosition;
     }
 

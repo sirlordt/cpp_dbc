@@ -25,6 +25,7 @@
 #include <charconv>
 #include <cstring>
 #include <iostream>
+#include <vector>
 #include <thread>
 #include <chrono>
 #include <cctype>
@@ -80,6 +81,33 @@ namespace cpp_dbc::PostgreSQL
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
+    void PostgreSQLDBDriver::closeAllOpenConnections(std::nothrow_t) noexcept
+    {
+        // Mark driver as closed — reject any new connection attempts
+        m_closed.store(true, std::memory_order_release);
+
+        // Close all open connections before releasing library resources.
+        // Collect under lock first, then close outside the lock to avoid
+        // deadlock with unregisterConnection() (which also acquires s_registryMutex).
+        std::vector<std::shared_ptr<PostgreSQLDBConnection>> connectionsToClose;
+        {
+            std::scoped_lock lock(s_registryMutex);
+            for (const auto &weak : s_connectionRegistry)
+            {
+                auto conn = weak.lock();
+                if (conn)
+                {
+                    connectionsToClose.push_back(std::move(conn));
+                }
+            }
+            s_connectionRegistry.clear();
+        }
+        for (const auto &conn : connectionsToClose)
+        {
+            [[maybe_unused]] auto closeResult = conn->close(std::nothrow);
+        }
+    }
+
     // ============================================================================
     // PostgreSQLDBDriver Implementation - Constructor + Destructor
     // ============================================================================
@@ -97,6 +125,9 @@ namespace cpp_dbc::PostgreSQL
     PostgreSQLDBDriver::~PostgreSQLDBDriver()
     {
         PG_DEBUG("PostgreSQLDBDriver::destructor - Destroying driver");
+
+        closeAllOpenConnections(std::nothrow);
+
         cleanup();
     }
 
@@ -225,6 +256,13 @@ namespace cpp_dbc::PostgreSQL
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
     {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("R7DYVH4KN8SZ",
+                                                   "Driver is closed, no more connections allowed",
+                                                   system_utils::captureCallStack()));
+        }
+
         auto parseResult = parseURI(std::nothrow, uri);
         if (!parseResult.has_value())
         {

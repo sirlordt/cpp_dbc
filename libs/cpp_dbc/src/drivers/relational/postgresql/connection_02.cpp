@@ -220,6 +220,10 @@ namespace cpp_dbc::PostgreSQL
             if (PQresultStatus(snapshotResult.get()) != PGRES_TUPLES_OK)
             {
                 std::string error = PQresultErrorMessage(snapshotResult.get());
+                // BEGIN succeeded above, so the server is inside an open transaction.
+                // Roll it back before returning to keep the server state consistent
+                // with the client object (m_transactionActive is still false here).
+                [[maybe_unused]] PGresultHandle rollbackResult(PQexec(m_conn.get(), "ROLLBACK"));
                 return cpp_dbc::unexpected<DBException>(DBException("9M0N1O2P3Q4R", "Failed to acquire snapshot: " + error, system_utils::captureCallStack()));
             }
         }

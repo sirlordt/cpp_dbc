@@ -49,6 +49,7 @@ namespace cpp_dbc::PostgreSQL
         }
 
         int idx = parameterIndex - 1;
+        m_paramBound[idx] = true;
         m_paramValues[idx] = std::to_string(value);
         m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
@@ -68,6 +69,7 @@ namespace cpp_dbc::PostgreSQL
         }
 
         int idx = parameterIndex - 1;
+        m_paramBound[idx] = true;
         m_paramValues[idx] = std::to_string(value);
         m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
@@ -87,7 +89,21 @@ namespace cpp_dbc::PostgreSQL
         }
 
         int idx = parameterIndex - 1;
-        m_paramValues[idx] = std::to_string(value);
+        m_paramBound[idx] = true;
+
+        // std::to_string uses %.6f formatting and is lossy for doubles.
+        // std::to_chars with chars_format::general produces the shortest
+        // round-trippable representation (all significant digits preserved).
+        std::array<char, 32> buf{};
+        auto [ptr, ec] = std::to_chars(buf.data(), buf.data() + buf.size(), value, std::chars_format::general);
+        if (ec != std::errc{})
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("J3Z9IW7QXLFC",
+                "Failed to serialize double parameter value",
+                system_utils::captureCallStack()));
+        }
+
+        m_paramValues[idx].assign(buf.data(), ptr);
         m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
         m_paramFormats[idx] = 0; // Text format
@@ -106,6 +122,7 @@ namespace cpp_dbc::PostgreSQL
         }
 
         int idx = parameterIndex - 1;
+        m_paramBound[idx] = true;
         m_paramValues[idx] = value;
         m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
@@ -125,6 +142,7 @@ namespace cpp_dbc::PostgreSQL
         }
 
         int idx = parameterIndex - 1;
+        m_paramBound[idx] = true;
         m_paramValues[idx] = value ? "t" : "f"; // PostgreSQL uses 't' and 'f' for boolean values
         m_paramIsNull[idx] = false;
         m_paramLengths[idx] = 1;
@@ -144,6 +162,7 @@ namespace cpp_dbc::PostgreSQL
         }
 
         int idx = parameterIndex - 1;
+        m_paramBound[idx] = true;
 
         // Set the value to NULL
         m_paramIsNull[idx] = true;
@@ -199,6 +218,7 @@ namespace cpp_dbc::PostgreSQL
         }
 
         int idx = parameterIndex - 1;
+        m_paramBound[idx] = true;
         m_paramValues[idx] = value;
         m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
@@ -218,6 +238,7 @@ namespace cpp_dbc::PostgreSQL
         }
 
         int idx = parameterIndex - 1;
+        m_paramBound[idx] = true;
         m_paramValues[idx] = value;
         m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
@@ -237,6 +258,7 @@ namespace cpp_dbc::PostgreSQL
         }
 
         int idx = parameterIndex - 1;
+        m_paramBound[idx] = true;
         m_paramValues[idx] = value;
         m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
