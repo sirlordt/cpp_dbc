@@ -4,6 +4,7 @@
 
 #if USE_POSTGRESQL
 
+#include <atomic>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -41,16 +42,22 @@ namespace cpp_dbc::PostgreSQL
         };
 
         // ── Singleton state ───────────────────────────────────────────────────
-        // Note: Uses weak_ptr-based lazy singleton. cleanup() is called
-        // unconditionally in the destructor for clean shutdown.
+        // Note: PostgreSQL does NOT use double-checked locking (s_initialized + s_initMutex)
+        // because libpq does not require explicit global library initialization.
+        // cleanup() is called unconditionally in the destructor for clean shutdown.
         // See initialize() in driver_01.cpp for details.
-        static std::weak_ptr<PostgreSQLDBDriver> s_instance;
-        static std::mutex                        s_instanceMutex;
+        static std::shared_ptr<PostgreSQLDBDriver> s_instance;
+        static std::mutex                          s_instanceMutex;
 
         // ── Connection registry ───────────────────────────────────────────────
+        // Tracks all live connections created through connectRelational().
+        // Uses weak_ptr so the registry never prevents connection destruction.
         static std::mutex                                                          s_registryMutex;
         static std::set<std::weak_ptr<PostgreSQLDBConnection>,
                         std::owner_less<std::weak_ptr<PostgreSQLDBConnection>>>   s_connectionRegistry;
+
+        // ── Coalesced cleanup flag ────────────────────────────────────────────
+        static std::atomic<bool> s_cleanupPending;
 
         static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
 
@@ -59,11 +66,18 @@ namespace cpp_dbc::PostgreSQL
 
         static void cleanup();
 
+        void closeAllOpenConnections(std::nothrow_t) noexcept;
+
         friend class PostgreSQLDBConnection;
 
         // ── Construction state ────────────────────────────────────────────────
         bool m_initFailed{false};
         std::unique_ptr<DBException> m_initError{nullptr};
+
+        // ── Driver state ──────────────────────────────────────────────────────
+        // Set to true by the destructor before releasing resources.
+        // Prevents new connection attempts during and after driver teardown.
+        std::atomic<bool> m_closed{false};
 
     public:
         PostgreSQLDBDriver(PrivateCtorTag, std::nothrow_t) noexcept;

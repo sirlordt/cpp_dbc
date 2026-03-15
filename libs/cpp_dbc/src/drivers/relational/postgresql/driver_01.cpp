@@ -25,6 +25,7 @@
 #include <charconv>
 #include <cstring>
 #include <iostream>
+#include <vector>
 #include <thread>
 #include <chrono>
 #include <cctype>
@@ -39,28 +40,49 @@ namespace cpp_dbc::PostgreSQL
 {
 
     // ── Static member initialization ──────────────────────────────────────────
-    std::weak_ptr<PostgreSQLDBDriver> PostgreSQLDBDriver::s_instance;
-    std::mutex                        PostgreSQLDBDriver::s_instanceMutex;
-    std::mutex                        PostgreSQLDBDriver::s_registryMutex;
+    // IMPORTANT: s_instance MUST be declared LAST — see mysql/driver_01.cpp for
+    // the full explanation of the static destruction order requirement.
+    std::mutex                          PostgreSQLDBDriver::s_instanceMutex;
+    std::mutex                          PostgreSQLDBDriver::s_registryMutex;
     std::set<std::weak_ptr<PostgreSQLDBConnection>,
              std::owner_less<std::weak_ptr<PostgreSQLDBConnection>>> PostgreSQLDBDriver::s_connectionRegistry;
+    std::atomic<bool> PostgreSQLDBDriver::s_cleanupPending{false};
+    std::shared_ptr<PostgreSQLDBDriver> PostgreSQLDBDriver::s_instance;
 
     // ============================================================================
     // PostgreSQLDBDriver Implementation - Private Static Helpers
     // ============================================================================
 
-    // PostgreSQL (libpq) does not require explicit global library initialization.
-    // The initialize() method exists for structural symmetry with other drivers.
+    // Note: PostgreSQL does NOT use the double-checked locking pattern (s_initialized + s_initMutex)
+    // because libpq does not require explicit global library initialization.
+    // The initialize() method exists for structural symmetry with other drivers
+    // and is a no-op.
     cpp_dbc::expected<bool, DBException> PostgreSQLDBDriver::initialize(std::nothrow_t) noexcept
     {
-        // No initialization needed for libpq
+        // No initialization needed for libpq — this is a no-op
         return true;
     }
 
     void PostgreSQLDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<PostgreSQLDBConnection> conn) noexcept
     {
-        std::scoped_lock lock(s_registryMutex);
-        s_connectionRegistry.insert(std::move(conn));
+        {
+            std::scoped_lock lock(s_registryMutex);
+            s_connectionRegistry.insert(std::move(conn));
+        }
+
+        // Coalesced cleanup: only post if no cleanup is already queued.
+        if (!s_cleanupPending.exchange(true, std::memory_order_acq_rel))
+        {
+            SerialQueue::global().post([]()
+            {
+                {
+                    std::scoped_lock lock(s_registryMutex);
+                    std::erase_if(s_connectionRegistry,
+                        [](const auto &w) { return w.expired(); });
+                }
+                s_cleanupPending.store(false, std::memory_order_release);
+            });
+        }
     }
 
     void PostgreSQLDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<PostgreSQLDBConnection> &conn) noexcept
@@ -69,11 +91,40 @@ namespace cpp_dbc::PostgreSQL
         s_connectionRegistry.erase(conn);
     }
 
+    // See initialize() comment above for why cleanup() does not use
+    // s_initialized guard.
     void PostgreSQLDBDriver::cleanup()
     {
         // PostgreSQL (libpq) does not require explicit global library cleanup.
         // Sleep a bit to ensure all resources are properly released.
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    void PostgreSQLDBDriver::closeAllOpenConnections(std::nothrow_t) noexcept
+    {
+        // Mark driver as closed — reject any new connection attempts
+        m_closed.store(true, std::memory_order_release);
+
+        // Close all open connections before releasing library resources.
+        // Collect under lock first, then close outside the lock to avoid
+        // deadlock with unregisterConnection() (which also acquires s_registryMutex).
+        std::vector<std::shared_ptr<PostgreSQLDBConnection>> connectionsToClose;
+        {
+            std::scoped_lock lock(s_registryMutex);
+            for (const auto &weak : s_connectionRegistry)
+            {
+                auto conn = weak.lock();
+                if (conn)
+                {
+                    connectionsToClose.push_back(std::move(conn));
+                }
+            }
+            s_connectionRegistry.clear();
+        }
+        for (const auto &conn : connectionsToClose)
+        {
+            [[maybe_unused]] auto closeResult = conn->close(std::nothrow);
+        }
     }
 
     // ============================================================================
@@ -93,6 +144,9 @@ namespace cpp_dbc::PostgreSQL
     PostgreSQLDBDriver::~PostgreSQLDBDriver()
     {
         PG_DEBUG("PostgreSQLDBDriver::destructor - Destroying driver");
+
+        closeAllOpenConnections(std::nothrow);
+
         cleanup();
     }
 
@@ -145,7 +199,7 @@ namespace cpp_dbc::PostgreSQL
                                       false, // allowLocalConnection
                                       true)) // requireDatabase (PostgreSQL requires database)
         {
-            PG_DEBUG("PostgreSQLDBDriver::parseURI - Failed to parse URI: " << uri);
+            PG_DEBUG("PostgreSQLDBDriver::parseURI - Failed to parse URI: %s", uri.c_str());
             return cpp_dbc::unexpected(DBException("1P567517HBSK",
                                                    "Failed to parse PostgreSQL URI: " + uri,
                                                    system_utils::captureCallStack()));
@@ -189,10 +243,9 @@ namespace cpp_dbc::PostgreSQL
     PostgreSQLDBDriver::getInstance(std::nothrow_t) noexcept
     {
         std::scoped_lock lock(s_instanceMutex);
-        auto existing = s_instance.lock();
-        if (existing)
+        if (s_instance)
         {
-            return existing;
+            return s_instance;
         }
         // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
         // Constructor errors are captured in m_initFailed / m_initError.
@@ -202,7 +255,7 @@ namespace cpp_dbc::PostgreSQL
             return cpp_dbc::unexpected(std::move(*inst->m_initError));
         }
         s_instance = inst;
-        return inst;
+        return s_instance;
     }
 
     size_t PostgreSQLDBDriver::getConnectionAlive() noexcept
@@ -221,6 +274,13 @@ namespace cpp_dbc::PostgreSQL
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
     {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("R7DYVH4KN8SZ",
+                                                   "Driver is closed, no more connections allowed",
+                                                   system_utils::captureCallStack()));
+        }
+
         auto parseResult = parseURI(std::nothrow, uri);
         if (!parseResult.has_value())
         {

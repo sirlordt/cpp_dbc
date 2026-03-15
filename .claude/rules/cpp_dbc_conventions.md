@@ -1301,7 +1301,7 @@ return pool;
 
 ### PrivateCtorTag Pattern — Driver Classes (Creational Pattern)
 
-All driver classes — Connection, PreparedStatement, ResultSet, Blob, InputStream, Cursor, Collection, Document — use the **PrivateCtorTag creational pattern**. The only exception is `*DBDriver` classes, which follow the [DBDriver Variant](#dbdriver-variant--c-library-initialization-with-double-checked-locking) pattern instead.
+All driver classes — Connection, PreparedStatement, ResultSet, Blob, InputStream, Cursor, Collection, Document, and **`*DBDriver`** — use the **PrivateCtorTag creational pattern**. `*DBDriver` classes combine PrivateCtorTag with the [Singleton + Connection Registry](#dbdriver--singleton--connection-registry) pattern (`s_instance` weak_ptr + `getInstance()` + `s_connectionRegistry`).
 
 The goal is a **throw-free creational pattern**: no `throw` statement exists anywhere except inside the explicit `::create` throwing wrappers. Constructors never throw — they capture errors in member variables for deferred delivery by the factory.
 
@@ -1566,15 +1566,15 @@ public:
 
 | Rule | Description |
 |------|-------------|
-| **Scope** | All driver classes except `*DBDriver` |
+| **Scope** | All driver classes including `*DBDriver` |
 | **PrivateCtorTag** | One per class, private nested struct, prevents external construction |
 | **Constructor** | Public, `noexcept`, params: `PrivateCtorTag` → `std::nothrow_t` → class-specific |
 | **Construction state** | `bool m_initFailed{false}` + `std::unique_ptr<DBException> m_initError{nullptr}` |
-| **`::create` count** | One per constructor |
-| **`::create` throwing** | Inside `#ifdef __cpp_exceptions`, delegates to nothrow version |
-| **`::create` nothrow** | First param `std::nothrow_t`, uses `std::make_shared`, no try/catch |
-| **`bad_alloc`** | Death sentence — no try/catch in `::create` nothrow |
-| **Throw-free guarantee** | No `throw` anywhere except inside `::create` throwing wrappers |
+| **Factory** | `::create` for most classes; `::getInstance` for `*DBDriver` (singleton). One per constructor |
+| **Factory throwing** | Inside `#ifdef __cpp_exceptions`, delegates to nothrow version |
+| **Factory nothrow** | First param `std::nothrow_t`, uses `std::make_shared`, no try/catch |
+| **`bad_alloc`** | Death sentence — no try/catch in factory nothrow |
+| **Throw-free guarantee** | No `throw` anywhere except inside factory throwing wrappers |
 
 ### Source File Distribution
 
@@ -1702,13 +1702,13 @@ std::expected<Result, DBException> MyClass::query(std::nothrow_t, const std::str
 
 6. **Split-point heuristic**: Each `.cpp` file should contain a logically coherent group. Prefer grouping by (a) lifecycle (constructor / helpers / destructor), (b) data-path operations, (c) administrative or introspection methods. Avoid splitting a single conceptual operation across two files.
 
-### DBDriver Variant — C Library Initialization with Double-Checked Locking
+### DBDriver — Singleton + Connection Registry
 
-`DBDriver` subclasses (e.g. `MongoDBDriver`, `RedisDBDriver`, `ScyllaDBDriver`) that wrap a C library requiring one-time global initialization use a specific `initialize` pattern. This variant is **only used in `DBDriver` classes** and is **different from the general `initialize` helper** described above.
+`*DBDriver` classes use the same **PrivateCtorTag creational pattern** as all other driver classes (Connection, PreparedStatement, etc.), with two additional concerns layered on top:
 
-**Why not `std::once_flag` / `std::call_once`?**
-1. `std::once_flag` cannot be reset — but `cleanup()` must allow re-initialization after driver destruction.
-2. `std::call_once` may throw `std::system_error`, which is incompatible with `-fno-exceptions` builds.
+1. **Singleton**: A `static std::weak_ptr<MyDriver> s_instance` + `static std::mutex s_instanceMutex` pair ensures only one driver instance exists at a time. `getInstance()` locks `s_instanceMutex`, tries to promote the weak_ptr, and creates a new instance via `std::make_shared` with `PrivateCtorTag{}` if the weak_ptr is expired.
+
+2. **Connection registry**: A `static std::set<std::weak_ptr<MyConnection>, std::owner_less<...>> s_connectionRegistry` + `static std::mutex s_registryMutex` pair tracks all live connections created through `connectRelational()` (or the family-specific connect method). Connections are registered after creation and unregistered when closed.
 
 **Pattern**:
 
@@ -1716,83 +1716,154 @@ std::expected<Result, DBException> MyClass::query(std::nothrow_t, const std::str
 // ── Header (driver.hpp, inside #if USE_<DRIVER>) ──────────────────────────────
 class MyDriver final : public SomeFamilyDBDriver
 {
-    // Note: atomic<bool> + mutex instead of std::once_flag because
-    // std::once_flag cannot be reset, but we need cleanup() to allow
-    // re-initialization on subsequent driver construction.
-    // Also, std::call_once can throw std::system_error, which is incompatible
-    // with -fno-exceptions builds.
-    static std::atomic<bool> s_initialized;
-    static std::mutex        s_initMutex;
+    // ── PrivateCtorTag — prevents direct construction; use getInstance() ──
+    struct PrivateCtorTag
+    {
+        explicit PrivateCtorTag() = default;
+    };
+
+    // ── Singleton state ───────────────────────────────────────────────────
+    static std::weak_ptr<MyDriver> s_instance;
+    static std::mutex              s_instanceMutex;
+
+    // ── Connection registry ───────────────────────────────────────────────
+    static std::mutex                                                s_registryMutex;
+    static std::set<std::weak_ptr<MyConnection>,
+                    std::owner_less<std::weak_ptr<MyConnection>>>   s_connectionRegistry;
 
     static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
 
+    static void registerConnection(std::nothrow_t, std::weak_ptr<MyConnection> conn) noexcept;
+    static void unregisterConnection(std::nothrow_t, const std::weak_ptr<MyConnection> &conn) noexcept;
+
+    static void cleanup();
+
+    friend class MyConnection;
+
+    // ── Construction state ────────────────────────────────────────────────
+    bool m_initFailed{false};
+    std::unique_ptr<DBException> m_initError{nullptr};
+
 public:
-    MyDriver();   // calls initialize(std::nothrow) internally — throwing constructor is fine here
+    MyDriver(PrivateCtorTag, std::nothrow_t) noexcept;
     ~MyDriver() override;
-    // ...
-    static void cleanup();   // resets s_initialized so a new driver can re-init
+
+    MyDriver(const MyDriver &) = delete;
+    MyDriver &operator=(const MyDriver &) = delete;
+    MyDriver(MyDriver &&) = delete;
+    MyDriver &operator=(MyDriver &&) = delete;
+
+#ifdef __cpp_exceptions
+    static std::shared_ptr<MyDriver> getInstance();
+    // ... throwing public methods ...
+#endif
+
+    static cpp_dbc::expected<std::shared_ptr<MyDriver>, DBException> getInstance(std::nothrow_t) noexcept;
+    // ... nothrow public methods ...
+
+    static size_t getConnectionAlive() noexcept;
 };
 ```
 
 ```cpp
 // ── Implementation (driver_01.cpp) ────────────────────────────────────────────
-std::atomic<bool> MyDriver::s_initialized{false};
-std::mutex        MyDriver::s_initMutex;
 
+// ── Static member initialization ──────────────────────────────────────────
+std::weak_ptr<MyDriver> MyDriver::s_instance;
+std::mutex              MyDriver::s_instanceMutex;
+std::mutex              MyDriver::s_registryMutex;
+std::set<std::weak_ptr<MyConnection>,
+         std::owner_less<std::weak_ptr<MyConnection>>> MyDriver::s_connectionRegistry;
+
+// ── Private static helpers ────────────────────────────────────────────────
 cpp_dbc::expected<bool, DBException> MyDriver::initialize(std::nothrow_t) noexcept
 {
-    // Fast path: already initialized (acquire load for visibility)
-    if (s_initialized.load(std::memory_order_acquire))
-    {
-        return true;
-    }
-
-    // Slow path: take lock and check again (double-checked locking)
-    std::lock_guard<std::mutex> lock(s_initMutex);
-    if (s_initialized.load(std::memory_order_acquire))
-    {
-        return true;
-    }
-
-    try
-    {
-        c_library_init();  // one-time C library global init
-    }
-    catch (const std::exception &ex)
-    {
-        return std::unexpected(DBException("XXXXXXXXXXXX", ex.what(), system_utils::captureCallStack()));
-    }
-    catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
-    {
-        return std::unexpected(DBException("XXXXXXXXXXXX", "Unknown error during library init", system_utils::captureCallStack()));
-    }
-
-    s_initialized.store(true, std::memory_order_release);
+    // Call C library init if needed; return error on failure.
+    // For libraries that don't need global init (e.g. libpq), this is a no-op.
     return true;
 }
 
-MyDriver::MyDriver()
+void MyDriver::registerConnection(std::nothrow_t, std::weak_ptr<MyConnection> conn) noexcept
 {
-    auto result = initialize(std::nothrow);
-    if (!result.has_value())
-    {
-        throw result.error();  // constructor may throw; that is acceptable here
-    }
+    std::scoped_lock lock(s_registryMutex);
+    s_connectionRegistry.insert(std::move(conn));
+}
+
+void MyDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<MyConnection> &conn) noexcept
+{
+    std::scoped_lock lock(s_registryMutex);
+    s_connectionRegistry.erase(conn);
 }
 
 void MyDriver::cleanup()
 {
-    std::lock_guard<std::mutex> lock(s_initMutex);
-    c_library_cleanup();
-    s_initialized.store(false, std::memory_order_release);
+    // Call C library cleanup if needed.
+}
+
+// ── Constructor + Destructor ──────────────────────────────────────────────
+MyDriver::MyDriver(MyDriver::PrivateCtorTag, std::nothrow_t) noexcept
+{
+    auto result = initialize(std::nothrow);
+    if (!result.has_value())
+    {
+        m_initFailed = true;
+        m_initError = std::make_unique<DBException>(std::move(result.error()));
+    }
+}
+
+MyDriver::~MyDriver()
+{
+    cleanup();
+}
+
+// ── Singleton ─────────────────────────────────────────────────────────────
+#ifdef __cpp_exceptions
+std::shared_ptr<MyDriver> MyDriver::getInstance()
+{
+    auto result = getInstance(std::nothrow);
+    if (!result.has_value())
+    {
+        throw result.error();
+    }
+    return result.value();
+}
+#endif
+
+cpp_dbc::expected<std::shared_ptr<MyDriver>, DBException>
+MyDriver::getInstance(std::nothrow_t) noexcept
+{
+    std::scoped_lock lock(s_instanceMutex);
+    auto existing = s_instance.lock();
+    if (existing)
+    {
+        return existing;
+    }
+    // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+    // Constructor errors are captured in m_initFailed / m_initError.
+    auto inst = std::make_shared<MyDriver>(MyDriver::PrivateCtorTag{}, std::nothrow);
+    if (inst->m_initFailed)
+    {
+        return cpp_dbc::unexpected(std::move(*inst->m_initError));
+    }
+    s_instance = inst;
+    return inst;
+}
+
+size_t MyDriver::getConnectionAlive() noexcept
+{
+    std::scoped_lock lock(s_registryMutex);
+    return static_cast<size_t>(std::ranges::count_if(
+        s_connectionRegistry,
+        [](const auto &w) { return !w.expired(); }));
 }
 ```
 
-**Key constraints for this variant**:
-- `s_initialized` and `s_initMutex` are **`static` members** — shared across all instances of the driver class.
-- `cleanup()` **must reset** `s_initialized` to `false` so that a new driver instance can re-initialize the library after cleanup.
-- The `MyDriver` constructor **may throw** in this pattern (it is not a `std::nothrow_t` constructor) — the factory pattern does not apply to `DBDriver` classes because they are typically constructed directly via `std::make_shared<MyDriver>()`.
-- The static `initialize` helper is **always private** and takes `std::nothrow_t` as its first parameter, following the same nothrow contract as all other private helpers.
+**Key constraints**:
+- The constructor is **public**, **`noexcept`**, and guarded by `PrivateCtorTag` — identical to all other driver classes. It **never throws**.
+- Errors from `initialize()` are captured in `m_initFailed` / `m_initError` for deferred delivery by `getInstance()`.
+- `getInstance(std::nothrow_t)` checks `m_initFailed` after construction — **no try/catch** (death-sentence exceptions only).
+- `cleanup()` is called unconditionally in the destructor. It performs any C library cleanup needed.
+- The `initialize()` helper is **always private**, takes `std::nothrow_t`, and is `noexcept`.
 
 ## Adding New Database Drivers
 

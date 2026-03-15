@@ -25,6 +25,7 @@
 #include <charconv>
 #include <cstring>
 #include <iostream>
+#include <vector>
 #include "cpp_dbc/common/system_utils.hpp"
 #include "mysql_internal.hpp"
 
@@ -34,11 +35,19 @@ namespace cpp_dbc::MySQL
 {
 
     // ── Static member initialization ──────────────────────────────────────────
-    std::weak_ptr<MySQLDBDriver> MySQLDBDriver::s_instance;
-    std::mutex                   MySQLDBDriver::s_instanceMutex;
-    std::mutex                   MySQLDBDriver::s_registryMutex;
+    // IMPORTANT: s_instance MUST be declared LAST. Static file-scope variables
+    // are destroyed in reverse declaration order. s_instance holds the driver
+    // alive (shared_ptr singleton), and its destructor calls closeAllOpenConnections()
+    // which needs s_registryMutex and s_connectionRegistry to be alive.
+    // If s_instance were first, it would be destroyed last — after the mutex
+    // and registry are already gone → undefined behavior.
+    std::mutex MySQLDBDriver::s_instanceMutex;
+    std::mutex MySQLDBDriver::s_registryMutex;
     std::set<std::weak_ptr<MySQLDBConnection>,
-             std::owner_less<std::weak_ptr<MySQLDBConnection>>> MySQLDBDriver::s_connectionRegistry;
+             std::owner_less<std::weak_ptr<MySQLDBConnection>>>
+        MySQLDBDriver::s_connectionRegistry;
+    std::atomic<bool> MySQLDBDriver::s_cleanupPending{false};
+    std::shared_ptr<MySQLDBDriver> MySQLDBDriver::s_instance;
 
     // ============================================================================
     // MySQLDBDriver Implementation - Private Static Helpers
@@ -66,8 +75,23 @@ namespace cpp_dbc::MySQL
 
     void MySQLDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<MySQLDBConnection> conn) noexcept
     {
-        std::scoped_lock lock(s_registryMutex);
-        s_connectionRegistry.insert(std::move(conn));
+        {
+            std::scoped_lock lock(s_registryMutex);
+            s_connectionRegistry.insert(std::move(conn));
+        }
+
+        // Coalesced cleanup: only post if no cleanup is already queued.
+        if (!s_cleanupPending.exchange(true, std::memory_order_acq_rel))
+        {
+            SerialQueue::global().post([]()
+                                       {
+                {
+                    std::scoped_lock lock(s_registryMutex);
+                    //std::erase_if(s_connectionRegistry,
+                    //    [](const auto &w) { return w.expired(); });
+                }
+                s_cleanupPending.store(false, std::memory_order_release); });
+        }
     }
 
     void MySQLDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<MySQLDBConnection> &conn) noexcept
@@ -81,6 +105,33 @@ namespace cpp_dbc::MySQL
     void MySQLDBDriver::cleanup()
     {
         mysql_library_end();
+    }
+
+    void MySQLDBDriver::closeAllOpenConnections(std::nothrow_t) noexcept
+    {
+        // Mark driver as closed — reject any new connection attempts
+        m_closed.store(true, std::memory_order_release);
+
+        // Close all open connections before releasing library resources.
+        // Collect under lock first, then close outside the lock to avoid
+        // deadlock with unregisterConnection() (which also acquires s_registryMutex).
+        std::vector<std::shared_ptr<MySQLDBConnection>> connectionsToClose;
+        {
+            std::scoped_lock lock(s_registryMutex);
+            for (const auto &weak : s_connectionRegistry)
+            {
+                auto conn = weak.lock();
+                if (conn)
+                {
+                    connectionsToClose.push_back(std::move(conn));
+                }
+            }
+            s_connectionRegistry.clear();
+        }
+        for (const auto &conn : connectionsToClose)
+        {
+            [[maybe_unused]] auto closeResult = conn->close(std::nothrow);
+        }
     }
 
     // ============================================================================
@@ -100,6 +151,9 @@ namespace cpp_dbc::MySQL
     MySQLDBDriver::~MySQLDBDriver()
     {
         MYSQL_DEBUG("MySQLDBDriver::destructor - Destroying driver");
+
+        closeAllOpenConnections(std::nothrow);
+
         cleanup();
     }
 
@@ -140,10 +194,9 @@ namespace cpp_dbc::MySQL
     MySQLDBDriver::getInstance(std::nothrow_t) noexcept
     {
         std::scoped_lock lock(s_instanceMutex);
-        auto existing = s_instance.lock();
-        if (existing)
+        if (s_instance)
         {
-            return existing;
+            return s_instance;
         }
         // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
         // Constructor errors are captured in m_initFailed / m_initError.
@@ -153,7 +206,7 @@ namespace cpp_dbc::MySQL
             return cpp_dbc::unexpected(std::move(*inst->m_initError));
         }
         s_instance = inst;
-        return inst;
+        return s_instance;
     }
 
     size_t MySQLDBDriver::getConnectionAlive() noexcept
@@ -161,7 +214,8 @@ namespace cpp_dbc::MySQL
         std::scoped_lock lock(s_registryMutex);
         return static_cast<size_t>(std::ranges::count_if(
             s_connectionRegistry,
-            [](const auto &w) { return !w.expired(); }));
+            [](const auto &w)
+            { return !w.expired(); }));
     }
 
     cpp_dbc::expected<std::map<std::string, std::string>, DBException> MySQLDBDriver::parseURI(
@@ -222,6 +276,13 @@ namespace cpp_dbc::MySQL
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
     {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("W3KFMB9NX2TP",
+                                                   "Driver is closed, no more connections allowed",
+                                                   system_utils::captureCallStack()));
+        }
+
         auto parseResult = parseURI(std::nothrow, uri);
         if (!parseResult.has_value())
         {

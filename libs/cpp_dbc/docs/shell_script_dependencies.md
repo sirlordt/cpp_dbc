@@ -561,6 +561,76 @@ if [ "$USE_NEWDRIVER" = "ON" ]; then
 fi
 ```
 
+## CMake Cache Invalidation — Shared Build Directory
+
+### Problem (fixed 2026-03-12)
+
+`build_cpp_dbc.sh` and `build_test_cpp_dbc.sh` share the same CMake build directory (`build/libs/cpp_dbc/build`). When both scripts run in sequence, any difference in the cmake flags passed to `cmake` invalidates the CMake cache and forces a **full recompilation** of every `.o` file — even if the source code has not changed. This doubled build times unnecessarily.
+
+### Root Causes Identified
+
+| Cause | `build_cpp_dbc.sh` value | `build_test_cpp_dbc.sh` value | Impact |
+|-------|--------------------------|-------------------------------|--------|
+| `CPP_DBC_BUILD_EXAMPLES` | `ON` (from `--examples`) | `OFF` (hardcoded) | Cache invalidated |
+| `CPP_DBC_BUILD_BENCHMARKS` | `ON` (from `--benchmarks`) | `OFF` (hardcoded) | Cache invalidated |
+| `BACKWARD_HAS_DW` | `ON` (old default) | `OFF` (default) | Cache invalidated |
+| `CMAKE_CXX_FLAGS` trailing spaces | `"... -Wcast-align "` | `"... -Wcast-align  "` (extra space from empty `${SANITIZER_FLAGS}`) | Full recompilation |
+
+Any single difference in a cmake `-D` variable that affects compilation flags triggers CMake to reconfigure and recompile all translation units.
+
+### Fixes Applied
+
+#### 1. Redundant `build_test_cpp_dbc.sh` call removed from `build_cpp_dbc.sh`
+
+`build_cpp_dbc.sh` previously called `build_test_cpp_dbc.sh` at the end when `BUILD_TESTS=ON`. This was redundant because the cmake invocation in `build_cpp_dbc.sh` already compiles the library, tests, examples, and benchmarks in a single pass via `-DCPP_DBC_BUILD_TESTS=ON`. The call has been commented out with an explanation.
+
+`build_test_cpp_dbc.sh` remains as a **standalone script** for test runners (`run_test.sh`, `run_test_parallel.sh`) that may need to rebuild with sanitizer flags (TSAN/ASAN).
+
+#### 2. `BACKWARD_HAS_DW` default aligned to `OFF` in both scripts
+
+`build_cpp_dbc.sh` previously defaulted `BACKWARD_HAS_DW=ON`, while `build_test_cpp_dbc.sh` defaulted to `OFF`. This mismatch caused cache invalidation when the test runner ran after a build. Both scripts now default to `OFF`. Use `--dw-on` to explicitly enable libdw support when needed.
+
+#### 3. `CPP_DBC_BUILD_EXAMPLES` and `CPP_DBC_BUILD_BENCHMARKS` hardcoded to `OFF` in `build_test_cpp_dbc.sh`
+
+`build_test_cpp_dbc.sh` hardcodes `-DCPP_DBC_BUILD_EXAMPLES=OFF -DCPP_DBC_BUILD_BENCHMARKS=OFF` in its CMake invocation. This is intentional: the script is a **test-only** build tool used by `run_test.sh` and `run_test_parallel.sh`, so it skips examples and benchmarks to reduce build time. To build examples or benchmarks, use `./helper.sh --mc-combo-01` (clean build) or `./helper.sh --mc-combo-02` (incremental build) instead. Both combo flags internally call `build_cpp_dbc.sh` with examples and benchmarks enabled.
+
+#### 4. `CMAKE_CXX_FLAGS` built dynamically to avoid trailing spaces
+
+Both scripts now build the `CMAKE_CXX_FLAGS` string dynamically, only appending non-empty flags:
+
+```bash
+CXX_BASE_FLAGS="-Wall -Wextra -Wpedantic -Wconversion ..."
+CXX_ALL_FLAGS="$CXX_BASE_FLAGS"
+if [ -n "$SANITIZER_FLAGS" ]; then
+    CXX_ALL_FLAGS="$CXX_ALL_FLAGS $SANITIZER_FLAGS"
+fi
+if [ -n "$ANALYZER_FLAG" ]; then
+    CXX_ALL_FLAGS="$CXX_ALL_FLAGS $ANALYZER_FLAG"
+fi
+
+cmake ... -DCMAKE_CXX_FLAGS="$CXX_ALL_FLAGS" ...
+```
+
+This ensures that when no sanitizers or analyzer flags are active, both scripts produce the **exact same** `CMAKE_CXX_FLAGS` string — no trailing spaces, no cache invalidation.
+
+### Key Principle
+
+When two scripts share the same CMake build directory, all `-D` flags that affect compilation **must produce identical values** when invoked in sequence without source changes. Otherwise, CMake detects a configuration change and recompiles everything. Flags that only affect linking or are unused by the project (`CMAKE_TOOLCHAIN_FILE`, `CMAKE_EXE_LINKER_FLAGS=""`) do not cause recompilation.
+
+### When Recompilation is Expected
+
+Recompilation is **intentional** when the test runner is invoked with sanitizer flags that differ from the previous build:
+
+```bash
+# First build: no sanitizers
+./helper.sh --mc-combo-02
+
+# Test run with TSAN: recompilation expected (CXX_FLAGS changed)
+./helper.sh --run-test=rebuild,sqlite,...,tsan,...
+```
+
+In this case, `CMAKE_CXX_FLAGS` legitimately changes (adds `-fsanitize=thread`), so full recompilation is correct and expected.
+
 ## Validation Commands
 
 After updating scripts, verify with:

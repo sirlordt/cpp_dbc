@@ -71,13 +71,16 @@ namespace cpp_dbc::ScyllaDB
         static std::mutex s_initMutex;
 
         // ── Singleton state ───────────────────────────────────────────────────
-        static std::weak_ptr<ScyllaDBDriver> s_instance;
-        static std::mutex                    s_instanceMutex;
+        static std::shared_ptr<ScyllaDBDriver> s_instance;
+        static std::mutex                      s_instanceMutex;
 
         // ── Connection registry ───────────────────────────────────────────────
         static std::mutex                                                        s_registryMutex;
         static std::set<std::weak_ptr<ScyllaDBConnection>,
                         std::owner_less<std::weak_ptr<ScyllaDBConnection>>>      s_connectionRegistry;
+
+        // ── Coalesced cleanup flag ────────────────────────────────────────────
+        static std::atomic<bool> s_cleanupPending;
 
         static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
 
@@ -86,9 +89,16 @@ namespace cpp_dbc::ScyllaDB
 
         friend class ScyllaDBConnection;
 
+        void closeAllOpenConnections(std::nothrow_t) noexcept;
+
         // ── Construction state ────────────────────────────────────────────────
         bool m_initFailed{false};
         std::unique_ptr<DBException> m_initError{nullptr};
+
+        // ── Driver state ──────────────────────────────────────────────────────
+        // Set to true by the destructor before releasing resources.
+        // Prevents new connection attempts during and after driver teardown.
+        std::atomic<bool> m_closed{false};
 
     public:
         ScyllaDBDriver(PrivateCtorTag, std::nothrow_t) noexcept;

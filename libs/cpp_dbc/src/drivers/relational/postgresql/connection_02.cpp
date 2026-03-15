@@ -41,316 +41,218 @@ namespace cpp_dbc::PostgreSQL
     // Nothrow API implementation for PostgreSQLDBConnection
     cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> PostgreSQLDBConnection::prepareStatement(std::nothrow_t, const std::string &sql) noexcept
     {
-        try
-        {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        DB_DRIVER_LOCK_GUARD(m_connMutex);
 
-            if (m_closed || !m_conn)
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("7W8X9Y0Z1A2B", "Connection is closed", system_utils::captureCallStack()));
-            }
-
-            // Generate a unique statement name and pass weak_ptr to the prepared statement
-            // so it can safely detect when connection is closed
-            std::string stmtName = generateStatementName();
-#if DB_DRIVER_THREAD_SAFE
-            auto stmtResult = PostgreSQLDBPreparedStatement::create(std::nothrow, std::weak_ptr<PGconn>(m_conn), m_connMutex, sql, stmtName);
-#else
-            auto stmtResult = PostgreSQLDBPreparedStatement::create(std::nothrow, std::weak_ptr<PGconn>(m_conn), sql, stmtName);
-#endif
-            if (!stmtResult.has_value())
-            {
-                return cpp_dbc::unexpected<DBException>(stmtResult.error());
-            }
-            auto stmt = stmtResult.value();
-
-            // Register the statement as weak_ptr - allows natural destruction when user releases reference
-            // Statements will be explicitly closed in returnToPool() or close() before connection reuse
-            [[maybe_unused]] auto regResult = registerStatement(std::nothrow, std::weak_ptr<PostgreSQLDBPreparedStatement>(stmt));
-
-            return cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException>(std::static_pointer_cast<RelationalDBPreparedStatement>(stmt));
-        }
-        catch (const DBException &ex)
+        if (m_closed.load(std::memory_order_acquire) || !m_conn)
         {
-            return cpp_dbc::unexpected<DBException>(ex);
+            return cpp_dbc::unexpected<DBException>(DBException("7W8X9Y0Z1A2B", "Connection is closed", system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
+
+        // Generate a unique statement name and pass weak_ptr to the connection
+        // so the statement can safely detect when connection is closed
+        std::string stmtName = generateStatementName(std::nothrow);
+        auto stmtResult = PostgreSQLDBPreparedStatement::create(std::nothrow,
+            std::weak_ptr<PostgreSQLDBConnection>(shared_from_this()), sql, stmtName);
+        if (!stmtResult.has_value())
         {
-            return cpp_dbc::unexpected<DBException>(DBException("1D3F5A7C9E2B", ex.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected<DBException>(stmtResult.error());
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("8B4D6F2A9C3E", "Unknown error in PostgreSQLDBConnection::prepareStatement", system_utils::captureCallStack()));
-        }
+        auto stmt = stmtResult.value();
+
+        // Register the statement as weak_ptr - allows natural destruction when user releases reference
+        // Statements will be explicitly closed in returnToPool() or close() before connection reuse
+        [[maybe_unused]] auto regResult = registerStatement(std::nothrow, std::weak_ptr<PostgreSQLDBPreparedStatement>(stmt));
+
+        return cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException>(std::static_pointer_cast<RelationalDBPreparedStatement>(stmt));
     }
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> PostgreSQLDBConnection::executeQuery(std::nothrow_t, const std::string &sql) noexcept
     {
-        try
-        {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        DB_DRIVER_LOCK_GUARD(m_connMutex);
 
-            if (m_closed || !m_conn)
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("3C4D5E6F7G8H", "Connection is closed", system_utils::captureCallStack()));
-            }
+        if (m_closed.load(std::memory_order_acquire) || !m_conn)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("3C4D5E6F7G8H", "Connection is closed", system_utils::captureCallStack()));
+        }
 
-            PGresult *result = PQexec(m_conn.get(), sql.c_str());
-            if (PQresultStatus(result) != PGRES_TUPLES_OK)
-            {
-                std::string error = PQresultErrorMessage(result);
-                PQclear(result);
-                return cpp_dbc::unexpected<DBException>(DBException("9I0J1K2L3M4N", "Query failed: " + error, system_utils::captureCallStack()));
-            }
+        PGresultHandle result(PQexec(m_conn.get(), sql.c_str()));
+        if (PQresultStatus(result.get()) != PGRES_TUPLES_OK)
+        {
+            std::string error = PQresultErrorMessage(result.get());
+            return cpp_dbc::unexpected<DBException>(DBException("9I0J1K2L3M4N", "Query failed: " + error, system_utils::captureCallStack()));
+        }
 
-            auto rsResult = PostgreSQLDBResultSet::create(std::nothrow, result);
-            if (!rsResult.has_value())
-            {
-                return cpp_dbc::unexpected(rsResult.error());
-            }
-            return cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>(std::static_pointer_cast<RelationalDBResultSet>(rsResult.value()));
-        }
-        catch (const DBException &ex)
+        auto rsResult = PostgreSQLDBResultSet::create(std::nothrow,
+            std::weak_ptr<PostgreSQLDBConnection>(shared_from_this()), result.release());
+        if (!rsResult.has_value())
         {
-            return cpp_dbc::unexpected<DBException>(ex);
+            return cpp_dbc::unexpected(rsResult.error());
         }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("PG3J1K2L3M4N", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("PG4K2L3M4N5O", "Unknown error in PostgreSQLDBConnection::executeQuery", system_utils::captureCallStack()));
-        }
+        auto rs = rsResult.value();
+
+        // Register the result set for lifecycle management
+        [[maybe_unused]] auto regResult = registerResultSet(std::nothrow, std::weak_ptr<PostgreSQLDBResultSet>(rs));
+
+        return cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>(std::static_pointer_cast<RelationalDBResultSet>(rs));
     }
 
     cpp_dbc::expected<uint64_t, DBException> PostgreSQLDBConnection::executeUpdate(std::nothrow_t, const std::string &sql) noexcept
     {
-        try
-        {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        DB_DRIVER_LOCK_GUARD(m_connMutex);
 
-            if (m_closed || !m_conn)
+        if (m_closed.load(std::memory_order_acquire) || !m_conn)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("5O6P7Q8R9S0T", "Connection is closed", system_utils::captureCallStack()));
+        }
+
+        PGresultHandle result(PQexec(m_conn.get(), sql.c_str()));
+        if (PQresultStatus(result.get()) != PGRES_COMMAND_OK)
+        {
+            std::string error = PQresultErrorMessage(result.get());
+            return cpp_dbc::unexpected<DBException>(DBException("1U2V3W4X5Y6Z", "Update failed: " + error, system_utils::captureCallStack()));
+        }
+
+        // Get the number of affected rows
+        const char *affectedRows = PQcmdTuples(result.get());
+        uint64_t rowCount = 0;
+        if (affectedRows && affectedRows[0] != '\0')
+        {
+            std::string_view affectedRowsView(affectedRows);
+            auto [ptr, ec] = std::from_chars(affectedRowsView.data(), affectedRowsView.data() + affectedRowsView.size(), rowCount);
+            if (ec != std::errc{})
             {
-                return cpp_dbc::unexpected<DBException>(DBException("5O6P7Q8R9S0T", "Connection is closed", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("JH2IMLZPHQKD", "Failed to parse affected row count", system_utils::captureCallStack()));
             }
+        }
 
-            PGresult *result = PQexec(m_conn.get(), sql.c_str());
-            if (PQresultStatus(result) != PGRES_COMMAND_OK)
-            {
-                std::string error = PQresultErrorMessage(result);
-                PQclear(result);
-                return cpp_dbc::unexpected<DBException>(DBException("1U2V3W4X5Y6Z", "Update failed: " + error, system_utils::captureCallStack()));
-            }
-
-            // Get the number of affected rows
-            const char *affectedRows = PQcmdTuples(result);
-            uint64_t rowCount = 0;
-            if (affectedRows && affectedRows[0] != '\0')
-            {
-                std::string_view affectedRowsView(affectedRows);
-                std::from_chars(affectedRowsView.data(), affectedRowsView.data() + affectedRowsView.size(), rowCount);
-            }
-
-            PQclear(result);
-            return rowCount;
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("9A7C3E5B2D8F", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("4F1D8B6E2A9C", "Unknown error in PostgreSQLDBConnection::executeUpdate", system_utils::captureCallStack()));
-        }
+        return rowCount;
     }
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::setAutoCommit(std::nothrow_t, bool autoCommitFlag) noexcept
     {
-        try
+        DB_DRIVER_LOCK_GUARD(m_connMutex);
+
+        if (m_closed.load(std::memory_order_acquire) || !m_conn)
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            return cpp_dbc::unexpected<DBException>(DBException("R4S5T6U7V8W9", "Connection is closed", system_utils::captureCallStack()));
+        }
 
-            if (m_closed || !m_conn)
+        // Only take action if the flag is actually changing
+        if (this->m_autoCommit != autoCommitFlag)
+        {
+            if (!autoCommitFlag)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("R4S5T6U7V8W9", "Connection is closed", system_utils::captureCallStack()));
-            }
-
-            // Only take action if the flag is actually changing
-            if (this->m_autoCommit != autoCommitFlag)
-            {
-                if (!autoCommitFlag)
+                // Disabling autoCommit — start an explicit transaction first.
+                // PostgreSQL is always in autocommit mode until a transaction is started.
+                // Only flip the flag after BEGIN succeeds to avoid inconsistent state.
+                auto result = beginTransaction(std::nothrow);
+                if (!result.has_value())
                 {
-                    // Si estamos desactivando autoCommit, iniciar una transacción explícita
-                    // PostgreSQL está siempre en modo autocommit hasta que se inicia una transacción
-                    this->m_autoCommit = false;
+                    return cpp_dbc::unexpected<DBException>(result.error());
+                }
 
-                    auto result = beginTransaction(std::nothrow);
+                this->m_autoCommit = false;
+            }
+            else
+            {
+                // If we're enabling autocommit, we must ensure any active transaction is ended
+                if (m_transactionActive)
+                {
+                    auto result = commit(std::nothrow);
                     if (!result.has_value())
                     {
                         return cpp_dbc::unexpected<DBException>(result.error());
                     }
                 }
-                else
-                {
-                    // If we're enabling autocommit, we must ensure any active transaction is ended
-                    if (m_transactionActive)
-                    {
-                        auto result = commit(std::nothrow);
-                        if (!result.has_value())
-                        {
-                            return cpp_dbc::unexpected<DBException>(result.error());
-                        }
-                    }
 
-                    this->m_autoCommit = true;
-                }
+                this->m_autoCommit = true;
             }
+        }
 
-            return {};
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("5D7F9A2E8B3C", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("1B6E9C4A8D2F", "Unknown error in PostgreSQLDBConnection::setAutoCommit", system_utils::captureCallStack()));
-        }
+        return {};
     }
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::getAutoCommit(std::nothrow_t) noexcept
     {
-        try
-        {
-            if (m_closed || !m_conn)
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("9D3F5A7C2E8B", "Connection is closed", system_utils::captureCallStack()));
-            }
+        DB_DRIVER_LOCK_GUARD(m_connMutex);
 
-            return m_autoCommit;
-        }
-        catch (const DBException &ex)
+        if (m_closed.load(std::memory_order_acquire) || !m_conn)
         {
-            return cpp_dbc::unexpected<DBException>(ex);
+            return cpp_dbc::unexpected<DBException>(DBException("9D3F5A7C2E8B", "Connection is closed", system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("1B7D9E5F3A2C", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("8E4C2A6F9B3D", "Unknown error in PostgreSQLDBConnection::getAutoCommit", system_utils::captureCallStack()));
-        }
+
+        return m_autoCommit;
     }
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::beginTransaction(std::nothrow_t) noexcept
     {
-        try
+        DB_DRIVER_LOCK_GUARD(m_connMutex);
+
+        if (m_closed.load(std::memory_order_acquire) || !m_conn)
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            return cpp_dbc::unexpected<DBException>(DBException("S5T6U7V8W9X0", "Connection is closed", system_utils::captureCallStack()));
+        }
 
-            if (m_closed || !m_conn)
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("S5T6U7V8W9X0", "Connection is closed", system_utils::captureCallStack()));
-            }
-
-            // If transaction is already active, just return true
-            if (m_transactionActive)
-            {
-                return true;
-            }
-
-            // Start a transaction
-            std::string beginCmd = "BEGIN";
-
-            // For SERIALIZABLE isolation, we need special handling
-            if (m_isolationLevel == TransactionIsolationLevel::TRANSACTION_SERIALIZABLE)
-            {
-                beginCmd = "BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE";
-
-                // Execute the BEGIN command
-                PGresult *dummyResult = PQexec(m_conn.get(), beginCmd.c_str());
-                if (PQresultStatus(dummyResult) != PGRES_COMMAND_OK)
-                {
-                    std::string error = PQresultErrorMessage(dummyResult);
-                    PQclear(dummyResult);
-                    return cpp_dbc::unexpected<DBException>(DBException("3G4H5I6J7K8L", "Failed to start SERIALIZABLE transaction: " + error, system_utils::captureCallStack()));
-                }
-                PQclear(dummyResult);
-
-                // Force snapshot acquisition with a dummy query
-                PGresult *snapshotResult = PQexec(m_conn.get(), "SELECT 1");
-                if (PQresultStatus(snapshotResult) != PGRES_TUPLES_OK)
-                {
-                    std::string error = PQresultErrorMessage(snapshotResult);
-                    PQclear(snapshotResult);
-                    return cpp_dbc::unexpected<DBException>(DBException("9M0N1O2P3Q4R", "Failed to acquire snapshot: " + error, system_utils::captureCallStack()));
-                }
-                PQclear(snapshotResult);
-            }
-            else
-            {
-                // Standard BEGIN for other isolation levels
-                PGresult *result = PQexec(m_conn.get(), beginCmd.c_str());
-                if (PQresultStatus(result) != PGRES_COMMAND_OK)
-                {
-                    std::string error = PQresultErrorMessage(result);
-                    PQclear(result);
-                    return cpp_dbc::unexpected<DBException>(DBException("5S6T7U8V9W0X", "Failed to start transaction: " + error, system_utils::captureCallStack()));
-                }
-                PQclear(result);
-            }
-
-            m_autoCommit = false;
-            m_transactionActive = true;
+        // If transaction is already active, just return true
+        if (m_transactionActive)
+        {
             return true;
         }
-        catch (const DBException &ex)
+
+        // Start a transaction
+        std::string beginCmd = "BEGIN";
+
+        // For SERIALIZABLE isolation, we need special handling
+        if (m_isolationLevel == TransactionIsolationLevel::TRANSACTION_SERIALIZABLE)
         {
-            return cpp_dbc::unexpected<DBException>(ex);
+            beginCmd = "BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE";
+
+            // Execute the BEGIN command
+            PGresultHandle dummyResult(PQexec(m_conn.get(), beginCmd.c_str()));
+            if (PQresultStatus(dummyResult.get()) != PGRES_COMMAND_OK)
+            {
+                std::string error = PQresultErrorMessage(dummyResult.get());
+                return cpp_dbc::unexpected<DBException>(DBException("3G4H5I6J7K8L", "Failed to start SERIALIZABLE transaction: " + error, system_utils::captureCallStack()));
+            }
+
+            // Force snapshot acquisition with a dummy query
+            PGresultHandle snapshotResult(PQexec(m_conn.get(), "SELECT 1"));
+            if (PQresultStatus(snapshotResult.get()) != PGRES_TUPLES_OK)
+            {
+                std::string error = PQresultErrorMessage(snapshotResult.get());
+                // BEGIN succeeded above, so the server is inside an open transaction.
+                // Roll it back before returning to keep the server state consistent
+                // with the client object (m_transactionActive is still false here).
+                [[maybe_unused]] PGresultHandle rollbackResult(PQexec(m_conn.get(), "ROLLBACK"));
+                return cpp_dbc::unexpected<DBException>(DBException("9M0N1O2P3Q4R", "Failed to acquire snapshot: " + error, system_utils::captureCallStack()));
+            }
         }
-        catch (const std::exception &ex)
+        else
         {
-            return cpp_dbc::unexpected<DBException>(DBException("4B8D2F6A9E3C", ex.what(), system_utils::captureCallStack()));
+            // Standard BEGIN for other isolation levels
+            PGresultHandle result(PQexec(m_conn.get(), beginCmd.c_str()));
+            if (PQresultStatus(result.get()) != PGRES_COMMAND_OK)
+            {
+                std::string error = PQresultErrorMessage(result.get());
+                return cpp_dbc::unexpected<DBException>(DBException("5S6T7U8V9W0X", "Failed to start transaction: " + error, system_utils::captureCallStack()));
+            }
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("7E1C9A5F2D8B", "Unknown error in PostgreSQLDBConnection::beginTransaction", system_utils::captureCallStack()));
-        }
+
+        m_autoCommit = false;
+        m_transactionActive = true;
+        return true;
     }
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::transactionActive(std::nothrow_t) noexcept
     {
-        try
-        {
-            if (m_closed || !m_conn)
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("5F8B2E9A7D3C", "Connection is closed", system_utils::captureCallStack()));
-            }
+        DB_DRIVER_LOCK_GUARD(m_connMutex);
 
-            return m_transactionActive;
-        }
-        catch (const DBException &ex)
+        if (m_closed.load(std::memory_order_acquire) || !m_conn)
         {
-            return cpp_dbc::unexpected<DBException>(ex);
+            return cpp_dbc::unexpected<DBException>(DBException("5F8B2E9A7D3C", "Connection is closed", system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("3A7D9B5E2C8F", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("1D6F8B3E9A2C", "Unknown error in PostgreSQLDBConnection::transactionActive", system_utils::captureCallStack()));
-        }
+
+        return m_transactionActive;
     }
 
 } // namespace cpp_dbc::PostgreSQL

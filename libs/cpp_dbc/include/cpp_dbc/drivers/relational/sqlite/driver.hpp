@@ -47,22 +47,32 @@ namespace cpp_dbc::SQLite
         static std::mutex s_initMutex;
 
         // ── Singleton state ───────────────────────────────────────────────────
-        static std::weak_ptr<SQLiteDBDriver> s_instance;
-        static std::mutex                    s_instanceMutex;
+        static std::shared_ptr<SQLiteDBDriver> s_instance;
+        static std::mutex                      s_instanceMutex;
 
         // ── Connection registry ───────────────────────────────────────────────
         static std::mutex                                                        s_registryMutex;
         static std::set<std::weak_ptr<SQLiteDBConnection>,
                         std::owner_less<std::weak_ptr<SQLiteDBConnection>>>      s_connectionRegistry;
 
+        // ── Coalesced cleanup flag ────────────────────────────────────────────
+        static std::atomic<bool> s_cleanupPending;
+
         static void registerConnection(std::nothrow_t, std::weak_ptr<SQLiteDBConnection> conn) noexcept;
         static void unregisterConnection(std::nothrow_t, const std::weak_ptr<SQLiteDBConnection> &conn) noexcept;
+
+        void closeAllOpenConnections(std::nothrow_t) noexcept;
 
         friend class SQLiteDBConnection;
 
         // ── Construction state ────────────────────────────────────────────────
         bool m_initFailed{false};
         std::unique_ptr<DBException> m_initError{nullptr};
+
+        // ── Driver state ──────────────────────────────────────────────────────
+        // Set to true by the destructor before releasing resources.
+        // Prevents new connection attempts during and after driver teardown.
+        std::atomic<bool> m_closed{false};
 
     public:
         SQLiteDBDriver(PrivateCtorTag, std::nothrow_t) noexcept;

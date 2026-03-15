@@ -141,10 +141,10 @@ show_usage() {
   echo "  --bk-combo-10            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,run=5"
   echo "  --bk-combo-11            Equivalent to --run-test=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,parallel=5,run=1"
   echo "  --bk-combo-12            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,parallel=5,run=5"
-  echo "  --mc-combo-01            Build all drivers + tests + examples (clean build)"
-  echo "                           Equivalent to --run-build=clean,postgres,mysql,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples"
-  echo "  --mc-combo-02            Build all drivers + tests + examples (incremental)"
-  echo "                           Equivalent to --run-build=postgres,sqlite,mysql,firebird,mongodb,scylladb,redis,yaml,test,examples"
+  echo "  --mc-combo-01            Build all drivers + tests + examples + benchmarks (clean build)"
+  echo "                           Equivalent to --run-build=clean,postgres,mysql,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples,benchmarks"
+  echo "  --mc-combo-02            Build all drivers + tests + examples + benchmarks (incremental)"
+  echo "                           Equivalent to --run-build=postgres,sqlite,mysql,firebird,mongodb,scylladb,redis,yaml,test,examples,benchmarks"
   echo "  --kfc-combo-01           Equivalent to --run-build-dist=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,test,examples"
   echo "  --kfc-combo-02           Equivalent to --run-build-dist=rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,test,examples"
   echo "  --dk-combo-01            Equivalent to --run-benchmarks=rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,memory-usage,base-line"
@@ -2005,15 +2005,15 @@ while [ $i -lt ${#args[@]} ]; do
       cmd_run_bin || exit_code=$?
       ;;
     --mc-combo-01)
-      # Build all drivers + tests + examples (clean build)
-      # Equivalent to --run-build=clean,postgres,mysql,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples
-      BUILD_OPTIONS="clean,postgres,mysql,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples"
+      # Build all drivers + tests + examples + benchmarks (clean build)
+      # Equivalent to --run-build=clean,postgres,mysql,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples,benchmarks
+      BUILD_OPTIONS="clean,postgres,mysql,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples,benchmarks"
       cmd_run_build
       ;;
     --mc-combo-02)
-      # Build all drivers + tests + examples (incremental)
-      # Equivalent to --run-build=postgres,sqlite,mysql,firebird,mongodb,scylladb,redis,yaml,test,examples
-      BUILD_OPTIONS="postgres,mysql,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples"
+      # Build all drivers + tests + examples + benchmarks (incremental)
+      # Equivalent to --run-build=postgres,sqlite,mysql,firebird,mongodb,scylladb,redis,yaml,test,examples,benchmarks
+      BUILD_OPTIONS="postgres,mysql,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples,benchmarks"
       cmd_run_build
       ;;
     --bk-combo-01)

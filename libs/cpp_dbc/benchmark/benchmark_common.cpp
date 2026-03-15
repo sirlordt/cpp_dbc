@@ -21,6 +21,7 @@
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <unordered_set>
 #include "benchmark_common.hpp"
 
 namespace common_benchmark_helpers
