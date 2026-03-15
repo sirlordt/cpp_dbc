@@ -33,6 +33,7 @@ DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
 DEBUG_REDIS=OFF
+DEBUG_SERIAL_QUEUE=OFF
 DEBUG_ALL=OFF
 BACKWARD_HAS_DW=OFF
 DB_DRIVER_THREAD_SAFE=ON
@@ -173,6 +174,10 @@ do
         DEBUG_REDIS=ON
         shift
         ;;
+        --debug-serial-queue)
+        DEBUG_SERIAL_QUEUE=ON
+        shift
+        ;;
         --debug-all)
         DEBUG_CONNECTION_POOL=ON
         DEBUG_TRANSACTION_MANAGER=ON
@@ -183,6 +188,7 @@ do
         DEBUG_MONGODB=ON
         DEBUG_SCYLLADB=ON
         DEBUG_REDIS=ON
+        DEBUG_SERIAL_QUEUE=ON
         DEBUG_ALL=ON
         shift
         ;;
@@ -257,6 +263,7 @@ echo "  Debug SQLite: $DEBUG_SQLITE"
 echo "  Debug Firebird: $DEBUG_FIREBIRD"
 echo "  Debug MongoDB: $DEBUG_MONGODB"
 echo "  Debug ScyllaDB: $DEBUG_SCYLLADB"
+echo "  Debug SerialQueue: $DEBUG_SERIAL_QUEUE"
 echo "  Debug All: $DEBUG_ALL"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"
@@ -628,6 +635,7 @@ cmake "${SCRIPT_DIR}" \
       -DDEBUG_MONGODB=$DEBUG_MONGODB \
       -DDEBUG_SCYLLADB=$DEBUG_SCYLLADB \
       -DDEBUG_REDIS=$DEBUG_REDIS \
+      -DDEBUG_SERIAL_QUEUE=$DEBUG_SERIAL_QUEUE \
       -DDEBUG_ALL=$DEBUG_ALL \
       -DBACKWARD_HAS_DW=$BACKWARD_HAS_DW \
       -DDB_DRIVER_THREAD_SAFE=$DB_DRIVER_THREAD_SAFE \
@@ -772,6 +780,7 @@ echo "  Debug SQLite: $DEBUG_SQLITE"
 echo "  Debug Firebird: $DEBUG_FIREBIRD"
 echo "  Debug MongoDB: $DEBUG_MONGODB"
 echo "  Debug Redis: $DEBUG_REDIS"
+echo "  Debug SerialQueue: $DEBUG_SERIAL_QUEUE"
 echo "  Debug All: $DEBUG_ALL"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"

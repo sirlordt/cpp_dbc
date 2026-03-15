@@ -63,13 +63,16 @@ namespace cpp_dbc::Firebird
 
     void FirebirdDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<FirebirdDBConnection> conn) noexcept
     {
+        size_t registrySize = 0;
         {
             std::scoped_lock lock(s_registryMutex);
             s_connectionRegistry.insert(std::move(conn));
+            registrySize = s_connectionRegistry.size();
         }
 
-        // Coalesced cleanup: only post if no cleanup is already queued.
-        if (!s_cleanupPending.exchange(true, std::memory_order_acq_rel))
+        // Coalesced cleanup: only post when the registry has grown past the
+        // cleanup threshold and no cleanup task is already queued.
+        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_acq_rel))
         {
             SerialQueue::global().post([]()
             {
@@ -85,7 +88,7 @@ namespace cpp_dbc::Firebird
 
     void FirebirdDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<FirebirdDBConnection> &conn) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
+        std::scoped_lock lock(s_registryMutex);
         s_connectionRegistry.erase(conn);
     }
 
@@ -224,7 +227,7 @@ namespace cpp_dbc::Firebird
 
     size_t FirebirdDBDriver::getConnectionAlive() noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
+        std::scoped_lock lock(s_registryMutex);
         return static_cast<size_t>(std::count_if(
             s_connectionRegistry.begin(), s_connectionRegistry.end(),
             [](const auto &w) { return !w.expired(); }));

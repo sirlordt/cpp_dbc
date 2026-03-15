@@ -21,6 +21,7 @@
 #ifndef SYSTEM_UTILS_HPP
 #define SYSTEM_UTILS_HPP
 
+#include <cctype>
 #include <charconv>
 #include <cstddef>
 #include <cstring>
@@ -622,6 +623,34 @@ namespace cpp_dbc::system_utils
      *       codebase (tests, examples, drivers) while respecting the Open/Closed Principle.
      */
     std::string snakeCaseToLowerCamelCase(const std::string &snakeCase);
+
+    /**
+     * @brief Convert a string to lowercase in-place.
+     *
+     * @param str The string to convert
+     * @return Reference to the modified string
+     */
+    inline std::string &toLowerCase(std::string &str) noexcept
+    {
+        for (auto &c : str)
+        {
+            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        }
+        return str;
+    }
+
+    /**
+     * @brief Return a lowercase copy of the input string.
+     *
+     * @param str The source string
+     * @return A new string with all characters converted to lowercase
+     */
+    inline std::string toLowerCaseByCopy(const std::string &str)
+    {
+        std::string result = str;
+        toLowerCase(result);
+        return result;
+    }
 
 } // namespace cpp_dbc::system_utils
 

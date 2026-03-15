@@ -59,9 +59,14 @@ namespace cpp_dbc::PostgreSQL
         }
         auto stmt = stmtResult.value();
 
-        // Register the statement as weak_ptr - allows natural destruction when user releases reference
-        // Statements will be explicitly closed in returnToPool() or close() before connection reuse
-        [[maybe_unused]] auto regResult = registerStatement(std::nothrow, std::weak_ptr<PostgreSQLDBPreparedStatement>(stmt));
+        // Register the statement as weak_ptr - allows natural destruction when user releases reference.
+        // Statements will be explicitly closed in returnToPool() or close() before connection reuse.
+        // If registration fails the statement is NOT returned — destructor closes it.
+        auto regResult = registerStatement(std::nothrow, std::weak_ptr<PostgreSQLDBPreparedStatement>(stmt));
+        if (!regResult.has_value())
+        {
+            return cpp_dbc::unexpected(regResult.error());
+        }
 
         return cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException>(std::static_pointer_cast<RelationalDBPreparedStatement>(stmt));
     }
@@ -76,6 +81,11 @@ namespace cpp_dbc::PostgreSQL
         }
 
         PGresultHandle result(PQexec(m_conn.get(), sql.c_str()));
+        if (!result.get())
+        {
+            std::string error = PQerrorMessage(m_conn.get());
+            return cpp_dbc::unexpected<DBException>(DBException("6NSV59A3RDC7", "Query failed (OOM): " + error, system_utils::captureCallStack()));
+        }
         if (PQresultStatus(result.get()) != PGRES_TUPLES_OK)
         {
             std::string error = PQresultErrorMessage(result.get());
@@ -90,9 +100,7 @@ namespace cpp_dbc::PostgreSQL
         }
         auto rs = rsResult.value();
 
-        // Register the result set for lifecycle management
-        [[maybe_unused]] auto regResult = registerResultSet(std::nothrow, std::weak_ptr<PostgreSQLDBResultSet>(rs));
-
+        // Registration with the connection is done inside create() → initialize()
         return cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>(std::static_pointer_cast<RelationalDBResultSet>(rs));
     }
 
@@ -106,6 +114,11 @@ namespace cpp_dbc::PostgreSQL
         }
 
         PGresultHandle result(PQexec(m_conn.get(), sql.c_str()));
+        if (!result.get())
+        {
+            std::string error = PQerrorMessage(m_conn.get());
+            return cpp_dbc::unexpected<DBException>(DBException("BZXECC4BPVXM", "Update failed (OOM): " + error, system_utils::captureCallStack()));
+        }
         if (PQresultStatus(result.get()) != PGRES_COMMAND_OK)
         {
             std::string error = PQresultErrorMessage(result.get());

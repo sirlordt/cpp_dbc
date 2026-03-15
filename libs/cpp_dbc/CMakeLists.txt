@@ -24,6 +24,7 @@ option(DEBUG_FIREBIRD "Enable debug output for Firebird driver" OFF)
 option(DEBUG_MONGODB "Enable debug output for MongoDB driver" OFF)
 option(DEBUG_SCYLLADB "Enable debug output for ScyllaDB driver" OFF)
 option(DEBUG_REDIS "Enable debug output for Redis driver" OFF)
+option(DEBUG_SERIAL_QUEUE "Enable debug output for SerialQueue" OFF)
 option(DEBUG_ALL "Enable debug output for all drivers and components" OFF)
 
 # Sanitizer options
@@ -108,6 +109,7 @@ target_compile_definitions(cpp_dbc PUBLIC
     $<$<BOOL:${DEBUG_MONGODB}>:DEBUG_MONGODB=1>
     $<$<BOOL:${DEBUG_SCYLLADB}>:DEBUG_SCYLLADB=1>
     $<$<BOOL:${DEBUG_REDIS}>:DEBUG_REDIS=1>
+    $<$<BOOL:${DEBUG_SERIAL_QUEUE}>:DEBUG_SERIAL_QUEUE=1>
     $<$<BOOL:${DEBUG_ALL}>:DEBUG_ALL=1>
     $<$<BOOL:${BACKWARD_HAS_DW}>:BACKWARD_HAS_DW=1>
     $<$<NOT:$<BOOL:${BACKWARD_HAS_DW}>>:BACKWARD_HAS_DW=0>

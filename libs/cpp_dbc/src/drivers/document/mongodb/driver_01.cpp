@@ -42,7 +42,6 @@ namespace cpp_dbc::MongoDB
     std::mutex                     MongoDBDriver::s_registryMutex;
     std::set<std::weak_ptr<MongoDBConnection>,
              std::owner_less<std::weak_ptr<MongoDBConnection>>> MongoDBDriver::s_connectionRegistry;
-    std::atomic<bool> MongoDBDriver::s_cleanupPending{false};
     std::shared_ptr<MongoDBDriver> MongoDBDriver::s_instance;
 
     // ============================================================================
@@ -104,13 +103,16 @@ namespace cpp_dbc::MongoDB
 
     void MongoDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<MongoDBConnection> conn) noexcept
     {
+        size_t registrySize = 0;
         {
             std::scoped_lock lock(s_registryMutex);
             s_connectionRegistry.insert(std::move(conn));
+            registrySize = s_connectionRegistry.size();
         }
 
-        // Coalesced cleanup: only post if no cleanup is already queued.
-        if (!s_cleanupPending.exchange(true, std::memory_order_acq_rel))
+        // Coalesced cleanup: only post when the registry has grown past the
+        // cleanup threshold and no cleanup task is already queued.
+        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_acq_rel))
         {
             SerialQueue::global().post([]()
             {

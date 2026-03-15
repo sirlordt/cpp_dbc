@@ -58,12 +58,12 @@ show_usage() {
   echo "  --run-build              Build via ./build.sh, logs to build/run-build-<timestamp>.log"
   echo "  --run-build=OPTIONS      Build with comma-separated options"
   echo "                           Available options: clean,release,gcc-analyzer,postgres,mysql,mysql-off,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples,"
-  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
+  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-serial-queue,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
   echo "                           Example: --run-build=clean,sqlite,yaml,test,debug-pool"
   echo "  --run-build-dist         Build via ./build.dist.sh, logs to build/run-build-dist-<timestamp>.log"
   echo "  --run-build-dist=OPTIONS Build dist with comma-separated options"
   echo "                           Available options: clean,release,postgres,mysql,mysql-off,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples,"
-  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
+  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-serial-queue,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
   echo "                           Example: --run-build-dist=clean,sqlite,yaml,test,debug-sqlite"
   echo "  --check-test-log         Check the most recent test log file in logs/test/ for failures and memory issues"
   echo "  --check-test-log=PATH    Check the specified test log file for failures and memory issues"
@@ -76,7 +76,7 @@ show_usage() {
   echo "  --run-test=OPTIONS       Run tests with comma-separated options"
   echo "                           Available options: clean,release,gcc-analyzer,rebuild,sqlite,firebird,mongodb,scylladb,redis,mysql,mysql-off,postgres,valgrind,helgrind,helgrind-gs,helgrind-s,drd,drd-gs,drd-s,"
   echo "                                              yaml,auto,asan,tsan,ctest,check,progress,run=N,parallel=N,test=FILTER,"
-  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-on,db-driver-thread-safe-off"
+  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-serial-queue,debug-all,dw-on,db-driver-thread-safe-off"
   echo "                           Note: dw (libdw stack traces) is DISABLED by default for tests. Use dw-on to enable it."
   echo "                           Test filter formats (test=FILTER):"
   echo "                             - Prefix: test=20_* runs all tests starting with '20_'"
@@ -119,7 +119,7 @@ show_usage() {
   echo "  --run-benchmarks=OPTIONS Run benchmarks with comma-separated options"
   echo "                           Available options: clean,release,rebuild,sqlite,firebird,mongodb,scylladb,redis,mysql,mysql-off,postgres,"
   echo "                                              yaml,benchmark=Tag1+Tag2+Tag3,memory-usage,base-line,repetitions=3,iterations=1000,"
-  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off"
+  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-serial-queue,debug-all,dw-off,db-driver-thread-safe-off"
   echo "                           Example: --run-benchmarks=mysql,postgresql"
   echo "                           Example: --run-benchmarks=benchmark=update+postgresql"
   echo "                           Example: --run-benchmarks=rebuild,mongodb,yaml,benchmark=mongodb+delete"
@@ -290,6 +290,10 @@ cmd_run_build() {
       debug-redis)
         build_cmd="$build_cmd --debug-redis"
         echo "Enabling debug output for Redis driver"
+        ;;
+      debug-serial-queue)
+        build_cmd="$build_cmd --debug-serial-queue"
+        echo "Enabling debug output for SerialQueue"
         ;;
       debug-all)
         build_cmd="$build_cmd --debug-all"
@@ -524,6 +528,10 @@ cmd_run_test() {
         debug-redis)
           run_test_cmd="$run_test_cmd --debug-redis"
           echo "Enabling debug output for Redis driver"
+          ;;
+        debug-serial-queue)
+          run_test_cmd="$run_test_cmd --debug-serial-queue"
+          echo "Enabling debug output for SerialQueue"
           ;;
         debug-all)
           run_test_cmd="$run_test_cmd --debug-all"
@@ -1365,6 +1373,10 @@ cmd_run_benchmarks() {
           run_benchmark_cmd="$run_benchmark_cmd --debug-redis"
           echo "Enabling debug output for Redis driver"
           ;;
+        debug-serial-queue)
+          run_benchmark_cmd="$run_benchmark_cmd --debug-serial-queue"
+          echo "Enabling debug output for SerialQueue"
+          ;;
         debug-all)
           run_benchmark_cmd="$run_benchmark_cmd --debug-all"
           echo "Enabling all debug output"
@@ -1753,6 +1765,10 @@ cmd_run_build_dist() {
       debug-redis)
         build_cmd="$build_cmd --debug-redis"
         echo "Enabling debug output for Redis driver"
+        ;;
+      debug-serial-queue)
+        build_cmd="$build_cmd --debug-serial-queue"
+        echo "Enabling debug output for SerialQueue"
         ;;
       debug-all)
         build_cmd="$build_cmd --debug-all"

@@ -61,7 +61,7 @@ namespace cpp_dbc::PostgreSQL
             m_paramValues[idx] = "";
             m_paramLengths[idx] = 0;
             m_paramFormats[idx] = 0; // Text format
-            m_paramTypes[idx] = 17;  // BYTEAOID
+            m_paramTypes[idx] = oid::BYTEA;
             return {};
         }
 
@@ -83,11 +83,14 @@ namespace cpp_dbc::PostgreSQL
         // Use binary format for BYTEA data
         m_paramIsNull[idx] = false;
         m_paramValues[idx].resize(m_blobValues[idx].size());
-        std::memcpy(m_paramValues[idx].data(), m_blobValues[idx].data(), m_blobValues[idx].size());
+        if (!m_blobValues[idx].empty())
+        {
+            std::memcpy(m_paramValues[idx].data(), m_blobValues[idx].data(), m_blobValues[idx].size());
+        }
 
         m_paramLengths[idx] = m_blobValues[idx].size();
         m_paramFormats[idx] = 1; // Binary format
-        m_paramTypes[idx] = 17;  // BYTEAOID
+        m_paramTypes[idx] = oid::BYTEA;
 
         return {};
     }
@@ -114,7 +117,7 @@ namespace cpp_dbc::PostgreSQL
             m_paramValues[idx] = "";
             m_paramLengths[idx] = 0;
             m_paramFormats[idx] = 0; // Text format
-            m_paramTypes[idx] = 17;  // BYTEAOID
+            m_paramTypes[idx] = oid::BYTEA;
             return {};
         }
 
@@ -142,11 +145,14 @@ namespace cpp_dbc::PostgreSQL
         // Use binary format for BYTEA data
         m_paramIsNull[idx] = false;
         m_paramValues[idx].resize(m_blobValues[idx].size());
-        std::memcpy(m_paramValues[idx].data(), m_blobValues[idx].data(), m_blobValues[idx].size());
+        if (!m_blobValues[idx].empty())
+        {
+            std::memcpy(m_paramValues[idx].data(), m_blobValues[idx].data(), m_blobValues[idx].size());
+        }
 
         m_paramLengths[idx] = m_blobValues[idx].size();
         m_paramFormats[idx] = 1; // Binary format
-        m_paramTypes[idx] = 17;  // BYTEAOID
+        m_paramTypes[idx] = oid::BYTEA;
 
         return {};
     }
@@ -173,7 +179,7 @@ namespace cpp_dbc::PostgreSQL
             m_paramValues[idx] = "";
             m_paramLengths[idx] = 0;
             m_paramFormats[idx] = 0; // Text format
-            m_paramTypes[idx] = 17;  // BYTEAOID
+            m_paramTypes[idx] = oid::BYTEA;
             return {};
         }
 
@@ -204,11 +210,14 @@ namespace cpp_dbc::PostgreSQL
         // Use binary format for BYTEA data
         m_paramIsNull[idx] = false;
         m_paramValues[idx].resize(m_blobValues[idx].size());
-        std::memcpy(m_paramValues[idx].data(), m_blobValues[idx].data(), m_blobValues[idx].size());
+        if (!m_blobValues[idx].empty())
+        {
+            std::memcpy(m_paramValues[idx].data(), m_blobValues[idx].data(), m_blobValues[idx].size());
+        }
 
         m_paramLengths[idx] = m_blobValues[idx].size();
         m_paramFormats[idx] = 1; // Binary format
-        m_paramTypes[idx] = 17;  // BYTEAOID
+        m_paramTypes[idx] = oid::BYTEA;
 
         return {};
     }
@@ -231,11 +240,14 @@ namespace cpp_dbc::PostgreSQL
         // Use binary format for BYTEA data
         m_paramIsNull[idx] = false;
         m_paramValues[idx].resize(m_blobValues[idx].size());
-        std::memcpy(m_paramValues[idx].data(), m_blobValues[idx].data(), m_blobValues[idx].size());
+        if (!m_blobValues[idx].empty())
+        {
+            std::memcpy(m_paramValues[idx].data(), m_blobValues[idx].data(), m_blobValues[idx].size());
+        }
 
         m_paramLengths[idx] = m_blobValues[idx].size();
         m_paramFormats[idx] = 1; // Binary format
-        m_paramTypes[idx] = 17;  // BYTEAOID
+        m_paramTypes[idx] = oid::BYTEA;
 
         return {};
     }
@@ -268,22 +280,28 @@ namespace cpp_dbc::PostgreSQL
             m_paramValues[idx].clear();
             m_paramLengths[idx] = 0;
             m_paramFormats[idx] = 1; // Binary format
-            m_paramTypes[idx] = 17;  // BYTEAOID
+            m_paramTypes[idx] = oid::BYTEA;
             return {};
         }
 
         // Store the data in our vector to keep it alive
         m_blobValues[idx].resize(length);
-        std::memcpy(m_blobValues[idx].data(), x, length);
+        if (length > 0)
+        {
+            std::memcpy(m_blobValues[idx].data(), x, length);
+        }
 
         // Use binary format for BYTEA data
         m_paramIsNull[idx] = false;
         m_paramValues[idx].resize(m_blobValues[idx].size());
-        std::memcpy(m_paramValues[idx].data(), m_blobValues[idx].data(), m_blobValues[idx].size());
+        if (!m_blobValues[idx].empty())
+        {
+            std::memcpy(m_paramValues[idx].data(), m_blobValues[idx].data(), m_blobValues[idx].size());
+        }
 
         m_paramLengths[idx] = m_blobValues[idx].size();
         m_paramFormats[idx] = 1; // Binary format
-        m_paramTypes[idx] = 17;  // BYTEAOID
+        m_paramTypes[idx] = oid::BYTEA;
 
         return {};
     }

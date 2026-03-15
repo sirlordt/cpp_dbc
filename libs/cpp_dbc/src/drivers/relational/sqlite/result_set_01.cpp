@@ -70,19 +70,34 @@ namespace cpp_dbc::SQLite
         // Cannot be done here because weak_from_this() requires shared_ptr to exist
     }
 
-    void SQLiteDBResultSet::initialize()
+    cpp_dbc::expected<void, DBException> SQLiteDBResultSet::initialize(std::nothrow_t) noexcept
     {
-        // Register with Connection
-        if (auto connShared = m_connection.lock())
+        // Register with Connection — mandatory; every ResultSet must be tracked.
+        // If registration fails the ResultSet is NOT returned — destructor closes it.
+        auto connShared = m_connection.lock();
+        if (!connShared)
         {
-            [[maybe_unused]] auto regResult = connShared->registerResultSet(std::nothrow, std::weak_ptr<SQLiteDBResultSet>(shared_from_this()));
+            return cpp_dbc::unexpected(DBException("Z28J65UB2E5Q",
+                "Connection expired before result set could be registered",
+                system_utils::captureCallStack()));
+        }
+        auto connRegResult = connShared->registerResultSet(std::nothrow, std::weak_ptr<SQLiteDBResultSet>(shared_from_this()));
+        if (!connRegResult.has_value())
+        {
+            return cpp_dbc::unexpected(connRegResult.error());
         }
 
         // Register with PreparedStatement if applicable
         if (auto prepStmtShared = m_preparedStatement.lock())
         {
-            [[maybe_unused]] auto regResult = prepStmtShared->registerResultSet(std::nothrow, std::weak_ptr<SQLiteDBResultSet>(shared_from_this()));
+            auto stmtRegResult = prepStmtShared->registerResultSet(std::nothrow, std::weak_ptr<SQLiteDBResultSet>(shared_from_this()));
+            if (!stmtRegResult.has_value())
+            {
+                return cpp_dbc::unexpected(stmtRegResult.error());
+            }
         }
+
+        return {};
     }
 
     SQLiteDBResultSet::~SQLiteDBResultSet()

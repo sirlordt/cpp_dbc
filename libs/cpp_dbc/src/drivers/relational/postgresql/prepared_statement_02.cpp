@@ -54,7 +54,7 @@ namespace cpp_dbc::PostgreSQL
         m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
         m_paramFormats[idx] = 0; // Text format
-        m_paramTypes[idx] = 23;  // INT4OID
+        m_paramTypes[idx] = oid::INT4;
 
         return {}; // Return empty/success for void expected
     }
@@ -74,7 +74,7 @@ namespace cpp_dbc::PostgreSQL
         m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
         m_paramFormats[idx] = 0; // Text format
-        m_paramTypes[idx] = 20;  // INT8OID
+        m_paramTypes[idx] = oid::INT8;
 
         return {}; // Return empty/success for void expected
     }
@@ -107,7 +107,7 @@ namespace cpp_dbc::PostgreSQL
         m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
         m_paramFormats[idx] = 0; // Text format
-        m_paramTypes[idx] = 701; // FLOAT8OID
+        m_paramTypes[idx] = oid::FLOAT8;
 
         return {}; // Return empty/success for void expected
     }
@@ -127,7 +127,7 @@ namespace cpp_dbc::PostgreSQL
         m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
         m_paramFormats[idx] = 0; // Text format
-        m_paramTypes[idx] = 25;  // TEXTOID
+        m_paramTypes[idx] = oid::TEXT;
 
         return {};
     }
@@ -147,7 +147,7 @@ namespace cpp_dbc::PostgreSQL
         m_paramIsNull[idx] = false;
         m_paramLengths[idx] = 1;
         m_paramFormats[idx] = 0; // Text format
-        m_paramTypes[idx] = 16;  // BOOLOID
+        m_paramTypes[idx] = oid::BOOL;
 
         return {};
     }
@@ -174,28 +174,28 @@ namespace cpp_dbc::PostgreSQL
         switch (type)
         {
         case INTEGER:
-            pgType = 23; // INT4OID
+            pgType = oid::INT4;
             break;
         case FLOAT:
-            pgType = 700; // FLOAT4OID
+            pgType = oid::FLOAT4;
             break;
         case DOUBLE:
-            pgType = 701; // FLOAT8OID
+            pgType = oid::FLOAT8;
             break;
         case VARCHAR:
-            pgType = 25; // TEXTOID
+            pgType = oid::TEXT;
             break;
         case DATE:
-            pgType = 1082; // DATEOID
+            pgType = oid::DATE;
             break;
         case TIMESTAMP:
-            pgType = 1114; // TIMESTAMPOID
+            pgType = oid::TIMESTAMP;
             break;
         case BOOLEAN:
-            pgType = 16; // BOOLOID
+            pgType = oid::BOOL;
             break;
         case BLOB:
-            pgType = 17; // BYTEAOID
+            pgType = oid::BYTEA;
             break;
         default:
             pgType = 0; // Let the server guess
@@ -223,7 +223,7 @@ namespace cpp_dbc::PostgreSQL
         m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
         m_paramFormats[idx] = 0;  // Text format
-        m_paramTypes[idx] = 1082; // DATEOID
+        m_paramTypes[idx] = oid::DATE;
 
         return {};
     }
@@ -243,7 +243,7 @@ namespace cpp_dbc::PostgreSQL
         m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
         m_paramFormats[idx] = 0;  // Text format
-        m_paramTypes[idx] = 1114; // TIMESTAMPOID
+        m_paramTypes[idx] = oid::TIMESTAMP;
 
         return {};
     }
@@ -263,7 +263,7 @@ namespace cpp_dbc::PostgreSQL
         m_paramIsNull[idx] = false;
         m_paramLengths[idx] = m_paramValues[idx].length();
         m_paramFormats[idx] = 0;  // Text format
-        m_paramTypes[idx] = 1083; // TIMEOID
+        m_paramTypes[idx] = oid::TIME;
 
         return {};
     }

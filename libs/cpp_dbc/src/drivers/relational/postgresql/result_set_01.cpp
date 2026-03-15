@@ -71,6 +71,25 @@ namespace cpp_dbc::PostgreSQL
         }
     }
 
+    cpp_dbc::expected<void, DBException> PostgreSQLDBResultSet::initialize(std::nothrow_t) noexcept
+    {
+        // Register with Connection — mandatory; every ResultSet must be tracked
+        // so closeAllResultSets()/notifyConnClosing() can reach it.
+        auto conn = m_connection.lock();
+        if (!conn)
+        {
+            return cpp_dbc::unexpected(DBException("5K1LVNZIRU67",
+                "Connection expired before result set could be registered",
+                system_utils::captureCallStack()));
+        }
+        auto regResult = conn->registerResultSet(std::nothrow, std::weak_ptr<PostgreSQLDBResultSet>(shared_from_this()));
+        if (!regResult.has_value())
+        {
+            return cpp_dbc::unexpected(regResult.error());
+        }
+        return {};
+    }
+
     void PostgreSQLDBResultSet::notifyConnClosing(std::nothrow_t) noexcept
     {
         // Called by connection when closing — mark as closed and release PGresult

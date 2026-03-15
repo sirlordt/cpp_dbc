@@ -125,8 +125,9 @@ namespace cpp_dbc::SQLite
          *
          * CRITICAL: Must be called AFTER construction is complete, when shared_from_this() is valid.
          * Cannot be called in constructor because weak_from_this() requires the shared_ptr to exist.
+         * Returns error if registration with the connection or prepared statement fails.
          */
-        void initialize();
+        cpp_dbc::expected<void, DBException> initialize(std::nothrow_t) noexcept;
 
     public:
         SQLiteDBResultSet(sqlite3_stmt *stmt, bool ownStatement, std::shared_ptr<SQLiteDBConnection> conn, std::shared_ptr<SQLiteDBPreparedStatement> prepStmt, std::shared_ptr<std::recursive_mutex> globalFileMutex);
@@ -148,7 +149,12 @@ namespace cpp_dbc::SQLite
             try
             {
                 auto rs = std::make_shared<SQLiteDBResultSet>(stmt, ownStatement, conn, prepStmt, globalFileMutex);
-                rs->initialize(); // must be called after make_shared (requires shared_ptr to exist)
+                // Must be called after make_shared (requires shared_ptr to exist for shared_from_this())
+                auto initResult = rs->initialize(std::nothrow);
+                if (!initResult.has_value())
+                {
+                    return cpp_dbc::unexpected(initResult.error());
+                }
                 return rs;
             }
             catch (const DBException &ex)

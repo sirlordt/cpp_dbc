@@ -61,7 +61,7 @@ namespace cpp_dbc::Redis
                         std::owner_less<std::weak_ptr<RedisDBConnection>>>      s_connectionRegistry;
 
         // ── Coalesced cleanup flag ────────────────────────────────────────────
-        static std::atomic<bool> s_cleanupPending;
+        inline static std::atomic s_cleanupPending{false};
 
         static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
 

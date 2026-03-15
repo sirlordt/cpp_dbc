@@ -131,13 +131,7 @@ namespace cpp_dbc::PostgreSQL
         }
         auto rs = rsResult.value();
 
-        // Register the result set so closeAllResultSets()/notifyConnClosing() can track it
-        auto conn = m_connection.lock();
-        if (conn)
-        {
-            [[maybe_unused]] auto regResult = conn->registerResultSet(std::nothrow, std::weak_ptr<PostgreSQLDBResultSet>(rs));
-        }
-
+        // Registration with the connection is done inside create() → initialize()
         return cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>{std::static_pointer_cast<RelationalDBResultSet>(rs)};
     }
 

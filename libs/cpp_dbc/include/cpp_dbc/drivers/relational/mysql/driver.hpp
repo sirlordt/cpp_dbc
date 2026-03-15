@@ -57,7 +57,7 @@ namespace cpp_dbc::MySQL
         // ── Coalesced cleanup flag ────────────────────────────────────────────
         // Ensures at most one registry cleanup task is queued in SerialQueue
         // at any time. See registerConnection() for the coalescence pattern.
-        static std::atomic<bool> s_cleanupPending;
+        inline static std::atomic s_cleanupPending{false};
 
         static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
 

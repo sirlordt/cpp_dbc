@@ -324,6 +324,25 @@ namespace cpp_dbc::Firebird
     }
 #endif // __cpp_exceptions
 
+    cpp_dbc::expected<void, DBException> FirebirdDBResultSet::initialize(std::nothrow_t) noexcept
+    {
+        // Register with Connection — mandatory; every ResultSet must be tracked
+        // so closeAllResultSets()/notifyConnClosing() can reach it.
+        auto conn = m_connection.lock();
+        if (!conn)
+        {
+            return cpp_dbc::unexpected(DBException("60PP1LI60QF3",
+                "Connection expired before result set could be registered",
+                system_utils::captureCallStack()));
+        }
+        auto regResult = conn->registerResultSet(std::nothrow, std::weak_ptr<FirebirdDBResultSet>(shared_from_this()));
+        if (!regResult.has_value())
+        {
+            return cpp_dbc::unexpected(regResult.error());
+        }
+        return {};
+    }
+
     cpp_dbc::expected<std::shared_ptr<FirebirdDBResultSet>, DBException>
     FirebirdDBResultSet::create(std::nothrow_t,
                                 FirebirdStmtHandle stmt,
@@ -331,15 +350,17 @@ namespace cpp_dbc::Firebird
                                 bool ownStatement,
                                 std::shared_ptr<FirebirdDBConnection> conn) noexcept
     {
-        // NOTE: registerResultSet() is NOT called here because the caller is responsible
-        // for registering the ResultSet with the connection after create() returns,
-        // in the .cpp translation unit where the full FirebirdDBConnection definition
-        // is available.
         auto ptr = std::shared_ptr<FirebirdDBResultSet>(
             new FirebirdDBResultSet(std::nothrow, std::move(stmt), std::move(sqlda), ownStatement, conn));
         if (ptr->m_initFailed)
         {
             return cpp_dbc::unexpected(ptr->m_initError);
+        }
+        // Must be called after construction (requires shared_ptr to exist for shared_from_this())
+        auto initResult = ptr->initialize(std::nothrow);
+        if (!initResult.has_value())
+        {
+            return cpp_dbc::unexpected(initResult.error());
         }
         return ptr;
     }

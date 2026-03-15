@@ -27,6 +27,26 @@
 #include <cstring>
 #include "cpp_dbc/common/system_utils.hpp"
 
+// ============================================================================
+// PostgreSQL OID constants
+// ============================================================================
+// libpq does not expose these; they live in server header pg_type_d.h which is
+// not available in a typical client-only installation. Values are stable
+// PostgreSQL catalog constants that have not changed since the 7.x era.
+namespace cpp_dbc::PostgreSQL::oid
+{
+    constexpr Oid BOOL      = 16;
+    constexpr Oid BYTEA     = 17;
+    constexpr Oid INT8      = 20;
+    constexpr Oid INT4      = 23;
+    constexpr Oid TEXT      = 25;
+    constexpr Oid FLOAT4    = 700;
+    constexpr Oid FLOAT8    = 701;
+    constexpr Oid DATE      = 1082;
+    constexpr Oid TIME      = 1083;
+    constexpr Oid TIMESTAMP = 1114;
+} // namespace cpp_dbc::PostgreSQL::oid
+
 // Thread-safety macros for conditional mutex locking
 // Using recursive_mutex to allow the same thread to acquire the lock multiple times
 // This is needed when a method that holds the lock calls another method that also needs the lock

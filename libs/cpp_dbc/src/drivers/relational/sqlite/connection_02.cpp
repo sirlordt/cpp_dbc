@@ -56,7 +56,12 @@ namespace cpp_dbc::SQLite
                 return cpp_dbc::unexpected(stmtResult.error());
             }
             auto stmt = stmtResult.value();
-            [[maybe_unused]] auto regResult = registerStatement(std::nothrow, std::weak_ptr<SQLiteDBPreparedStatement>(stmt));
+            // If registration fails the statement is NOT returned — destructor closes it.
+            auto regResult = registerStatement(std::nothrow, std::weak_ptr<SQLiteDBPreparedStatement>(stmt));
+            if (!regResult.has_value())
+            {
+                return cpp_dbc::unexpected(regResult.error());
+            }
             return std::shared_ptr<RelationalDBPreparedStatement>(stmt);
         }
         catch (const DBException &ex)

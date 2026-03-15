@@ -67,7 +67,7 @@ namespace cpp_dbc::MongoDB
                         std::owner_less<std::weak_ptr<MongoDBConnection>>>     s_connectionRegistry;
 
         // ── Coalesced cleanup flag ────────────────────────────────────────────
-        static std::atomic<bool> s_cleanupPending;
+        inline static std::atomic s_cleanupPending{false};
 
         /**
          * @brief Initialize the MongoDB C driver library

@@ -46,7 +46,6 @@ namespace cpp_dbc::MySQL
     std::set<std::weak_ptr<MySQLDBConnection>,
              std::owner_less<std::weak_ptr<MySQLDBConnection>>>
         MySQLDBDriver::s_connectionRegistry;
-    std::atomic<bool> MySQLDBDriver::s_cleanupPending{false};
     std::shared_ptr<MySQLDBDriver> MySQLDBDriver::s_instance;
 
     // ============================================================================
@@ -75,20 +74,23 @@ namespace cpp_dbc::MySQL
 
     void MySQLDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<MySQLDBConnection> conn) noexcept
     {
+        size_t registrySize = 0;
         {
             std::scoped_lock lock(s_registryMutex);
             s_connectionRegistry.insert(std::move(conn));
+            registrySize = s_connectionRegistry.size();
         }
 
-        // Coalesced cleanup: only post if no cleanup is already queued.
-        if (!s_cleanupPending.exchange(true, std::memory_order_acq_rel))
+        // Coalesced cleanup: only post when the registry has grown past the
+        // cleanup threshold and no cleanup task is already queued.
+        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_acq_rel))
         {
             SerialQueue::global().post([]()
                                        {
                 {
                     std::scoped_lock lock(s_registryMutex);
-                    //std::erase_if(s_connectionRegistry,
-                    //    [](const auto &w) { return w.expired(); });
+                    std::erase_if(s_connectionRegistry,
+                        [](const auto &w) { return w.expired(); });
                 }
                 s_cleanupPending.store(false, std::memory_order_release); });
         }

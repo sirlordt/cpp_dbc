@@ -161,6 +161,7 @@ DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
 DEBUG_REDIS=OFF
+DEBUG_SERIAL_QUEUE=OFF
 BACKWARD_HAS_DW=ON
 DB_DRIVER_THREAD_SAFE=ON
 
@@ -242,6 +243,9 @@ do
         --debug-redis)
         DEBUG_REDIS=ON
         ;;
+        --debug-serial-queue)
+        DEBUG_SERIAL_QUEUE=ON
+        ;;
         --debug-all)
         DEBUG_CONNECTION_POOL=ON
         DEBUG_TRANSACTION_MANAGER=ON
@@ -252,6 +256,7 @@ do
         DEBUG_MONGODB=ON
         DEBUG_SCYLLADB=ON
         DEBUG_REDIS=ON
+        DEBUG_SERIAL_QUEUE=ON
         ;;
         --dw-off)
         BACKWARD_HAS_DW=OFF
@@ -286,6 +291,7 @@ do
         echo "  --debug-mongodb        Enable debug output for MongoDB driver"
         echo "  --debug-scylladb       Enable debug output for ScyllaDB driver"
         echo "  --debug-redis          Enable debug output for Redis driver"
+        echo "  --debug-serial-queue   Enable debug output for SerialQueue"
         echo "  --debug-all            Enable all debug output"
         echo "  --dw-off               Disable libdw support for stack traces"
         echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
@@ -371,6 +377,10 @@ fi
 
 if [ "$DEBUG_REDIS" = "ON" ]; then
     BUILD_CMD="$BUILD_CMD --debug-redis"
+fi
+
+if [ "$DEBUG_SERIAL_QUEUE" = "ON" ]; then
+    BUILD_CMD="$BUILD_CMD --debug-serial-queue"
 fi
 
 if [ "$BACKWARD_HAS_DW" = "OFF" ]; then

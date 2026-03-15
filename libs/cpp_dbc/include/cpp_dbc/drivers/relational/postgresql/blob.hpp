@@ -94,7 +94,7 @@ namespace cpp_dbc::PostgreSQL
                 if (PQresultStatus(res.get()) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(res.get());
-                    return cpp_dbc::unexpected(DBException("PLX9YW4JL8V7",
+                    return cpp_dbc::unexpected(DBException("G4RSVK0YUWCJ",
                         "Failed to create savepoint for BLOB operation: " + error,
                         system_utils::captureCallStack()));
                 }
@@ -130,7 +130,7 @@ namespace cpp_dbc::PostgreSQL
                 if (PQresultStatus(res.get()) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(res.get());
-                    return cpp_dbc::unexpected(DBException("PYQGW1S0NFFX",
+                    return cpp_dbc::unexpected(DBException("C13W7UNP30RS",
                         "Failed to release savepoint for BLOB operation: " + error,
                         system_utils::captureCallStack()));
                 }
