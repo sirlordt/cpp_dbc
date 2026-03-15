@@ -75,6 +75,7 @@
 
 // Common utilities
 #include "cpp_dbc/backward.hpp"
+#include "cpp_dbc/common/serial_queue.hpp"
 #include "cpp_dbc/common/system_utils.hpp"
 
 // Driver implementations (conditionally included)

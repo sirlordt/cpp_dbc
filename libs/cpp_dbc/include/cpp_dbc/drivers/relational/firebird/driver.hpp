@@ -65,13 +65,16 @@ namespace cpp_dbc::Firebird
         };
 
         // ── Singleton state ───────────────────────────────────────────────────
-        static std::weak_ptr<FirebirdDBDriver> s_instance;
-        static std::mutex                      s_instanceMutex;
+        static std::shared_ptr<FirebirdDBDriver> s_instance;
+        static std::mutex                        s_instanceMutex;
 
         // ── Connection registry ───────────────────────────────────────────────
         static std::mutex                                                        s_registryMutex;
         static std::set<std::weak_ptr<FirebirdDBConnection>,
                         std::owner_less<std::weak_ptr<FirebirdDBConnection>>>   s_connectionRegistry;
+
+        // ── Coalesced cleanup flag ────────────────────────────────────────────
+        static std::atomic<bool> s_cleanupPending;
 
         static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
 

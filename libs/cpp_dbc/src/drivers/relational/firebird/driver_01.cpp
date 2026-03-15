@@ -40,11 +40,14 @@
 namespace cpp_dbc::Firebird
 {
     // ── Static member initialization ──────────────────────────────────────────
-    std::weak_ptr<FirebirdDBDriver> FirebirdDBDriver::s_instance;
-    std::mutex                      FirebirdDBDriver::s_instanceMutex;
-    std::mutex                      FirebirdDBDriver::s_registryMutex;
+    // IMPORTANT: s_instance MUST be declared LAST — see mysql/driver_01.cpp for
+    // the full explanation of the static destruction order requirement.
+    std::mutex                        FirebirdDBDriver::s_instanceMutex;
+    std::mutex                        FirebirdDBDriver::s_registryMutex;
     std::set<std::weak_ptr<FirebirdDBConnection>,
              std::owner_less<std::weak_ptr<FirebirdDBConnection>>> FirebirdDBDriver::s_connectionRegistry;
+    std::atomic<bool> FirebirdDBDriver::s_cleanupPending{false};
+    std::shared_ptr<FirebirdDBDriver> FirebirdDBDriver::s_instance;
 
     // ============================================================================
     // FirebirdDBDriver Implementation - Private Static Helpers
@@ -60,8 +63,24 @@ namespace cpp_dbc::Firebird
 
     void FirebirdDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<FirebirdDBConnection> conn) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
-        s_connectionRegistry.insert(std::move(conn));
+        {
+            std::scoped_lock lock(s_registryMutex);
+            s_connectionRegistry.insert(std::move(conn));
+        }
+
+        // Coalesced cleanup: only post if no cleanup is already queued.
+        if (!s_cleanupPending.exchange(true, std::memory_order_acq_rel))
+        {
+            SerialQueue::global().post([]()
+            {
+                {
+                    std::scoped_lock lock(s_registryMutex);
+                    std::erase_if(s_connectionRegistry,
+                        [](const auto &w) { return w.expired(); });
+                }
+                s_cleanupPending.store(false, std::memory_order_release);
+            });
+        }
     }
 
     void FirebirdDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<FirebirdDBConnection> &conn) noexcept
@@ -187,11 +206,10 @@ namespace cpp_dbc::Firebird
     cpp_dbc::expected<std::shared_ptr<FirebirdDBDriver>, DBException>
     FirebirdDBDriver::getInstance(std::nothrow_t) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_instanceMutex);
-        auto existing = s_instance.lock();
-        if (existing)
+        std::scoped_lock lock(s_instanceMutex);
+        if (s_instance)
         {
-            return existing;
+            return s_instance;
         }
         // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
         // Constructor errors are captured in m_initFailed / m_initError.
@@ -201,7 +219,7 @@ namespace cpp_dbc::Firebird
             return cpp_dbc::unexpected(std::move(*inst->m_initError));
         }
         s_instance = inst;
-        return inst;
+        return s_instance;
     }
 
     size_t FirebirdDBDriver::getConnectionAlive() noexcept

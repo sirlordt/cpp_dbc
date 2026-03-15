@@ -40,11 +40,14 @@ namespace cpp_dbc::PostgreSQL
 {
 
     // ── Static member initialization ──────────────────────────────────────────
-    std::weak_ptr<PostgreSQLDBDriver> PostgreSQLDBDriver::s_instance;
-    std::mutex                        PostgreSQLDBDriver::s_instanceMutex;
-    std::mutex                        PostgreSQLDBDriver::s_registryMutex;
+    // IMPORTANT: s_instance MUST be declared LAST — see mysql/driver_01.cpp for
+    // the full explanation of the static destruction order requirement.
+    std::mutex                          PostgreSQLDBDriver::s_instanceMutex;
+    std::mutex                          PostgreSQLDBDriver::s_registryMutex;
     std::set<std::weak_ptr<PostgreSQLDBConnection>,
              std::owner_less<std::weak_ptr<PostgreSQLDBConnection>>> PostgreSQLDBDriver::s_connectionRegistry;
+    std::atomic<bool> PostgreSQLDBDriver::s_cleanupPending{false};
+    std::shared_ptr<PostgreSQLDBDriver> PostgreSQLDBDriver::s_instance;
 
     // ============================================================================
     // PostgreSQLDBDriver Implementation - Private Static Helpers
@@ -62,8 +65,24 @@ namespace cpp_dbc::PostgreSQL
 
     void PostgreSQLDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<PostgreSQLDBConnection> conn) noexcept
     {
-        std::scoped_lock lock(s_registryMutex);
-        s_connectionRegistry.insert(std::move(conn));
+        {
+            std::scoped_lock lock(s_registryMutex);
+            s_connectionRegistry.insert(std::move(conn));
+        }
+
+        // Coalesced cleanup: only post if no cleanup is already queued.
+        if (!s_cleanupPending.exchange(true, std::memory_order_acq_rel))
+        {
+            SerialQueue::global().post([]()
+            {
+                {
+                    std::scoped_lock lock(s_registryMutex);
+                    std::erase_if(s_connectionRegistry,
+                        [](const auto &w) { return w.expired(); });
+                }
+                s_cleanupPending.store(false, std::memory_order_release);
+            });
+        }
     }
 
     void PostgreSQLDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<PostgreSQLDBConnection> &conn) noexcept
@@ -224,10 +243,9 @@ namespace cpp_dbc::PostgreSQL
     PostgreSQLDBDriver::getInstance(std::nothrow_t) noexcept
     {
         std::scoped_lock lock(s_instanceMutex);
-        auto existing = s_instance.lock();
-        if (existing)
+        if (s_instance)
         {
-            return existing;
+            return s_instance;
         }
         // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
         // Constructor errors are captured in m_initFailed / m_initError.
@@ -237,7 +255,7 @@ namespace cpp_dbc::PostgreSQL
             return cpp_dbc::unexpected(std::move(*inst->m_initError));
         }
         s_instance = inst;
-        return inst;
+        return s_instance;
     }
 
     size_t PostgreSQLDBDriver::getConnectionAlive() noexcept

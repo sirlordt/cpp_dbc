@@ -17,6 +17,7 @@
  */
 
 #include "cpp_dbc/drivers/kv/driver_redis.hpp"
+#include "cpp_dbc/common/serial_queue.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -40,13 +41,16 @@ namespace cpp_dbc::Redis
 {
 
     // ── Static member initialization ──────────────────────────────────────────
+    // IMPORTANT: s_instance MUST be declared LAST — see mysql/driver_01.cpp for
+    // the full explanation of the static destruction order requirement.
     std::atomic<bool> RedisDBDriver::s_initialized{false}; // NOSONAR(cpp:S1197) — explicit template arg for clarity in static member definition
     std::mutex RedisDBDriver::s_initMutex;
-    std::weak_ptr<RedisDBDriver> RedisDBDriver::s_instance;
-    std::mutex                   RedisDBDriver::s_instanceMutex;
-    std::mutex                   RedisDBDriver::s_registryMutex;
+    std::mutex                     RedisDBDriver::s_instanceMutex;
+    std::mutex                     RedisDBDriver::s_registryMutex;
     std::set<std::weak_ptr<RedisDBConnection>,
              std::owner_less<std::weak_ptr<RedisDBConnection>>> RedisDBDriver::s_connectionRegistry;
+    std::atomic<bool> RedisDBDriver::s_cleanupPending{false};
+    std::shared_ptr<RedisDBDriver> RedisDBDriver::s_instance;
 
     // ============================================================================
     // RedisDBDriver Implementation
@@ -138,8 +142,24 @@ namespace cpp_dbc::Redis
 
     void RedisDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<RedisDBConnection> conn) noexcept
     {
-        std::scoped_lock lock(s_registryMutex);
-        s_connectionRegistry.insert(std::move(conn));
+        {
+            std::scoped_lock lock(s_registryMutex);
+            s_connectionRegistry.insert(std::move(conn));
+        }
+
+        // Coalesced cleanup: only post if no cleanup is already queued.
+        if (!s_cleanupPending.exchange(true, std::memory_order_acq_rel))
+        {
+            SerialQueue::global().post([]()
+            {
+                {
+                    std::scoped_lock lock(s_registryMutex);
+                    std::erase_if(s_connectionRegistry,
+                        [](const auto &w) { return w.expired(); });
+                }
+                s_cleanupPending.store(false, std::memory_order_release);
+            });
+        }
     }
 
     void RedisDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<RedisDBConnection> &conn) noexcept
@@ -217,17 +237,16 @@ namespace cpp_dbc::Redis
     RedisDBDriver::getInstance(std::nothrow_t) noexcept
     {
         std::scoped_lock lock(s_instanceMutex);
-        auto existing = s_instance.lock();
-        if (existing)
+        if (s_instance)
         {
-            return existing;
+            return s_instance;
         }
         // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
         // RedisDBDriver() constructor only calls initialize(std::nothrow) and debug
         // macros — no recoverable exception is possible.
         auto inst = std::make_shared<RedisDBDriver>(RedisDBDriver::PrivateCtorTag{}, std::nothrow);
         s_instance = inst;
-        return inst;
+        return s_instance;
     }
 
     cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> RedisDBDriver::connectKV(

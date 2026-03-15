@@ -47,13 +47,16 @@ namespace cpp_dbc::SQLite
         static std::mutex s_initMutex;
 
         // ── Singleton state ───────────────────────────────────────────────────
-        static std::weak_ptr<SQLiteDBDriver> s_instance;
-        static std::mutex                    s_instanceMutex;
+        static std::shared_ptr<SQLiteDBDriver> s_instance;
+        static std::mutex                      s_instanceMutex;
 
         // ── Connection registry ───────────────────────────────────────────────
         static std::mutex                                                        s_registryMutex;
         static std::set<std::weak_ptr<SQLiteDBConnection>,
                         std::owner_less<std::weak_ptr<SQLiteDBConnection>>>      s_connectionRegistry;
+
+        // ── Coalesced cleanup flag ────────────────────────────────────────────
+        static std::atomic<bool> s_cleanupPending;
 
         static void registerConnection(std::nothrow_t, std::weak_ptr<SQLiteDBConnection> conn) noexcept;
         static void unregisterConnection(std::nothrow_t, const std::weak_ptr<SQLiteDBConnection> &conn) noexcept;

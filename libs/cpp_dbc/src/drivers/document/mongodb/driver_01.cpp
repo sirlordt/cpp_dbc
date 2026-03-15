@@ -17,6 +17,7 @@
  */
 
 #include "cpp_dbc/drivers/document/driver_mongodb.hpp"
+#include "cpp_dbc/common/serial_queue.hpp"
 
 #include <algorithm>
 #include <cstdlib>
@@ -32,14 +33,17 @@
 namespace cpp_dbc::MongoDB
 {
     // ── Static member initialization ──────────────────────────────────────────
+    // IMPORTANT: s_instance MUST be declared LAST — see mysql/driver_01.cpp for
+    // the full explanation of the static destruction order requirement.
     std::atomic<bool> MongoDBDriver::s_initialized{false}; // NOSONAR(cpp:S1197) — explicit template arg for clarity in static member definition
     std::mutex MongoDBDriver::s_initMutex;
-    std::weak_ptr<MongoDBDriver> MongoDBDriver::s_instance;
-    std::mutex                   MongoDBDriver::s_instanceMutex;
-    std::once_flag               MongoDBDriver::s_atexitFlag;
-    std::mutex                   MongoDBDriver::s_registryMutex;
+    std::mutex                     MongoDBDriver::s_instanceMutex;
+    std::once_flag                 MongoDBDriver::s_atexitFlag;
+    std::mutex                     MongoDBDriver::s_registryMutex;
     std::set<std::weak_ptr<MongoDBConnection>,
              std::owner_less<std::weak_ptr<MongoDBConnection>>> MongoDBDriver::s_connectionRegistry;
+    std::atomic<bool> MongoDBDriver::s_cleanupPending{false};
+    std::shared_ptr<MongoDBDriver> MongoDBDriver::s_instance;
 
     // ============================================================================
     // MongoDBDriver Implementation
@@ -100,8 +104,24 @@ namespace cpp_dbc::MongoDB
 
     void MongoDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<MongoDBConnection> conn) noexcept
     {
-        std::scoped_lock lock(s_registryMutex);
-        s_connectionRegistry.insert(std::move(conn));
+        {
+            std::scoped_lock lock(s_registryMutex);
+            s_connectionRegistry.insert(std::move(conn));
+        }
+
+        // Coalesced cleanup: only post if no cleanup is already queued.
+        if (!s_cleanupPending.exchange(true, std::memory_order_acq_rel))
+        {
+            SerialQueue::global().post([]()
+            {
+                {
+                    std::scoped_lock lock(s_registryMutex);
+                    std::erase_if(s_connectionRegistry,
+                        [](const auto &w) { return w.expired(); });
+                }
+                s_cleanupPending.store(false, std::memory_order_release);
+            });
+        }
     }
 
     void MongoDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<MongoDBConnection> &conn) noexcept
@@ -236,10 +256,9 @@ namespace cpp_dbc::MongoDB
     MongoDBDriver::getInstance(std::nothrow_t) noexcept
     {
         std::scoped_lock lock(s_instanceMutex);
-        auto existing = s_instance.lock();
-        if (existing)
+        if (s_instance)
         {
-            return existing;
+            return s_instance;
         }
         // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
         // MongoDBDriver constructor only calls initialize(std::nothrow) and debug
@@ -258,7 +277,7 @@ namespace cpp_dbc::MongoDB
             });
         });
 
-        return inst;
+        return s_instance;
     }
 
     expected<std::shared_ptr<DocumentDBConnection>, DBException> MongoDBDriver::connectDocument(

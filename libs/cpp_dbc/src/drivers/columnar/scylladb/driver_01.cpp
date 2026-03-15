@@ -41,13 +41,16 @@ namespace cpp_dbc::ScyllaDB
     // ====================================================================
 
     // ── Static member initialization ──────────────────────────────────────────
+    // IMPORTANT: s_instance MUST be declared LAST — see mysql/driver_01.cpp for
+    // the full explanation of the static destruction order requirement.
     std::atomic<bool> ScyllaDBDriver::s_initialized{false}; // NOSONAR(cpp:S1197) — explicit template arg for clarity in static member definition
     std::mutex ScyllaDBDriver::s_initMutex;
-    std::weak_ptr<ScyllaDBDriver> ScyllaDBDriver::s_instance;
-    std::mutex                    ScyllaDBDriver::s_instanceMutex;
-    std::mutex                    ScyllaDBDriver::s_registryMutex;
+    std::mutex                      ScyllaDBDriver::s_instanceMutex;
+    std::mutex                      ScyllaDBDriver::s_registryMutex;
     std::set<std::weak_ptr<ScyllaDBConnection>,
              std::owner_less<std::weak_ptr<ScyllaDBConnection>>> ScyllaDBDriver::s_connectionRegistry;
+    std::atomic<bool> ScyllaDBDriver::s_cleanupPending{false};
+    std::shared_ptr<ScyllaDBDriver> ScyllaDBDriver::s_instance;
 
     cpp_dbc::expected<bool, DBException> ScyllaDBDriver::initialize(std::nothrow_t) noexcept
     {
@@ -100,8 +103,24 @@ namespace cpp_dbc::ScyllaDB
 
     void ScyllaDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<ScyllaDBConnection> conn) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
-        s_connectionRegistry.insert(std::move(conn));
+        {
+            std::scoped_lock lock(s_registryMutex);
+            s_connectionRegistry.insert(std::move(conn));
+        }
+
+        // Coalesced cleanup: only post if no cleanup is already queued.
+        if (!s_cleanupPending.exchange(true, std::memory_order_acq_rel))
+        {
+            SerialQueue::global().post([]()
+            {
+                {
+                    std::scoped_lock lock(s_registryMutex);
+                    std::erase_if(s_connectionRegistry,
+                        [](const auto &w) { return w.expired(); });
+                }
+                s_cleanupPending.store(false, std::memory_order_release);
+            });
+        }
     }
 
     void ScyllaDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<ScyllaDBConnection> &conn) noexcept
@@ -208,18 +227,17 @@ namespace cpp_dbc::ScyllaDB
     cpp_dbc::expected<std::shared_ptr<ScyllaDBDriver>, DBException>
     ScyllaDBDriver::getInstance(std::nothrow_t) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_instanceMutex);
-        auto existing = s_instance.lock();
-        if (existing)
+        std::scoped_lock lock(s_instanceMutex);
+        if (s_instance)
         {
-            return existing;
+            return s_instance;
         }
         // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
         // ScyllaDBDriver constructor only calls initialize(std::nothrow) and debug
         // macros — no recoverable exception is possible.
         auto inst = std::make_shared<ScyllaDBDriver>(ScyllaDBDriver::PrivateCtorTag{}, std::nothrow);
         s_instance = inst;
-        return inst;
+        return s_instance;
     }
 
     cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException> ScyllaDBDriver::connectColumnar(

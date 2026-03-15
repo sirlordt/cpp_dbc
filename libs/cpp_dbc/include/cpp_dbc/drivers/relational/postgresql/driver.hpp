@@ -46,8 +46,8 @@ namespace cpp_dbc::PostgreSQL
         // because libpq does not require explicit global library initialization.
         // cleanup() is called unconditionally in the destructor for clean shutdown.
         // See initialize() in driver_01.cpp for details.
-        static std::weak_ptr<PostgreSQLDBDriver> s_instance;
-        static std::mutex                        s_instanceMutex;
+        static std::shared_ptr<PostgreSQLDBDriver> s_instance;
+        static std::mutex                          s_instanceMutex;
 
         // ── Connection registry ───────────────────────────────────────────────
         // Tracks all live connections created through connectRelational().
@@ -55,6 +55,9 @@ namespace cpp_dbc::PostgreSQL
         static std::mutex                                                          s_registryMutex;
         static std::set<std::weak_ptr<PostgreSQLDBConnection>,
                         std::owner_less<std::weak_ptr<PostgreSQLDBConnection>>>   s_connectionRegistry;
+
+        // ── Coalesced cleanup flag ────────────────────────────────────────────
+        static std::atomic<bool> s_cleanupPending;
 
         static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
 

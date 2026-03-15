@@ -50,8 +50,8 @@ namespace cpp_dbc::MongoDB
         static std::mutex s_initMutex;
 
         // ── Singleton state ───────────────────────────────────────────────────
-        static std::weak_ptr<MongoDBDriver> s_instance;
-        static std::mutex                   s_instanceMutex;
+        static std::shared_ptr<MongoDBDriver> s_instance;
+        static std::mutex                     s_instanceMutex;
 
         // ── atexit cleanup guard ──────────────────────────────────────────────
         // Ensures mongoc_cleanup() is registered with std::atexit exactly once
@@ -65,6 +65,9 @@ namespace cpp_dbc::MongoDB
         static std::mutex                                                      s_registryMutex;
         static std::set<std::weak_ptr<MongoDBConnection>,
                         std::owner_less<std::weak_ptr<MongoDBConnection>>>     s_connectionRegistry;
+
+        // ── Coalesced cleanup flag ────────────────────────────────────────────
+        static std::atomic<bool> s_cleanupPending;
 
         /**
          * @brief Initialize the MongoDB C driver library
