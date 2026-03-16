@@ -177,7 +177,7 @@ namespace cpp_dbc::system_utils
          */
         ~AtomicGuard() noexcept
         {
-            m_flag.store(m_resetValue, std::memory_order_release);
+            m_flag.store(m_resetValue, std::memory_order_release); // NOSONAR cpp:S8417 not needed
         }
 
         // Prevent copying and moving to avoid double-reset bugs
