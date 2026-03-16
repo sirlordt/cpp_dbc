@@ -2,7 +2,96 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. The `DBDriver` base class provides a unified URI API (`acceptURI`, `parseURI`, `buildURI`, `getURIScheme`) and a unified `getDriverVersion()` method. The `DBConnection` base class provides `getServerVersion()` and `getServerInfo()` for runtime introspection of database server versions and metadata across all drivers (2026-03-08). `MySQLBlob` and `MySQLInputStream` have been upgraded to the PrivateCtorTag creational pattern. The PrivateCtorTag naming is unified across the entire codebase. `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). The connection pool system is fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
+The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. The `DBDriver` base class provides a unified URI API (`acceptURI`, `parseURI`, `buildURI`, `getURIScheme`) and a unified `getDriverVersion()` method. The `DBConnection` base class provides `getServerVersion()` and `getServerInfo()` for runtime introspection of database server versions and metadata across all drivers (2026-03-08). Both MySQL and PostgreSQL drivers now follow the same architecture: connection owns mutex directly, PreparedStatement/ResultSet hold `weak_ptr<Connection>` and acquire the mutex via RAII lock helpers (`MySQLConnectionLock` / `PostgreSQLConnectionLock`), PrivateCtorTag pattern with `m_initFailed`/`m_initError`, `std::atomic<bool> m_closed`, result set registry in connection with `notifyConnClosing()` lifecycle management (2026-03-12). `DBException` is a `final`, `noexcept`-constructible hybrid fixed/dynamic storage class (~120 bytes object size): a 79-byte fixed buffer holds mark + up to 64 chars of message; longer messages spill to a heap-allocated `shared_ptr<char[]>` overflow buffer via `new(std::nothrow)` with graceful degradation (2026-03-13). The connection pool system is fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
+
+### Recent Improvements (2026-03-13 10:40 PDT)
+
+**DBException Hybrid Storage, Build System TSAN/Debug Flags, Test Runner Sanitizer Label:**
+
+1. **DBException — Hybrid Fixed/Dynamic Storage:**
+   - Fixed buffer reduced from 271 to 79 bytes; new `MSG_CAP` macro (64 chars)
+   - `shared_ptr<char[]> m_overflow` for messages > 64 chars, allocated via `new(std::nothrow)`
+   - Graceful degradation: `what()` returns truncated fixed buffer on alloc failure
+   - Class made `final`; `what_s()` no longer virtual; `#include <new>` added
+   - Object size ~120 bytes (down from ~287 bytes) in common case
+
+2. **Build System — TSAN Support + Debug Flags:**
+   - `build_cpp_dbc.sh`: `--tsan` flag, unified `SANITIZER_FLAGS`/`SANITIZER_LINKER_FLAGS`, `CMAKE_EXE_LINKER_FLAGS`, `--debug-mysql`/`--debug-postgresql`
+   - `build_test_cpp_dbc.sh`: absolute `PROJECT_ROOT` path resolution, `INSTALL_DIR`, explicit `EXAMPLES=OFF`/`BENCHMARKS=OFF`, `DEBUG_ALL` forwarded
+
+3. **Test Runner — Sanitizer Label:**
+   - `SANITIZER_LABEL` detected from pass-through args (helgrind-gs, helgrind-s, helgrind, drd-gs, drd-s, drd, valgrind)
+   - TUI status bar shows `" | Tool: <label>"` when active
+
+4. **Impact:** 4 files changed, +151/-33 lines
+
+### Recent Improvements (2026-03-12 21:09 PDT)
+
+**Build System — CMake Cache Invalidation Fix, Lock Macro Unification Across Drivers:**
+
+1. **CMake Cache Invalidation Fix:**
+   - Redundant `build_test_cpp_dbc.sh` call removed from `build_cpp_dbc.sh` (was causing double compilation)
+   - `BACKWARD_HAS_DW` default aligned to `OFF` in both build scripts
+   - `CMAKE_CXX_FLAGS` built dynamically to avoid trailing spaces that invalidate cache
+   - `CPP_DBC_BUILD_EXAMPLES`/`CPP_DBC_BUILD_BENCHMARKS` no longer hardcoded `OFF` in `build_test_cpp_dbc.sh`
+   - `--mc-combo-01`/`--mc-combo-02` now include benchmarks in build options
+
+2. **Lock Macro Unification for Statement/ResultSet Registry:**
+   - MySQL: `registerStatement/unregisterStatement/closeAllStatements/registerResultSet/unregisterResultSet/closeAllActiveResultSets` now use `MYSQL_CONNECTION_LOCK_OR_RETURN` + `stmtLock`
+   - PostgreSQL: Same pattern with `PG_CONNECTION_LOCK_OR_RETURN` + `stmtLock`
+   - SQLite: Manual `std::lock_guard<std::recursive_mutex>` replaced with `SQLITE_CONNECTION_LOCK_OR_RETURN` / `SQLITE_STMT_LOCK_OR_RETURN` macros
+
+3. **New SQLite Lock Macros (`sqlite_internal.hpp`):**
+   - `SQLITE_CONNECTION_LOCK_OR_RETURN(mark, msg)` — locks `m_globalFileMutex`, returns unexpected if closed
+   - `SQLITE_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()` — idempotent variant for `close()`
+   - `SQLITE_STMT_LOCK_OR_RETURN(mark, msg)` — for PreparedStatement, checks `m_stmt` instead of `m_db`
+
+4. **PostgreSQL Header Cleanup:**
+   - `connection.hpp`: `m_initFailed`/`m_initError` moved to dedicated "Construction state" section
+
+5. **Documentation:**
+   - `shell_script_dependencies.md`: New "CMake Cache Invalidation — Shared Build Directory" section
+
+6. **Impact:** 11 files changed, +280/-140 lines
+
+### Recent Improvements (2026-03-12 12:24 PDT)
+
+**PostgreSQL Driver — Shared-Mutex Refactoring, PrivateCtorTag Pattern, Convention Compliance:**
+
+1. **Connection Mutex Ownership Refactored:**
+   - `SharedConnMutex` (shared_ptr<recursive_mutex>) replaced with direct `std::recursive_mutex m_connMutex`
+   - New `getConnectionMutex()` method for child objects to acquire mutex
+   - `m_closed` → `std::atomic<bool>` with proper `memory_order_acquire`/`release`
+   - Result set registry: `m_activeResultSets` with `registerResultSet()`/`unregisterResultSet()`/`closeAllResultSets()`
+   - Lifecycle: `close()`/`reset()`/`returnToPool()` close result sets before statements
+
+2. **PostgreSQLConnectionLock RAII Helper:**
+   - New class in `postgresql_internal.hpp` — acquires connection's `recursive_mutex` through `weak_ptr<PostgreSQLDBConnection>`
+   - Double-checked locking: check closed → lock weak_ptr (keep alive) → acquire mutex → re-check closed
+   - `PG_STMT_LOCK_OR_RETURN` / `PG_STMT_LOCK_OR_THROW` / `PG_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED` macros
+   - `PG_CONNECTION_LOCK_OR_RETURN` / `PG_CONNECTION_LOCK_OR_THROW` macros for connection methods
+
+3. **PreparedStatement Refactored:**
+   - `weak_ptr<PGconn>` → `weak_ptr<PostgreSQLDBConnection>`; access PGconn* via `getPGConnection(std::nothrow)` through `conn->m_conn`
+   - PrivateCtorTag + `m_initFailed`/`m_initError`; `enable_shared_from_this`; `std::atomic<bool> m_closed`
+   - `create()` factories unified: single nothrow version with PrivateCtorTag, throwing inside `#ifdef __cpp_exceptions`
+
+4. **ResultSet Refactored:**
+   - PrivateCtorTag pattern; `weak_ptr<PostgreSQLDBConnection>`; shares connection mutex (independent mutex removed)
+   - `notifyConnClosing()` for connection lifecycle management
+   - Dead try/catch removed from `isBeforeFirst()`, `isAfterLast()`, `getRow()`, `getColumnNames()`, `getColumnCount()`
+   - `std::stoi`/`std::stoll`/`std::stod` → `std::from_chars`; `strtol` → `std::from_chars` (hex parsing)
+
+5. **InputStream Refactored:**
+   - PrivateCtorTag pattern; throwing `validateAndEnd()` removed; noexcept constructor
+
+6. **Convention Compliance:**
+   - NOSONAR annotations on all `catch(...)` blocks
+   - `.has_value()` enforcement replacing implicit bool conversion
+   - `DB_DRIVER_LOCK_GUARD` → `std::scoped_lock` (was `std::lock_guard`)
+   - `PG_DEBUG` macro: `iostream` → `snprintf`-based with timestamp via `logWithTimesMillis()`
+
+7. **Impact:** 18 files changed, +733/-655 lines
 
 ### Recent Improvements (2026-03-08 17:25 PST)
 
@@ -192,12 +281,12 @@ The CPP_DBC library is in active development. All 7 database drivers (MySQL, Pos
 
 **DBException Fixed-Size Refactor, Unified `ping()` Interface, `std::string_view` Return Types, and Build Optimizations:**
 
-1. **`DBException` — Fixed-Size Memory Layout:**
-   - Inherits from `std::exception` (was `std::runtime_error`); constructor is `noexcept`
-   - Fixed char arrays: `m_mark[13]`, `m_message[257]`, `m_full_message[271]`
+1. **`DBException` — Hybrid Fixed/Dynamic Storage (updated 2026-03-13):**
+   - `class DBException final : public std::exception`; constructor is `noexcept`
+   - `m_full_message[79]` fixed buffer + `shared_ptr<char[]> m_overflow` for messages > 64 chars via `new(std::nothrow)` (~120 bytes object)
    - Call stack: `std::shared_ptr<CallStackCapture>` — one allocation, shared across copies
    - `what_s()` / `getMark()` return `std::string_view`; `getCallStack()` returns `std::span<const StackFrame>`
-   - `what()` returns pre-computed `m_full_message` (zero-cost); long values left-truncated with `...[TRUNCATED]`
+   - `what()` returns overflow buffer when available, fixed buffer otherwise — graceful degradation
 
 2. **`system_utils::CallStackCapture` — Fixed-Size Stack:**
    - `StackFrame` uses `char file[150]`, `char function[150]` (was `std::string`)

@@ -32,14 +32,20 @@
 - **PostgreSQL Client Library**: For PostgreSQL database connectivity
   - Uses the C API (`libpq-fe.h`)
   - Requires libpq development package
-  - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory, double-checked locking for driver init, `-fno-exceptions` compatible
+  - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory (PrivateCtorTag pattern), double-checked locking for driver init, `-fno-exceptions` compatible
+  - `PostgreSQLDBConnection`: owns `std::recursive_mutex m_connMutex` directly (not shared_ptr); result set registry (`m_activeResultSets`) with lifecycle management; `std::atomic<bool> m_closed`; `getConnectionMutex()` for child access; friend declarations for PreparedStatement/ResultSet (2026-03-12)
+  - `PostgreSQLDBPreparedStatement`/`PostgreSQLDBResultSet`: hold `weak_ptr<PostgreSQLDBConnection>` (not `weak_ptr<PGconn>`), access PGconn* through connection; PrivateCtorTag + `m_initFailed`/`m_initError`; `enable_shared_from_this`; `notifyConnClosing()` lifecycle (2026-03-12)
+  - `PostgreSQLConnectionLock` RAII helper in `postgresql_internal.hpp` for consistent lock-or-return pattern; double-checked locking with `weak_ptr` + atomic closed flag (2026-03-12)
+  - `PostgreSQLInputStream` upgraded to PrivateCtorTag pattern with `m_initFailed`/`m_initError` and `#ifdef __cpp_exceptions` guards (2026-03-12)
   - `getDriverVersion()` via `PQlibVersion()`; `getServerVersion()` via `PQserverVersion()`; `getServerInfo()` returns ServerVersion, ProtocolVersion, ServerEncoding, ClientEncoding, TimeZone (2026-03-08)
+  - `std::from_chars` for all string-to-number conversions; `PG_DEBUG` macro uses `snprintf` + `logWithTimesMillis()` (2026-03-12)
 
 - **SQLite Library**: For SQLite database connectivity
   - Uses the C API (`sqlite3.h`)
   - Requires libsqlite3 development package
   - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory, double-checked locking for driver init, `-fno-exceptions` compatible
   - `getDriverVersion()` via `sqlite3_libversion()`; `getServerInfo()` returns ServerVersion, ServerVersionNumeric, SourceId, ThreadSafe (2026-03-08)
+  - `SQLITE_CONNECTION_LOCK_OR_RETURN` / `SQLITE_STMT_LOCK_OR_RETURN` macros in `sqlite_internal.hpp` for consistent lock-or-return pattern in statement/result-set registry methods (2026-03-12)
 
 - **Firebird Client Library**: For Firebird SQL database connectivity
   - Uses the C API (`ibase.h`)
@@ -170,7 +176,7 @@ The project uses:
 - **Developer Documentation:**
   - `libs/cpp_dbc/docs/how_add_new_db_drivers.md`: Comprehensive guide for adding new database drivers (5 phases)
   - `libs/cpp_dbc/docs/error_handling_patterns.md`: Complete guide to DBException, error codes, and nothrow API
-  - `libs/cpp_dbc/docs/shell_script_dependencies.md`: Shell script call hierarchy and dependencies
+  - `libs/cpp_dbc/docs/shell_script_dependencies.md`: Shell script call hierarchy, dependencies, and CMake cache invalidation documentation
   - `.claude/rules/cpp_dbc_conventions.md`: Project conventions — expanded with 8 new sections (preprocessor directives, Allman braces, NOSONAR, bug-fix comments, unused params, private access specifier, PrivateCtorTag, migration rule) (2026-03-07)
   - `.claude/rules/cpp_dbc_conventions_violations_how_report_them.md`: Structured format for convention compliance analysis reports (2026-03-07)
 - Conditional compilation options:
@@ -178,7 +184,7 @@ The project uses:
   - `--examples`: Build example applications
   - `--test`: Build unit tests
   - `--release`: Build in Release mode instead of Debug mode
-  - `--dw-on`: Enable libdw support for stack traces (opt-in; default for tests is OFF since 2026-02-22)
+  - `--dw-on`: Enable libdw support for stack traces (opt-in; default is OFF in both build scripts since 2026-03-12)
   - `--dw-off`: Disable libdw support for stack traces (no-op; already disabled by default)
   - `--debug-pool`: Enable debug output for ConnectionPool
   - `--debug-txmgr`: Enable debug output for TransactionManager
@@ -324,10 +330,10 @@ The project now includes an automatic synchronization system for IntelliSense:
        - Methods to retrieve and print stack traces
        - `what_s()` returns `std::string_view` (was `const std::string&`); `getMark()` same (since 2026-02-26)
        - `getCallStack()` returns `std::span<const system_utils::StackFrame>` (was `const std::vector<StackFrame>&`)
-       - **Fixed-size layout (since 2026-02-26):** inherits `std::exception`, constructor is `noexcept`, fields are char arrays (`m_mark[13]`, `m_message[257]`, `m_full_message[271]`)
+       - **Hybrid fixed/dynamic storage (since 2026-03-13):** `class DBException final : public std::exception`, constructor is `noexcept`, `m_full_message[79]` fixed buffer (12 mark + 2 ": " + 64 msg + 1 null), `m_overflow` (`shared_ptr<char[]>`) for messages > 64 chars via `new(std::nothrow)`, graceful degradation (~120 bytes object size)
        - Call stack stored as `std::shared_ptr<CallStackCapture>` — optional, heap-allocated once, shared on copy
        - `captureCallStack()` returns `std::shared_ptr<CallStackCapture>` with fixed `StackFrame frames[10]`
-       - Virtual destructor for correct inheritance hierarchy
+       - Class is `final` — no virtual destructor needed
      - Client code should handle DBException appropriately
      - Stack traces provide detailed information about error origins
 

@@ -198,7 +198,7 @@ namespace cpp_dbc::MySQL
         /**
          * @brief Unregister a result set from the active result sets registry
          * @param rs Weak pointer to the result set to unregister
-         * @note Currently unused - result sets are cleaned up via closeAllActiveResultSets()
+         * @note Currently unused - result sets are cleaned up via closeAllResultSets()
          *       or expire naturally. Kept for API symmetry and potential future use.
          */
         cpp_dbc::expected<void, DBException> unregisterResultSet(std::nothrow_t, std::weak_ptr<MySQLDBResultSet> rs) noexcept;
@@ -218,7 +218,7 @@ namespace cpp_dbc::MySQL
          * connection after creation (store result model). Closing them only frees
          * local MYSQL_RES* memory and does not communicate with the server.
          */
-        cpp_dbc::expected<void, DBException> closeAllActiveResultSets(std::nothrow_t) noexcept;
+        cpp_dbc::expected<void, DBException> closeAllResultSets(std::nothrow_t) noexcept;
 
         // ── Internal helpers for sibling types (PreparedStatement, ResultSet, MySQLConnectionLock) ──
 

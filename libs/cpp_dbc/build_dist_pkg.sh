@@ -19,9 +19,11 @@ function show_usage {
     echo "                      Example: --distro=ubuntu:24.04+fedora:42+debian:12"
     echo "  --build=OPTIONS     Comma-separated build options."
     echo "                      Supported values: yaml, mysql, postgres, sqlite, firebird, mongodb,"
-    echo "                                        debug, release, dw, examples, thread-safe-off,"
-    echo "                                        debug-pool, debug-txmgr, debug-sqlite, debug-firebird,"
-    echo "                                        debug-mongodb, debug-all"
+    echo "                                        scylladb, redis, debug, release, dw, examples,"
+    echo "                                        thread-safe-off, debug-pool, debug-txmgr, debug-sqlite,"
+    echo "                                        debug-mysql, debug-postgresql, debug-firebird,"
+    echo "                                        debug-mongodb, debug-scylladb, debug-redis,"
+    echo "                                        debug-serial-queue, debug-all"
     echo "                      Default: yaml,mysql,postgres,sqlite,debug,dw"
     echo "  --version=VERSION   Specify a version string to use instead of timestamp."
     echo "                      Example: --version=1.0.1 or --version=2-0-1"
@@ -175,6 +177,7 @@ DEBUG_FIREBIRD="OFF"
 DEBUG_MONGODB="OFF"
 DEBUG_SCYLLADB="OFF"
 DEBUG_REDIS="OFF"
+DEBUG_SERIAL_QUEUE="OFF"
 DEBUG_ALL="OFF"
 # Create a variable to store the build flags for the Debian package
 BUILD_FLAGS=""
@@ -263,6 +266,14 @@ for option in "${OPTIONS[@]}"; do
             DEBUG_SQLITE="ON"
             BUILD_FLAGS="$BUILD_FLAGS --debug-sqlite"
             ;;
+        debug-mysql)
+            DEBUG_MYSQL="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --debug-mysql"
+            ;;
+        debug-postgresql)
+            DEBUG_POSTGRESQL="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --debug-postgresql"
+            ;;
         debug-firebird)
             DEBUG_FIREBIRD="ON"
             BUILD_FLAGS="$BUILD_FLAGS --debug-firebird"
@@ -279,14 +290,21 @@ for option in "${OPTIONS[@]}"; do
             DEBUG_REDIS="ON"
             BUILD_FLAGS="$BUILD_FLAGS --debug-redis"
             ;;
+        debug-serial-queue)
+            DEBUG_SERIAL_QUEUE="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --debug-serial-queue"
+            ;;
         debug-all)
             DEBUG_CONNECTION_POOL="ON"
             DEBUG_TRANSACTION_MANAGER="ON"
             DEBUG_SQLITE="ON"
+            DEBUG_MYSQL="ON"
+            DEBUG_POSTGRESQL="ON"
             DEBUG_FIREBIRD="ON"
             DEBUG_MONGODB="ON"
             DEBUG_SCYLLADB="ON"
             DEBUG_REDIS="ON"
+            DEBUG_SERIAL_QUEUE="ON"
             DEBUG_ALL="ON"
             BUILD_FLAGS="$BUILD_FLAGS --debug-all"
             ;;
@@ -421,6 +439,7 @@ for DISTRO in "${DISTRO_LIST[@]}"; do
     sed -i "s/__DEBUG_MONGODB__/$DEBUG_MONGODB/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__DEBUG_SCYLLADB__/$DEBUG_SCYLLADB/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__DEBUG_REDIS__/$DEBUG_REDIS/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__DEBUG_SERIAL_QUEUE__/$DEBUG_SERIAL_QUEUE/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__DEBUG_ALL__/$DEBUG_ALL/g" "$TEMP_BUILD_DIR/build_script.sh"
     # Pass the build flags to the build script
     sed -i "s/__BUILD_FLAGS__/$BUILD_FLAGS/g" "$TEMP_BUILD_DIR/build_script.sh"

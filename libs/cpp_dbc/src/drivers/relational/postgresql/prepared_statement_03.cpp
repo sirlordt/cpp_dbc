@@ -41,281 +41,269 @@ namespace cpp_dbc::PostgreSQL
     // Nothrow BLOB support methods for PostgreSQLDBPreparedStatement
     cpp_dbc::expected<void, DBException> PostgreSQLDBPreparedStatement::setBlob(std::nothrow_t, int parameterIndex, std::shared_ptr<Blob> x) noexcept
     {
-        try
+        PG_STMT_LOCK_OR_RETURN("SDG0G3ALP2L1", "Statement closed");
+
+        if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            return cpp_dbc::unexpected<DBException>(DBException("SZV5YN1UUMSY", "Invalid parameter index for setBlob", system_utils::captureCallStack()));
+        }
 
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("SZV5YN1UUMSY", "Invalid parameter index for setBlob", system_utils::captureCallStack()));
-            }
+        int idx = parameterIndex - 1;
+        m_paramBound[idx] = true;
 
-            int idx = parameterIndex - 1;
+        // Store the blob object to keep it alive
+        m_blobObjects[idx] = x;
 
-            // Store the blob object to keep it alive
-            m_blobObjects[idx] = x;
-
-            if (!x)
-            {
-                // Set to NULL
-                m_paramValues[idx] = "";
-                m_paramLengths[idx] = 0;
-                m_paramFormats[idx] = 0; // Text format
-                m_paramTypes[idx] = 17;  // BYTEAOID
-                return {};
-            }
-
-            // Get the blob data
-            std::vector<uint8_t> data = x->getBytes(0, x->length());
-
-            // Store the data in our vector to keep it alive
-            m_blobValues[idx] = std::move(data);
-
-            // Use binary format for BYTEA data
-            m_paramValues[idx].resize(m_blobValues[idx].size());
-            std::memcpy(&m_paramValues[idx][0], m_blobValues[idx].data(), m_blobValues[idx].size());
-
-            m_paramLengths[idx] = m_blobValues[idx].size();
-            m_paramFormats[idx] = 1; // Binary format
-            m_paramTypes[idx] = 17;  // BYTEAOID
-
+        if (!x)
+        {
+            // Set to NULL
+            m_paramIsNull[idx] = true;
+            m_paramValues[idx] = "";
+            m_paramLengths[idx] = 0;
+            m_paramFormats[idx] = 0; // Text format
+            m_paramTypes[idx] = oid::BYTEA;
             return {};
         }
-        catch (const DBException &ex)
+
+        // Get the blob data using nothrow overloads
+        auto lenResult = x->length(std::nothrow);
+        if (!lenResult.has_value())
         {
-            return cpp_dbc::unexpected<DBException>(ex);
+            return cpp_dbc::unexpected<DBException>(lenResult.error());
         }
-        catch (const std::exception &ex)
+        auto bytesResult = x->getBytes(std::nothrow, 0, lenResult.value());
+        if (!bytesResult.has_value())
         {
-            return cpp_dbc::unexpected<DBException>(DBException("7D9E3B5F8A2C", ex.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected<DBException>(bytesResult.error());
         }
-        catch (...)
+
+        // Store the data in our vector to keep it alive
+        m_blobValues[idx] = std::move(bytesResult.value());
+
+        // Use binary format for BYTEA data
+        m_paramIsNull[idx] = false;
+        m_paramValues[idx].resize(m_blobValues[idx].size());
+        if (!m_blobValues[idx].empty())
         {
-            return cpp_dbc::unexpected<DBException>(DBException("4B6A9C1E8D3F", "Unknown error in PostgreSQLDBPreparedStatement::setBlob", system_utils::captureCallStack()));
+            std::memcpy(m_paramValues[idx].data(), m_blobValues[idx].data(), m_blobValues[idx].size());
         }
+
+        m_paramLengths[idx] = m_blobValues[idx].size();
+        m_paramFormats[idx] = 1; // Binary format
+        m_paramTypes[idx] = oid::BYTEA;
+
+        return {};
     }
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBPreparedStatement::setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x) noexcept
     {
-        try
+        PG_STMT_LOCK_OR_RETURN("K2BMSIXEOBRX", "Statement closed");
+
+        if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            return cpp_dbc::unexpected<DBException>(DBException("D182B9C3A9CC", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack()));
+        }
 
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("D182B9C3A9CC", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack()));
-            }
+        int idx = parameterIndex - 1;
+        m_paramBound[idx] = true;
 
-            int idx = parameterIndex - 1;
+        // Store the stream object to keep it alive
+        m_streamObjects[idx] = x;
 
-            // Store the stream object to keep it alive
-            m_streamObjects[idx] = x;
-
-            if (!x)
-            {
-                // Set to NULL
-                m_paramValues[idx] = "";
-                m_paramLengths[idx] = 0;
-                m_paramFormats[idx] = 0; // Text format
-                m_paramTypes[idx] = 17;  // BYTEAOID
-                return {};
-            }
-
-            // Read all data from the stream
-            std::vector<uint8_t> data;
-            std::array<uint8_t, 4096> buffer{};
-            int bytesRead = 0;
-            while ((bytesRead = x->read(buffer.data(), buffer.size())) > 0)
-            {
-                data.insert(data.end(), buffer.begin(), buffer.begin() + bytesRead);
-            }
-
-            // Store the data in our vector to keep it alive
-            m_blobValues[idx] = std::move(data);
-
-            // Use binary format for BYTEA data
-            m_paramValues[idx].resize(m_blobValues[idx].size());
-            std::memcpy(&m_paramValues[idx][0], m_blobValues[idx].data(), m_blobValues[idx].size());
-
-            m_paramLengths[idx] = m_blobValues[idx].size();
-            m_paramFormats[idx] = 1; // Binary format
-            m_paramTypes[idx] = 17;  // BYTEAOID
-
+        if (!x)
+        {
+            // Set to NULL
+            m_paramIsNull[idx] = true;
+            m_paramValues[idx] = "";
+            m_paramLengths[idx] = 0;
+            m_paramFormats[idx] = 0; // Text format
+            m_paramTypes[idx] = oid::BYTEA;
             return {};
         }
-        catch (const DBException &ex)
+
+        // Read all data from the stream using nothrow overload
+        std::vector<uint8_t> data;
+        std::array<uint8_t, 4096> buffer{};
+        for (;;)
         {
-            return cpp_dbc::unexpected<DBException>(ex);
+            auto readResult = x->read(std::nothrow, buffer.data(), buffer.size());
+            if (!readResult.has_value())
+            {
+                return cpp_dbc::unexpected<DBException>(readResult.error());
+            }
+            int bytesRead = readResult.value();
+            if (bytesRead <= 0)
+            {
+                break;
+            }
+            data.insert(data.end(), buffer.begin(), buffer.begin() + bytesRead);
         }
-        catch (const std::exception &ex)
+
+        // Store the data in our vector to keep it alive
+        m_blobValues[idx] = std::move(data);
+
+        // Use binary format for BYTEA data
+        m_paramIsNull[idx] = false;
+        m_paramValues[idx].resize(m_blobValues[idx].size());
+        if (!m_blobValues[idx].empty())
         {
-            return cpp_dbc::unexpected<DBException>(DBException("2A6D9F4B7E3C", ex.what(), system_utils::captureCallStack()));
+            std::memcpy(m_paramValues[idx].data(), m_blobValues[idx].data(), m_blobValues[idx].size());
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("8C5E1B7A2D9F", "Unknown error in PostgreSQLDBPreparedStatement::setBinaryStream", system_utils::captureCallStack()));
-        }
+
+        m_paramLengths[idx] = m_blobValues[idx].size();
+        m_paramFormats[idx] = 1; // Binary format
+        m_paramTypes[idx] = oid::BYTEA;
+
+        return {};
     }
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBPreparedStatement::setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x, size_t length) noexcept
     {
-        try
+        PG_STMT_LOCK_OR_RETURN("VAKVCYJ43IZ8", "Statement closed");
+
+        if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            return cpp_dbc::unexpected<DBException>(DBException("K8J9LKO7GB19", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack()));
+        }
 
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("K8J9LKO7GB19", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack()));
-            }
+        int idx = parameterIndex - 1;
+        m_paramBound[idx] = true;
 
-            int idx = parameterIndex - 1;
+        // Store the stream object to keep it alive
+        m_streamObjects[idx] = x;
 
-            // Store the stream object to keep it alive
-            m_streamObjects[idx] = x;
-
-            if (!x)
-            {
-                // Set to NULL
-                m_paramValues[idx] = "";
-                m_paramLengths[idx] = 0;
-                m_paramFormats[idx] = 0; // Text format
-                m_paramTypes[idx] = 17;  // BYTEAOID
-                return {};
-            }
-
-            // Read up to 'length' bytes from the stream
-            std::vector<uint8_t> data;
-            data.reserve(length);
-            std::array<uint8_t, 4096> buffer{};
-            size_t totalBytesRead = 0;
-            int bytesRead = 0;
-            while (totalBytesRead < length)
-            {
-                bytesRead = x->read(buffer.data(), std::min(buffer.size(), length - totalBytesRead));
-                if (bytesRead <= 0)
-                {
-                    break;
-                }
-                data.insert(data.end(), buffer.begin(), buffer.begin() + bytesRead);
-                totalBytesRead += bytesRead;
-            }
-
-            // Store the data in our vector to keep it alive
-            m_blobValues[idx] = std::move(data);
-
-            // Use binary format for BYTEA data
-            m_paramValues[idx].resize(m_blobValues[idx].size());
-            std::memcpy(&m_paramValues[idx][0], m_blobValues[idx].data(), m_blobValues[idx].size());
-
-            m_paramLengths[idx] = m_blobValues[idx].size();
-            m_paramFormats[idx] = 1; // Binary format
-            m_paramTypes[idx] = 17;  // BYTEAOID
-
+        if (!x)
+        {
+            // Set to NULL
+            m_paramIsNull[idx] = true;
+            m_paramValues[idx] = "";
+            m_paramLengths[idx] = 0;
+            m_paramFormats[idx] = 0; // Text format
+            m_paramTypes[idx] = oid::BYTEA;
             return {};
         }
-        catch (const DBException &ex)
+
+        // Read up to 'length' bytes from the stream using nothrow overload
+        std::vector<uint8_t> data;
+        data.reserve(length);
+        std::array<uint8_t, 4096> buffer{};
+        size_t totalBytesRead = 0;
+        while (totalBytesRead < length)
         {
-            return cpp_dbc::unexpected<DBException>(ex);
+            auto readResult = x->read(std::nothrow, buffer.data(), std::min(buffer.size(), length - totalBytesRead));
+            if (!readResult.has_value())
+            {
+                return cpp_dbc::unexpected<DBException>(readResult.error());
+            }
+            int bytesRead = readResult.value();
+            if (bytesRead <= 0)
+            {
+                break;
+            }
+            data.insert(data.end(), buffer.begin(), buffer.begin() + bytesRead);
+            totalBytesRead += bytesRead;
         }
-        catch (const std::exception &ex)
+
+        // Store the data in our vector to keep it alive
+        m_blobValues[idx] = std::move(data);
+
+        // Use binary format for BYTEA data
+        m_paramIsNull[idx] = false;
+        m_paramValues[idx].resize(m_blobValues[idx].size());
+        if (!m_blobValues[idx].empty())
         {
-            return cpp_dbc::unexpected<DBException>(DBException("5D7F3A2E9B1C", ex.what(), system_utils::captureCallStack()));
+            std::memcpy(m_paramValues[idx].data(), m_blobValues[idx].data(), m_blobValues[idx].size());
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("8C2E6B9A4F1D", "Unknown error in PostgreSQLDBPreparedStatement::setBinaryStream", system_utils::captureCallStack()));
-        }
+
+        m_paramLengths[idx] = m_blobValues[idx].size();
+        m_paramFormats[idx] = 1; // Binary format
+        m_paramTypes[idx] = oid::BYTEA;
+
+        return {};
     }
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBPreparedStatement::setBytes(std::nothrow_t, int parameterIndex, const std::vector<uint8_t> &x) noexcept
     {
-        try
+        PG_STMT_LOCK_OR_RETURN("58SW1M7BK5ZZ", "Statement closed");
+
+        if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("D6EC2CC8C12C", "Invalid parameter index for setBytes", system_utils::captureCallStack()));
-            }
-
-            int idx = parameterIndex - 1;
-
-            // Store the data in our vector to keep it alive
-            m_blobValues[idx] = x;
-
-            // Use binary format for BYTEA data
-            m_paramValues[idx].resize(m_blobValues[idx].size());
-            std::memcpy(&m_paramValues[idx][0], m_blobValues[idx].data(), m_blobValues[idx].size());
-
-            m_paramLengths[idx] = m_blobValues[idx].size();
-            m_paramFormats[idx] = 1; // Binary format
-            m_paramTypes[idx] = 17;  // BYTEAOID
-
-            return {};
+            return cpp_dbc::unexpected<DBException>(DBException("D6EC2CC8C12C", "Invalid parameter index for setBytes", system_utils::captureCallStack()));
         }
-        catch (const DBException &ex)
+
+        int idx = parameterIndex - 1;
+        m_paramBound[idx] = true;
+
+        // Store the data in our vector to keep it alive
+        m_blobValues[idx] = x;
+
+        // Use binary format for BYTEA data
+        m_paramIsNull[idx] = false;
+        m_paramValues[idx].resize(m_blobValues[idx].size());
+        if (!m_blobValues[idx].empty())
         {
-            return cpp_dbc::unexpected<DBException>(ex);
+            std::memcpy(m_paramValues[idx].data(), m_blobValues[idx].data(), m_blobValues[idx].size());
         }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("3A7F9D2E5B8C", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("6E1B9D4A7C2F", "Unknown error in PostgreSQLDBPreparedStatement::setBytes", system_utils::captureCallStack()));
-        }
+
+        m_paramLengths[idx] = m_blobValues[idx].size();
+        m_paramFormats[idx] = 1; // Binary format
+        m_paramTypes[idx] = oid::BYTEA;
+
+        return {};
     }
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBPreparedStatement::setBytes(std::nothrow_t, int parameterIndex, const uint8_t *x, size_t length) noexcept
     {
-        try
+        PG_STMT_LOCK_OR_RETURN("K8B6T29V5FMQ", "Statement closed");
+
+        if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            return cpp_dbc::unexpected<DBException>(DBException("VVY0L1LZS14O", "Invalid parameter index for setBytes", system_utils::captureCallStack()));
+        }
 
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
+        int idx = parameterIndex - 1;
+        m_paramBound[idx] = true;
+
+        if (!x)
+        {
+            if (length > 0)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("VVY0L1LZS14O", "Invalid parameter index for setBytes", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("0123JWAENYHP",
+                    "setBytes: null pointer with non-zero length is invalid; use setNull() to bind SQL NULL",
+                    system_utils::captureCallStack()));
             }
 
-            int idx = parameterIndex - 1;
-
-            if (!x)
-            {
-                // Set to NULL
-                m_paramValues[idx] = "";
-                m_paramLengths[idx] = 0;
-                m_paramFormats[idx] = 0; // Text format
-                m_paramTypes[idx] = 17;  // BYTEAOID
-                return {};
-            }
-
-            // Store the data in our vector to keep it alive
-            m_blobValues[idx].resize(length);
-            std::memcpy(m_blobValues[idx].data(), x, length);
-
-            // Use binary format for BYTEA data
-            m_paramValues[idx].resize(m_blobValues[idx].size());
-            std::memcpy(&m_paramValues[idx][0], m_blobValues[idx].data(), m_blobValues[idx].size());
-
-            m_paramLengths[idx] = m_blobValues[idx].size();
+            // nullptr + length==0: empty BYTEA (zero bytes, not SQL NULL).
+            // Callers who intend SQL NULL must use setNull().
+            m_paramIsNull[idx] = false;
+            m_blobValues[idx].clear();
+            m_paramValues[idx].clear();
+            m_paramLengths[idx] = 0;
             m_paramFormats[idx] = 1; // Binary format
-            m_paramTypes[idx] = 17;  // BYTEAOID
-
+            m_paramTypes[idx] = oid::BYTEA;
             return {};
         }
-        catch (const DBException &ex)
+
+        // Store the data in our vector to keep it alive
+        m_blobValues[idx].resize(length);
+        if (length > 0)
         {
-            return cpp_dbc::unexpected<DBException>(ex);
+            std::memcpy(m_blobValues[idx].data(), x, length);
         }
-        catch (const std::exception &ex)
+
+        // Use binary format for BYTEA data
+        m_paramIsNull[idx] = false;
+        m_paramValues[idx].resize(m_blobValues[idx].size());
+        if (!m_blobValues[idx].empty())
         {
-            return cpp_dbc::unexpected<DBException>(DBException("7D9F2B5E3A8C", ex.what(), system_utils::captureCallStack()));
+            std::memcpy(m_paramValues[idx].data(), m_blobValues[idx].data(), m_blobValues[idx].size());
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("4E8B3F9A2D6C", "Unknown error in PostgreSQLDBPreparedStatement::setBytes", system_utils::captureCallStack()));
-        }
+
+        m_paramLengths[idx] = m_blobValues[idx].size();
+        m_paramFormats[idx] = 1; // Binary format
+        m_paramTypes[idx] = oid::BYTEA;
+
+        return {};
     }
 
 } // namespace cpp_dbc::PostgreSQL

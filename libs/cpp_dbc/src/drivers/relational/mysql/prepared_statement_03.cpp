@@ -402,12 +402,8 @@ namespace cpp_dbc::MySQL
         }
 
         auto rs = rsResult.value();
-        if (conn)
-        {
-            [[maybe_unused]] auto regResult = conn->registerResultSet(
-                std::nothrow, std::weak_ptr<MySQLDBResultSet>(rs));
-        }
 
+        // Registration with the connection is done inside create() → initialize()
         return std::shared_ptr<RelationalDBResultSet>(rs);
     }
 

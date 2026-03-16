@@ -85,7 +85,8 @@ namespace cpp_dbc::MySQL
      * @see SQLiteDBResultSet - Contrast: Uses shared mutex due to cursor model
      * @see FirebirdDBResultSet - Contrast: Uses shared mutex due to cursor model
      */
-    class MySQLDBResultSet final : public RelationalDBResultSet
+    class MySQLDBResultSet final : public RelationalDBResultSet,
+                                       public std::enable_shared_from_this<MySQLDBResultSet>
     {
         friend class MySQLDBConnection;
 
@@ -215,6 +216,14 @@ namespace cpp_dbc::MySQL
 
         // Internal method called by connection when closing — marks this ResultSet as closed
         cpp_dbc::expected<void, DBException> notifyConnClosing(std::nothrow_t) noexcept;
+
+        /**
+         * @brief Register this ResultSet with the parent connection for lifecycle tracking.
+         *
+         * CRITICAL: Must be called AFTER construction is complete, when shared_from_this() is valid.
+         * Cannot be called in the constructor because weak_from_this() requires the shared_ptr to exist.
+         */
+        cpp_dbc::expected<void, DBException> initialize(std::nothrow_t) noexcept;
 
         /**
          * @brief Validates that the result set is still valid (not closed)
@@ -362,6 +371,12 @@ namespace cpp_dbc::MySQL
             {
                 return cpp_dbc::unexpected(std::move(*obj->m_initError));
             }
+            // Must be called after make_shared (requires shared_ptr to exist for shared_from_this())
+            auto initResult = obj->initialize(std::nothrow);
+            if (!initResult.has_value())
+            {
+                return cpp_dbc::unexpected(initResult.error());
+            }
             return obj;
         }
 
@@ -377,6 +392,12 @@ namespace cpp_dbc::MySQL
             if (obj->m_initFailed)
             {
                 return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            // Must be called after make_shared (requires shared_ptr to exist for shared_from_this())
+            auto initResult = obj->initialize(std::nothrow);
+            if (!initResult.has_value())
+            {
+                return cpp_dbc::unexpected(initResult.error());
             }
             return obj;
         }

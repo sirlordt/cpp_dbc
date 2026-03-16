@@ -26,6 +26,7 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <vector>
 #include <iomanip>
 #include <charconv>
 #include "cpp_dbc/common/system_utils.hpp"
@@ -40,13 +41,16 @@ namespace cpp_dbc::ScyllaDB
     // ====================================================================
 
     // ── Static member initialization ──────────────────────────────────────────
+    // IMPORTANT: s_instance MUST be declared LAST — see mysql/driver_01.cpp for
+    // the full explanation of the static destruction order requirement.
     std::atomic<bool> ScyllaDBDriver::s_initialized{false}; // NOSONAR(cpp:S1197) — explicit template arg for clarity in static member definition
     std::mutex ScyllaDBDriver::s_initMutex;
-    std::weak_ptr<ScyllaDBDriver> ScyllaDBDriver::s_instance;
-    std::mutex                    ScyllaDBDriver::s_instanceMutex;
-    std::mutex                    ScyllaDBDriver::s_registryMutex;
+    std::mutex                      ScyllaDBDriver::s_instanceMutex;
+    std::mutex                      ScyllaDBDriver::s_registryMutex;
     std::set<std::weak_ptr<ScyllaDBConnection>,
              std::owner_less<std::weak_ptr<ScyllaDBConnection>>> ScyllaDBDriver::s_connectionRegistry;
+    std::atomic<bool> ScyllaDBDriver::s_cleanupPending{false};
+    std::shared_ptr<ScyllaDBDriver> ScyllaDBDriver::s_instance;
 
     cpp_dbc::expected<bool, DBException> ScyllaDBDriver::initialize(std::nothrow_t) noexcept
     {
@@ -81,6 +85,9 @@ namespace cpp_dbc::ScyllaDB
     ScyllaDBDriver::~ScyllaDBDriver()
     {
         SCYLLADB_DEBUG("ScyllaDBDriver::destructor - Destroying driver");
+
+        closeAllOpenConnections(std::nothrow);
+
         cleanup();
     }
 
@@ -96,19 +103,65 @@ namespace cpp_dbc::ScyllaDB
 
     void ScyllaDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<ScyllaDBConnection> conn) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
-        s_connectionRegistry.insert(std::move(conn));
+        size_t registrySize = 0;
+        {
+            std::scoped_lock lock(s_registryMutex);
+            s_connectionRegistry.insert(std::move(conn));
+            registrySize = s_connectionRegistry.size();
+        }
+
+        // Coalesced cleanup: only post when the registry has grown past the
+        // cleanup threshold and no cleanup task is already queued.
+        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_acq_rel))
+        {
+            SerialQueue::global().post([]()
+            {
+                {
+                    std::scoped_lock lock(s_registryMutex);
+                    std::erase_if(s_connectionRegistry,
+                        [](const auto &w) { return w.expired(); });
+                }
+                s_cleanupPending.store(false, std::memory_order_release);
+            });
+        }
     }
 
     void ScyllaDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<ScyllaDBConnection> &conn) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
+        std::scoped_lock lock(s_registryMutex);
         s_connectionRegistry.erase(conn);
+    }
+
+    void ScyllaDBDriver::closeAllOpenConnections(std::nothrow_t) noexcept
+    {
+        // Mark driver as closed — reject any new connection attempts
+        m_closed.store(true, std::memory_order_release);
+
+        // Close all open connections before releasing library resources.
+        // Collect under lock first, then close outside the lock to avoid
+        // deadlock with unregisterConnection() (which also acquires s_registryMutex).
+        std::vector<std::shared_ptr<ScyllaDBConnection>> connectionsToClose;
+        {
+            std::scoped_lock lock(s_registryMutex);
+            for (const auto &weak : s_connectionRegistry)
+            {
+                auto conn = weak.lock();
+                if (conn)
+                {
+                    connectionsToClose.push_back(std::move(conn));
+                }
+            }
+            s_connectionRegistry.clear();
+        }
+        for (const auto &conn : connectionsToClose)
+        {
+            [[maybe_unused]] auto closeResult = conn->close(std::nothrow);
+        }
     }
 
     size_t ScyllaDBDriver::getConnectionAlive() noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
+        std::scoped_lock lock(s_registryMutex);
         return static_cast<size_t>(std::count_if(
             s_connectionRegistry.begin(), s_connectionRegistry.end(),
             [](const auto &w) { return !w.expired(); }));
@@ -177,18 +230,17 @@ namespace cpp_dbc::ScyllaDB
     cpp_dbc::expected<std::shared_ptr<ScyllaDBDriver>, DBException>
     ScyllaDBDriver::getInstance(std::nothrow_t) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_instanceMutex);
-        auto existing = s_instance.lock();
-        if (existing)
+        std::scoped_lock lock(s_instanceMutex);
+        if (s_instance)
         {
-            return existing;
+            return s_instance;
         }
         // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
         // ScyllaDBDriver constructor only calls initialize(std::nothrow) and debug
         // macros — no recoverable exception is possible.
         auto inst = std::make_shared<ScyllaDBDriver>(ScyllaDBDriver::PrivateCtorTag{}, std::nothrow);
         s_instance = inst;
-        return inst;
+        return s_instance;
     }
 
     cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException> ScyllaDBDriver::connectColumnar(
@@ -198,6 +250,13 @@ namespace cpp_dbc::ScyllaDB
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
     {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("J9PTMS7FBHR2",
+                                                   "Driver is closed, no more connections allowed",
+                                                   system_utils::captureCallStack()));
+        }
+
         SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Connecting to " << uri);
 
         auto params = parseURI(std::nothrow, uri);

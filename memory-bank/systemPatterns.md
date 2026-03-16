@@ -136,8 +136,9 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
 - **Pool Lock Order Rule:** Connection close operations must happen OUTSIDE pool locks. Pool lock (`m_mutexPool`) is always acquired BEFORE per-connection mutex. Closing inside pool lock inverts this order → Helgrind LockOrder violation
 - **Printf-Style Debug Output / `logWithTimesMillis`:** All debug macros (`FIREBIRD_DEBUG`, `SQLITE_DEBUG`, `CP_DEBUG`) use `system_utils::logWithTimesMillis(prefix, msg)` which formats `[HH:MM:SS.mmm] [TID] [prefix] message` and writes atomically via `write()` — `operator<<` is not atomic and causes interleaved output + Helgrind false positives under concurrency
 - **`m_resetting` Anti-Deadlock Flag:** Both `FirebirdDBConnection` and `MySQLDBConnection` use `m_resetting` (`atomic<bool>`) to signal `ResultSet::close()` / `PreparedStatement::close()` to skip unregister during `closeAllActiveResultSets()` / `closeAllStatements()` — prevents re-entrant lock acquisition through the close→unregister→lock cycle
-- **`MySQLConnectionLock` RAII Helper:** `mysql_internal.hpp` provides `MySQLConnectionLock` that locks connection mutex via `weak_ptr<MySQLDBConnection>`, validates connection is alive and not closed, and returns `expected` on failure. The `MYSQL_CONNECTION_LOCK_OR_RETURN` macro expands to this pattern, replacing repeated `DB_DRIVER_LOCK_GUARD` + closed-check boilerplate
-- **Result Set Registry (MySQL):** `MySQLDBConnection::m_activeResultSets` — set of `weak_ptr<MySQLDBResultSet>` with two-phase close pattern in `closeAllActiveResultSets()` (collect shared_ptrs under lock, close outside lock to prevent iterator invalidation). Called by `close()`, `reset()`, and `returnToPool()`
+- **ConnectionLock RAII Helpers:** `mysql_internal.hpp` provides `MySQLConnectionLock` and `postgresql_internal.hpp` provides `PostgreSQLConnectionLock` — both lock the connection's `recursive_mutex` via `weak_ptr<*DBConnection>` and validate the connection is alive and not closed, exposing acquisition status via a bool method (e.g., `isValid()`/`operator bool`). The macro wrappers `MYSQL_CONNECTION_LOCK_OR_RETURN` / `PG_STMT_LOCK_OR_RETURN` check the helper's status and perform the early `return unexpected(...)` with the appropriate error code and message, replacing repeated `DB_DRIVER_LOCK_GUARD` + closed-check boilerplate
+- **SQLite Lock Macros (2026-03-12):** `sqlite_internal.hpp` provides `SQLITE_CONNECTION_LOCK_OR_RETURN(mark, msg)` (locks `m_globalFileMutex`, returns unexpected if closed), `SQLITE_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()` (idempotent for `close()`), and `SQLITE_STMT_LOCK_OR_RETURN(mark, msg)` (for PreparedStatement, checks `m_stmt`). All three drivers (MySQL, PostgreSQL, SQLite) now use a consistent macro-based lock-or-return pattern for statement/result-set registry methods
+- **Result Set Registry (MySQL, PostgreSQL):** Both `MySQLDBConnection::m_activeResultSets` and `PostgreSQLDBConnection::m_activeResultSets` — set of `weak_ptr<*DBResultSet>` with lifecycle management via `registerResultSet()`/`unregisterResultSet()`/`closeAllResultSets()`. Called by `close()`, `reset()`, and `returnToPool()`. ResultSets have `notifyConnClosing()` called by the connection during shutdown.
 - **Nothrow API — Pure Virtual Base Class Pattern (2026-02-18):**
   - All nothrow methods in `DBConnection`, `DBResultSet`, and `RelationalDBConnection` are `= 0` pure virtual — no default implementations
   - Every driver MUST implement the complete nothrow API surface: `close`, `reset`, `isClosed`, `returnToPool`, `isPooled`, `getURL`, `prepareForPoolReturn`, `prepareForBorrow`
@@ -170,10 +171,10 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
 - RAII (Resource Acquisition Is Initialization) principle is followed for resource cleanup even in case of exceptions
 
 ### Error Handling
-- Custom `DBException` class for consistent error reporting; inherits `std::exception` (not `std::runtime_error` since 2026-02-26)
+- Custom `DBException final` class for consistent error reporting; inherits `std::exception` (not `std::runtime_error` since 2026-02-26)
 - Exceptions are used for error propagation throughout the library
-- **`DBException` — Fixed-Size Value Type (2026-02-26):**
-  - `m_mark[13]`, `m_message[257]`, `m_full_message[271]` — fixed char arrays, stack-allocatable (~560 bytes)
+- **`DBException` — Hybrid Fixed/Dynamic Storage (2026-03-13):**
+  - `m_full_message[79]` — fixed buffer (12 mark + 2 ": " + 64 msg + 1 null), `m_overflow` (`shared_ptr<char[]>`) — heap buffer for messages > 64 chars via `new(std::nothrow)`, graceful degradation to truncated fixed buffer (~120 bytes object size)
   - Constructor is `noexcept` — no heap allocations that can throw
   - Call stack stored as `std::shared_ptr<CallStackCapture>` (optional, allocated once, shared across copies)
   - `what()` returns pre-computed `m_full_message` (zero-cost, no concatenation)
@@ -195,8 +196,9 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
   - DBDriver init: all drivers use `std::atomic<bool>` + `std::mutex` double-checked locking (not `std::once_flag`) — re-initializable after `cleanup()`, no `std::system_error` under `-fno-exceptions`
   - Nothrow methods that call only nothrow methods have no try/catch blocks (dead code elimination per conventions)
   - Error deferral pattern: private constructors store errors in `m_initFailed` / `m_initError` members; factory checks and propagates via `unexpected`
-  - MySQL-specific (2026-03-06): `MySQLDBConnection` uses `PrivateCtorTag` pattern (public ctor with private tag type) for `std::make_shared` compatibility; `MySQLDBPreparedStatement`/`MySQLDBResultSet` use `new` (not `make_shared`) since their ctors are private; `weak_ptr<MySQLDBConnection>` replaces `weak_ptr<MYSQL>` for accessing native handle and mutex through connection
+  - MySQL-specific (2026-03-06): `MySQLDBConnection` uses `PrivateCtorTag` pattern (public ctor with private tag type) for `std::make_shared` compatibility; `weak_ptr<MySQLDBConnection>` replaces `weak_ptr<MYSQL>` for accessing native handle and mutex through connection
   - MySQL-specific (2026-03-07): `MySQLBlob` and `MySQLInputStream` upgraded to PrivateCtorTag pattern with `m_initFailed`/`m_initError` and `#ifdef __cpp_exceptions` guards
+  - PostgreSQL-specific (2026-03-12): `PostgreSQLDBConnection` owns `recursive_mutex` directly (not shared_ptr), `PostgreSQLDBPreparedStatement`/`PostgreSQLDBResultSet`/`PostgreSQLInputStream` use PrivateCtorTag pattern with `m_initFailed`/`m_initError`; `weak_ptr<PostgreSQLDBConnection>` replaces `weak_ptr<PGconn>`; `PostgreSQLConnectionLock` RAII helper for child mutex acquisition
   - MongoDB-specific (2026-03-04): `DocumentDBCursor` chaining methods (`skip`, `limit`, `sort`) return `expected<std::reference_wrapper<DocumentDBCursor>, DBException>`; `DocumentDBDriver::getURIScheme()` `noexcept` returning full URL prefix; `getDefaultPort()` removed; `MongoDBDocument` ID caching
 - **Unified URI API in DBDriver Base (2026-03-07):**
   - `acceptsURL()` renamed to `acceptURI()` — both throwing and nothrow versions in `DBDriver` base (throwing delegates to nothrow)
@@ -312,7 +314,7 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
   - All BLOB implementations use `weak_ptr` for safe connection references
   - `FirebirdBlob`: Uses `weak_ptr<FirebirdConnection>` with `getConnection()` helper
   - `MySQLBlob`: Uses `weak_ptr<MYSQL>` with `getMySQLConnection()` helper
-  - `PostgreSQLBlob`: Uses `weak_ptr<PGconn>` with `getPGConnection()` helper
+  - `PostgreSQLBlob`: Uses `weak_ptr<PGconn>` with `getPGConnection(std::nothrow)` helper (nothrow only)
   - `SQLiteBlob`: Uses `weak_ptr<sqlite3>` with `getSQLiteConnection()` helper
   - All BLOB classes have `isConnectionValid()` method to check connection state
   - Operations throw `DBException` if connection has been closed (prevents use-after-free)

@@ -25,6 +25,7 @@ set -e  # Exit on error
 #   --debug-mongodb        Enable debug output for MongoDB driver
 #   --debug-scylladb       Enable debug output for ScyllaDB driver
 #   --debug-redis          Enable debug output for Redis driver
+#   --debug-serial-queue   Enable debug output for SerialQueue
 #   --debug-all            Enable all debug output
 #   --dw-on                Enable libdw support for stack traces (default for tests: OFF)
 #   --dw-off               Disable libdw support for stack traces (default for tests)
@@ -52,6 +53,7 @@ DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
 DEBUG_REDIS=OFF
+DEBUG_SERIAL_QUEUE=OFF
 DEBUG_ALL=OFF
 BACKWARD_HAS_DW=OFF
 DB_DRIVER_THREAD_SAFE=ON
@@ -179,6 +181,10 @@ while [[ $# -gt 0 ]]; do
             DEBUG_REDIS=ON
             shift
             ;;
+        --debug-serial-queue)
+            DEBUG_SERIAL_QUEUE=ON
+            shift
+            ;;
         --debug-all)
             DEBUG_CONNECTION_POOL=ON
             DEBUG_TRANSACTION_MANAGER=ON
@@ -189,6 +195,7 @@ while [[ $# -gt 0 ]]; do
             DEBUG_MONGODB=ON
             DEBUG_SCYLLADB=ON
             DEBUG_REDIS=ON
+            DEBUG_SERIAL_QUEUE=ON
             DEBUG_ALL=ON
             shift
             ;;
@@ -240,6 +247,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-mongodb        Enable debug output for MongoDB driver"
             echo "  --debug-scylladb         Enable debug output for ScyllaDB driver"
             echo "  --debug-redis          Enable debug output for Redis driver"
+            echo "  --debug-serial-queue   Enable debug output for SerialQueue"
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-on                Enable libdw support for stack traces (default for tests: OFF)"
             echo "  --dw-off               Disable libdw support for stack traces (default for tests)"
@@ -337,6 +345,7 @@ echo "  Debug Firebird: $DEBUG_FIREBIRD"
 echo "  Debug MongoDB: $DEBUG_MONGODB"
 echo "  Debug ScyllaDB: $DEBUG_SCYLLADB"
 echo "  Debug Redis: $DEBUG_REDIS"
+echo "  Debug SerialQueue: $DEBUG_SERIAL_QUEUE"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"
 
@@ -359,9 +368,14 @@ if [ "$USE_SCYLLADB" = "ON" ]; then
         exit 1
     fi
 fi
+# Resolve the project root to an absolute path (same as build_cpp_dbc.sh)
+# so both scripts produce identical CMAKE_INSTALL_PREFIX strings in the cache.
+PROJECT_ROOT="$( cd "${CPP_DBC_DIR}/../.." &> /dev/null && pwd )"
+
 # Use unified build directory for both library and tests
 # This ensures the library is compiled once and tests link against it
-BUILD_DIR="${CPP_DBC_DIR}/../../build/libs/cpp_dbc/build"
+BUILD_DIR="${PROJECT_ROOT}/build/libs/cpp_dbc/build"
+INSTALL_DIR="${PROJECT_ROOT}/build/libs/cpp_dbc"
 
 mkdir -p "${BUILD_DIR}"
 cd "${BUILD_DIR}"
@@ -370,7 +384,7 @@ cd "${BUILD_DIR}"
 set -x
 
 # Define Conan directory in the project root's build directory
-CONAN_DIR="${CPP_DBC_DIR}/../../build/libs/cpp_dbc/conan"
+CONAN_DIR="${PROJECT_ROOT}/build/libs/cpp_dbc/conan"
 mkdir -p "${CONAN_DIR}"
 
 # Install dependencies with Conan
@@ -419,6 +433,17 @@ elif [ "${ENABLE_TSAN}" = "ON" ]; then
     SANITIZER_LINKER_FLAGS="-fsanitize=thread"
 fi
 
+# Build CMAKE_CXX_FLAGS string — only append non-empty flags to avoid trailing spaces
+# that would invalidate the CMake cache and force a full recompilation
+CXX_BASE_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align"
+CXX_ALL_FLAGS="$CXX_BASE_FLAGS"
+if [ -n "$SANITIZER_FLAGS" ]; then
+    CXX_ALL_FLAGS="$CXX_ALL_FLAGS $SANITIZER_FLAGS"
+fi
+if [ -n "$ANALYZER_FLAG" ]; then
+    CXX_ALL_FLAGS="$CXX_ALL_FLAGS $ANALYZER_FLAG"
+fi
+
 # Configure with CMake
 echo "Configuring with CMake..."
 cmake "${CPP_DBC_DIR}" \
@@ -435,6 +460,7 @@ cmake "${CPP_DBC_DIR}" \
       -DCPP_DBC_BUILD_TESTS=ON \
       -DCPP_DBC_BUILD_EXAMPLES=OFF \
       -DCPP_DBC_BUILD_BENCHMARKS=OFF \
+      -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
       -DENABLE_ASAN=$ENABLE_ASAN \
       -DENABLE_TSAN=$ENABLE_TSAN \
       -DDEBUG_CONNECTION_POOL=$DEBUG_CONNECTION_POOL \
@@ -446,9 +472,11 @@ cmake "${CPP_DBC_DIR}" \
       -DDEBUG_MONGODB=$DEBUG_MONGODB \
       -DDEBUG_SCYLLADB=$DEBUG_SCYLLADB \
       -DDEBUG_REDIS=$DEBUG_REDIS \
+      -DDEBUG_SERIAL_QUEUE=$DEBUG_SERIAL_QUEUE \
+      -DDEBUG_ALL=$DEBUG_ALL \
       -DBACKWARD_HAS_DW=$BACKWARD_HAS_DW \
       -DDB_DRIVER_THREAD_SAFE=$DB_DRIVER_THREAD_SAFE \
-      -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align ${SANITIZER_FLAGS} ${ANALYZER_FLAG}" \
+      -DCMAKE_CXX_FLAGS="$CXX_ALL_FLAGS" \
       -DCMAKE_EXE_LINKER_FLAGS="${SANITIZER_LINKER_FLAGS}" \
       -Wno-dev
 
@@ -497,4 +525,5 @@ echo -e "\nTests built successfully!"
     --debug-mongodb=$DEBUG_MONGODB \
     --debug-scylladb=$DEBUG_SCYLLADB \
     --debug-redis=$DEBUG_REDIS \
+    --debug-serial-queue=$DEBUG_SERIAL_QUEUE \
     --debug-all=$DEBUG_ALL

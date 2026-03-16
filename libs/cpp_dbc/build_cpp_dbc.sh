@@ -19,6 +19,7 @@ USE_REDIS=OFF
 USE_CPP_YAML=OFF
 ENABLE_GCC_ANALYZER=OFF
 ENABLE_ASAN=OFF
+ENABLE_TSAN=OFF
 BUILD_TYPE=Debug
 BUILD_TESTS=OFF
 BUILD_EXAMPLES=OFF
@@ -26,12 +27,15 @@ BUILD_BENCHMARKS=OFF
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+DEBUG_MYSQL=OFF
+DEBUG_POSTGRES=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
 DEBUG_REDIS=OFF
+DEBUG_SERIAL_QUEUE=OFF
 DEBUG_ALL=OFF
-BACKWARD_HAS_DW=ON
+BACKWARD_HAS_DW=OFF
 DB_DRIVER_THREAD_SAFE=ON
 
 # Parse command line arguments
@@ -118,6 +122,10 @@ do
         ENABLE_ASAN=ON
         shift
         ;;
+        --tsan)
+        ENABLE_TSAN=ON
+        shift
+        ;;
         --test)
         BUILD_TESTS=ON
         shift
@@ -142,6 +150,14 @@ do
         DEBUG_SQLITE=ON
         shift
         ;;
+        --debug-mysql)
+        DEBUG_MYSQL=ON
+        shift
+        ;;
+        --debug-postgresql)
+        DEBUG_POSTGRES=ON
+        shift
+        ;;
         --debug-firebird)
         DEBUG_FIREBIRD=ON
         shift
@@ -158,14 +174,21 @@ do
         DEBUG_REDIS=ON
         shift
         ;;
+        --debug-serial-queue)
+        DEBUG_SERIAL_QUEUE=ON
+        shift
+        ;;
         --debug-all)
         DEBUG_CONNECTION_POOL=ON
         DEBUG_TRANSACTION_MANAGER=ON
         DEBUG_SQLITE=ON
+        DEBUG_MYSQL=ON
+        DEBUG_POSTGRES=ON
         DEBUG_FIREBIRD=ON
         DEBUG_MONGODB=ON
         DEBUG_SCYLLADB=ON
         DEBUG_REDIS=ON
+        DEBUG_SERIAL_QUEUE=ON
         DEBUG_ALL=ON
         shift
         ;;
@@ -199,16 +222,20 @@ do
         echo "  --release              Build in Release mode"
         echo "  --gcc-analyzer         Enable GCC Static Analyzer (GCC 10+)"
         echo "  --asan                 Enable AddressSanitizer"
+        echo "  --tsan                 Enable ThreadSanitizer"
         echo "  --test                 Build cpp_dbc tests"
         echo "  --examples             Build cpp_dbc examples"
         echo "  --benchmarks           Build cpp_dbc benchmarks"
         echo "  --debug-pool           Enable debug output for ConnectionPool"
         echo "  --debug-txmgr          Enable debug output for TransactionManager"
         echo "  --debug-sqlite         Enable debug output for SQLite driver"
+        echo "  --debug-mysql          Enable debug output for MySQL driver"
+        echo "  --debug-postgresql     Enable debug output for PostgreSQL driver"
         echo "  --debug-firebird       Enable debug output for Firebird driver"
         echo "  --debug-mongodb        Enable debug output for MongoDB driver"
         echo "  --debug-scylladb         Enable debug output for ScyllaDB driver"
         echo "  --debug-redis          Enable debug output for Redis driver"
+        echo "  --debug-serial-queue   Enable debug output for SerialQueue"
         echo "  --debug-all            Enable all debug output"
         echo "  --dw-off               Disable libdw support for stack traces"
         echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
@@ -234,9 +261,13 @@ echo "  Build benchmarks: $BUILD_BENCHMARKS"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
+echo "  Debug MySQL: $DEBUG_MYSQL"
+echo "  Debug PostgreSQL: $DEBUG_POSTGRES"
 echo "  Debug Firebird: $DEBUG_FIREBIRD"
 echo "  Debug MongoDB: $DEBUG_MONGODB"
 echo "  Debug ScyllaDB: $DEBUG_SCYLLADB"
+echo "  Debug Redis: $DEBUG_REDIS"
+echo "  Debug SerialQueue: $DEBUG_SERIAL_QUEUE"
 echo "  Debug All: $DEBUG_ALL"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"
@@ -543,6 +574,33 @@ else
     echo "GCC Static Analyzer is disabled (use --gcc-analyzer to enable)"
 fi
 
+# Build sanitizer flags if enabled
+if [ "${ENABLE_ASAN}" = "ON" ] && [ "${ENABLE_TSAN}" = "ON" ]; then
+    echo "Error: Cannot enable both ASAN (--asan) and TSAN (--tsan) at the same time." >&2
+    exit 1
+fi
+
+SANITIZER_FLAGS=""
+SANITIZER_LINKER_FLAGS=""
+if [ "${ENABLE_ASAN}" = "ON" ]; then
+    SANITIZER_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+    SANITIZER_LINKER_FLAGS="-fsanitize=address,undefined"
+elif [ "${ENABLE_TSAN}" = "ON" ]; then
+    SANITIZER_FLAGS="-fsanitize=thread -fno-omit-frame-pointer"
+    SANITIZER_LINKER_FLAGS="-fsanitize=thread"
+fi
+
+# Build CMAKE_CXX_FLAGS string — only append non-empty flags to avoid trailing spaces
+# that would invalidate the CMake cache and force a full recompilation
+CXX_BASE_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align"
+CXX_ALL_FLAGS="$CXX_BASE_FLAGS"
+if [ -n "$SANITIZER_FLAGS" ]; then
+    CXX_ALL_FLAGS="$CXX_ALL_FLAGS $SANITIZER_FLAGS"
+fi
+if [ -n "$ANALYZER_FLAG" ]; then
+    CXX_ALL_FLAGS="$CXX_ALL_FLAGS $ANALYZER_FLAG"
+fi
+
 # Configure with CMake
 echo "Configuring with CMake..."
 
@@ -561,7 +619,9 @@ fi
 echo "Using toolchain file: $TOOLCHAIN_FILE"
 
 cmake "${SCRIPT_DIR}" \
+      -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE \
       -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
+      -DUSE_CPP_YAML=$USE_CPP_YAML \
       -DUSE_MYSQL=$USE_MYSQL \
       -DUSE_POSTGRESQL=$USE_POSTGRESQL \
       -DUSE_SQLITE=$USE_SQLITE \
@@ -569,24 +629,27 @@ cmake "${SCRIPT_DIR}" \
       -DUSE_MONGODB=$USE_MONGODB \
       -DUSE_SCYLLADB=$USE_SCYLLADB \
       -DUSE_REDIS=$USE_REDIS \
-      -DUSE_CPP_YAML=$USE_CPP_YAML \
       -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
       -DCPP_DBC_BUILD_TESTS=$BUILD_TESTS \
       -DCPP_DBC_BUILD_EXAMPLES=$BUILD_EXAMPLES \
       -DCPP_DBC_BUILD_BENCHMARKS=$BUILD_BENCHMARKS \
+      -DENABLE_ASAN=$ENABLE_ASAN \
+      -DENABLE_TSAN=$ENABLE_TSAN \
       -DDEBUG_CONNECTION_POOL=$DEBUG_CONNECTION_POOL \
       -DDEBUG_TRANSACTION_MANAGER=$DEBUG_TRANSACTION_MANAGER \
       -DDEBUG_SQLITE=$DEBUG_SQLITE \
+      -DDEBUG_MYSQL=$DEBUG_MYSQL \
+      -DDEBUG_POSTGRES=$DEBUG_POSTGRES \
       -DDEBUG_FIREBIRD=$DEBUG_FIREBIRD \
       -DDEBUG_MONGODB=$DEBUG_MONGODB \
       -DDEBUG_SCYLLADB=$DEBUG_SCYLLADB \
       -DDEBUG_REDIS=$DEBUG_REDIS \
+      -DDEBUG_SERIAL_QUEUE=$DEBUG_SERIAL_QUEUE \
       -DDEBUG_ALL=$DEBUG_ALL \
       -DBACKWARD_HAS_DW=$BACKWARD_HAS_DW \
       -DDB_DRIVER_THREAD_SAFE=$DB_DRIVER_THREAD_SAFE \
-      -DENABLE_ASAN=$ENABLE_ASAN \
-      -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE \
-      -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align ${ANALYZER_FLAG}" \
+      -DCMAKE_CXX_FLAGS="$CXX_ALL_FLAGS" \
+      -DCMAKE_EXE_LINKER_FLAGS="${SANITIZER_LINKER_FLAGS}" \
       -Wno-dev
 
 # Build and install the library
@@ -597,107 +660,8 @@ echo "cpp_dbc library build completed successfully."
 echo "The library has been installed to: ${INSTALL_DIR}"
 echo ""
 
-# If tests are enabled, call build_test_cpp_dbc.sh with the appropriate parameters
-if [ "$BUILD_TESTS" = "ON" ]; then
-    echo "Building tests using build_test_cpp_dbc.sh..."
-    
-    # Prepare parameters to pass to build_test_cpp_dbc.sh
-    TEST_PARAMS=""
-
-    # Pass Yaml configuration
-    if [ "$USE_CPP_YAML" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --yaml"
-    else
-        TEST_PARAMS="$TEST_PARAMS --yaml-off"
-    fi
-    
-    # Pass MySQL configuration
-    if [ "$USE_MYSQL" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --mysql"
-    else
-        TEST_PARAMS="$TEST_PARAMS --mysql-off"
-    fi
-    
-    # Pass PostgreSQL configuration
-    if [ "$USE_POSTGRESQL" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --postgres"
-    fi
-    
-    # Pass SQLite configuration
-    if [ "$USE_SQLITE" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --sqlite"
-    fi
-    
-    # Pass Firebird configuration
-    if [ "$USE_FIREBIRD" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --firebird"
-    fi
-    
-    # Pass MongoDB configuration
-    if [ "$USE_MONGODB" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --mongodb"
-    fi
-
-    # Pass ScyllaDB configuration
-    if [ "$USE_SCYLLADB" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --scylladb"
-    fi
-    
-    # Pass Redis configuration
-    if [ "$USE_REDIS" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --redis"
-    fi
-    
-    # Pass build type
-    if [ "$BUILD_TYPE" = "Release" ]; then
-        TEST_PARAMS="$TEST_PARAMS --release"
-    fi
-
-    if [ "$ENABLE_GCC_ANALYZER" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --gcc-analyzer"
-    fi
-
-    if [ "$ENABLE_ASAN" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --asan"
-    fi
-    
-    # Pass debug options
-    if [ "$DEBUG_CONNECTION_POOL" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --debug-pool"
-    fi
-    
-    if [ "$DEBUG_TRANSACTION_MANAGER" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --debug-txmgr"
-    fi
-    
-    if [ "$DEBUG_SQLITE" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --debug-sqlite"
-    fi
-    
-    if [ "$DEBUG_FIREBIRD" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --debug-firebird"
-    fi
-    
-    if [ "$DEBUG_MONGODB" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --debug-mongodb"
-    fi
-
-    if [ "$DEBUG_SCYLLADB" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --debug-scylladb"
-    fi
-    
-    if [ "$DEBUG_REDIS" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --debug-redis"
-    fi
-    
-    if [ "$DEBUG_ALL" = "ON" ]; then
-        TEST_PARAMS="$TEST_PARAMS --debug-all"
-    fi
-    
-    # Call build_test_cpp_dbc.sh with the parameters
-    echo "Running: ${SCRIPT_DIR}/build_test_cpp_dbc.sh $TEST_PARAMS"
-    "${SCRIPT_DIR}/build_test_cpp_dbc.sh" $TEST_PARAMS
-fi
+# NOTE: Tests are built in-tree via -DCPP_DBC_BUILD_TESTS=ON above.
+# For standalone test builds with TSAN/ASAN, use build_test_cpp_dbc.sh directly.
 
 echo "Database driver status:"
 echo "  MySQL: $USE_MYSQL"
@@ -714,9 +678,13 @@ echo "  Build benchmarks: $BUILD_BENCHMARKS"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
+echo "  Debug MySQL: $DEBUG_MYSQL"
+echo "  Debug PostgreSQL: $DEBUG_POSTGRES"
 echo "  Debug Firebird: $DEBUG_FIREBIRD"
 echo "  Debug MongoDB: $DEBUG_MONGODB"
+echo "  Debug ScyllaDB: $DEBUG_SCYLLADB"
 echo "  Debug Redis: $DEBUG_REDIS"
+echo "  Debug SerialQueue: $DEBUG_SERIAL_QUEUE"
 echo "  Debug All: $DEBUG_ALL"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"

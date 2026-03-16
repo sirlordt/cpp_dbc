@@ -44,6 +44,7 @@ set -e  # Exit on error
 #   --debug-sqlite         Enable debug output for SQLite driver
 #   --debug-mongodb        Enable debug output for MongoDB driver
 #   --debug-redis          Enable debug output for Redis driver
+#   --debug-serial-queue   Enable debug output for SerialQueue
 #   --debug-all            Enable all debug output
 #   --dw-on                Enable libdw support for stack traces (default for tests: OFF)
 #   --dw-off               Disable libdw support for stack traces (default for tests)
@@ -87,6 +88,7 @@ DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
 DEBUG_REDIS=OFF
+DEBUG_SERIAL_QUEUE=OFF
 DEBUG_ALL=OFF
 DW_OFF=true
 DB_DRIVER_THREAD_SAFE_OFF=false
@@ -288,6 +290,10 @@ while [[ $# -gt 0 ]]; do
             DEBUG_REDIS=ON
             shift
             ;;
+        --debug-serial-queue)
+            DEBUG_SERIAL_QUEUE=ON
+            shift
+            ;;
         --debug-all)
             DEBUG_CONNECTION_POOL=ON
             DEBUG_TRANSACTION_MANAGER=ON
@@ -298,6 +304,7 @@ while [[ $# -gt 0 ]]; do
             DEBUG_MONGODB=ON
             DEBUG_SCYLLADB=ON
             DEBUG_REDIS=ON
+            DEBUG_SERIAL_QUEUE=ON
             DEBUG_ALL=ON
             shift
             ;;
@@ -362,6 +369,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-mongodb        Enable debug output for MongoDB driver"
             echo "  --debug-scylladb         Enable debug output for ScyllaDB driver"
             echo "  --debug-redis          Enable debug output for Redis driver"
+            echo "  --debug-serial-queue   Enable debug output for SerialQueue"
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-on                Enable libdw support for stack traces (default for tests: OFF)"
             echo "  --dw-off               Disable libdw support for stack traces (default for tests)"
@@ -583,6 +591,10 @@ fi
 
 if [ "$DEBUG_REDIS" = "ON" ]; then
     CMD="$CMD --debug-redis"
+fi
+
+if [ "$DEBUG_SERIAL_QUEUE" = "ON" ]; then
+    CMD="$CMD --debug-serial-queue"
 fi
 
 if [ "$DEBUG_ALL" = "ON" ]; then

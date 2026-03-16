@@ -173,7 +173,7 @@ namespace cpp_dbc::Firebird
             FIREBIRD_DEBUG("FirebirdConnection::executeUpdate(nothrow) - Detected DDL statement, cleaning up metadata locks");
 
             // Close all active prepared statements to release metadata locks
-            closeAllActivePreparedStatements(std::nothrow);
+            closeAllStatements(std::nothrow);
 
             // Commit current transaction to ensure all metadata locks are released
             if (m_tr)

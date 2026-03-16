@@ -42,6 +42,7 @@ DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
 DEBUG_REDIS=OFF
+DEBUG_SERIAL_QUEUE=OFF
 DEBUG_ALL=OFF
 
 # Flag to track if we received any parameters
@@ -112,6 +113,9 @@ do
         --debug-redis=*)
             DEBUG_REDIS="${arg#*=}"
             ;;
+        --debug-serial-queue=*)
+            DEBUG_SERIAL_QUEUE="${arg#*=}"
+            ;;
         --debug-all=*)
             DEBUG_ALL="${arg#*=}"
             ;;
@@ -138,6 +142,7 @@ do
             echo "  --debug-mongodb=ON|OFF         Enable/disable MongoDB debug"
             echo "  --debug-scylladb=ON|OFF        Enable/disable ScyllaDB debug"
             echo "  --debug-redis=ON|OFF           Enable/disable Redis debug"
+            echo "  --debug-serial-queue=ON|OFF    Enable/disable SerialQueue debug"
             echo "  --debug-all=ON|OFF             Enable/disable all debug output"
             echo ""
             echo "If no parameters are provided, the script will attempt to read configuration"
@@ -220,6 +225,7 @@ if [ "$RECEIVED_PARAMS" = false ]; then
         DEBUG_MONGODB=$(extract_cmake_var "DEBUG_MONGODB" "$DEBUG_MONGODB")
         DEBUG_SCYLLADB=$(extract_cmake_var "DEBUG_SCYLLADB" "$DEBUG_SCYLLADB")
         DEBUG_REDIS=$(extract_cmake_var "DEBUG_REDIS" "$DEBUG_REDIS")
+        DEBUG_SERIAL_QUEUE=$(extract_cmake_var "DEBUG_SERIAL_QUEUE" "$DEBUG_SERIAL_QUEUE")
         DEBUG_ALL=$(extract_cmake_var "DEBUG_ALL" "$DEBUG_ALL")
 
         echo "✓ Configuration extracted from CMakeCache.txt"
@@ -275,6 +281,7 @@ DEBUG_FIREBIRD=$DEBUG_FIREBIRD
 DEBUG_MONGODB=$DEBUG_MONGODB
 DEBUG_SCYLLADB=$DEBUG_SCYLLADB
 DEBUG_REDIS=$DEBUG_REDIS
+DEBUG_SERIAL_QUEUE=$DEBUG_SERIAL_QUEUE
 DEBUG_ALL=$DEBUG_ALL
 EOF
 

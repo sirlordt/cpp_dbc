@@ -50,7 +50,7 @@ namespace cpp_dbc::SQLite
         // Now ALL access to m_activeStatements is consistently protected by
         // m_globalFileMutex, which is the file-level lock that protects the entire
         // SQLite connection state.
-        std::lock_guard<std::recursive_mutex> lock(*m_globalFileMutex);
+        SQLITE_CONNECTION_LOCK_OR_RETURN("3N95KEM5ON6S", "Cannot register statement");
         if (m_activeStatements.size() > 50)
         {
             std::erase_if(m_activeStatements, [](const auto &w) { return w.expired(); });
@@ -65,7 +65,7 @@ namespace cpp_dbc::SQLite
         // m_globalFileMutex for consistency with closeAllStatements() and
         // registerStatement(). All modifications to m_activeStatements must use
         // the same mutex to prevent data races.
-        std::lock_guard<std::recursive_mutex> lock(*m_globalFileMutex);
+        SQLITE_CONNECTION_LOCK_OR_RETURN("610ERYQ21GDY", "Cannot unregister statement");
         // Remove expired weak_ptrs and the specified one
         for (auto it = m_activeStatements.begin(); it != m_activeStatements.end();)
         {
@@ -110,7 +110,7 @@ namespace cpp_dbc::SQLite
         // the SQLite connection (prepareStatement, executeQuery, executeUpdate, etc.).
         // This provides sufficient synchronization without introducing lock ordering
         // issues.
-        std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
+        SQLITE_CONNECTION_LOCK_OR_RETURN("SC4B8YEQV0UV", "Cannot close statements");
 
         // CRITICAL: Copy weak_ptrs to temporary vector to avoid iterator invalidation.
         // When we call stmt->close(), it may call unregisterStatement() which modifies
@@ -166,7 +166,7 @@ namespace cpp_dbc::SQLite
         // Now ALL access to m_activeResultSets is consistently protected by
         // m_globalFileMutex, which is the file-level lock that protects the entire
         // SQLite connection state.
-        std::lock_guard<std::recursive_mutex> lock(*m_globalFileMutex);
+        SQLITE_CONNECTION_LOCK_OR_RETURN("4YYPPGK3MX58", "Cannot register result set");
         if (m_activeResultSets.size() > 50)
         {
             std::erase_if(m_activeResultSets, [](const auto &w) { return w.expired(); });
@@ -181,7 +181,7 @@ namespace cpp_dbc::SQLite
         // m_globalFileMutex for consistency with closeAllResultSets() and
         // registerResultSet(). All modifications to m_activeResultSets must use
         // the same mutex to prevent data races.
-        std::lock_guard<std::recursive_mutex> lock(*m_globalFileMutex);
+        SQLITE_CONNECTION_LOCK_OR_RETURN("238KFPCDSBRF", "Cannot unregister result set");
         // Remove expired weak_ptrs and the specified one
         for (auto it = m_activeResultSets.begin(); it != m_activeResultSets.end();)
         {
@@ -227,7 +227,7 @@ namespace cpp_dbc::SQLite
         // issues.
         //
         // Reference: Helgrind error logs in logs/test/2026-02-15-18-46-52/22_RUN02_fail.log
-        std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
+        SQLITE_CONNECTION_LOCK_OR_RETURN("227RAX807NHS", "Cannot close result sets");
 
         // CRITICAL: Copy weak_ptrs to temporary vector to avoid iterator invalidation.
         // When we call rs->close(), it calls unregisterResultSet() which modifies
@@ -253,74 +253,54 @@ namespace cpp_dbc::SQLite
         return {};
     }
 
+    // No try/catch: all inner calls are nothrow (sqlite3_interrupt is a C function,
+    // closeAllResultSets/closeAllStatements/rollback/setAutoCommit/transactionActive
+    // all take std::nothrow_t). The only possible throws are death-sentence exceptions
+    // (std::bad_alloc, mutex std::system_error) with no meaningful recovery path.
     cpp_dbc::expected<void, cpp_dbc::DBException> SQLiteDBConnection::reset(std::nothrow_t) noexcept
     {
-        try
+        SQLITE_CONNECTION_LOCK_OR_RETURN("JPDLCGSJGAY2", "Cannot reset connection");
+
+        // 2026-02-15T00:00:00Z
+        // Bug: executeQuery() failure with an invalid column leaves the connection in an
+        // inconsistent state (WAL locks, partial transactions). Subsequent reset() calls
+        // rollback() → executeUpdate("ROLLBACK") which fails with "attempt to write a
+        // readonly database" (R4Z5A6B7C8D9), permanently corrupting the connection.
+        // Solution: Call sqlite3_interrupt() to forcibly cancel pending operations and
+        // clear locks before attempting cleanup, allowing subsequent operations to succeed.
+        sqlite3_interrupt(m_db.get());
+
+        // Close all result sets first, then statements
+        auto closeRsResult = closeAllResultSets(std::nothrow);
+        if (!closeRsResult.has_value())
         {
-            // CRITICAL FIX (2026-02-15): Force SQLite to cancel any pending operations
-            // and clear internal state BEFORE attempting cleanup. This prevents
-            // "readonly database" errors when executeQuery() fails and leaves the
-            // connection in an inconsistent state (e.g., WAL locks, partial transactions).
-            //
-            // Without sqlite3_interrupt(), the following scenario occurs:
-            // 1. executeQuery() fails with invalid column → DB enters readonly state
-            // 2. reset() calls rollback() → executeUpdate("ROLLBACK")
-            // 3. executeUpdate() fails → "attempt to write a readonly database" (R4Z5A6B7C8D9)
-            // 4. Connection permanently corrupted, cannot perform cleanup
-            //
-            // sqlite3_interrupt() forcibly cancels operations and clears locks,
-            // allowing subsequent operations to succeed.
-            if (m_db)
+            SQLITE_DEBUG("  reset: closeAllResultSets failed: %s", closeRsResult.error().what_s().data());
+        }
+        auto closeStmtsResult = closeAllStatements(std::nothrow);
+        if (!closeStmtsResult.has_value())
+        {
+            SQLITE_DEBUG("  reset: closeAllStatements failed: %s", closeStmtsResult.error().what_s().data());
+        }
+
+        // Rollback any active transaction
+        auto txActive = transactionActive(std::nothrow);
+        if (txActive.has_value() && txActive.value())
+        {
+            auto rbResult = rollback(std::nothrow);
+            if (!rbResult.has_value())
             {
-                sqlite3_interrupt(m_db.get());
+                SQLITE_DEBUG("  reset: rollback failed: %s", rbResult.error().what_s().data());
             }
-
-            // NOTE: We don't acquire locks here because each method we call
-            // already acquires m_globalFileMutex internally:
-            // - closeAllResultSets() acquires m_globalFileMutex (line 141)
-            // - closeAllStatements() acquires m_globalFileMutex (line 75)
-            // - rollback() acquires m_globalFileMutex (line 372)
-            // - setAutoCommit() acquires m_globalFileMutex (line 175)
-            // - transactionActive() reads atomic m_transactionActive (thread-safe)
-            //
-            // Acquiring the lock here would cause deadlock when those methods
-            // try to acquire it again.
-
-            // Close all result sets first, then statements
-            [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
-            [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
-
-            // Rollback any active transaction
-            auto txActive = transactionActive(std::nothrow);
-            if (txActive.has_value() && txActive.value())
-            {
-                rollback(std::nothrow);
-            }
-
-            // Reset auto-commit to true
-            setAutoCommit(std::nothrow, true);
-
-            return {};
         }
-        catch (const cpp_dbc::DBException &e)
+
+        // Reset auto-commit to true
+        auto acResult = setAutoCommit(std::nothrow, true);
+        if (!acResult.has_value())
         {
-            SQLITE_DEBUG("DBException during connection reset: %s", e.what());
-            return cpp_dbc::unexpected(e);
+            SQLITE_DEBUG("  reset: setAutoCommit failed: %s", acResult.error().what_s().data());
         }
-        catch (const std::exception &e)
-        {
-            SQLITE_DEBUG("Exception during connection reset: %s", e.what());
-            return cpp_dbc::unexpected(cpp_dbc::DBException("EZ8HHCVD9T2D",
-                                                            std::string("Reset failed: ") + e.what(),
-                                                            cpp_dbc::system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            SQLITE_DEBUG("Unknown exception during connection reset");
-            return cpp_dbc::unexpected(cpp_dbc::DBException("GZ8XD1JMH5QP",
-                                                            "Reset failed with unknown error",
-                                                            cpp_dbc::system_utils::captureCallStack()));
-        }
+
+        return {};
     }
 
     // SQLiteDBConnection implementation - Throwing API
@@ -454,7 +434,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBConnection::close()
     {
         auto result = close(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -463,7 +443,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBConnection::reset()
     {
         auto result = reset(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -472,7 +452,7 @@ namespace cpp_dbc::SQLite
     bool SQLiteDBConnection::isClosed() const
     {
         auto result = isClosed(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -482,7 +462,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBConnection::returnToPool()
     {
         auto result = returnToPool(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -491,7 +471,7 @@ namespace cpp_dbc::SQLite
     bool SQLiteDBConnection::isPooled() const
     {
         auto result = isPooled(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -501,37 +481,37 @@ namespace cpp_dbc::SQLite
     std::shared_ptr<RelationalDBPreparedStatement> SQLiteDBConnection::prepareStatement(const std::string &sql)
     {
         auto result = prepareStatement(std::nothrow, sql);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     std::shared_ptr<RelationalDBResultSet> SQLiteDBConnection::executeQuery(const std::string &sql)
     {
         auto result = executeQuery(std::nothrow, sql);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     uint64_t SQLiteDBConnection::executeUpdate(const std::string &sql)
     {
         auto result = executeUpdate(std::nothrow, sql);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     void SQLiteDBConnection::setAutoCommit(bool autoCommit)
     {
         auto result = setAutoCommit(std::nothrow, autoCommit);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -540,37 +520,37 @@ namespace cpp_dbc::SQLite
     bool SQLiteDBConnection::getAutoCommit()
     {
         auto result = getAutoCommit(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     bool SQLiteDBConnection::beginTransaction()
     {
         auto result = beginTransaction(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     bool SQLiteDBConnection::transactionActive()
     {
         auto result = transactionActive(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     void SQLiteDBConnection::commit()
     {
         auto result = commit(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -579,7 +559,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBConnection::rollback()
     {
         auto result = rollback(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -588,7 +568,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
     {
         auto result = setTransactionIsolation(std::nothrow, level);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -597,17 +577,17 @@ namespace cpp_dbc::SQLite
     TransactionIsolationLevel SQLiteDBConnection::getTransactionIsolation()
     {
         auto result = getTransactionIsolation(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     std::string SQLiteDBConnection::getURI() const
     {
         auto result = getURI(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -621,7 +601,7 @@ namespace cpp_dbc::SQLite
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     std::string SQLiteDBConnection::getServerVersion()
@@ -631,7 +611,7 @@ namespace cpp_dbc::SQLite
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     std::map<std::string, std::string> SQLiteDBConnection::getServerInfo()
@@ -641,7 +621,7 @@ namespace cpp_dbc::SQLite
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     #endif // __cpp_exceptions

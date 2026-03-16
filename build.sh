@@ -37,6 +37,7 @@ DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
 DEBUG_REDIS=OFF
+DEBUG_SERIAL_QUEUE=OFF
 DEBUG_ALL=OFF
 BACKWARD_HAS_DW=ON
 DB_DRIVER_THREAD_SAFE=ON
@@ -137,6 +138,9 @@ do
         --debug-redis)
         DEBUG_REDIS=ON
         ;;
+        --debug-serial-queue)
+        DEBUG_SERIAL_QUEUE=ON
+        ;;
         --debug-all)
         DEBUG_CONNECTION_POOL=ON
         DEBUG_TRANSACTION_MANAGER=ON
@@ -147,6 +151,7 @@ do
         DEBUG_MONGODB=ON
         DEBUG_SCYLLADB=ON
         DEBUG_REDIS=ON
+        DEBUG_SERIAL_QUEUE=ON
         DEBUG_ALL=ON
         ;;
         --dw-off)
@@ -186,6 +191,7 @@ do
         echo "  --debug-mongodb        Enable debug output for MongoDB driver"
         echo "  --debug-scylladb         Enable debug output for ScyllaDB driver"
         echo "  --debug-redis          Enable debug output for Redis driver"
+        echo "  --debug-serial-queue   Enable debug output for SerialQueue"
         echo "  --debug-all            Enable all debug output"
         echo "  --dw-off               Disable libdw support for stack traces"
         echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
@@ -218,6 +224,7 @@ export DEBUG_FIREBIRD
 export DEBUG_MONGODB
 export DEBUG_SCYLLADB
 export DEBUG_REDIS
+export DEBUG_SERIAL_QUEUE
 export DEBUG_ALL
 export BACKWARD_HAS_DW
 export DB_DRIVER_THREAD_SAFE
@@ -342,6 +349,10 @@ if [ "$DEBUG_REDIS" = "ON" ]; then
     DEBUG_PARAMS="$DEBUG_PARAMS --debug-redis"
 fi
 
+if [ "$DEBUG_SERIAL_QUEUE" = "ON" ]; then
+    DEBUG_PARAMS="$DEBUG_PARAMS --debug-serial-queue"
+fi
+
 if [ "$DEBUG_ALL" = "ON" ]; then
     DEBUG_PARAMS="$DEBUG_PARAMS --debug-all"
 fi
@@ -427,6 +438,7 @@ echo "Build completed successfully!"
     --debug-mongodb=$DEBUG_MONGODB \
     --debug-scylladb=$DEBUG_SCYLLADB \
     --debug-redis=$DEBUG_REDIS \
+    --debug-serial-queue=$DEBUG_SERIAL_QUEUE \
     --debug-all=$DEBUG_ALL
 
 # Get the binary name from .dist_build using a more precise method
@@ -459,6 +471,7 @@ echo "  Debug Firebird: $DEBUG_FIREBIRD"
 echo "  Debug MongoDB: $DEBUG_MONGODB"
 echo "  Debug ScyllaDB: $DEBUG_SCYLLADB"
 echo "  Debug Redis: $DEBUG_REDIS"
+echo "  Debug SerialQueue: $DEBUG_SERIAL_QUEUE"
 echo "  Debug All: $DEBUG_ALL"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"

@@ -29,6 +29,7 @@
 #endif
 
 #if USE_FIREBIRD
+#include <atomic>
 #include <map>
 #include <set>
 #include <string>
@@ -64,13 +65,16 @@ namespace cpp_dbc::Firebird
         };
 
         // ── Singleton state ───────────────────────────────────────────────────
-        static std::weak_ptr<FirebirdDBDriver> s_instance;
-        static std::mutex                      s_instanceMutex;
+        static std::shared_ptr<FirebirdDBDriver> s_instance;
+        static std::mutex                        s_instanceMutex;
 
         // ── Connection registry ───────────────────────────────────────────────
         static std::mutex                                                        s_registryMutex;
         static std::set<std::weak_ptr<FirebirdDBConnection>,
                         std::owner_less<std::weak_ptr<FirebirdDBConnection>>>   s_connectionRegistry;
+
+        // ── Coalesced cleanup flag ────────────────────────────────────────────
+        static std::atomic<bool> s_cleanupPending;
 
         static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
 
@@ -78,6 +82,8 @@ namespace cpp_dbc::Firebird
         static void unregisterConnection(std::nothrow_t, const std::weak_ptr<FirebirdDBConnection> &conn) noexcept;
 
         static void cleanup();
+
+        void closeAllOpenConnections(std::nothrow_t) noexcept;
 
         /**
          * @brief Parsed URI components for Firebird connections.
@@ -102,6 +108,11 @@ namespace cpp_dbc::Firebird
         // ── Construction state ────────────────────────────────────────────────
         bool m_initFailed{false};
         std::unique_ptr<DBException> m_initError{nullptr};
+
+        // ── Driver state ──────────────────────────────────────────────────────
+        // Set to true by the destructor before releasing resources.
+        // Prevents new connection attempts during and after driver teardown.
+        std::atomic<bool> m_closed{false};
 
     public:
         // ── Constructor ───────────────────────────────────────────────────────

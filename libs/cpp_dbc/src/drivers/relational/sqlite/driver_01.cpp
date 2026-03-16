@@ -30,6 +30,7 @@
 #include <cstdlib> // Para getenv
 #include <fstream> // Para std::ifstream
 #include <charconv>
+#include <vector>
 #include "cpp_dbc/common/system_constants.hpp"
 #include "cpp_dbc/common/system_utils.hpp"
 #include "sqlite_internal.hpp"
@@ -40,13 +41,16 @@ namespace cpp_dbc::SQLite
 {
 
     // ── Static member initialization ──────────────────────────────────────────
+    // IMPORTANT: s_instance MUST be declared LAST — see mysql/driver_01.cpp for
+    // the full explanation of the static destruction order requirement.
     std::atomic<bool> SQLiteDBDriver::s_initialized{false}; // NOSONAR(cpp:S1197) — explicit template arg for clarity in static member definition
     std::mutex SQLiteDBDriver::s_initMutex;
-    std::weak_ptr<SQLiteDBDriver> SQLiteDBDriver::s_instance;
-    std::mutex                    SQLiteDBDriver::s_instanceMutex;
-    std::mutex                    SQLiteDBDriver::s_registryMutex;
+    std::mutex                      SQLiteDBDriver::s_instanceMutex;
+    std::mutex                      SQLiteDBDriver::s_registryMutex;
     std::set<std::weak_ptr<SQLiteDBConnection>,
              std::owner_less<std::weak_ptr<SQLiteDBConnection>>> SQLiteDBDriver::s_connectionRegistry;
+    std::atomic<bool> SQLiteDBDriver::s_cleanupPending{false};
+    std::shared_ptr<SQLiteDBDriver> SQLiteDBDriver::s_instance;
 
     SQLiteDBDriver::SQLiteDBDriver(SQLiteDBDriver::PrivateCtorTag, std::nothrow_t) noexcept
     {
@@ -84,24 +88,73 @@ namespace cpp_dbc::SQLite
     SQLiteDBDriver::~SQLiteDBDriver()
     {
         SQLITE_DEBUG("SQLiteDBDriver::destructor - Destroying driver");
+
+        closeAllOpenConnections(std::nothrow);
+
         cleanup();
     }
 
     void SQLiteDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<SQLiteDBConnection> conn) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
-        s_connectionRegistry.insert(std::move(conn));
+        size_t registrySize = 0;
+        {
+            std::scoped_lock lock(s_registryMutex);
+            s_connectionRegistry.insert(std::move(conn));
+            registrySize = s_connectionRegistry.size();
+        }
+
+        // Coalesced cleanup: only post when the registry has grown past the
+        // cleanup threshold and no cleanup task is already queued.
+        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_acq_rel))
+        {
+            SerialQueue::global().post([]()
+            {
+                {
+                    std::scoped_lock lock(s_registryMutex);
+                    std::erase_if(s_connectionRegistry,
+                        [](const auto &w) { return w.expired(); });
+                }
+                s_cleanupPending.store(false, std::memory_order_release);
+            });
+        }
     }
 
     void SQLiteDBDriver::unregisterConnection(std::nothrow_t, const std::weak_ptr<SQLiteDBConnection> &conn) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
+        std::scoped_lock lock(s_registryMutex);
         s_connectionRegistry.erase(conn);
+    }
+
+    void SQLiteDBDriver::closeAllOpenConnections(std::nothrow_t) noexcept
+    {
+        // Mark driver as closed — reject any new connection attempts
+        m_closed.store(true, std::memory_order_release);
+
+        // Close all open connections before releasing library resources.
+        // Collect under lock first, then close outside the lock to avoid
+        // deadlock with unregisterConnection() (which also acquires s_registryMutex).
+        std::vector<std::shared_ptr<SQLiteDBConnection>> connectionsToClose;
+        {
+            std::scoped_lock lock(s_registryMutex);
+            for (const auto &weak : s_connectionRegistry)
+            {
+                auto conn = weak.lock();
+                if (conn)
+                {
+                    connectionsToClose.push_back(std::move(conn));
+                }
+            }
+            s_connectionRegistry.clear();
+        }
+        for (const auto &conn : connectionsToClose)
+        {
+            [[maybe_unused]] auto closeResult = conn->close(std::nothrow);
+        }
     }
 
     size_t SQLiteDBDriver::getConnectionAlive() noexcept
     {
-        std::lock_guard<std::mutex> lock(s_registryMutex);
+        std::scoped_lock lock(s_registryMutex);
         return static_cast<size_t>(std::count_if(
             s_connectionRegistry.begin(), s_connectionRegistry.end(),
             [](const auto &w) { return !w.expired(); }));
@@ -123,17 +176,16 @@ namespace cpp_dbc::SQLite
     cpp_dbc::expected<std::shared_ptr<SQLiteDBDriver>, DBException>
     SQLiteDBDriver::getInstance(std::nothrow_t) noexcept
     {
-        std::lock_guard<std::mutex> lock(s_instanceMutex);
-        auto existing = s_instance.lock();
-        if (existing)
+        std::scoped_lock lock(s_instanceMutex);
+        if (s_instance)
         {
-            return existing;
+            return s_instance;
         }
         // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
         // SQLiteDBDriver constructor only runs noexcept operations — no m_initFailed check needed.
         auto inst = std::make_shared<SQLiteDBDriver>(SQLiteDBDriver::PrivateCtorTag{}, std::nothrow);
         s_instance = inst;
-        return inst;
+        return s_instance;
     }
 
     void SQLiteDBDriver::cleanup()
@@ -177,11 +229,11 @@ namespace cpp_dbc::SQLite
                                                                               const std::map<std::string, std::string> &options)
     {
         auto result = connectRelational(std::nothrow, uri, user, password, options);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 #endif // __cpp_exceptions
 
@@ -241,6 +293,13 @@ namespace cpp_dbc::SQLite
         [[maybe_unused]] const std::string &,
         const std::map<std::string, std::string> &options) noexcept
     {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("N2QJBT6FXC5P",
+                                                   "Driver is closed, no more connections allowed",
+                                                   system_utils::captureCallStack()));
+        }
+
         auto parseResult = parseURI(std::nothrow, uri);
         if (!parseResult.has_value())
         {

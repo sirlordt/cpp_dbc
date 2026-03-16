@@ -310,7 +310,7 @@ namespace cpp_dbc::Firebird
         // In Firebird, statements are bound to transactions and must be freed
         // before the transaction ends, otherwise we get invalid memory access
         FIREBIRD_DEBUG("  Closing all active ResultSets before ending transaction");
-        closeAllActiveResultSets(std::nothrow);
+        closeAllResultSets(std::nothrow);
 
         ISC_STATUS_ARRAY status;
 
@@ -344,9 +344,9 @@ namespace cpp_dbc::Firebird
     }
 
     cpp_dbc::expected<void, DBException>
-    FirebirdDBConnection::closeAllActiveResultSets(std::nothrow_t) noexcept
+    FirebirdDBConnection::closeAllResultSets(std::nothrow_t) noexcept
     {
-        FIREBIRD_DEBUG("FirebirdConnection::closeAllActiveResultSets(nothrow) - Starting");
+        FIREBIRD_DEBUG("FirebirdConnection::closeAllResultSets(nothrow) - Starting");
 
         // Collect result sets into a temporary vector while holding the lock,
         // then release the lock before calling close() to prevent:
@@ -381,14 +381,14 @@ namespace cpp_dbc::Firebird
                 FIREBIRD_DEBUG("  Failed to close ResultSet: %s", closeResult.error().what_s().data());
             }
         }
-        FIREBIRD_DEBUG("FirebirdConnection::closeAllActiveResultSets(nothrow) - Closed %d result sets", closedCount);
+        FIREBIRD_DEBUG("FirebirdConnection::closeAllResultSets(nothrow) - Closed %d result sets", closedCount);
         return {};
     }
 
     cpp_dbc::expected<void, DBException>
-    FirebirdDBConnection::closeAllActivePreparedStatements(std::nothrow_t) noexcept
+    FirebirdDBConnection::closeAllStatements(std::nothrow_t) noexcept
     {
-        FIREBIRD_DEBUG("FirebirdConnection::closeAllActivePreparedStatements(nothrow) - Starting");
+        FIREBIRD_DEBUG("FirebirdConnection::closeAllStatements(nothrow) - Starting");
 
         // Collect statements into a temporary vector while holding the lock,
         // then release the lock before calling invalidate() to prevent deadlock.
@@ -423,7 +423,7 @@ namespace cpp_dbc::Firebird
             }
         }
 
-        FIREBIRD_DEBUG("FirebirdConnection::closeAllActivePreparedStatements(nothrow) - Closed %d prepared statements", closedCount);
+        FIREBIRD_DEBUG("FirebirdConnection::closeAllStatements(nothrow) - Closed %d prepared statements", closedCount);
         return {};
     }
 

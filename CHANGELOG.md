@@ -1,6 +1,159 @@
 # Changelog
 
-## 2026-03-08 17:25:00 PST [Current]
+## 2026-03-13 10:40:00 PDT [Current]
+
+### DBException Hybrid Storage, Build System TSAN/Debug Flags, Test Runner Sanitizer Label
+
+This release redesigns `DBException` from a fixed-size 271-byte buffer to a hybrid fixed/dynamic storage model (~120 bytes object size), adds ThreadSanitizer and MySQL/PostgreSQL debug flags to build scripts, fixes `build_test_cpp_dbc.sh` path resolution for shared build directories, and adds sanitizer/tool label display to the `run_test_parallel.sh` TUI status bar. Total: **4 files changed, +151/-33 lines**.
+
+#### DBException — Hybrid Fixed/Dynamic Storage (`db_exception.hpp`)
+
+- **Fixed buffer reduced**: `m_full_message` shrunk from 271 bytes (`FULL_MSG_MAX`) to 79 bytes (12 mark + 2 separator + 64 message + 1 null). New `CPP_DBC_DB_EXCEPTION_MSG_CAP` macro defines the 64-char message capacity
+- **Heap overflow buffer**: New `std::shared_ptr<char[]> m_overflow` member stores the full untruncated message when it exceeds 64 chars. Allocated via `new(std::nothrow)` — never throws, graceful degradation to truncated fixed buffer on allocation failure
+- **`what()` / `what_s()` updated**: Return `m_overflow` content when available, fixed buffer otherwise
+- **Object size reduced**: ~120 bytes (down from ~287 bytes) in the common case (message ≤ 64 chars, no callstack). Overflow and callstack are heap-allocated only when needed
+- **Class made `final`**: `DBException` is now `class DBException final : public std::exception` — prevents unintended inheritance
+- **`what_s()` no longer `virtual`**: Removed `virtual` qualifier since class is `final`
+- **`#include <new>`**: Added for `std::nothrow` placement new support
+- **Copy/move remain `= default`**: `shared_ptr<char[]>` enables safe sharing of overflow buffer across copies without deep allocation
+
+#### Build System — TSAN Support, MySQL/PostgreSQL Debug Flags (`build_cpp_dbc.sh`)
+
+- **`--tsan` flag**: New option to enable ThreadSanitizer (`-fsanitize=thread -fno-omit-frame-pointer`). Mutually exclusive with `--asan` (ASAN takes precedence if both specified)
+- **Sanitizer flags unified**: New `SANITIZER_FLAGS` / `SANITIZER_LINKER_FLAGS` variables built before `CMAKE_CXX_FLAGS` — avoids trailing spaces that invalidate CMake cache
+- **`CMAKE_EXE_LINKER_FLAGS`**: Now passed to CMake with sanitizer linker flags for proper link-time instrumentation
+- **`--debug-mysql` / `--debug-postgresql`**: New debug output flags for MySQL and PostgreSQL drivers; included in `--debug-all`
+- **`-DENABLE_TSAN`**: New CMake variable forwarded from build script
+- **`-DDEBUG_MYSQL` / `-DDEBUG_POSTGRES`**: New CMake variables forwarded from build script
+- **CMake variable ordering**: `CMAKE_TOOLCHAIN_FILE` and `USE_CPP_YAML` moved to top of cmake invocation; `ENABLE_ASAN`/`ENABLE_TSAN` grouped together; `CMAKE_CXX_FLAGS`/`CMAKE_EXE_LINKER_FLAGS` at the bottom
+
+#### Build System — Test Build Script Path Fix (`build_test_cpp_dbc.sh`)
+
+- **Absolute path resolution**: `PROJECT_ROOT` computed via `cd "${CPP_DBC_DIR}/../.." && pwd` so both `build_cpp_dbc.sh` and `build_test_cpp_dbc.sh` produce identical `CMAKE_INSTALL_PREFIX` strings — prevents CMake cache invalidation from relative vs absolute path mismatch
+- **`INSTALL_DIR`**: New variable derived from `PROJECT_ROOT` for consistent install prefix
+- **`CMAKE_INSTALL_PREFIX`**: Now explicitly passed to cmake invocation
+- **`CPP_DBC_BUILD_EXAMPLES=OFF` / `CPP_DBC_BUILD_BENCHMARKS=OFF`**: Explicitly passed to prevent cache invalidation when switching between build modes
+- **`DEBUG_ALL`**: Now forwarded to cmake (was missing)
+
+#### Test Runner — Sanitizer Label in TUI Status Bar (`run_test_parallel.sh`)
+
+- **`SANITIZER_LABEL` variable**: Detected from `PASS_THROUGH_ARGS` after argument parsing; recognizes `--helgrind-gs`, `--helgrind-s`, `--helgrind`, `--drd-gs`, `--drd-s`, `--drd`, `--valgrind`
+- **Status bar updated**: Shows `" | Tool: <label>"` suffix when a sanitizer/tool is active (e.g., `Running: 3 | Completed: 5 | Failed: 0 | Time: 01:23 | Tool: helgrind-gs`)
+
+---
+
+## 2026-03-12 21:09:00 PDT
+
+### Build System — CMake Cache Invalidation Fix, Lock Macro Unification Across Drivers
+
+This release fixes a CMake cache invalidation problem that caused double compilation when `build_cpp_dbc.sh` and `build_test_cpp_dbc.sh` ran in sequence. It also unifies the lock-or-return macro pattern across MySQL, PostgreSQL, and SQLite drivers for statement/result-set registry methods, and adds new SQLite-specific lock macros. Total: **11 files changed, +280/-140 lines**.
+
+#### Build System — CMake Cache Invalidation Fix
+
+- **Redundant `build_test_cpp_dbc.sh` call removed** from `build_cpp_dbc.sh`: The cmake invocation already compiles library+tests+examples in one pass; calling `build_test_cpp_dbc.sh` afterward invalidated the CMake cache and forced full recompilation
+- **`BACKWARD_HAS_DW` default aligned to `OFF`** in `build_cpp_dbc.sh`: Was `ON`, mismatching `build_test_cpp_dbc.sh` default of `OFF` — caused cache invalidation
+- **`CMAKE_CXX_FLAGS` built dynamically** in both scripts: Avoids trailing spaces from empty `${SANITIZER_FLAGS}` / `${ANALYZER_FLAG}` that would invalidate the CMake cache
+- **`CPP_DBC_BUILD_EXAMPLES` / `CPP_DBC_BUILD_BENCHMARKS` no longer hardcoded `OFF`** in `build_test_cpp_dbc.sh`: Prevents cache invalidation when test runner follows `--mc-combo-01/02` build
+- **`--mc-combo-01` / `--mc-combo-02` now include benchmarks**: `BUILD_OPTIONS` updated to append `benchmarks`
+- **`benchmark_common.cpp`**: Added missing `#include <unordered_set>`
+
+#### MySQL, PostgreSQL, SQLite — Lock Macro Unification for Statement/ResultSet Registry
+
+- **MySQL `connection_01.cpp`**: `registerStatement()`, `unregisterStatement()`, `closeAllStatements()`, `registerResultSet()`, `unregisterResultSet()`, `closeAllActiveResultSets()` now use `MYSQL_CONNECTION_LOCK_OR_RETURN` macro + renamed inner lock to `stmtLock` for clarity
+- **PostgreSQL `connection_01.cpp`**: Same pattern — `PG_CONNECTION_LOCK_OR_RETURN` macro + `stmtLock` for `registerStatement()`, `unregisterStatement()`, `closeAllStatements()`, `registerResultSet()`, `unregisterResultSet()`, `closeAllResultSets()`
+- **PostgreSQL `connection.hpp`**: `m_initFailed`/`m_initError` moved to dedicated "Construction state" section with proper comments
+
+#### SQLite — New Lock Macros in `sqlite_internal.hpp`
+
+- **`SQLITE_CONNECTION_LOCK_OR_RETURN(mark, msg)`**: Locks `m_globalFileMutex` and returns `unexpected` if connection is closed — replaces manual `std::lock_guard` + closed check in connection methods
+- **`SQLITE_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()`**: Idempotent variant for `close()` — returns `{}` (success) if already closed
+- **`SQLITE_STMT_LOCK_OR_RETURN(mark, msg)`**: Same for `PreparedStatement` — checks `m_stmt` instead of `m_db`
+- **SQLite `connection_01.cpp`**: All 6 registry methods (`register/unregister/closeAll` for statements and result sets) now use `SQLITE_CONNECTION_LOCK_OR_RETURN`
+- **SQLite `prepared_statement_01.cpp`**: All 3 registry methods (`register/unregister/closeAll` for result sets) now use `SQLITE_STMT_LOCK_OR_RETURN`
+
+#### Documentation
+
+- **`shell_script_dependencies.md`**: New "CMake Cache Invalidation — Shared Build Directory" section documenting the problem, root causes, fixes, and when recompilation is expected
+
+---
+
+## 2026-03-12 12:24:00 PDT
+
+### PostgreSQL Driver — Shared-Mutex Refactoring, PrivateCtorTag Pattern, Convention Compliance, and Lifecycle Management
+
+This release refactors the PostgreSQL driver to align with the MySQL driver's architecture established in 2026-03-06. The major change is replacing the `SharedConnMutex` (`shared_ptr<recursive_mutex>`) pattern with direct mutex ownership in `PostgreSQLDBConnection` and a new `PostgreSQLConnectionLock` RAII helper that acquires the connection's mutex through `weak_ptr<PostgreSQLDBConnection>`. PreparedStatement and ResultSet now use `PrivateCtorTag` + `m_initFailed`/`m_initError`, hold `weak_ptr<PostgreSQLDBConnection>` instead of `weak_ptr<PGconn>`, and use `std::atomic<bool> m_closed`. ResultSets gain lifecycle management via `notifyConnClosing()` and a result set registry in the connection. Numerous convention fixes applied: NOSONAR annotations, `std::from_chars` replacing `std::stoi`/`std::stoll`/`std::stod`, dead try/catch removal, `.has_value()` enforcement, and `PG_DEBUG` macro upgraded from `iostream` to `snprintf`-based with timestamp support. Total: **18 files changed, +733/-655 lines**.
+
+#### PostgreSQLDBConnection — Shared Mutex Ownership and Result Set Registry
+
+- **`m_closed` → `std::atomic<bool>`**: Replaces plain `bool` for thread-safe closed-state checks with proper `memory_order_acquire`/`release` semantics
+- **`m_connMutex` → direct `std::recursive_mutex`**: Replaces `SharedConnMutex` (`shared_ptr<recursive_mutex>`); connection now owns the mutex directly
+- **`getConnectionMutex()` method**: New public method (thread-safe build only) returns reference to `m_connMutex` for child objects to acquire via `PostgreSQLConnectionLock`
+- **Result set registry**: New `m_activeResultSets` set with `registerResultSet()`, `unregisterResultSet()`, `closeAllResultSets()` — mirrors the existing statement registry pattern
+- **Lifecycle management**: `close()`, `reset()`, and `returnToPool()` now call `closeAllResultSets(std::nothrow)` before `closeAllStatements(std::nothrow)`
+- **`friend` declarations**: Added `friend class PostgreSQLDBPreparedStatement` and `friend class PostgreSQLDBResultSet` for internal member access
+- **Comment cleanup**: Trimmed verbose design rationale comments in `m_activeStatements` and `m_statementsMutex` documentation
+- **`generateStatementName()`**: Moved outside `#ifdef __cpp_exceptions` guard (used by both throwing and nothrow paths)
+
+#### PostgreSQLDBPreparedStatement — PrivateCtorTag Pattern and Connection-Based Access
+
+- **PrivateCtorTag pattern**: Added `PrivateCtorTag` private struct, `m_initFailed`/`m_initError` construction state, public noexcept constructor
+- **`weak_ptr<PostgreSQLDBConnection>` replaces `weak_ptr<PGconn>`**: Statement now holds reference to full connection object, accesses `PGconn*` through `getPGConnection(std::nothrow)` which traverses `conn->m_conn`
+- **`std::atomic<bool> m_closed`**: Replaces implicit closed state; initialized to `true`, set to `false` at end of constructor
+- **`enable_shared_from_this`**: Added for lifecycle management
+- **`SharedConnMutex m_connMutex` removed**: Mutex access now via `PostgreSQLConnectionLock` RAII helper
+- **`create()` factories unified**: Single nothrow `create(std::nothrow_t)` with PrivateCtorTag + `m_initFailed` check; throwing version inside `#ifdef __cpp_exceptions`; no try/catch (death-sentence rule)
+- **`notifyConnClosing()` moved outside `#ifdef __cpp_exceptions`**: Called from both throwing and nothrow paths
+- **`close()` calls nothrow overload**: `close()` in `executeQuery`/`executeUpdate` replaced with `close(std::nothrow)` per nothrow-calls-nothrow rule
+- **`PG_STMT_LOCK_OR_RETURN` macro**: Replaces `DB_DRIVER_LOCK_GUARD(*m_connMutex)` in all nothrow methods; uses `PostgreSQLConnectionLock`
+
+#### PostgreSQLDBResultSet — PrivateCtorTag Pattern, Connection Lifecycle, and Convention Fixes
+
+- **PrivateCtorTag pattern**: Added `PrivateCtorTag` private struct, `m_initFailed`/`m_initError` construction state, public noexcept constructor taking `weak_ptr<PostgreSQLDBConnection>`
+- **`weak_ptr<PostgreSQLDBConnection> m_connection`**: New member for connection lifecycle tracking
+- **`std::atomic<bool> m_closed`**: New member; `false` when result has data, `true` when closed or null PGresult
+- **`enable_shared_from_this`**: Added for registry management
+- **`notifyConnClosing()`**: New method called by connection when closing — marks closed, releases PGresult
+- **Independent `mutable std::recursive_mutex m_mutex` removed**: ResultSet now shares connection's mutex via `PostgreSQLConnectionLock`
+- **`create()` factories**: Nothrow version with PrivateCtorTag + `m_initFailed` check; throwing inside `#ifdef __cpp_exceptions`
+- **Null PGresult handling**: Constructor now sets `m_initFailed`/`m_initError` instead of silently creating empty result set
+- **Destructor**: Only calls `close(std::nothrow)` if not already closed (checks `m_closed` atomic)
+- **Dead try/catch removed**: `isBeforeFirst()`, `isAfterLast()`, `getRow()`, `getColumnNames()`, `getColumnCount()` — all nothrow methods with only nothrow operations
+- **`std::stoi`/`std::stoll`/`std::stod` → `std::from_chars`**: `getInt()`, `getLong()`, `getDouble()` now use nothrow `std::from_chars`
+- **`strtol` → `std::from_chars`**: Hex byte parsing in `getBytes()` uses `std::from_chars` with base 16
+- **`.has_value()` enforcement**: `!bytesResult` → `!bytesResult.has_value()` in `getBlob()`/`getBinaryStream()`
+- **`PG_STMT_LOCK_OR_RETURN` macro**: Replaces `DB_DRIVER_LOCK_GUARD(m_mutex)` in all nothrow methods
+
+#### PostgreSQLInputStream — PrivateCtorTag Pattern
+
+- **PrivateCtorTag pattern**: Added private struct, `m_initFailed`/`m_initError`, public noexcept constructor
+- **Constructor validation**: Uses `validateAndEnd(std::nothrow)` instead of throwing overload; captures error in construction state
+- **Throwing `validateAndEnd()` removed**: Only nothrow version remains (private helper rule)
+- **`create()` factories**: Nothrow with PrivateCtorTag; throwing inside `#ifdef __cpp_exceptions`
+- **`copyFrom()` throwing version**: Now inside `#ifdef __cpp_exceptions` guard
+
+#### PostgreSQLBlob — Cleanup
+
+- **Throwing `getPGConnection()` removed**: Only nothrow version remains (private helper rule)
+
+#### postgresql_internal.hpp — RAII Lock Helper and Macro System
+
+- **`PostgreSQLConnectionLock` class**: New RAII helper that acquires `recursive_mutex` through `weak_ptr<PostgreSQLDBConnection>`. Double-checked locking: (1) check `m_closed` atomic, (2) lock connection's weak_ptr and keep alive via `shared_ptr`, (3) acquire mutex, (4) re-check `m_closed` after lock. If connection expired, marks object as closed via atomic store.
+- **`PG_CONNECTION_LOCK_OR_RETURN` / `PG_CONNECTION_LOCK_OR_THROW` / `PG_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED`**: New macros for DBConnection methods (lock `m_connMutex` + check closed state)
+- **`PG_STMT_LOCK_OR_RETURN` / `PG_STMT_LOCK_OR_THROW` / `PG_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED`**: New macros for PreparedStatement/ResultSet methods (use `PostgreSQLConnectionLock`)
+- **`DB_DRIVER_LOCK_GUARD` → `std::scoped_lock`**: Changed from `std::lock_guard` to `std::scoped_lock`
+- **`PG_DEBUG` macro**: Rewritten from `iostream`-based (`std::cout <<`) to `snprintf`-based with timestamp via `system_utils::logWithTimesMillis()`; supports `printf`-style format strings; truncation-safe with `...[TRUNCATED]` suffix
+- **Non-thread-safe variants**: All macros have `#else` branches for non-thread-safe builds (check state without locking)
+
+#### Convention Compliance Fixes (across all `.cpp` files)
+
+- **NOSONAR annotations**: All `catch (...)` blocks now have `// NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above`
+- **`getBytes(const string&)` throwing version**: Now delegates to nothrow overload instead of reimplementing logic
+- **`getAutoCommit()`/`transactionActive()` dead try/catch removed**: These methods only read member variables — no exceptions possible
+- **`PG_DEBUG` format strings**: All `<<` stream-style debug output replaced with `printf`-style `%s` format strings
+
+---
+
+## 2026-03-08 17:25:00 PST
 
 ### Unified version/info API across all drivers, MySQL code hardening, and BlobStream connection validation
 

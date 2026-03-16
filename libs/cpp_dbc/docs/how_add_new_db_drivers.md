@@ -18,6 +18,7 @@ This guide explains how to add support for a new database management system (DBM
    - [Update Main Header (cpp_dbc.hpp)](#update-main-header-cpp_dbchpp)
    - [Register in DriverManager::initDrivers](#register-in-drivermanagerinitdrivers)
    - [Integrate with Connection Pool](#integrate-with-connection-pool)
+   - [Update Class Hierarchy Diagram](#update-class-hierarchy-diagram)
 4. [Phase 2: Update Build Configuration](#phase-2-update-build-configuration)
    - [Update CMakeLists.txt](#update-cmakeliststxt)
    - [Create FindModule for CMake](#create-findmodule-for-cmake)
@@ -700,6 +701,23 @@ target_sources(cpp_dbc PRIVATE
 | `pool/<family>/<family>_db_connection_pool.cpp` | **CREATE** — all implementations |
 | `pool/pooled_db_connection_base.cpp` | Add `#include` and explicit template instantiation for the new family |
 | `libs/cpp_dbc/CMakeLists.txt` | Add `src/pool/<family>/<family>_db_connection_pool.cpp` to sources |
+
+### Update Class Hierarchy Diagram
+
+Update the class hierarchy diagram at `libs/cpp_dbc/docs/class_hierarchy.drawio` to include all new classes.
+
+**Important**: The `.drawio` file contains an XML comment block at the very top of the file with the complete layout specification. **Read that comment first** — it documents the exact X/Y coordinates, spacing rules, color codes, and how to position new boxes.
+
+Key rules from the specification:
+
+- **Box size**: All boxes are 250 × 50 (uniform, no exceptions).
+- **Sub-column gap**: 290px between Blue (Root Abstract) → Green (Family Abstract) → Yellow (Concrete).
+- **Inter-zone gap**: 430px between zones.
+- **Y rows by family**: Columnar=12, Document=88.75, KV=165, Relational=240/320.
+- **Concrete box style**: `fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11` (or `fontSize=10` for long class names).
+- **No arrows or lines** — inheritance is implied by position (same Y = same family, leftmost = most abstract).
+
+For each new class, add a box in the corresponding zone's Yellow (concrete) sub-column at the Y row matching the driver's family. If a new family is created (e.g., Graph, TimeSeries), assign it the next available Y position (y = previous max + 76.75).
 
 ---
 
@@ -1871,6 +1889,12 @@ endif()
   - [ ] Added `#if USE_<DRIVER>` block with `!drivers.contains("<name>")` guard
   - [ ] Used `XxxDBDriver::getInstance(std::nothrow)` (singleton, not `make_shared`)
   - [ ] Driver name string matches `XxxDBDriver::getName()` exactly
+- [ ] Updated class hierarchy diagram `libs/cpp_dbc/docs/class_hierarchy.drawio`
+  - [ ] Read the XML comment at the top of the file for the layout specification (zones, Y rows, spacing rules)
+  - [ ] Added a box (250×50) for each new class in its corresponding zone (Driver, Connection, ResultSet, etc.)
+  - [ ] Used the correct Y row for the database family (Columnar=12, Document=88.75, KV=165, Relational=240/320)
+  - [ ] Used the correct sub-column (Yellow concrete) at 290px spacing from the Family (Green) column
+  - [ ] Used the concrete style: `fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11`
 - [ ] Connection Pool Integration
   - **Existing family** (relational, kv, document, columnar):
     - [ ] Added driver subclass pool class in `pool/<family>/<family>_db_connection_pool.hpp`

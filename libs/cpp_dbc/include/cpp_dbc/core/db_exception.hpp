@@ -24,18 +24,11 @@
 #include <cstdio>
 #include <exception>
 #include <memory>
+#include <new>
 #include <span>
 #include <string>
 #include <string_view>
 #include "cpp_dbc/common/system_utils.hpp"
-
-// #define used for array dimensions inside DBException so IntelliSense sees preprocessor
-// literals rather than static constexpr member references — which trigger a false-positive
-// "expression must be a modifiable lvalue" when writing to the arrays via snprintf.
-// #undef'd after the class definition to avoid polluting other translation units.
-#define CPP_DBC_DB_EXCEPTION_MARK_LEN 12
-// 12 (mark) + 2 (": ") + 256 (message) + 1 (null)
-#define CPP_DBC_DB_EXCEPTION_FULL_MSG_MAX 271
 
 namespace cpp_dbc
 {
@@ -43,18 +36,33 @@ namespace cpp_dbc
     /**
      * @brief Base exception class for all database-related errors
      *
-     * Fixed-size value type: all string storage is in a single fixed-size char array.
-     * Layout: "XXXXXXXXXXXX: <message>\0" — mark occupies the first MARK_LEN bytes,
-     * followed by ": " and the message. getMark() returns a string_view over the first
-     * MARK_LEN bytes without any allocation.
+     * Hybrid fixed/dynamic storage: a 79-byte fixed buffer holds the mark and
+     * up to 64 characters of message with zero heap allocation. Messages longer
+     * than 64 chars spill to a heap-allocated shared buffer; if the allocation
+     * fails (out of memory), what() returns the truncated fixed buffer —
+     * graceful degradation with no exception thrown.
      *
-     * The call stack is heap-allocated on demand via shared_ptr — DBException itself
-     * stores only a 16-byte pointer. When no callstack is passed the pointer is
-     * nullptr and no heap memory is allocated at all.
+     * Layout of fixed buffer: "XXXXXXXXXXXX: <message>\0" — mark occupies the
+     * first MARK_LEN bytes, followed by ": " and the message (truncated at
+     * MSG_CAP chars). getMark() returns a string_view over the first MARK_LEN
+     * bytes without any allocation.
      *
-     * Total object size is approximately 287 bytes (m_full_message + shared_ptr).
-     * The CallStackCapture (~3,040 bytes) lives on the heap only when
-     * captureCallStack() is called.
+     * The call stack is heap-allocated on demand via shared_ptr — DBException
+     * itself stores only a 16-byte pointer. When no callstack is passed the
+     * pointer is nullptr and no heap memory is allocated at all.
+     *
+     * Object size breakdown (x86-64, best case: message ≤ 64 chars, no callstack):
+     *
+     *   std::exception vtable ptr ......  8 bytes
+     *   m_full_message[79] ............. 79 bytes  (12 mark + 2 ": " + 64 msg + 1 null)
+     *   m_overflow (shared_ptr, null) .. 16 bytes  (no heap alloc)
+     *   m_callstack (shared_ptr, null) . 16 bytes  (no heap alloc)
+     *   alignment padding ..............  1 byte   (compiler-dependent)
+     *                                   ─────────
+     *   Total ......................... ~120 bytes
+     *
+     * Worst case adds heap allocations for overflow (~fullSize bytes) and/or
+     * CallStackCapture (~3,040 bytes), but the object itself stays ~120 bytes.
      *
      * ```cpp
      * try {
@@ -66,16 +74,34 @@ namespace cpp_dbc
      * }
      * ```
      */
-    class DBException : public std::exception
+    class DBException final : public std::exception
     {
-        // Single buffer layout: "XXXXXXXXXXXX: <message>\0"
+        // Storage constants for the fixed buffer layout.
+        static constexpr std::size_t MARK_LEN = 12;
+        static constexpr std::size_t MSG_CAP = 64;
+        // 12 (mark) + 2 (": ") + 64 (message) + 1 (null)
+        static constexpr std::size_t FULL_MSG_MAX = 79;
+
+        // Fixed buffer layout: "XXXXXXXXXXXX: <message>\0"
         // - bytes [0,  MARK_LEN)         → mark, always exactly MARK_LEN chars (padded/truncated)
         // - bytes [MARK_LEN, MARK_LEN+2) → ": " separator, always present
-        // - bytes after separator        → message (right-truncated if too long)
+        // - bytes after separator         → message (right-truncated at MSG_CAP chars)
+        // Always populated, even when m_overflow exists — serves as fallback if heap alloc failed.
         // NOSONAR(cpp:S5945) — char[] required: allocation-free by design so the constructor
         // is noexcept; std::array<char,N> is layout-identical but forces .data() at every
         // C-API boundary (snprintf, what()) with zero benefit.
-        char m_full_message[CPP_DBC_DB_EXCEPTION_FULL_MSG_MAX]{}; // NOSONAR(cpp:S5945)
+        char m_full_message[FULL_MSG_MAX]{}; // NOSONAR(cpp:S5945)
+
+        // Heap-allocated full (untruncated) message for messages exceeding MSG_CAP chars.
+        // nullptr when: (a) message fits in fixed buffer, or (b) heap allocation failed.
+        // Allocated via new(std::nothrow) — never throws, returns nullptr on failure.
+        // shared_ptr (not unique_ptr) because DBException is frequently copied in
+        // catch-and-propagate patterns (894 occurrences across 104 files); the overflow
+        // buffer is immutable after construction, so sharing via ref-count is safe and
+        // keeps copy/move = default.
+        // NOSONAR(cpp:S5945) — char[] allocated via new(std::nothrow) for noexcept safety;
+        // std::string constructor can throw std::bad_alloc, defeating the noexcept guarantee.
+        std::shared_ptr<char[]> m_overflow{}; // NOSONAR(cpp:S5945)
 
         std::shared_ptr<system_utils::CallStackCapture> m_callstack{};
 
@@ -83,12 +109,13 @@ namespace cpp_dbc
         /**
          * @brief Construct a new DBException
          *
-         * All string data is copied into fixed internal buffers. The constructor
-         * is declared noexcept — the shared_ptr copy cannot throw because the
-         * allocation already occurred inside captureCallStack().
+         * The fixed buffer is always populated (truncated at MSG_CAP chars).
+         * If the message exceeds MSG_CAP, a heap buffer is allocated via
+         * new(std::nothrow) to store the full message. On allocation failure,
+         * what() returns the truncated fixed buffer — no exception is thrown.
          *
          * @param mark A unique 12-character alphanumeric error code
-         * @param message The human-readable error message (truncated at MESSAGE_MAX chars)
+         * @param message The human-readable error message
          * @param callstack Optional call stack captured via system_utils::captureCallStack()
          *                  Pass nullptr (default) to skip the stack trace entirely.
          *
@@ -102,7 +129,7 @@ namespace cpp_dbc
                              std::shared_ptr<system_utils::CallStackCapture> callstack = nullptr) noexcept
             : m_callstack(std::move(callstack))
         {
-            // Build the single buffer as "XXXXXXXXXXXX: <message>\0".
+            // Build the fixed buffer as "XXXXXXXXXXXX: <message>\0".
             // %-12.12s pads short marks with spaces on the right and truncates long marks,
             // so bytes [0, 12) are always the mark and byte 12 is always ':'.
             // This fixed layout makes getMark() a trivial O(1) string_view slice with no
@@ -112,12 +139,31 @@ namespace cpp_dbc
             const char *effectiveMark = mark.empty() ? "MARK_NOT_DEF" : mark.c_str();
             std::snprintf(m_full_message, sizeof(m_full_message),
                           "%-12.12s: %s", effectiveMark, message.c_str());
+
+            // If the message exceeds the fixed capacity, attempt to allocate a heap
+            // buffer for the full (untruncated) message. On allocation failure,
+            // what() gracefully degrades to the truncated fixed buffer.
+            if (message.size() > MSG_CAP)
+            {
+                const std::size_t fullSize =
+                    MARK_LEN + 2 + message.size() + 1;
+                // new(std::nothrow) returns nullptr on allocation failure — never throws.
+                auto *buf = new(std::nothrow) char[fullSize]; // NOSONAR(cpp:S5945)
+                if (buf)
+                {
+                    // NOSONAR(cpp:S6494) — noexcept + allocation-free; std::format can throw and heap-allocates
+                    std::snprintf(buf, fullSize, // NOSONAR(cpp:S6494)
+                                  "%-12.12s: %s", effectiveMark, message.c_str());
+                    m_overflow.reset(buf, std::default_delete<char[]>{});
+                }
+            }
         }
 
         ~DBException() override = default;
 
-        // Default copy and move are correct: char arrays are trivially copyable and
+        // Default copy and move are correct: char arrays are trivially copyable,
         // shared_ptr copy/move only adjust the reference count — no deep allocation.
+        // m_overflow is shared_ptr (not unique_ptr) specifically to keep these = default.
         DBException(const DBException &) = default;
         DBException &operator=(const DBException &) = default;
         DBException(DBException &&) = default;
@@ -126,18 +172,19 @@ namespace cpp_dbc
         /**
          * @brief Get the full error message as a C-string
          *
-         * Returns the pre-computed "MARK: message" string (e.g. "7K3F9J2B5Z8D: Connection refused").
+         * Returns the untruncated message if heap allocation succeeded, or the
+         * truncated fixed buffer otherwise. Format: "MARK: message".
          * Required by std::exception contract. Never allocates.
          */
         const char *what() const noexcept override
         {
-            return m_full_message;
+            return m_overflow ? m_overflow.get() : m_full_message;
         }
 
         /**
          * @brief Get the full error message as a string_view
          *
-         * Returns a view of the pre-computed "MARK: message" string. Never allocates.
+         * Returns a view over the same buffer as what(). Never allocates.
          * The view is valid for the lifetime of this DBException object.
          *
          * ```cpp
@@ -146,16 +193,19 @@ namespace cpp_dbc
          * }
          * ```
          */
-        virtual std::string_view what_s() const noexcept
+        std::string_view what_s() const noexcept
         {
-            return std::string_view{m_full_message};
+            return m_overflow
+                ? std::string_view{m_overflow.get()}
+                : std::string_view{m_full_message};
         }
 
         /**
          * @brief Get the unique error code identifying this error
          *
-         * Returns a string_view over the first MARK_LEN bytes of the internal buffer.
+         * Returns a string_view over the first MARK_LEN bytes of the fixed buffer.
          * Always exactly MARK_LEN chars — short marks are space-padded, long marks truncated.
+         * The mark is always in the fixed buffer, even when m_overflow exists.
          *
          * @return string_view of exactly MARK_LEN characters
          */
@@ -163,7 +213,7 @@ namespace cpp_dbc
         {
             // The mark always occupies bytes [0, MARK_LEN) — guaranteed by the constructor
             // which uses %-12.12s to pad/truncate to exactly MARK_LEN chars.
-            return std::string_view{m_full_message, CPP_DBC_DB_EXCEPTION_MARK_LEN};
+            return std::string_view{m_full_message, MARK_LEN};
         }
 
         /**
@@ -196,8 +246,5 @@ namespace cpp_dbc
     };
 
 } // namespace cpp_dbc
-
-#undef CPP_DBC_DB_EXCEPTION_MARK_LEN
-#undef CPP_DBC_DB_EXCEPTION_FULL_MSG_MAX
 
 #endif // CPP_DBC_CORE_DB_EXCEPTION_HPP

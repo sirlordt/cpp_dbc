@@ -381,14 +381,7 @@ namespace cpp_dbc::Firebird
         }
         auto resultSet = rsResult.value();
 
-        // Register the ResultSet with the connection for automatic cleanup.
-        // Done here (not inside create()) because FirebirdDBConnection is an incomplete
-        // type inside result_set.hpp and registerResultSet() cannot be called there.
-        if (conn)
-        {
-            [[maybe_unused]] auto regResult = conn->registerResultSet(std::nothrow, std::weak_ptr<FirebirdDBResultSet>(resultSet));
-        }
-
+        // Registration with the connection is done inside create() → initialize()
         FIREBIRD_DEBUG("FirebirdPreparedStatement::executeQuery(nothrow) - Done");
         return cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>(std::static_pointer_cast<RelationalDBResultSet>(resultSet));
     }

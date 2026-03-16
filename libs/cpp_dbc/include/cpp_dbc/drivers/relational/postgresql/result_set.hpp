@@ -4,90 +4,52 @@
 
 #if USE_POSTGRESQL
 
+#include <atomic>
 #include <cstdint>
 #include <map>
 #include <memory>
-#include <mutex>
 #include <new>
 #include <string>
 #include <vector>
 
 namespace cpp_dbc::PostgreSQL
 {
+    class PostgreSQLDBConnection;
+
     /**
      * @brief PostgreSQL ResultSet implementation using the "Store Result" model
      *
      * @details
-     * **IMPORTANT ARCHITECTURAL NOTE - "Store Result" Model:**
-     *
      * PostgreSQL uses a "store result" model where PQexec()/PQexecParams() fetches ALL rows
-     * from the server into client memory at query execution time. This is fundamentally
-     * different from SQLite/Firebird's cursor-based iteration.
+     * from the server into client memory at query execution time. ResultSet operations
+     * (next(), getString(), etc.) are purely local memory operations on PGresult*.
      *
-     * **HOW IT WORKS:**
-     *
-     * 1. Query execution calls PQexec() or PQexecParams() which:
-     *    - Fetches ALL rows from the PostgreSQL server
-     *    - Stores them in a client-side PGresult* structure
-     *    - This structure is INDEPENDENT of the PGconn* connection handle
-     *
-     * 2. ResultSet operations (next(), getString(), etc.):
-     *    - next() simply increments m_rowPosition counter (no server communication)
-     *    - PQgetvalue() reads from local memory (PGresult*), NOT from server
-     *    - These operations do NOT communicate with the database connection
-     *
-     * 3. ResultSet close:
-     *    - PQclear() only frees the local PGresult* memory
-     *    - Does NOT communicate with the connection or server
-     *
-     * **WHY THE MUTEX IS INDEPENDENT (NOT SHARED WITH CONNECTION):**
-     *
-     * Unlike SQLite/Firebird where each next() call communicates with the connection,
-     * PostgreSQL ResultSet operations are purely local memory operations on PGresult*.
-     * Therefore:
-     *
-     * - No race condition with connection operations (pool validation, queries, etc.)
-     * - The ResultSet mutex (m_mutex) only protects internal state consistency
-     * - It does NOT need to be the same mutex as the connection's m_connMutex
-     *
-     * **WHAT HAPPENS IF THE CONNECTION IS CLOSED:**
-     *
-     * If the parent connection is closed while a ResultSet is still open:
-     *
-     * 1. The ResultSet REMAINS FULLY VALID and usable
-     * 2. All data is already in the PGresult* structure (client memory)
-     * 3. next(), getString(), getInt(), etc. continue to work normally
-     * 4. close() still works (just frees PGresult* memory)
-     *
-     * This is in stark contrast to SQLite/Firebird where closing the connection
-     * would invalidate the ResultSet because cursor iteration requires the connection.
-     *
-     * **COMPARISON WITH CURSOR-BASED DRIVERS (SQLite/Firebird):**
-     *
-     * | Aspect                    | MySQL/PostgreSQL          | SQLite/Firebird           |
-     * |---------------------------|---------------------------|---------------------------|
-     * | Data location             | Client memory (PGresult*) | Server-side cursor        |
-     * | next() communication      | Local counter increment   | Connection handle call    |
-     * | Connection dependency     | Only at query time        | Throughout iteration      |
-     * | Shared mutex needed       | NO                        | YES                       |
-     * | Valid after conn close    | YES (data in memory)      | NO (cursor invalidated)   |
+     * After the shared-mutex refactoring, ResultSets hold a weak_ptr to their parent
+     * Connection and share the connection's recursive_mutex. When the connection closes,
+     * all active ResultSets are closed via notifyConnClosing(). This provides consistent
+     * lifecycle management across all drivers (Firebird, MySQL, SQLite, PostgreSQL).
      *
      * @see PostgreSQLDBConnection - Creates ResultSets via executeQuery()
-     * @see SQLiteDBResultSet - Contrast: Uses shared mutex due to cursor model
-     * @see FirebirdDBResultSet - Contrast: Uses shared mutex due to cursor model
      */
-    class PostgreSQLDBResultSet final : public RelationalDBResultSet
+    class PostgreSQLDBResultSet final : public RelationalDBResultSet,
+                                         public std::enable_shared_from_this<PostgreSQLDBResultSet>
     {
-    private:
+        friend class PostgreSQLDBConnection;
+        friend class PostgreSQLConnectionLock;
+
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
+        std::weak_ptr<PostgreSQLDBConnection> m_connection;
+        std::atomic<bool> m_closed{true};
+
         /**
          * @brief Smart pointer for PGresult - automatically calls PQclear
          *
          * This is an OWNING pointer that manages the lifecycle of the PostgreSQL result set.
          * When this pointer is reset or destroyed, PQclear() is called automatically.
-         *
-         * @note This structure contains ALL result data in client memory, independent
-         * of the PGconn* connection handle. The connection can be closed and this
-         * ResultSet remains valid.
          */
         PGresultHandle m_result;
         int m_rowPosition{0};
@@ -96,37 +58,24 @@ namespace cpp_dbc::PostgreSQL
         std::vector<std::string> m_columnNames;
         std::map<std::string, int> m_columnMap;
 
-#if DB_DRIVER_THREAD_SAFE
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
+
+        // Internal method called by connection when closing
+        void notifyConnClosing(std::nothrow_t) noexcept;
+
         /**
-         * @brief Independent mutex for thread-safe ResultSet operations
+         * @brief Register this ResultSet with the parent connection for lifecycle tracking.
          *
-         * @details
-         * This mutex is INDEPENDENT of the connection's mutex (m_connMutex) because:
-         *
-         * 1. **No connection communication**: All ResultSet operations (next(), getString(),
-         *    etc.) only access the PGresult* structure in client memory. They do NOT
-         *    communicate with the PGconn* connection handle.
-         *
-         * 2. **No race condition possible**: Since we never touch the connection, there's
-         *    no risk of racing with connection operations (pool validation, new queries, etc.)
-         *
-         * 3. **Self-contained protection**: This mutex only needs to protect the internal
-         *    state of THIS ResultSet (m_rowPosition) from concurrent access
-         *    to THIS same ResultSet instance.
-         *
-         * **CONTRAST WITH SQLite/Firebird:**
-         *
-         * SQLite and Firebird use cursor-based iteration where each next() call invokes
-         * sqlite3_step() or isc_dsql_fetch() which communicate with the connection handle.
-         * Those drivers MUST share the connection mutex to prevent race conditions.
-         *
-         * PostgreSQL's "store result" model eliminates this coupling entirely.
+         * CRITICAL: Must be called AFTER construction is complete, when shared_from_this() is valid.
+         * Cannot be called in the constructor because weak_from_this() requires the shared_ptr to exist.
          */
-        mutable std::recursive_mutex m_mutex;
-#endif
+        cpp_dbc::expected<void, DBException> initialize(std::nothrow_t) noexcept;
 
     public:
-        explicit PostgreSQLDBResultSet(PGresult *res);
+        PostgreSQLDBResultSet(PrivateCtorTag, std::nothrow_t,
+                              std::weak_ptr<PostgreSQLDBConnection> conn,
+                              PGresult *res) noexcept;
         ~PostgreSQLDBResultSet() override;
 
         PostgreSQLDBResultSet(const PostgreSQLDBResultSet &) = delete;
@@ -134,35 +83,40 @@ namespace cpp_dbc::PostgreSQL
         PostgreSQLDBResultSet(PostgreSQLDBResultSet &&) = delete;
         PostgreSQLDBResultSet &operator=(PostgreSQLDBResultSet &&) = delete;
 
-        static cpp_dbc::expected<std::shared_ptr<PostgreSQLDBResultSet>, DBException>
-        create(std::nothrow_t, PGresult *res) noexcept
+#ifdef __cpp_exceptions
+        static std::shared_ptr<PostgreSQLDBResultSet>
+        create(std::weak_ptr<PostgreSQLDBConnection> conn, PGresult *res)
         {
-            try
-            {
-                return std::make_shared<PostgreSQLDBResultSet>(res);
-            }
-            catch (const DBException &ex)
-            {
-                return cpp_dbc::unexpected(ex);
-            }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("ERPW6QWYXJXH", ex.what(), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("HVBYKQUD6IPW", "Unknown error creating PostgreSQLDBResultSet", system_utils::captureCallStack()));
-            }
-        }
-
-        static std::shared_ptr<PostgreSQLDBResultSet> create(PGresult *res)
-        {
-            auto r = create(std::nothrow, res);
+            auto r = create(std::nothrow, std::move(conn), res);
             if (!r.has_value())
             {
                 throw r.error();
             }
             return r.value();
+        }
+#endif
+
+        static cpp_dbc::expected<std::shared_ptr<PostgreSQLDBResultSet>, DBException>
+        create(std::nothrow_t,
+               std::weak_ptr<PostgreSQLDBConnection> conn,
+               PGresult *res) noexcept
+        {
+            // No try/catch: std::make_shared can only throw std::bad_alloc, which is a
+            // death-sentence exception — the heap is exhausted and no meaningful recovery
+            // is possible. The constructor is noexcept and captures errors in m_initFailed.
+            auto obj = std::make_shared<PostgreSQLDBResultSet>(
+                PrivateCtorTag{}, std::nothrow, std::move(conn), res);
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            // Must be called after make_shared (requires shared_ptr to exist for shared_from_this())
+            auto initResult = obj->initialize(std::nothrow);
+            if (!initResult.has_value())
+            {
+                return cpp_dbc::unexpected(initResult.error());
+            }
+            return obj;
         }
 
 // DBResultSet interface

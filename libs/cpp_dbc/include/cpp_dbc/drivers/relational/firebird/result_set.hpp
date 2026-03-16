@@ -125,6 +125,14 @@ namespace cpp_dbc::Firebird
          */
         cpp_dbc::expected<void, DBException> notifyConnClosing(std::nothrow_t) noexcept;
 
+        /**
+         * @brief Register this ResultSet with the parent connection for lifecycle tracking.
+         *
+         * CRITICAL: Must be called AFTER construction is complete, when shared_from_this() is valid.
+         * Cannot be called in the constructor because weak_from_this() requires the shared_ptr to exist.
+         */
+        cpp_dbc::expected<void, DBException> initialize(std::nothrow_t) noexcept;
+
     public:
         ~FirebirdDBResultSet() override;
 

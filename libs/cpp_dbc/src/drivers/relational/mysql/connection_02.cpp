@@ -63,9 +63,14 @@ namespace cpp_dbc::MySQL
             }
             auto stmt = stmtResult.value();
 
-            // Register the statement as weak_ptr — allows natural destruction when user releases reference
-            // Statements will be explicitly closed in returnToPool() or close() before connection reuse
-            [[maybe_unused]] auto regResult = registerStatement(std::nothrow, std::weak_ptr<MySQLDBPreparedStatement>(stmt));
+            // Register the statement as weak_ptr — allows natural destruction when user releases reference.
+            // Statements will be explicitly closed in returnToPool() or close() before connection reuse.
+            // If registration fails the statement is NOT returned — destructor closes it.
+            auto regResult = registerStatement(std::nothrow, std::weak_ptr<MySQLDBPreparedStatement>(stmt));
+            if (!regResult.has_value())
+            {
+                return cpp_dbc::unexpected(regResult.error());
+            }
 
             return std::shared_ptr<RelationalDBPreparedStatement>(stmt);
         }
@@ -113,9 +118,7 @@ namespace cpp_dbc::MySQL
             }
             auto rs = rsResult.value();
 
-            // Register the result set for tracking — allows cleanup in close/reset/returnToPool
-            [[maybe_unused]] auto regResult = registerResultSet(std::nothrow, std::weak_ptr<MySQLDBResultSet>(rs));
-
+            // Registration with the connection is done inside create() → initialize()
             return std::shared_ptr<RelationalDBResultSet>(rs);
         }
         catch (const DBException &ex)

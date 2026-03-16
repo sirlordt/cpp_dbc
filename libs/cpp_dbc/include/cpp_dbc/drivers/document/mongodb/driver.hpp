@@ -43,22 +43,31 @@ namespace cpp_dbc::MongoDB
             explicit PrivateCtorTag() = default;
         };
 
-        // Note: Using atomic<bool> + mutex instead of std::once_flag because
-        // std::once_flag cannot be reset, but we need cleanup() to allow
-        // re-initialization on subsequent driver construction.
-        // Also, std::call_once can throw std::system_error, which is incompatible
-        // with -fno-exceptions builds.
+        // Note: Using atomic<bool> + mutex instead of std::once_flag for the
+        // initialization guard because std::once_flag cannot be reset, but
+        // cleanup() must allow re-initialization on subsequent driver construction.
         static std::atomic<bool> s_initialized;
         static std::mutex s_initMutex;
 
         // ── Singleton state ───────────────────────────────────────────────────
-        static std::weak_ptr<MongoDBDriver> s_instance;
-        static std::mutex                   s_instanceMutex;
+        static std::shared_ptr<MongoDBDriver> s_instance;
+        static std::mutex                     s_instanceMutex;
+
+        // ── atexit cleanup guard ──────────────────────────────────────────────
+        // Ensures mongoc_cleanup() is registered with std::atexit exactly once
+        // across the entire process lifetime, regardless of how many times the
+        // singleton is created and destroyed. std::call_once may throw
+        // std::system_error on a broken OS threading primitive, which is a
+        // death sentence — std::terminate is the correct response.
+        static std::once_flag s_atexitFlag;
 
         // ── Connection registry ───────────────────────────────────────────────
         static std::mutex                                                      s_registryMutex;
         static std::set<std::weak_ptr<MongoDBConnection>,
                         std::owner_less<std::weak_ptr<MongoDBConnection>>>     s_connectionRegistry;
+
+        // ── Coalesced cleanup flag ────────────────────────────────────────────
+        inline static std::atomic s_cleanupPending{false};
 
         /**
          * @brief Initialize the MongoDB C driver library
@@ -68,11 +77,18 @@ namespace cpp_dbc::MongoDB
         static void registerConnection(std::nothrow_t, std::weak_ptr<MongoDBConnection> conn) noexcept;
         static void unregisterConnection(std::nothrow_t, const std::weak_ptr<MongoDBConnection> &conn) noexcept;
 
+        void closeAllOpenConnections(std::nothrow_t) noexcept;
+
         friend class MongoDBConnection;
 
         // ── Construction state ────────────────────────────────────────────────
         bool m_initFailed{false};
         std::unique_ptr<DBException> m_initError{nullptr};
+
+        // ── Driver state ──────────────────────────────────────────────────────
+        // Set to true by the destructor before releasing resources.
+        // Prevents new connection attempts during and after driver teardown.
+        std::atomic<bool> m_closed{false};
 
     public:
         /**

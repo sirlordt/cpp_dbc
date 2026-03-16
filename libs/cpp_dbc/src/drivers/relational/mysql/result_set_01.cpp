@@ -80,6 +80,25 @@ namespace cpp_dbc::MySQL
         return {};
     }
 
+    cpp_dbc::expected<void, DBException> MySQLDBResultSet::initialize(std::nothrow_t) noexcept
+    {
+        // Register with Connection — mandatory; every ResultSet must be tracked
+        // so closeAllResultSets()/notifyConnClosing() can reach it.
+        auto conn = m_connection.lock();
+        if (!conn)
+        {
+            return cpp_dbc::unexpected(DBException("CSTY1MYIFZ4E",
+                "Connection expired before result set could be registered",
+                system_utils::captureCallStack()));
+        }
+        auto regResult = conn->registerResultSet(std::nothrow, std::weak_ptr<MySQLDBResultSet>(shared_from_this()));
+        if (!regResult.has_value())
+        {
+            return cpp_dbc::unexpected(regResult.error());
+        }
+        return {};
+    }
+
     // ── PrivateCtorTag Constructor ──────────────────────────────────────────
 
     MySQLDBResultSet::MySQLDBResultSet(PrivateCtorTag, std::nothrow_t, MYSQL_RES *res, std::shared_ptr<MySQLDBConnection> conn) noexcept

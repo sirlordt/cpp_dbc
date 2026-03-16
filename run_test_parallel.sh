@@ -66,6 +66,9 @@ RUNNING_PREFIXES_COUNT=0
 ORIGINAL_STTY_SETTINGS=""
 TERM_RESIZED=false
 
+# Sanitizer/tool label for status bar (detected from PASS_THROUGH_ARGS after parsing)
+SANITIZER_LABEL=""
+
 # Temporary directory for .ansi files (in /tmp to keep logs clean)
 TEMP_ANSI_DIR=""
 
@@ -2253,7 +2256,13 @@ tui_draw_status_bar() {
     local total_elapsed=$((current_time - GLOBAL_START_TIME))
     local total_elapsed_str=$(format_elapsed_time $total_elapsed)
 
-    local status_text=" Running: $running | Completed: $completed | Failed: $failed | Time: $total_elapsed_str "
+    local sanitizer_info=""
+    if [ -n "$SANITIZER_LABEL" ]; then
+        sanitizer_info=" | Tool: $SANITIZER_LABEL"
+    fi
+    local status_text=" Running: $running | Completed: $completed | Failed: $failed | Time: $total_elapsed_str$sanitizer_info "
+    # Truncate to terminal width to prevent line wrapping in TUI
+    status_text="${status_text:0:$TERM_COLS}"
     printf "%-${TERM_COLS}s" "$status_text"
     printf "${NC}"
 
@@ -3008,6 +3017,19 @@ trap 'CLEANUP_SIGNAL="TERM"; cleanup' TERM
 
 # Main
 parse_arguments "$@"
+
+# Detect sanitizer/tool label from pass-through args for status bar display
+for arg in "${PASS_THROUGH_ARGS[@]}"; do
+    case "$arg" in
+        --helgrind-gs) SANITIZER_LABEL="helgrind-gs" ; break ;;
+        --helgrind-s)  SANITIZER_LABEL="helgrind-s"  ; break ;;
+        --helgrind)    SANITIZER_LABEL="helgrind"     ; break ;;
+        --drd-gs)      SANITIZER_LABEL="drd-gs"       ; break ;;
+        --drd-s)       SANITIZER_LABEL="drd-s"        ; break ;;
+        --drd)         SANITIZER_LABEL="drd"           ; break ;;
+        --valgrind)    SANITIZER_LABEL="valgrind"     ; break ;;
+    esac
+done
 
 # Check if summarize mode is requested
 if [ "$SUMMARIZE_MODE" = true ]; then

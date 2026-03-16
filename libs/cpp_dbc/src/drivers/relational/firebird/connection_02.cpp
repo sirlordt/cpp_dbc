@@ -83,10 +83,18 @@ namespace cpp_dbc::Firebird
         cpp_dbc::system_utils::AtomicGuard<bool> resettingGuard(m_resetting, true, false);
 
         // Close all active prepared statements first (releases metadata locks)
-        closeAllActivePreparedStatements(std::nothrow);
+        auto closeStmtsResult = closeAllStatements(std::nothrow);
+        if (!closeStmtsResult.has_value())
+        {
+            FIREBIRD_DEBUG("  reset: closeAllStatements failed: %s", closeStmtsResult.error().what_s().data());
+        }
 
         // Close all active result sets (releases cursor resources)
-        closeAllActiveResultSets(std::nothrow);
+        auto closeRsResult = closeAllResultSets(std::nothrow);
+        if (!closeRsResult.has_value())
+        {
+            FIREBIRD_DEBUG("  reset: closeAllResultSets failed: %s", closeRsResult.error().what_s().data());
+        }
 
         // Rollback any active transaction to clean state
         if (m_tr)

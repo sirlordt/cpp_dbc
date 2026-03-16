@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file prepared_statement_01.cpp
- @brief PostgreSQL database driver implementation - PostgreSQLDBPreparedStatement (constructor, destructor, throwing methods)
+ @brief PostgreSQL database driver implementation - PostgreSQLDBPreparedStatement (constructor, destructor, private helpers, throwing methods)
 
 */
 
@@ -32,6 +32,7 @@
 #include <cctype>
 #include <iomanip>
 #include <charconv>
+#include <ranges>
 
 #if defined(__cpp_lib_format) && __cpp_lib_format >= 201907L
 #include <format>
@@ -46,16 +47,14 @@ namespace cpp_dbc::PostgreSQL
     // PostgreSQLDBPreparedStatement implementation
 
     // Private methods (in order of declaration in .hpp)
-    #ifdef __cpp_exceptions
-    void PostgreSQLDBPreparedStatement::notifyConnClosing()
+    void PostgreSQLDBPreparedStatement::notifyConnClosing(std::nothrow_t) noexcept
     {
-        // Connection is closing, invalidate the statement without calling mysql_stmt_close
-        // since the connection is already being destroyed
+        // Connection is closing, close the prepared statement and deallocate server-side resources
         auto result = this->close(std::nothrow);
         if (!result.has_value())
         {
             // Log the error but don't throw - connection is already closing
-            PG_DEBUG("Failed to close prepared statement: " << result.error().what_s());
+            PG_DEBUG("Failed to close prepared statement: %s", result.error().what_s().data());
         }
     }
 
@@ -130,47 +129,58 @@ namespace cpp_dbc::PostgreSQL
         return paramCount;
     }
 
-    // Helper method to get PGconn* safely, returns unexpected if connection is closed
+    // Helper method to get PGconn* safely through the connection, returns unexpected if connection is closed
     cpp_dbc::expected<PGconn *, DBException> PostgreSQLDBPreparedStatement::getPGConnection(std::nothrow_t) const noexcept
     {
-        auto conn = m_conn.lock();
+        auto conn = m_connection.lock();
         if (!conn)
         {
             return cpp_dbc::unexpected(DBException("CKU5QR7U7HBC", "PostgreSQL connection has been closed", system_utils::captureCallStack()));
         }
-        return conn.get();
+        if (!conn->m_conn)
+        {
+            return cpp_dbc::unexpected(DBException("MXKJRWTP883O", "PostgreSQL PGconn handle is null", system_utils::captureCallStack()));
+        }
+        return conn->m_conn.get();
     }
 
-#if DB_DRIVER_THREAD_SAFE
-    PostgreSQLDBPreparedStatement::PostgreSQLDBPreparedStatement(std::weak_ptr<PGconn> conn_handle, SharedConnMutex connMutex, const std::string &sql_stmt, const std::string &stmt_name)
-        : m_conn(conn_handle), m_sql(sql_stmt), m_stmtName(stmt_name), m_connMutex(std::move(connMutex))
+    // Constructor — nothrow, captures errors in m_initFailed / m_initError instead of throwing.
+    // getPGConnection(std::nothrow) and processSQL(std::nothrow) are noexcept.
+    // Vector resize/copy can only throw std::bad_alloc (death sentence). No try/catch needed.
+    PostgreSQLDBPreparedStatement::PostgreSQLDBPreparedStatement(PostgreSQLDBPreparedStatement::PrivateCtorTag, std::nothrow_t,
+                                                                  std::weak_ptr<PostgreSQLDBConnection> conn,
+                                                                  const std::string &sql_stmt, const std::string &stmt_name) noexcept
+        : m_connection(std::move(conn)), m_sql(sql_stmt), m_stmtName(stmt_name)
     {
-#else
-    PostgreSQLDBPreparedStatement::PostgreSQLDBPreparedStatement(std::weak_ptr<PGconn> conn_handle, const std::string &sql_stmt, const std::string &stmt_name)
-        : m_conn(conn_handle), m_sql(sql_stmt), m_stmtName(stmt_name)
-    {
-#endif
         // Verify connection is valid by trying to lock it
         auto connResult = getPGConnection(std::nothrow);
         if (!connResult.has_value())
         {
-            throw connResult.error();
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>(std::move(connResult).error());
+            return;
         }
         if (!connResult.value())
         {
-            throw DBException("E2L06693IILH", "Invalid PostgreSQL connection", system_utils::captureCallStack());
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>("E2L06693IILH", "Invalid PostgreSQL connection", system_utils::captureCallStack());
+            return;
         }
 
         // Process SQL and count parameters
         auto processSQLResult = processSQL(std::nothrow, m_sql);
         if (!processSQLResult.has_value())
         {
-            throw processSQLResult.error();
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>(std::move(processSQLResult).error());
+            return;
         }
         int paramCount = processSQLResult.value();
 
         // Initialize parameter arrays
         m_paramValues.resize(paramCount);
+        m_paramIsNull.resize(paramCount, true);
+        m_paramBound.resize(paramCount, false);
         m_paramLengths.resize(paramCount);
         m_paramFormats.resize(paramCount);
         m_paramTypes.resize(paramCount);
@@ -181,13 +191,12 @@ namespace cpp_dbc::PostgreSQL
         m_streamObjects.resize(paramCount);
 
         // Default to text format for all parameters
-        for (int i = 0; i < paramCount; i++)
-        {
-            m_paramValues[i] = "";
-            m_paramLengths[i] = 0;
-            m_paramFormats[i] = 0; // 0 = text, 1 = binary
-            m_paramTypes[i] = 0;   // 0 = let server guess
-        }
+        std::ranges::fill(m_paramValues, "");
+        std::ranges::fill(m_paramLengths, 0);
+        std::ranges::fill(m_paramFormats, 0); // 0 = text, 1 = binary
+        std::ranges::fill(m_paramTypes, 0);   // 0 = let server guess
+
+        m_closed.store(false, std::memory_order_release);
     }
 
     PostgreSQLDBPreparedStatement::~PostgreSQLDBPreparedStatement()
@@ -196,9 +205,11 @@ namespace cpp_dbc::PostgreSQL
         if (!result.has_value())
         {
             // Log the error but don't throw - in destructor
-            PG_DEBUG("Failed to close prepared statement: " << result.error().what_s());
+            PG_DEBUG("Failed to close prepared statement: %s", result.error().what_s().data());
         }
     }
+
+#ifdef __cpp_exceptions
 
     void PostgreSQLDBPreparedStatement::setInt(int parameterIndex, int value)
     {
@@ -366,7 +377,8 @@ namespace cpp_dbc::PostgreSQL
         }
     }
 
+#endif // __cpp_exceptions
+
 } // namespace cpp_dbc::PostgreSQL
-    #endif // __cpp_exceptions
 
 #endif // USE_POSTGRESQL

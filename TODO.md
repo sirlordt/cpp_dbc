@@ -12,6 +12,21 @@
 
 ## Completed Tasks
 
+- Build System — CMake Cache Invalidation Fix, Lock Macro Unification Across Drivers (2026-03-12):
+  - CMake cache invalidation fixed: redundant `build_test_cpp_dbc.sh` call removed, `BACKWARD_HAS_DW` aligned to `OFF`, `CMAKE_CXX_FLAGS` built dynamically, `EXAMPLES`/`BENCHMARKS` no longer hardcoded in test script
+  - `--mc-combo-01/02` now include benchmarks
+  - MySQL/PostgreSQL/SQLite: statement/result-set registry methods unified with driver-specific `*_LOCK_OR_RETURN` macros
+  - New SQLite lock macros: `SQLITE_CONNECTION_LOCK_OR_RETURN`, `SQLITE_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED`, `SQLITE_STMT_LOCK_OR_RETURN`
+  - 11 files changed, +280/-140 lines
+
+- PostgreSQL Driver — Shared-Mutex Refactoring, PrivateCtorTag Pattern, Convention Compliance (2026-03-12):
+  - `SharedConnMutex` (shared_ptr<recursive_mutex>) replaced with direct `std::recursive_mutex` in `PostgreSQLDBConnection`
+  - `PostgreSQLConnectionLock` RAII helper with double-checked locking through `weak_ptr<PostgreSQLDBConnection>`
+  - `PostgreSQLDBPreparedStatement`/`PostgreSQLDBResultSet`/`PostgreSQLInputStream`: PrivateCtorTag pattern, `weak_ptr<PostgreSQLDBConnection>`, `std::atomic<bool> m_closed`
+  - Result set registry with `notifyConnClosing()` lifecycle management
+  - Convention compliance: NOSONAR annotations, `std::from_chars`, dead try/catch removed, `PG_DEBUG` rewritten to `snprintf`-based
+  - 18 files changed, +733/-655 lines
+
 - Unified version/info API across all drivers, MySQL code hardening, BlobStream connection validation (2026-03-08):
   - `getDriverVersion()` moved from family driver bases to `DBDriver` base; implemented in all 7 drivers
   - `getServerVersion()` + `getServerInfo()` (throwing + nothrow) added to `DBConnection` base; all 7 drivers return driver-specific metadata maps
@@ -79,7 +94,7 @@
   - 41 files changed, +5956/-5321 lines
 
 - DBException Fixed-Size Refactor, Unified `ping()` Interface, `std::string_view` Return Types, and Build Optimizations (2026-02-26):
-  - `DBException` now inherits `std::exception`; constructor is `noexcept`; fields are fixed char arrays (`m_mark[13]`, `m_message[257]`, `m_full_message[271]`)
+  - `DBException` now inherits `std::exception`; constructor is `noexcept`; hybrid fixed/dynamic storage: `m_full_message[79]` fixed buffer + `shared_ptr<char[]> m_overflow` for long messages (object size depends on platform/ABI)
   - `DBException::what_s()` and `getMark()` now return `std::string_view` (was `const std::string&`)
   - `DBException::getCallStack()` returns `std::span<const system_utils::StackFrame>` (was `const std::vector<StackFrame>&`)
   - `system_utils::StackFrame` uses fixed `char file[150]`, `char function[150]` arrays (was `std::string`)
