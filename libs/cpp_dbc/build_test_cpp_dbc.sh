@@ -25,6 +25,7 @@ set -e  # Exit on error
 #   --debug-mongodb        Enable debug output for MongoDB driver
 #   --debug-scylladb       Enable debug output for ScyllaDB driver
 #   --debug-redis          Enable debug output for Redis driver
+#   --debug-serial-queue   Enable debug output for SerialQueue
 #   --debug-all            Enable all debug output
 #   --dw-on                Enable libdw support for stack traces (default for tests: OFF)
 #   --dw-off               Disable libdw support for stack traces (default for tests)
@@ -246,6 +247,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-mongodb        Enable debug output for MongoDB driver"
             echo "  --debug-scylladb         Enable debug output for ScyllaDB driver"
             echo "  --debug-redis          Enable debug output for Redis driver"
+            echo "  --debug-serial-queue   Enable debug output for SerialQueue"
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-on                Enable libdw support for stack traces (default for tests: OFF)"
             echo "  --dw-off               Disable libdw support for stack traces (default for tests)"

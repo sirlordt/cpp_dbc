@@ -111,9 +111,6 @@ namespace cpp_dbc::SQLite
                 SQLITE_DEBUG("SQLiteDBResultSet::destructor - close() failed: %s", closeResult.error().what_s().data());
             }
         }
-
-        // Sleep briefly to ensure resources are released
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     #ifdef __cpp_exceptions

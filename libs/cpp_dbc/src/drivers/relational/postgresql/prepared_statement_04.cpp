@@ -336,12 +336,23 @@ namespace cpp_dbc::PostgreSQL
 
         if (m_prepared)
         {
-            // Try to deallocate the prepared statement if connection is still valid
+            // Try to deallocate the prepared statement if connection is still valid.
+            // Failure is logged but does not prevent close — best-effort cleanup.
             auto conn = m_connection.lock();
             if (conn && conn->m_conn)
             {
                 std::string deallocateSQL = "DEALLOCATE " + m_stmtName;
                 PGresultHandle res(PQexec(conn->m_conn.get(), deallocateSQL.c_str()));
+                if (!res.get())
+                {
+                    PG_DEBUG("close: DEALLOCATE %s failed (OOM): %s",
+                             m_stmtName.c_str(), PQerrorMessage(conn->m_conn.get()));
+                }
+                else if (PQresultStatus(res.get()) != PGRES_COMMAND_OK)
+                {
+                    PG_DEBUG("close: DEALLOCATE %s failed: %s",
+                             m_stmtName.c_str(), PQresultErrorMessage(res.get()));
+                }
             }
             m_prepared = false;
         }

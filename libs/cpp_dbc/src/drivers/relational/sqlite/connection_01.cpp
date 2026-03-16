@@ -253,74 +253,56 @@ namespace cpp_dbc::SQLite
         return {};
     }
 
+    // No try/catch: all inner calls are nothrow (sqlite3_interrupt is a C function,
+    // closeAllResultSets/closeAllStatements/rollback/setAutoCommit/transactionActive
+    // all take std::nothrow_t). The only possible throws are death-sentence exceptions
+    // (std::bad_alloc, mutex std::system_error) with no meaningful recovery path.
     cpp_dbc::expected<void, cpp_dbc::DBException> SQLiteDBConnection::reset(std::nothrow_t) noexcept
     {
-        try
+        // CRITICAL FIX (2026-02-15): Force SQLite to cancel any pending operations
+        // and clear internal state BEFORE attempting cleanup. This prevents
+        // "readonly database" errors when executeQuery() fails and leaves the
+        // connection in an inconsistent state (e.g., WAL locks, partial transactions).
+        //
+        // Without sqlite3_interrupt(), the following scenario occurs:
+        // 1. executeQuery() fails with invalid column → DB enters readonly state
+        // 2. reset() calls rollback() → executeUpdate("ROLLBACK")
+        // 3. executeUpdate() fails → "attempt to write a readonly database" (R4Z5A6B7C8D9)
+        // 4. Connection permanently corrupted, cannot perform cleanup
+        //
+        // sqlite3_interrupt() forcibly cancels operations and clears locks,
+        // allowing subsequent operations to succeed.
+        if (m_db)
         {
-            // CRITICAL FIX (2026-02-15): Force SQLite to cancel any pending operations
-            // and clear internal state BEFORE attempting cleanup. This prevents
-            // "readonly database" errors when executeQuery() fails and leaves the
-            // connection in an inconsistent state (e.g., WAL locks, partial transactions).
-            //
-            // Without sqlite3_interrupt(), the following scenario occurs:
-            // 1. executeQuery() fails with invalid column → DB enters readonly state
-            // 2. reset() calls rollback() → executeUpdate("ROLLBACK")
-            // 3. executeUpdate() fails → "attempt to write a readonly database" (R4Z5A6B7C8D9)
-            // 4. Connection permanently corrupted, cannot perform cleanup
-            //
-            // sqlite3_interrupt() forcibly cancels operations and clears locks,
-            // allowing subsequent operations to succeed.
-            if (m_db)
-            {
-                sqlite3_interrupt(m_db.get());
-            }
-
-            // NOTE: We don't acquire locks here because each method we call
-            // already acquires m_globalFileMutex internally:
-            // - closeAllResultSets() acquires m_globalFileMutex (line 141)
-            // - closeAllStatements() acquires m_globalFileMutex (line 75)
-            // - rollback() acquires m_globalFileMutex (line 372)
-            // - setAutoCommit() acquires m_globalFileMutex (line 175)
-            // - transactionActive() reads atomic m_transactionActive (thread-safe)
-            //
-            // Acquiring the lock here would cause deadlock when those methods
-            // try to acquire it again.
-
-            // Close all result sets first, then statements
-            [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
-            [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
-
-            // Rollback any active transaction
-            auto txActive = transactionActive(std::nothrow);
-            if (txActive.has_value() && txActive.value())
-            {
-                rollback(std::nothrow);
-            }
-
-            // Reset auto-commit to true
-            setAutoCommit(std::nothrow, true);
-
-            return {};
+            sqlite3_interrupt(m_db.get());
         }
-        catch (const cpp_dbc::DBException &e)
+
+        // NOTE: We don't acquire locks here because each method we call
+        // already acquires m_globalFileMutex internally:
+        // - closeAllResultSets() acquires m_globalFileMutex
+        // - closeAllStatements() acquires m_globalFileMutex
+        // - rollback() acquires m_globalFileMutex
+        // - setAutoCommit() acquires m_globalFileMutex
+        // - transactionActive() reads atomic m_transactionActive (thread-safe)
+        //
+        // Acquiring the lock here would cause deadlock when those methods
+        // try to acquire it again.
+
+        // Close all result sets first, then statements
+        [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
+        [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
+
+        // Rollback any active transaction
+        auto txActive = transactionActive(std::nothrow);
+        if (txActive.has_value() && txActive.value())
         {
-            SQLITE_DEBUG("DBException during connection reset: %s", e.what());
-            return cpp_dbc::unexpected(e);
+            [[maybe_unused]] auto rbResult = rollback(std::nothrow);
         }
-        catch (const std::exception &e)
-        {
-            SQLITE_DEBUG("Exception during connection reset: %s", e.what());
-            return cpp_dbc::unexpected(cpp_dbc::DBException("EZ8HHCVD9T2D",
-                                                            std::string("Reset failed: ") + e.what(),
-                                                            cpp_dbc::system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            SQLITE_DEBUG("Unknown exception during connection reset");
-            return cpp_dbc::unexpected(cpp_dbc::DBException("GZ8XD1JMH5QP",
-                                                            "Reset failed with unknown error",
-                                                            cpp_dbc::system_utils::captureCallStack()));
-        }
+
+        // Reset auto-commit to true
+        [[maybe_unused]] auto acResult = setAutoCommit(std::nothrow, true);
+
+        return {};
     }
 
     // SQLiteDBConnection implementation - Throwing API

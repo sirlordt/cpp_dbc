@@ -204,8 +204,8 @@ namespace cpp_dbc::PostgreSQL
 
 // Macro for nothrow methods - returns unexpected(DBException) if lock fails
 #define PG_STMT_LOCK_OR_RETURN(mark, msg)                                                       \
-    cpp_dbc::PostgreSQL::PostgreSQLConnectionLock __lock(this, m_closed);                        \
-    if (!__lock)                                                                                \
+    cpp_dbc::PostgreSQL::PostgreSQLConnectionLock pg_stmt_lock(this, m_closed);                        \
+    if (!pg_stmt_lock)                                                                                \
     {                                                                                           \
         return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",                \
                                                cpp_dbc::system_utils::captureCallStack()));     \
@@ -213,16 +213,16 @@ namespace cpp_dbc::PostgreSQL
 
 // Macro for throwing methods - throws DBException if lock fails
 #define PG_STMT_LOCK_OR_THROW(mark, msg)                                                                    \
-    cpp_dbc::PostgreSQL::PostgreSQLConnectionLock __lock(this, m_closed);                                    \
-    if (!__lock)                                                                                             \
+    cpp_dbc::PostgreSQL::PostgreSQLConnectionLock pg_stmt_lock(this, m_closed);                                    \
+    if (!pg_stmt_lock)                                                                                             \
     {                                                                                                        \
         throw DBException(mark, msg " (connection closed)", cpp_dbc::system_utils::captureCallStack());      \
     }
 
 // Macro for close() methods - returns success if already closed (idempotent close)
 #define PG_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()                                              \
-    cpp_dbc::PostgreSQL::PostgreSQLConnectionLock __lock(this, m_closed);                        \
-    if (!__lock)                                                                                \
+    cpp_dbc::PostgreSQL::PostgreSQLConnectionLock pg_stmt_lock(this, m_closed);                        \
+    if (!pg_stmt_lock)                                                                                \
     {                                                                                           \
         return {}; /* Already closed or connection lost = success */                             \
     }

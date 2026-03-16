@@ -630,6 +630,7 @@ echo "  Debug Firebird: $DEBUG_FIREBIRD"
 echo "  Debug MongoDB: $DEBUG_MONGODB"
 echo "  Debug ScyllaDB: $DEBUG_SCYLLADB"
 echo "  Debug Redis: $DEBUG_REDIS"
+echo "  Debug SerialQueue: $DEBUG_SERIAL_QUEUE"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"
 

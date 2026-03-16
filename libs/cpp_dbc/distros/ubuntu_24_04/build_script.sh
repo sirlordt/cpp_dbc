@@ -33,6 +33,7 @@ DEBUG_FIREBIRD_PARAM=""
 DEBUG_MONGODB_PARAM=""
 DEBUG_SCYLLADB_PARAM=""
 DEBUG_REDIS_PARAM=""
+DEBUG_SERIAL_QUEUE_PARAM=""
 DEBUG_ALL_PARAM=""
 
 # Check environment variables set by build_dist_deb.sh

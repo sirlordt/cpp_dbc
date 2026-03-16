@@ -222,6 +222,11 @@ namespace cpp_dbc::PostgreSQL
 
             // Execute the BEGIN command
             PGresultHandle dummyResult(PQexec(m_conn.get(), beginCmd.c_str()));
+            if (!dummyResult.get())
+            {
+                std::string error = PQerrorMessage(m_conn.get());
+                return cpp_dbc::unexpected<DBException>(DBException("M5UCTHN8L2QR", "Failed to start SERIALIZABLE transaction (OOM): " + error, system_utils::captureCallStack()));
+            }
             if (PQresultStatus(dummyResult.get()) != PGRES_COMMAND_OK)
             {
                 std::string error = PQresultErrorMessage(dummyResult.get());
@@ -230,6 +235,12 @@ namespace cpp_dbc::PostgreSQL
 
             // Force snapshot acquisition with a dummy query
             PGresultHandle snapshotResult(PQexec(m_conn.get(), "SELECT 1"));
+            if (!snapshotResult.get())
+            {
+                std::string error = PQerrorMessage(m_conn.get());
+                [[maybe_unused]] PGresultHandle rollbackResult(PQexec(m_conn.get(), "ROLLBACK"));
+                return cpp_dbc::unexpected<DBException>(DBException("VQ8V8AP5Y77Z", "Failed to acquire snapshot (OOM): " + error, system_utils::captureCallStack()));
+            }
             if (PQresultStatus(snapshotResult.get()) != PGRES_TUPLES_OK)
             {
                 std::string error = PQresultErrorMessage(snapshotResult.get());
@@ -244,6 +255,11 @@ namespace cpp_dbc::PostgreSQL
         {
             // Standard BEGIN for other isolation levels
             PGresultHandle result(PQexec(m_conn.get(), beginCmd.c_str()));
+            if (!result.get())
+            {
+                std::string error = PQerrorMessage(m_conn.get());
+                return cpp_dbc::unexpected<DBException>(DBException("H6D90ADC9XML", "Failed to start transaction (OOM): " + error, system_utils::captureCallStack()));
+            }
             if (PQresultStatus(result.get()) != PGRES_COMMAND_OK)
             {
                 std::string error = PQresultErrorMessage(result.get());

@@ -63,7 +63,7 @@ show_usage() {
   echo "  --run-build-dist         Build via ./build.dist.sh, logs to build/run-build-dist-<timestamp>.log"
   echo "  --run-build-dist=OPTIONS Build dist with comma-separated options"
   echo "                           Available options: clean,release,postgres,mysql,mysql-off,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples,"
-  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-serial-queue,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
+  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-serial-queue,debug-all,dw-off,db-driver-thread-safe-off"
   echo "                           Example: --run-build-dist=clean,sqlite,yaml,test,debug-sqlite"
   echo "  --check-test-log         Check the most recent test log file in logs/test/ for failures and memory issues"
   echo "  --check-test-log=PATH    Check the specified test log file for failures and memory issues"

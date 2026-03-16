@@ -20,9 +20,14 @@
 
 #include <atomic>
 #include <chrono>
+#include <functional>
 #include <latch>
+#include <memory>
+#include <mutex>
+#include <stdexcept>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
@@ -785,10 +790,13 @@ TEST_CASE("SerialQueue task lifecycle", "[10_081_13_serial_queue]")
 
         REQUIRE(waitForFlag(taskDone));
 
-        // Give the worker thread time to destroy the std::function (which holds the capture)
-        std::this_thread::sleep_for(50ms);
+        // Post a barrier task — when it completes, the previous task's std::function
+        // (which captured the shared_ptr) has already been destroyed by the worker.
+        std::atomic<bool> barrier{false};
+        q.post([&barrier]()
+               { barrier.store(true, std::memory_order_release); });
+        REQUIRE(waitForFlag(barrier));
 
-        // The shared_ptr should have been released by now
         REQUIRE(observer.expired());
     }
 
@@ -809,7 +817,13 @@ TEST_CASE("SerialQueue task lifecycle", "[10_081_13_serial_queue]")
                { afterDone.store(true, std::memory_order_release); });
 
         REQUIRE(waitForFlag(afterDone));
-        std::this_thread::sleep_for(50ms);
+
+        // Post a barrier task — when it completes, the throwing task's std::function
+        // (which captured the shared_ptr) has already been destroyed by the worker.
+        std::atomic<bool> barrier{false};
+        q.post([&barrier]()
+               { barrier.store(true, std::memory_order_release); });
+        REQUIRE(waitForFlag(barrier));
 
         REQUIRE(observer.expired());
     }

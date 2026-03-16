@@ -1,7 +1,6 @@
 #ifndef CPP_DBC_COMMON_SERIAL_QUEUE_HPP
 #define CPP_DBC_COMMON_SERIAL_QUEUE_HPP
 
-#include <algorithm>
 #include <condition_variable>
 #include <cstdio>
 #include <cstring>
@@ -158,7 +157,7 @@ namespace cpp_dbc
                 return *it->second;
             }
             SQ_DEBUG("[%s] Creating new instance", key.c_str());
-            auto [newIt, inserted] = s_registry.emplace(key, std::make_unique<SerialQueue>(key));
+            auto [newIt, inserted] = s_registry.try_emplace(key, std::make_unique<SerialQueue>(key));
             return *newIt->second;
         }
     };
