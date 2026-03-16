@@ -308,18 +308,34 @@ namespace cpp_dbc::PostgreSQL
         }
 
         // Close all active result sets and statements
-        [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
-        [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
+        auto closeRsResult = closeAllResultSets(std::nothrow);
+        if (!closeRsResult.has_value())
+        {
+            PG_DEBUG("  reset: closeAllResultSets failed: %s", closeRsResult.error().what_s().data());
+        }
+        auto closeStmtsResult = closeAllStatements(std::nothrow);
+        if (!closeStmtsResult.has_value())
+        {
+            PG_DEBUG("  reset: closeAllStatements failed: %s", closeStmtsResult.error().what_s().data());
+        }
 
         // Rollback any active transaction
         auto txActive = transactionActive(std::nothrow);
         if (txActive.has_value() && txActive.value())
         {
-            rollback(std::nothrow);
+            auto rbResult = rollback(std::nothrow);
+            if (!rbResult.has_value())
+            {
+                PG_DEBUG("  reset: rollback failed: %s", rbResult.error().what_s().data());
+            }
         }
 
         // Reset auto-commit to true
-        setAutoCommit(std::nothrow, true);
+        auto acResult = setAutoCommit(std::nothrow, true);
+        if (!acResult.has_value())
+        {
+            PG_DEBUG("  reset: setAutoCommit failed: %s", acResult.error().what_s().data());
+        }
 
         return {};
     }
@@ -333,8 +349,16 @@ namespace cpp_dbc::PostgreSQL
     {
         // CRITICAL: Close all active result sets and statements BEFORE making connection available
         // closeAllResultSets/closeAllStatements acquire m_connMutex internally
-        [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
-        [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
+        auto closeRsResult = closeAllResultSets(std::nothrow);
+        if (!closeRsResult.has_value())
+        {
+            PG_DEBUG("  returnToPool: closeAllResultSets failed: %s", closeRsResult.error().what_s().data());
+        }
+        auto closeStmtsResult = closeAllStatements(std::nothrow);
+        if (!closeStmtsResult.has_value())
+        {
+            PG_DEBUG("  returnToPool: closeAllStatements failed: %s", closeStmtsResult.error().what_s().data());
+        }
 
         // 2026-03-12T12:00:00Z
         // Bug: m_autoCommit is a plain bool (non-atomic) modified under m_connMutex in
@@ -347,7 +371,11 @@ namespace cpp_dbc::PostgreSQL
         // Restore autocommit for the next user of this connection
         if (!m_autoCommit)
         {
-            setAutoCommit(std::nothrow, true);
+            auto acResult = setAutoCommit(std::nothrow, true);
+            if (!acResult.has_value())
+            {
+                PG_DEBUG("  returnToPool: setAutoCommit failed: %s", acResult.error().what_s().data());
+            }
         }
 
         return {};

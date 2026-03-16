@@ -101,7 +101,7 @@ namespace cpp_dbc::Firebird
         FIREBIRD_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
 
         // Unregister from connection if connection is still alive AND not in reset()
-        // During reset(), closeAllActiveResultSets() already holds the lock and clears the list
+        // During reset(), closeAllResultSets() already holds the lock and clears the list
         auto conn = m_connection.lock();
         if (conn && !conn->isResetting())
         {

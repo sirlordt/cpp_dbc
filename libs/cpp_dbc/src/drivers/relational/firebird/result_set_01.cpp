@@ -295,7 +295,7 @@ namespace cpp_dbc::Firebird
 
         // Note: We don't need to unregister here. The weak_ptr in m_activeResultSets
         // will automatically expire when this object is destroyed, and
-        // closeAllActiveResultSets() checks if weak_ptrs can be locked before using them.
+        // closeAllResultSets() checks if weak_ptrs can be locked before using them.
 
         // CRITICAL: Use nothrow version - destructors must NEVER throw exceptions
         auto closeResult = close(std::nothrow);

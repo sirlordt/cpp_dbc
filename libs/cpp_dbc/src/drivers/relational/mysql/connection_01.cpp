@@ -158,7 +158,7 @@ namespace cpp_dbc::MySQL
         return {};
     }
 
-    cpp_dbc::expected<void, DBException> MySQLDBConnection::closeAllActiveResultSets(std::nothrow_t) noexcept
+    cpp_dbc::expected<void, DBException> MySQLDBConnection::closeAllResultSets(std::nothrow_t) noexcept
     {
         MYSQL_CONNECTION_LOCK_OR_RETURN("DQWSBJXW849G", "Cannot close result sets");
 
@@ -185,7 +185,7 @@ namespace cpp_dbc::MySQL
             [[maybe_unused]] auto closeResult = rs->notifyConnClosing(std::nothrow);
             if (!closeResult.has_value())
             {
-                MYSQL_DEBUG("MySQLDBConnection::closeAllActiveResultSets - notifyConnClosing failed: %s", closeResult.error().what_s().data());
+                MYSQL_DEBUG("MySQLDBConnection::closeAllResultSets - notifyConnClosing failed: %s", closeResult.error().what_s().data());
             }
         }
         return {};

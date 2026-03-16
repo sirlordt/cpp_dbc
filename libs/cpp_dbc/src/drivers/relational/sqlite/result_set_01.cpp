@@ -117,247 +117,247 @@ namespace cpp_dbc::SQLite
     bool SQLiteDBResultSet::next()
     {
         auto result = next(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     bool SQLiteDBResultSet::isBeforeFirst()
     {
         auto result = isBeforeFirst(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     bool SQLiteDBResultSet::isAfterLast()
     {
         auto result = isAfterLast(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     uint64_t SQLiteDBResultSet::getRow()
     {
         auto result = getRow(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     int SQLiteDBResultSet::getInt(size_t columnIndex)
     {
         auto result = getInt(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     int SQLiteDBResultSet::getInt(const std::string &columnName)
     {
         auto result = getInt(std::nothrow, columnName);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     int64_t SQLiteDBResultSet::getLong(size_t columnIndex)
     {
         auto result = getLong(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     int64_t SQLiteDBResultSet::getLong(const std::string &columnName)
     {
         auto result = getLong(std::nothrow, columnName);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     double SQLiteDBResultSet::getDouble(size_t columnIndex)
     {
         auto result = getDouble(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     double SQLiteDBResultSet::getDouble(const std::string &columnName)
     {
         auto result = getDouble(std::nothrow, columnName);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     std::string SQLiteDBResultSet::getString(size_t columnIndex)
     {
         auto result = getString(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     std::string SQLiteDBResultSet::getString(const std::string &columnName)
     {
         auto result = getString(std::nothrow, columnName);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     bool SQLiteDBResultSet::getBoolean(size_t columnIndex)
     {
         auto result = getBoolean(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     bool SQLiteDBResultSet::getBoolean(const std::string &columnName)
     {
         auto result = getBoolean(std::nothrow, columnName);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     bool SQLiteDBResultSet::isNull(size_t columnIndex)
     {
         auto result = isNull(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     bool SQLiteDBResultSet::isNull(const std::string &columnName)
     {
         auto result = isNull(std::nothrow, columnName);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     std::string SQLiteDBResultSet::getDate(size_t columnIndex)
     {
         auto result = getDate(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     std::string SQLiteDBResultSet::getDate(const std::string &columnName)
     {
         auto result = getDate(std::nothrow, columnName);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     std::string SQLiteDBResultSet::getTimestamp(size_t columnIndex)
     {
         auto result = getTimestamp(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     std::string SQLiteDBResultSet::getTimestamp(const std::string &columnName)
     {
         auto result = getTimestamp(std::nothrow, columnName);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     std::string SQLiteDBResultSet::getTime(size_t columnIndex)
     {
         auto result = getTime(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     std::string SQLiteDBResultSet::getTime(const std::string &columnName)
     {
         auto result = getTime(std::nothrow, columnName);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     std::vector<std::string> SQLiteDBResultSet::getColumnNames()
     {
         auto result = getColumnNames(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     size_t SQLiteDBResultSet::getColumnCount()
     {
         auto result = getColumnCount(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     void SQLiteDBResultSet::close()
     {
         auto result = close(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -366,7 +366,7 @@ namespace cpp_dbc::SQLite
     bool SQLiteDBResultSet::isEmpty()
     {
         auto result = isEmpty(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -376,61 +376,61 @@ namespace cpp_dbc::SQLite
     std::shared_ptr<Blob> SQLiteDBResultSet::getBlob(size_t columnIndex)
     {
         auto result = getBlob(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     std::shared_ptr<Blob> SQLiteDBResultSet::getBlob(const std::string &columnName)
     {
         auto result = getBlob(std::nothrow, columnName);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     std::shared_ptr<InputStream> SQLiteDBResultSet::getBinaryStream(size_t columnIndex)
     {
         auto result = getBinaryStream(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     std::shared_ptr<InputStream> SQLiteDBResultSet::getBinaryStream(const std::string &columnName)
     {
         auto result = getBinaryStream(std::nothrow, columnName);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     std::vector<uint8_t> SQLiteDBResultSet::getBytes(size_t columnIndex)
     {
         auto result = getBytes(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     std::vector<uint8_t> SQLiteDBResultSet::getBytes(const std::string &columnName)
     {
         auto result = getBytes(std::nothrow, columnName);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
     #endif // __cpp_exceptions
 

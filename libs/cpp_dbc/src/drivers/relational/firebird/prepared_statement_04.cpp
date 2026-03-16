@@ -80,7 +80,7 @@ namespace cpp_dbc::Firebird
             // isc_rollback_retaining() discards the failed statement's changes but keeps
             // the transaction handle (m_tr) alive, consistent with isc_commit_retaining()
             // used on the success path. This avoids the heavy endTransaction() cycle
-            // (closeAllActiveResultSets + startTransaction) for a transient error.
+            // (closeAllResultSets + startTransaction) for a transient error.
             if (const auto ac = conn->getAutoCommit(std::nothrow); ac.has_value() && ac.value())
             {
                 FIREBIRD_DEBUG("  AutoCommit is enabled, rolling back failed statement with isc_rollback_retaining()");
@@ -111,7 +111,7 @@ namespace cpp_dbc::Firebird
                 // BUT keeps the transaction handle (m_tr) alive and active. This means:
                 //   - No need to close active ResultSets/cursors before committing
                 //   - No need to call startTransaction() afterwards
-                //   - No heavy endTransaction() cycle (closeAllActiveResultSets + sleep_for)
+                //   - No heavy endTransaction() cycle (closeAllResultSets + sleep_for)
                 //
                 // This mirrors how SQLite handles autocommit: sqlite3_exec() persists data
                 // atomically without a separate commit step or cursor lifecycle management.
@@ -169,7 +169,7 @@ namespace cpp_dbc::Firebird
             // BUT keeps the transaction handle (m_tr) alive and active. This means:
             //   - No need to close active ResultSets/cursors before committing
             //   - No need to call startTransaction() afterwards
-            //   - No heavy endTransaction() cycle (closeAllActiveResultSets + sleep_for)
+            //   - No heavy endTransaction() cycle (closeAllResultSets + sleep_for)
             //
             // This mirrors how SQLite handles autocommit: sqlite3_exec() persists data
             // atomically without a separate commit step or cursor lifecycle management.
@@ -236,7 +236,7 @@ namespace cpp_dbc::Firebird
         FIREBIRD_DEBUG("  m_stmt: %p", (void*)(uintptr_t)m_stmt);
 
         // Unregister from connection if connection is still alive AND not in reset()
-        // During reset(), closeAllActivePreparedStatements() already holds the lock and clears the list
+        // During reset(), closeAllStatements() already holds the lock and clears the list
         auto conn = m_connection.lock();
         if (conn && !conn->isResetting())
         {

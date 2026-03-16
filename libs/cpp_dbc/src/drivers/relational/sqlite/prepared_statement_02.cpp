@@ -190,11 +190,20 @@ namespace cpp_dbc::SQLite
                                                    system_utils::captureCallStack()));
         }
 
+        if (value.size() > static_cast<size_t>(INT_MAX))
+        {
+            return cpp_dbc::unexpected(DBException("I0MQIIE9556M",
+                "String value too large for sqlite3_bind_text: " + std::to_string(value.size()) + " bytes",
+                system_utils::captureCallStack()));
+        }
+
         // SQLITE_TRANSIENT tells SQLite to make its own copy of the data
-        int result = sqlite3_bind_text(m_stmt.get(), parameterIndex, value.c_str(), -1, SQLITE_TRANSIENT);
+        // Use explicit size instead of -1 to preserve embedded NUL characters
+        int result = sqlite3_bind_text(m_stmt.get(), parameterIndex, value.data(),
+                                       static_cast<int>(value.size()), SQLITE_TRANSIENT);
         if (result != SQLITE_OK)
         {
-            return cpp_dbc::unexpected(DBException("T3Z4A5B6C7D8", "Failed to bind string parameter: " + std::string(sqlite3_errmsg(dbPtr)) + " (index=" + std::to_string(parameterIndex) + ", value='" + value + "'" + ", result=" + std::to_string(result) + ")",
+            return cpp_dbc::unexpected(DBException("T3Z4A5B6C7D8", "Failed to bind string parameter: " + std::string(sqlite3_errmsg(dbPtr)) + " (index=" + std::to_string(parameterIndex) + ", length=" + std::to_string(value.size()) + ", result=" + std::to_string(result) + ")",
                                                    system_utils::captureCallStack()));
         }
         return {};

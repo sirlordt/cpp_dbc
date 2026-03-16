@@ -266,6 +266,14 @@ for option in "${OPTIONS[@]}"; do
             DEBUG_SQLITE="ON"
             BUILD_FLAGS="$BUILD_FLAGS --debug-sqlite"
             ;;
+        debug-mysql)
+            DEBUG_MYSQL="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --debug-mysql"
+            ;;
+        debug-postgresql)
+            DEBUG_POSTGRESQL="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --debug-postgresql"
+            ;;
         debug-firebird)
             DEBUG_FIREBIRD="ON"
             BUILD_FLAGS="$BUILD_FLAGS --debug-firebird"
@@ -290,6 +298,8 @@ for option in "${OPTIONS[@]}"; do
             DEBUG_CONNECTION_POOL="ON"
             DEBUG_TRANSACTION_MANAGER="ON"
             DEBUG_SQLITE="ON"
+            DEBUG_MYSQL="ON"
+            DEBUG_POSTGRESQL="ON"
             DEBUG_FIREBIRD="ON"
             DEBUG_MONGODB="ON"
             DEBUG_SCYLLADB="ON"

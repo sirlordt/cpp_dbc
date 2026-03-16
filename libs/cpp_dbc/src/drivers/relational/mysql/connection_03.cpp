@@ -167,7 +167,7 @@ namespace cpp_dbc::MySQL
 
         // Close all active result sets and statements before closing the connection
         // This ensures mysql_stmt_close() is called while we have exclusive access
-        [[maybe_unused]] auto closeRsResult = closeAllActiveResultSets(std::nothrow);
+        [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
         [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
 
         // 2026-03-07T00:00:00Z
@@ -200,18 +200,34 @@ namespace cpp_dbc::MySQL
         cpp_dbc::system_utils::AtomicGuard resettingGuard(m_resetting, true, false);
 
         // Close all active result sets and statements
-        [[maybe_unused]] auto closeRsResult = closeAllActiveResultSets(std::nothrow);
-        [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
+        auto closeRsResult = closeAllResultSets(std::nothrow);
+        if (!closeRsResult.has_value())
+        {
+            MYSQL_DEBUG("  reset: closeAllResultSets failed: %s", closeRsResult.error().what_s().data());
+        }
+        auto closeStmtsResult = closeAllStatements(std::nothrow);
+        if (!closeStmtsResult.has_value())
+        {
+            MYSQL_DEBUG("  reset: closeAllStatements failed: %s", closeStmtsResult.error().what_s().data());
+        }
 
         // Rollback any active transaction
         auto txActive = transactionActive(std::nothrow);
         if (txActive.has_value() && txActive.value())
         {
-            [[maybe_unused]] auto rbResult = rollback(std::nothrow);
+            auto rbResult = rollback(std::nothrow);
+            if (!rbResult.has_value())
+            {
+                MYSQL_DEBUG("  reset: rollback failed: %s", rbResult.error().what_s().data());
+            }
         }
 
         // Reset auto-commit to true
-        [[maybe_unused]] auto acResult = setAutoCommit(std::nothrow, true);
+        auto acResult = setAutoCommit(std::nothrow, true);
+        if (!acResult.has_value())
+        {
+            MYSQL_DEBUG("  reset: setAutoCommit failed: %s", acResult.error().what_s().data());
+        }
 
         return {};
     }
@@ -225,13 +241,25 @@ namespace cpp_dbc::MySQL
     {
         // CRITICAL: Close all active result sets and statements BEFORE making connection available
         // closeAllStatements() acquires m_connMutex internally
-        [[maybe_unused]] auto closeRsResult = closeAllActiveResultSets(std::nothrow);
-        [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
+        auto closeRsResult = closeAllResultSets(std::nothrow);
+        if (!closeRsResult.has_value())
+        {
+            MYSQL_DEBUG("  returnToPool: closeAllResultSets failed: %s", closeRsResult.error().what_s().data());
+        }
+        auto closeStmtsResult = closeAllStatements(std::nothrow);
+        if (!closeStmtsResult.has_value())
+        {
+            MYSQL_DEBUG("  returnToPool: closeAllStatements failed: %s", closeStmtsResult.error().what_s().data());
+        }
 
         // Restore autocommit for the next user of this connection
         if (!m_autoCommit)
         {
-            setAutoCommit(std::nothrow, true);
+            auto acResult = setAutoCommit(std::nothrow, true);
+            if (!acResult.has_value())
+            {
+                MYSQL_DEBUG("  returnToPool: setAutoCommit failed: %s", acResult.error().what_s().data());
+            }
         }
 
         return {};

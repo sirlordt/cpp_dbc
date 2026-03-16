@@ -111,13 +111,13 @@ namespace cpp_dbc::Firebird
         cpp_dbc::expected<void, DBException> unregisterResultSet(std::nothrow_t, std::weak_ptr<FirebirdDBResultSet> rs) noexcept;
         cpp_dbc::expected<void, DBException> startTransaction(std::nothrow_t) noexcept;
         cpp_dbc::expected<void, DBException> endTransaction(std::nothrow_t, bool commit) noexcept;
-        cpp_dbc::expected<void, DBException> closeAllActiveResultSets(std::nothrow_t) noexcept;
+        cpp_dbc::expected<void, DBException> closeAllResultSets(std::nothrow_t) noexcept;
 
         /**
          * @brief Close and invalidate all active prepared statements
          * Called before DDL operations to release metadata locks
          */
-        cpp_dbc::expected<void, DBException> closeAllActivePreparedStatements(std::nothrow_t) noexcept;
+        cpp_dbc::expected<void, DBException> closeAllStatements(std::nothrow_t) noexcept;
 
         /**
          * @brief Execute a CREATE DATABASE statement using isc_dsql_execute_immediate

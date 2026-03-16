@@ -185,17 +185,13 @@ namespace cpp_dbc::SQLite
             return false;
         }
 
-        if (m_autoCommit.load(std::memory_order_acquire))
-        {
-            m_autoCommit.store(false, std::memory_order_release);
-        }
-
         auto updateResult = executeUpdate(std::nothrow, "BEGIN TRANSACTION");
         if (!updateResult.has_value())
         {
             return cpp_dbc::unexpected(updateResult.error());
         }
 
+        m_autoCommit.store(false, std::memory_order_release);
         m_transactionActive.store(true, std::memory_order_release);
         return true;
     }
@@ -280,30 +276,29 @@ namespace cpp_dbc::SQLite
     // meaningful recovery path. Catching them would hide a catastrophic failure.
     cpp_dbc::expected<void, DBException> SQLiteDBConnection::close(std::nothrow_t) noexcept
     {
-        if (!m_closed && m_db)
-        {
-            // Close all result sets FIRST (before statements)
-            // closeAllResultSets() acquires m_globalFileMutex internally
-            [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
+        SQLITE_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
 
-            // Close all prepared statements properly
-            // closeAllStatements() includes safety net for leaked statements
-            [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
+        // Close all result sets FIRST (before statements)
+        [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
 
-            // Call sqlite3_release_memory to free up caches and unused memory
-            [[maybe_unused]]
-            int releasedMemory = sqlite3_release_memory(1000000);
-            SQLITE_DEBUG("Released %d bytes of SQLite memory", releasedMemory);
+        // Close all prepared statements properly
+        // closeAllStatements() includes safety net for leaked statements
+        [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
 
-            // Smart pointer will automatically call sqlite3_close_v2 via SQLiteDbDeleter
-            m_db.reset();
-            m_closed = true;
+        // Call sqlite3_release_memory to free up caches and unused memory
+        [[maybe_unused]]
+        int releasedMemory = sqlite3_release_memory(1000000);
+        SQLITE_DEBUG("Released %d bytes of SQLite memory", releasedMemory);
 
-            // Unregister from the driver registry so getConnectionAlive() reflects
-            // actual live connections. The owner_less m_self weak_ptr is used for
-            // set lookup — raw 'this' would not match the set's comparator.
-            SQLiteDBDriver::unregisterConnection(std::nothrow, m_self);
-        }
+        // Smart pointer will automatically call sqlite3_close_v2 via SQLiteDbDeleter
+        m_db.reset();
+        m_closed = true;
+
+        // Unregister from the driver registry so getConnectionAlive() reflects
+        // actual live connections. The owner_less m_self weak_ptr is used for
+        // set lookup — raw 'this' would not match the set's comparator.
+        SQLiteDBDriver::unregisterConnection(std::nothrow, m_self);
+
         return {};
     }
 

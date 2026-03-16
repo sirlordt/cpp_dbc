@@ -186,7 +186,7 @@ namespace cpp_dbc::Firebird
     // ============================================================================
     //
     // When debugging pool issues with symptoms like "timeout" + "table id not defined",
-    // it may seem logical to blame closeAllActivePreparedStatements() in
+    // it may seem logical to blame closeAllStatements() in
     // prepareForPoolReturn(), thinking:
     //
     //   "Statement closing is slow under Valgrind → causes timeouts → connections

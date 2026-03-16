@@ -229,11 +229,11 @@ namespace cpp_dbc::SQLite
                                                                               const std::map<std::string, std::string> &options)
     {
         auto result = connectRelational(std::nothrow, uri, user, password, options);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 #endif // __cpp_exceptions
 

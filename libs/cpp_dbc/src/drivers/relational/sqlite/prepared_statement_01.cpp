@@ -221,7 +221,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBPreparedStatement::setInt(int parameterIndex, int value)
     {
         auto result = setInt(std::nothrow, parameterIndex, value);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -230,7 +230,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBPreparedStatement::setLong(int parameterIndex, int64_t value)
     {
         auto result = setLong(std::nothrow, parameterIndex, value);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -239,7 +239,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBPreparedStatement::setDouble(int parameterIndex, double value)
     {
         auto result = setDouble(std::nothrow, parameterIndex, value);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -248,7 +248,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBPreparedStatement::setString(int parameterIndex, const std::string &value)
     {
         auto result = setString(std::nothrow, parameterIndex, value);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -257,7 +257,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBPreparedStatement::setBoolean(int parameterIndex, bool value)
     {
         auto result = setBoolean(std::nothrow, parameterIndex, value);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -266,7 +266,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBPreparedStatement::setNull(int parameterIndex, [[maybe_unused]] Types type)
     {
         auto result = setNull(std::nothrow, parameterIndex, type);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -275,7 +275,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBPreparedStatement::setDate(int parameterIndex, const std::string &value)
     {
         auto result = setDate(std::nothrow, parameterIndex, value);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -284,7 +284,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBPreparedStatement::setTimestamp(int parameterIndex, const std::string &value)
     {
         auto result = setTimestamp(std::nothrow, parameterIndex, value);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -293,7 +293,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBPreparedStatement::setTime(int parameterIndex, const std::string &value)
     {
         auto result = setTime(std::nothrow, parameterIndex, value);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -302,7 +302,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBPreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
     {
         auto result = setBlob(std::nothrow, parameterIndex, x);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -311,7 +311,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x)
     {
         auto result = setBinaryStream(std::nothrow, parameterIndex, x);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -320,7 +320,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length)
     {
         auto result = setBinaryStream(std::nothrow, parameterIndex, x, length);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -329,7 +329,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBPreparedStatement::setBytes(int parameterIndex, const std::vector<uint8_t> &x)
     {
         auto result = setBytes(std::nothrow, parameterIndex, x);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -338,7 +338,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBPreparedStatement::setBytes(int parameterIndex, const uint8_t *x, size_t length)
     {
         auto result = setBytes(std::nothrow, parameterIndex, x, length);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -347,31 +347,31 @@ namespace cpp_dbc::SQLite
     std::shared_ptr<RelationalDBResultSet> SQLiteDBPreparedStatement::executeQuery()
     {
         auto result = executeQuery(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     uint64_t SQLiteDBPreparedStatement::executeUpdate()
     {
         auto result = executeUpdate(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
 
     bool SQLiteDBPreparedStatement::execute()
     {
         auto result = execute(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
+        return result.value();
     }
     #endif // __cpp_exceptions
 
