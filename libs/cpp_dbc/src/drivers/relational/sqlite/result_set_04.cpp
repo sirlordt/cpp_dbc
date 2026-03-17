@@ -41,7 +41,7 @@ namespace cpp_dbc::SQLite
     {
         std::scoped_lock globalLock(*m_globalFileMutex);
 
-        sqlite3_stmt *stmt = getStmt();
+        sqlite3_stmt *stmt = getStmt(std::nothrow);
         if (!stmt || m_closed.load(std::memory_order_seq_cst) || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
         {
             return cpp_dbc::unexpected(DBException("C1OYCDLIMFUN", "Invalid column index or row position",
@@ -74,7 +74,7 @@ namespace cpp_dbc::SQLite
     {
         std::scoped_lock globalLock(*m_globalFileMutex);
 
-        sqlite3_stmt *stmt = getStmt();
+        sqlite3_stmt *stmt = getStmt(std::nothrow);
         if (!stmt || m_closed.load(std::memory_order_seq_cst) || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
         {
             return cpp_dbc::unexpected(DBException("Y9AH4HKBJ7VN", "Invalid column index or row position",
@@ -107,7 +107,7 @@ namespace cpp_dbc::SQLite
     {
         std::scoped_lock globalLock(*m_globalFileMutex);
 
-        sqlite3_stmt *stmt = getStmt();
+        sqlite3_stmt *stmt = getStmt(std::nothrow);
         if (!stmt || m_closed.load(std::memory_order_seq_cst) || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
         {
             return cpp_dbc::unexpected(DBException("NJZT2YW7JKY5", "Invalid column index or row position",

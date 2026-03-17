@@ -67,6 +67,11 @@ namespace cpp_dbc::SQLite
                 {
                     SQLITE_DEBUG("9E0F1G2H3I4J: Error configuring SQLite for thread safety: %s",
                                  sqlite3_errstr(configResult));
+                    m_initFailed = true;
+                    m_initError = std::make_unique<DBException>("OAUGISBIUSJ1",
+                        "Failed to configure SQLite for thread safety: " + std::string(sqlite3_errstr(configResult)),
+                        system_utils::captureCallStack());
+                    return;
                 }
 
                 // Initialize SQLite
@@ -75,6 +80,11 @@ namespace cpp_dbc::SQLite
                 {
                     SQLITE_DEBUG("5K6L7M8N9O0P: Error initializing SQLite: %s",
                                  sqlite3_errstr(initResult));
+                    m_initFailed = true;
+                    m_initError = std::make_unique<DBException>("KJ4YMTV96W4O",
+                        "Failed to initialize SQLite: " + std::string(sqlite3_errstr(initResult)),
+                        system_utils::captureCallStack());
+                    return;
                 }
 
                 // Mark as initialized
@@ -106,7 +116,7 @@ namespace cpp_dbc::SQLite
 
         // Coalesced cleanup: only post when the registry has grown past the
         // cleanup threshold and no cleanup task is already queued.
-        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_acq_rel))
+        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_seq_cst))
         {
             SerialQueue::global().post([]()
             {
@@ -183,8 +193,11 @@ namespace cpp_dbc::SQLite
             return s_instance;
         }
         // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
-        // SQLiteDBDriver constructor only runs noexcept operations — no m_initFailed check needed.
         auto inst = std::make_shared<SQLiteDBDriver>(SQLiteDBDriver::PrivateCtorTag{}, std::nothrow);
+        if (inst->m_initFailed)
+        {
+            return cpp_dbc::unexpected(std::move(*inst->m_initError));
+        }
         s_instance = inst;
         return s_instance;
     }

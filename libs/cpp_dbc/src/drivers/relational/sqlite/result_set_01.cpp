@@ -117,7 +117,7 @@ namespace cpp_dbc::SQLite
         [[maybe_unused]] auto closeResult = close(std::nothrow);
     }
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     bool SQLiteDBResultSet::next()
     {
         auto result = next(std::nothrow);
@@ -436,7 +436,7 @@ namespace cpp_dbc::SQLite
         }
         return result.value();
     }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::SQLite
 

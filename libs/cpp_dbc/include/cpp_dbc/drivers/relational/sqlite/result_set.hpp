@@ -121,7 +121,7 @@ namespace cpp_dbc::SQLite
          * @brief Helper method to get the active statement pointer
          * @return The active statement pointer
          */
-        sqlite3_stmt *getStmt() const
+        sqlite3_stmt *getStmt(std::nothrow_t) const noexcept
         {
             return m_stmt;
         }

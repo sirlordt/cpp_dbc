@@ -42,7 +42,7 @@ namespace cpp_dbc::SQLite
     {
         std::scoped_lock globalLock(*m_globalFileMutex);
 
-        sqlite3_stmt *stmt = getStmt();
+        sqlite3_stmt *stmt = getStmt(std::nothrow);
         if (!stmt || m_closed.load(std::memory_order_seq_cst) || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
         {
             return cpp_dbc::unexpected(DBException("B1C2D3E4F5G6", "Invalid column index or row position for getBlob",
@@ -54,7 +54,12 @@ namespace cpp_dbc::SQLite
 
         if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
         {
-            return std::shared_ptr<Blob>(std::make_shared<SQLite::SQLiteBlob>(std::shared_ptr<sqlite3>()));
+            auto nullBlobResult = SQLite::SQLiteBlob::create(std::nothrow, std::shared_ptr<sqlite3>());
+            if (!nullBlobResult.has_value())
+            {
+                return cpp_dbc::unexpected(nullBlobResult.error());
+            }
+            return std::shared_ptr<Blob>(nullBlobResult.value());
         }
 
         // Check if the column is a BLOB type
@@ -85,7 +90,12 @@ namespace cpp_dbc::SQLite
         }
 
         // Create a new BLOB object with the data (pass shared_ptr for safe reference)
-        return std::shared_ptr<Blob>(std::make_shared<SQLite::SQLiteBlob>(conn->m_db, data));
+        auto blobResult = SQLite::SQLiteBlob::create(std::nothrow, conn->m_db, data);
+        if (!blobResult.has_value())
+        {
+            return cpp_dbc::unexpected(blobResult.error());
+        }
+        return std::shared_ptr<Blob>(blobResult.value());
     }
 
     cpp_dbc::expected<std::shared_ptr<Blob>, DBException> SQLiteDBResultSet::getBlob(std::nothrow_t, const std::string &columnName) noexcept
@@ -104,7 +114,7 @@ namespace cpp_dbc::SQLite
     {
         std::scoped_lock globalLock(*m_globalFileMutex);
 
-        sqlite3_stmt *stmt = getStmt();
+        sqlite3_stmt *stmt = getStmt(std::nothrow);
         if (!stmt || m_closed.load(std::memory_order_seq_cst) || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
         {
             return cpp_dbc::unexpected(DBException("CEE30385E0BB", "Invalid column index or row position for getBinaryStream",
@@ -117,7 +127,12 @@ namespace cpp_dbc::SQLite
         if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
         {
             // Return an empty stream
-            return std::shared_ptr<InputStream>(std::make_shared<SQLite::SQLiteInputStream>(nullptr, 0));
+            auto emptyStreamResult = SQLite::SQLiteInputStream::create(std::nothrow, nullptr, 0);
+            if (!emptyStreamResult.has_value())
+            {
+                return cpp_dbc::unexpected(emptyStreamResult.error());
+            }
+            return std::shared_ptr<InputStream>(emptyStreamResult.value());
         }
 
         // Get the binary data
@@ -125,7 +140,12 @@ namespace cpp_dbc::SQLite
         int blobSize = sqlite3_column_bytes(stmt, idx);
 
         // Create a new input stream with the data
-        return std::shared_ptr<InputStream>(std::make_shared<SQLite::SQLiteInputStream>(blobData, blobSize));
+        auto streamResult = SQLite::SQLiteInputStream::create(std::nothrow, blobData, blobSize);
+        if (!streamResult.has_value())
+        {
+            return cpp_dbc::unexpected(streamResult.error());
+        }
+        return std::shared_ptr<InputStream>(streamResult.value());
     }
 
     cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> SQLiteDBResultSet::getBinaryStream(std::nothrow_t, const std::string &columnName) noexcept
@@ -144,7 +164,7 @@ namespace cpp_dbc::SQLite
     {
         std::scoped_lock globalLock(*m_globalFileMutex);
 
-        sqlite3_stmt *stmt = getStmt();
+        sqlite3_stmt *stmt = getStmt(std::nothrow);
         if (!stmt || m_closed.load(std::memory_order_seq_cst) || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
         {
             return cpp_dbc::unexpected(DBException("L7M8N9O0P1Q2", "Invalid column index or row position for getBytes",

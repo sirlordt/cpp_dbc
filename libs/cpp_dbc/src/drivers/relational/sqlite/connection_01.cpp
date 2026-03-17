@@ -624,7 +624,7 @@ namespace cpp_dbc::SQLite
         return result.value();
     }
 
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
     cpp_dbc::expected<bool, DBException> SQLiteDBConnection::ping(std::nothrow_t) noexcept
     {
