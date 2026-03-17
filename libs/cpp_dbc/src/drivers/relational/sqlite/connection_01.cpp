@@ -311,9 +311,7 @@ namespace cpp_dbc::SQLite
                                            std::nothrow_t,
                                            const std::string &database,
                                            const std::map<std::string, std::string> &options) noexcept
-        : m_db(nullptr), m_autoCommit(true), m_transactionActive(false),
-          m_isolationLevel(TransactionIsolationLevel::TRANSACTION_SERIALIZABLE), // SQLite default
-          m_uri("cpp_dbc:sqlite://" + database)
+        : m_uri("cpp_dbc:sqlite://" + database)
     {
         SQLITE_DEBUG("Creating connection to: %s", database.c_str());
 

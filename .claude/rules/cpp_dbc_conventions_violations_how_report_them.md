@@ -209,3 +209,5 @@ research/<driver_name>_improvements_<N>.md
 ```
 
 Where `<N>` is an incrementing number (1, 2, 3...) to allow multiple analysis passes on the same driver. Example: `research/mysql_driver_improvements_1.md`, `research/sqlite_driver_improvements_1.md`.
+
+**Immutability rule**: Existing report files must **never** be modified or overwritten. Each new analysis pass must create a new file with the next incremental number. If `research/sqlite_driver_improvements_2.md` already exists, the next report must be `research/sqlite_driver_improvements_3.md`. Previous reports serve as historical record of the driver's compliance evolution.

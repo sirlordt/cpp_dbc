@@ -59,8 +59,8 @@ namespace cpp_dbc::SQLite
         std::shared_ptr<SQLiteDBConnection> conn,
         std::shared_ptr<SQLiteDBPreparedStatement> prepStmt,
         std::shared_ptr<std::recursive_mutex> globalFileMutex) noexcept
-        : m_stmt(stmt), m_ownStatement(ownStatement), m_rowPosition(0), m_rowCount(0), m_fieldCount(0),
-          m_columnNames(), m_columnMap(), m_hasData(false), m_connection(conn), m_preparedStatement(prepStmt),
+        : m_stmt(stmt), m_ownStatement(ownStatement),
+          m_connection(conn), m_preparedStatement(prepStmt),
           m_globalFileMutex(std::move(globalFileMutex))
     {
         m_closed.store(false, std::memory_order_seq_cst);

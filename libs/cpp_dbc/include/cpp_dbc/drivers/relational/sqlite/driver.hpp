@@ -58,6 +58,8 @@ namespace cpp_dbc::SQLite
         // ── Coalesced cleanup flag ────────────────────────────────────────────
         static std::atomic<bool> s_cleanupPending;
 
+        static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
+
         static void registerConnection(std::nothrow_t, std::weak_ptr<SQLiteDBConnection> conn) noexcept;
         static void unregisterConnection(std::nothrow_t, const std::weak_ptr<SQLiteDBConnection> &conn) noexcept;
 
@@ -77,6 +79,11 @@ namespace cpp_dbc::SQLite
     public:
         SQLiteDBDriver(PrivateCtorTag, std::nothrow_t) noexcept;
         ~SQLiteDBDriver() override;
+
+        SQLiteDBDriver(const SQLiteDBDriver &) = delete;
+        SQLiteDBDriver &operator=(const SQLiteDBDriver &) = delete;
+        SQLiteDBDriver(SQLiteDBDriver &&) = delete;
+        SQLiteDBDriver &operator=(SQLiteDBDriver &&) = delete;
 
         // ====================================================================
         // THROWING API — requires exception support
@@ -129,7 +136,7 @@ namespace cpp_dbc::SQLite
         std::string getURIScheme() const noexcept override;
         std::string getDriverVersion() const noexcept override;
 
-        static void cleanup();
+        static void cleanup() noexcept;
 
         /**
          * @brief Return the number of live connections tracked by the registry.
@@ -146,7 +153,9 @@ namespace cpp_dbc::SQLite
 // Stub implementations when SQLite is disabled
 namespace cpp_dbc::SQLite
 {
-    // Forward declarations only
+    // Stub class — PrivateCtorTag pattern not applied because this class is never
+    // instantiated through the factory path; it exists solely to satisfy the
+    // compilation interface when USE_SQLITE=0.
     class SQLiteDBDriver final : public RelationalDBDriver
     {
     public:

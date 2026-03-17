@@ -171,7 +171,7 @@ namespace cpp_dbc::SQLite
         std::weak_ptr<SQLiteDBConnection> conn,
         std::shared_ptr<std::recursive_mutex> globalFileMutex,
         const std::string &sql) noexcept
-        : m_db(std::move(db)), m_connection(std::move(conn)), m_sql(sql), m_stmt(nullptr),
+        : m_db(std::move(db)), m_connection(std::move(conn)), m_sql(sql),
           m_globalFileMutex(std::move(globalFileMutex))
     {
         auto dbResult = getSQLiteConnection(std::nothrow);

@@ -66,7 +66,7 @@ namespace cpp_dbc::SQLite
         std::weak_ptr<SQLiteDBConnection> m_self;
         std::atomic<bool> m_autoCommit{true};
         std::atomic<bool> m_transactionActive{false};
-        TransactionIsolationLevel m_isolationLevel;
+        TransactionIsolationLevel m_isolationLevel{TransactionIsolationLevel::TRANSACTION_SERIALIZABLE};
 
         // Cached URI
         std::string m_uri;
