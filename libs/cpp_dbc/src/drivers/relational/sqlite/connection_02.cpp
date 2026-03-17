@@ -42,7 +42,7 @@ namespace cpp_dbc::SQLite
     {
         std::scoped_lock globalLock(*m_globalFileMutex);
 
-        if (m_closed || !m_db)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_db)
         {
             return cpp_dbc::unexpected(DBException("R0Z1A2B3C4D5", "Connection is closed",
                                                    system_utils::captureCallStack()));
@@ -67,7 +67,7 @@ namespace cpp_dbc::SQLite
     {
         std::scoped_lock globalLock(*m_globalFileMutex);
 
-        if (m_closed || !m_db)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_db)
         {
             return cpp_dbc::unexpected(DBException("R1Z2A3B4C5D6", "Connection is closed",
                                                    system_utils::captureCallStack()));
@@ -104,7 +104,7 @@ namespace cpp_dbc::SQLite
     {
         std::scoped_lock globalLock(*m_globalFileMutex);
 
-        if (m_closed || !m_db)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_db)
         {
             return cpp_dbc::unexpected(DBException("R3Z4A5B6C7D8", "Connection is closed",
                                                    system_utils::captureCallStack()));
@@ -128,19 +128,19 @@ namespace cpp_dbc::SQLite
     {
         std::scoped_lock globalLock(*m_globalFileMutex);
 
-        if (m_closed || !m_db)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_db)
         {
             return cpp_dbc::unexpected(DBException("R5Z6A7B8C9D0", "Connection is closed",
                                                    system_utils::captureCallStack()));
         }
 
         // Only change the state if we're actually changing the mode
-        if (m_autoCommit.load(std::memory_order_acquire) != autoCommit)
+        if (m_autoCommit.load(std::memory_order_seq_cst) != autoCommit)
         {
             if (autoCommit)
             {
                 // Enabling autocommit - commit any active transaction first
-                if (m_transactionActive.load(std::memory_order_acquire))
+                if (m_transactionActive.load(std::memory_order_seq_cst))
                 {
                     auto commitResult = commit(std::nothrow);
                     if (!commitResult.has_value())
@@ -149,8 +149,8 @@ namespace cpp_dbc::SQLite
                     }
                 }
 
-                m_autoCommit.store(true, std::memory_order_release);
-                m_transactionActive.store(false, std::memory_order_release);
+                m_autoCommit.store(true, std::memory_order_seq_cst);
+                m_transactionActive.store(false, std::memory_order_seq_cst);
             }
             else
             {
@@ -167,20 +167,20 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<bool, DBException> SQLiteDBConnection::getAutoCommit(std::nothrow_t) noexcept
     {
-        return m_autoCommit.load(std::memory_order_acquire);
+        return m_autoCommit.load(std::memory_order_seq_cst);
     }
 
     cpp_dbc::expected<bool, DBException> SQLiteDBConnection::beginTransaction(std::nothrow_t) noexcept
     {
         std::scoped_lock globalLock(*m_globalFileMutex);
 
-        if (m_closed || !m_db)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_db)
         {
             return cpp_dbc::unexpected(DBException("FD82C45A3E09", "Connection is closed",
                                                    system_utils::captureCallStack()));
         }
 
-        if (m_transactionActive.load(std::memory_order_acquire))
+        if (m_transactionActive.load(std::memory_order_seq_cst))
         {
             return false;
         }
@@ -191,21 +191,21 @@ namespace cpp_dbc::SQLite
             return cpp_dbc::unexpected(updateResult.error());
         }
 
-        m_autoCommit.store(false, std::memory_order_release);
-        m_transactionActive.store(true, std::memory_order_release);
+        m_autoCommit.store(false, std::memory_order_seq_cst);
+        m_transactionActive.store(true, std::memory_order_seq_cst);
         return true;
     }
 
     cpp_dbc::expected<bool, DBException> SQLiteDBConnection::transactionActive(std::nothrow_t) noexcept
     {
-        return m_transactionActive.load(std::memory_order_acquire);
+        return m_transactionActive.load(std::memory_order_seq_cst);
     }
 
     cpp_dbc::expected<void, DBException> SQLiteDBConnection::commit(std::nothrow_t) noexcept
     {
         std::scoped_lock globalLock(*m_globalFileMutex);
 
-        if (m_closed || !m_db)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_db)
         {
             return cpp_dbc::unexpected(DBException("R6Z7A8B9C0D1", "Connection is closed",
                                                    system_utils::captureCallStack()));
@@ -217,8 +217,8 @@ namespace cpp_dbc::SQLite
             return cpp_dbc::unexpected(updateResult.error());
         }
 
-        m_transactionActive.store(false, std::memory_order_release);
-        m_autoCommit.store(true, std::memory_order_release);
+        m_transactionActive.store(false, std::memory_order_seq_cst);
+        m_autoCommit.store(true, std::memory_order_seq_cst);
         return {};
     }
 
@@ -226,7 +226,7 @@ namespace cpp_dbc::SQLite
     {
         std::scoped_lock globalLock(*m_globalFileMutex);
 
-        if (m_closed || !m_db)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_db)
         {
             return cpp_dbc::unexpected(DBException("R7Z8A9B0C1D2", "Connection is closed",
                                                    system_utils::captureCallStack()));
@@ -238,8 +238,8 @@ namespace cpp_dbc::SQLite
             return cpp_dbc::unexpected(updateResult.error());
         }
 
-        m_transactionActive.store(false, std::memory_order_release);
-        m_autoCommit.store(true, std::memory_order_release);
+        m_transactionActive.store(false, std::memory_order_seq_cst);
+        m_autoCommit.store(true, std::memory_order_seq_cst);
         return {};
     }
 
@@ -247,7 +247,7 @@ namespace cpp_dbc::SQLite
     {
         std::scoped_lock globalLock(*m_globalFileMutex);
 
-        if (m_closed || !m_db)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_db)
         {
             return cpp_dbc::unexpected(DBException("R8Z9A0B1C2D3", "Connection is closed",
                                                    system_utils::captureCallStack()));
@@ -292,7 +292,7 @@ namespace cpp_dbc::SQLite
 
         // Smart pointer will automatically call sqlite3_close_v2 via SQLiteDbDeleter
         m_db.reset();
-        m_closed = true;
+        m_closed.store(true, std::memory_order_seq_cst);
 
         // Unregister from the driver registry so getConnectionAlive() reflects
         // actual live connections. The owner_less m_self weak_ptr is used for
@@ -304,7 +304,7 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<bool, DBException> SQLiteDBConnection::isClosed(std::nothrow_t) const noexcept
     {
-        return m_closed;
+        return m_closed.load(std::memory_order_seq_cst);
     }
 
     // No try/catch: reset(std::nothrow) is noexcept and all inner operations are

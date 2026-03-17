@@ -46,7 +46,12 @@ namespace cpp_dbc::SQLite
         friend class SQLiteDBPreparedStatement;
         friend class SQLiteDBResultSet;
 
-    private:
+        // ── PrivateCtorTag — prevents direct construction; use create() ──
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
         /**
          * @brief Smart pointer for sqlite3 connection - shared_ptr allows weak_ptr support
          *
@@ -55,7 +60,7 @@ namespace cpp_dbc::SQLite
          */
         SQLiteDbHandle m_db;
 
-        bool m_closed{true};
+        std::atomic<bool> m_closed{true};
         // Stored by the create() factory so close() can unregister from the driver registry
         // using owner_less comparison (raw 'this' won't work with the set's comparator).
         std::weak_ptr<SQLiteDBConnection> m_self;
@@ -68,6 +73,10 @@ namespace cpp_dbc::SQLite
 
         // Normalized database file path
         std::string m_dbPath;
+
+        // ── Construction state ────────────────────────────────────────────────
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
 
         /**
          * @brief Global file-level mutex shared by all connections to the same database file
@@ -112,37 +121,18 @@ namespace cpp_dbc::SQLite
         cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
 
     public:
-        SQLiteDBConnection(const std::string &database,
-                           const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
+        // ── Public nothrow constructor (guarded by PrivateCtorTag) ─────────────
+        SQLiteDBConnection(PrivateCtorTag,
+                           std::nothrow_t,
+                           const std::string &database,
+                           const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept;
+
         ~SQLiteDBConnection() override;
 
-        static cpp_dbc::expected<std::shared_ptr<SQLiteDBConnection>, DBException>
-        create(std::nothrow_t,
-               const std::string &database,
-               const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
-        {
-            try
-            {
-                auto conn = std::make_shared<SQLiteDBConnection>(database, options);
-                // Store a weak self-reference so close() can unregister from the driver's
-                // connection registry via owner_less comparison without calling shared_from_this().
-                conn->m_self = conn;
-                return conn;
-            }
-            catch (const DBException &ex)
-            {
-                return cpp_dbc::unexpected(ex);
-            }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("5P5EU9UCUB1I", ex.what(), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("SPVGUUWT5LSG", "Unknown error creating SQLiteDBConnection", system_utils::captureCallStack()));
-            }
-        }
+        SQLiteDBConnection(const SQLiteDBConnection &) = delete;
+        SQLiteDBConnection &operator=(const SQLiteDBConnection &) = delete;
 
+#ifdef __cpp_exceptions
         static std::shared_ptr<SQLiteDBConnection>
         create(const std::string &database,
                const std::map<std::string, std::string> &options = std::map<std::string, std::string>())
@@ -153,6 +143,25 @@ namespace cpp_dbc::SQLite
                 throw r.error();
             }
             return r.value();
+        }
+#endif
+
+        static cpp_dbc::expected<std::shared_ptr<SQLiteDBConnection>, DBException>
+        create(std::nothrow_t,
+               const std::string &database,
+               const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
+        {
+            // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+            auto conn = std::make_shared<SQLiteDBConnection>(
+                PrivateCtorTag{}, std::nothrow, database, options);
+            if (conn->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*conn->m_initError));
+            }
+            // Store a weak self-reference so close() can unregister from the driver's
+            // connection registry via owner_less comparison without calling shared_from_this().
+            conn->m_self = conn;
+            return conn;
         }
 
 #ifdef __cpp_exceptions

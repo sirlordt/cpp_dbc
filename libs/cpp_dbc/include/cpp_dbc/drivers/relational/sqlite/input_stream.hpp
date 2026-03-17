@@ -24,7 +24,6 @@ namespace cpp_dbc::SQLite
      */
     class SQLiteInputStream : public InputStream
     {
-    private:
         std::vector<uint8_t> m_data;
         size_t m_position{0};
 

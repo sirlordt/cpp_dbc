@@ -83,7 +83,6 @@ namespace cpp_dbc::SQLite
         return {};
     }
 
-    #ifdef __cpp_exceptions
     cpp_dbc::expected<void, DBException> SQLiteDBConnection::closeAllStatements(std::nothrow_t) noexcept
     {
         // CRITICAL: Must hold global file mutex to prevent other threads from using
@@ -303,133 +302,134 @@ namespace cpp_dbc::SQLite
         return {};
     }
 
-    // SQLiteDBConnection implementation - Throwing API
-
-    SQLiteDBConnection::SQLiteDBConnection(const std::string &database,
-                                           const std::map<std::string, std::string> &options)
-        : m_db(nullptr), m_closed(false), m_autoCommit(true), m_transactionActive(false),
+    // ── Public nothrow constructor (PrivateCtorTag) ───────────────────────────────
+    // sqlite3_open_v2, sqlite3_exec (for PRAGMAs) are C APIs that never throw C++
+    // exceptions. The only possible C++ throws come from std::string/std::ifstream
+    // (death-sentence: std::bad_alloc) and std::make_shared<std::recursive_mutex>
+    // (death-sentence). No recoverable exceptions → no try/catch needed.
+    SQLiteDBConnection::SQLiteDBConnection(SQLiteDBConnection::PrivateCtorTag,
+                                           std::nothrow_t,
+                                           const std::string &database,
+                                           const std::map<std::string, std::string> &options) noexcept
+        : m_db(nullptr), m_autoCommit(true), m_transactionActive(false),
           m_isolationLevel(TransactionIsolationLevel::TRANSACTION_SERIALIZABLE), // SQLite default
           m_uri("cpp_dbc:sqlite://" + database)
     {
-        try
-        {
-            SQLITE_DEBUG("Creating connection to: %s", database.c_str());
+        SQLITE_DEBUG("Creating connection to: %s", database.c_str());
 
-            // Verificar si el archivo existe (para bases de datos de archivo)
-            if (database != ":memory:")
+        // Verificar si el archivo existe (para bases de datos de archivo)
+        if (database != ":memory:")
+        {
+            std::ifstream fileCheck(database.c_str());
+            if (!fileCheck)
             {
-                std::ifstream fileCheck(database.c_str());
-                if (!fileCheck)
-                {
-                    SQLITE_DEBUG("Database file does not exist, will be created: %s", database.c_str());
-                }
-                else
-                {
-                    SQLITE_DEBUG("Database file exists: %s", database.c_str());
-                    fileCheck.close();
-                }
+                SQLITE_DEBUG("Database file does not exist, will be created: %s", database.c_str());
             }
             else
             {
-                SQLITE_DEBUG("Using in-memory database");
+                SQLITE_DEBUG("Database file exists: %s", database.c_str());
+                fileCheck.close();
             }
-
-            SQLITE_DEBUG("Calling sqlite3_open_v2");
-            sqlite3 *rawDb = nullptr;
-            int result = sqlite3_open_v2(database.c_str(), &rawDb, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr);
-            if (result != SQLITE_OK)
-            {
-                std::string error = sqlite3_errmsg(rawDb);
-                SQLITE_DEBUG("1I2J3K4L5M6N: Failed to open database: %s", error.c_str());
-                sqlite3_close_v2(rawDb);
-                throw DBException("SLGP6Q7R8S9T", "Failed to connect to SQLite database: " + error,
-                                  system_utils::captureCallStack());
-            }
-
-            // Create shared_ptr with custom deleter for sqlite3*
-            m_db = makeSQLiteDbHandle(rawDb);
-
-            SQLITE_DEBUG("Database opened successfully");
-
-            // Initialize mutex for synchronization
-            // SPECIAL CASE: :memory: databases are independent per connection
-            // Each :memory: creates a SEPARATE in-memory database, so they need LOCAL mutexes
-            if (database == ":memory:")
-            {
-                // Create a LOCAL mutex for this :memory: connection
-                // :memory: databases don't share data, so they don't need a global mutex
-                m_dbPath = ":memory:";
-                m_globalFileMutex = std::make_shared<std::recursive_mutex>();
-                SQLITE_DEBUG("Created LOCAL mutex for :memory: database");
-            }
-            else
-            {
-                // For file-based databases, use FileMutexRegistry for global file-level synchronization
-                m_dbPath = FileMutexRegistry::normalizePath(database);
-                m_globalFileMutex = FileMutexRegistry::getInstance().getMutexForFile(m_dbPath);
-                SQLITE_DEBUG("FileMutexRegistry initialized for: %s", m_dbPath.c_str());
-            }
-
-            // Aplicar opciones de configuración
-            SQLITE_DEBUG("Applying configuration options");
-            for (const auto &option : options)
-            {
-                SQLITE_DEBUG("Processing option: %s=%s", option.first.c_str(), option.second.c_str());
-                if (option.first == "foreign_keys" && option.second == "true")
-                {
-                    executeUpdate("PRAGMA foreign_keys = ON");
-                }
-                else if (option.first == "journal_mode" && option.second == "WAL")
-                {
-                    executeUpdate("PRAGMA journal_mode = WAL");
-                }
-                else if (option.first == "synchronous" && option.second == "FULL")
-                {
-                    executeUpdate("PRAGMA synchronous = FULL");
-                }
-                else if (option.first == "synchronous" && option.second == "NORMAL")
-                {
-                    executeUpdate("PRAGMA synchronous = NORMAL");
-                }
-                else if (option.first == "synchronous" && option.second == "OFF")
-                {
-                    executeUpdate("PRAGMA synchronous = OFF");
-                }
-            }
-
-            // Si no se especificó foreign_keys en las opciones, habilitarlo por defecto
-            if (options.find("foreign_keys") == options.end())
-            {
-                SQLITE_DEBUG("Enabling foreign keys by default");
-                executeUpdate("PRAGMA foreign_keys = ON");
-            }
-
-            SQLITE_DEBUG("Connection created successfully");
         }
-        catch (const DBException &e)
+        else
         {
-            SQLITE_DEBUG("3U4V5W6X7Y8Z: DBException: %s", e.what_s().data());
-            throw;
+            SQLITE_DEBUG("Using in-memory database");
         }
-        catch (const std::exception &e)
+
+        SQLITE_DEBUG("Calling sqlite3_open_v2");
+        sqlite3 *rawDb = nullptr;
+        int result = sqlite3_open_v2(database.c_str(), &rawDb, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr);
+        if (result != SQLITE_OK)
         {
-            SQLITE_DEBUG("9A0B1C2D3E4F: std::exception: %s", e.what());
-            throw DBException("7CA6S7EGU0CY", "SQLiteConnection constructor exception: " + std::string(e.what()),
-                              system_utils::captureCallStack());
+            std::string error = sqlite3_errmsg(rawDb);
+            SQLITE_DEBUG("1I2J3K4L5M6N: Failed to open database: %s", error.c_str());
+            sqlite3_close_v2(rawDb);
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>("SLGP6Q7R8S9T",
+                "Failed to connect to SQLite database: " + error,
+                system_utils::captureCallStack());
+            return;
         }
-        catch (...)
+
+        // Create shared_ptr with custom deleter for sqlite3*
+        m_db = makeSQLiteDbHandle(rawDb);
+        m_closed.store(false, std::memory_order_seq_cst);
+
+        SQLITE_DEBUG("Database opened successfully");
+
+        // Initialize mutex for synchronization
+        // SPECIAL CASE: :memory: databases are independent per connection
+        // Each :memory: creates a SEPARATE in-memory database, so they need LOCAL mutexes
+        if (database == ":memory:")
         {
-            SQLITE_DEBUG("5G6H7I8J9K0L: Unknown exception");
-            throw DBException("4BDW1TTDMCYR", "SQLiteConnection constructor unknown exception",
-                              system_utils::captureCallStack());
+            m_dbPath = ":memory:";
+            m_globalFileMutex = std::make_shared<std::recursive_mutex>();
+            SQLITE_DEBUG("Created LOCAL mutex for :memory: database");
         }
+        else
+        {
+            m_dbPath = FileMutexRegistry::normalizePath(database);
+            m_globalFileMutex = FileMutexRegistry::getInstance().getMutexForFile(m_dbPath);
+            SQLITE_DEBUG("FileMutexRegistry initialized for: %s", m_dbPath.c_str());
+        }
+
+        // Apply configuration options via sqlite3_exec (C API, never throws)
+        SQLITE_DEBUG("Applying configuration options");
+        auto applyPragma = [&](const char *pragma)
+        {
+            char *errmsg = nullptr;
+            int rc = sqlite3_exec(m_db.get(), pragma, nullptr, nullptr, &errmsg);
+            if (rc != SQLITE_OK)
+            {
+                SQLITE_DEBUG("PRAGMA failed (%s): %s", pragma, errmsg ? errmsg : "unknown");
+                sqlite3_free(errmsg);
+            }
+        };
+
+        for (const auto &option : options)
+        {
+            SQLITE_DEBUG("Processing option: %s=%s", option.first.c_str(), option.second.c_str());
+            if (option.first == "foreign_keys" && option.second == "true")
+            {
+                applyPragma("PRAGMA foreign_keys = ON");
+            }
+            else if (option.first == "journal_mode" && option.second == "WAL")
+            {
+                applyPragma("PRAGMA journal_mode = WAL");
+            }
+            else if (option.first == "synchronous" && option.second == "FULL")
+            {
+                applyPragma("PRAGMA synchronous = FULL");
+            }
+            else if (option.first == "synchronous" && option.second == "NORMAL")
+            {
+                applyPragma("PRAGMA synchronous = NORMAL");
+            }
+            else if (option.first == "synchronous" && option.second == "OFF")
+            {
+                applyPragma("PRAGMA synchronous = OFF");
+            }
+        }
+
+        // Enable foreign keys by default if not specified in options
+        if (!options.contains("foreign_keys"))
+        {
+            SQLITE_DEBUG("Enabling foreign keys by default");
+            applyPragma("PRAGMA foreign_keys = ON");
+        }
+
+        SQLITE_DEBUG("Connection created successfully");
     }
 
+    // ── Destructor ────────────────────────────────────────────────────────────────
     SQLiteDBConnection::~SQLiteDBConnection()
     {
         // CRITICAL: Use nothrow version - destructors must NEVER throw exceptions
         [[maybe_unused]] auto closeResult = close(std::nothrow);
     }
+
+    // ── Throwing API ──────────────────────────────────────────────────────────────
+#ifdef __cpp_exceptions
 
     void SQLiteDBConnection::close()
     {

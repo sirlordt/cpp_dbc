@@ -48,11 +48,22 @@ namespace cpp_dbc::SQLite
     // to prevent race conditions when multiple threads access the same database file
     // (e.g., one thread iterating results while another does pool validation or other operations).
     //
-    SQLiteDBResultSet::SQLiteDBResultSet(sqlite3_stmt *stmt, bool ownStatement, std::shared_ptr<SQLiteDBConnection> conn, std::shared_ptr<SQLiteDBPreparedStatement> prepStmt, std::shared_ptr<std::recursive_mutex> globalFileMutex)
+    // ── Public nothrow constructor (PrivateCtorTag) ───────────────────────────────
+    // sqlite3_column_count and sqlite3_column_name are C APIs that never throw.
+    // No recoverable exceptions → no try/catch needed.
+    SQLiteDBResultSet::SQLiteDBResultSet(
+        SQLiteDBResultSet::PrivateCtorTag,
+        std::nothrow_t,
+        sqlite3_stmt *stmt,
+        bool ownStatement,
+        std::shared_ptr<SQLiteDBConnection> conn,
+        std::shared_ptr<SQLiteDBPreparedStatement> prepStmt,
+        std::shared_ptr<std::recursive_mutex> globalFileMutex) noexcept
         : m_stmt(stmt), m_ownStatement(ownStatement), m_rowPosition(0), m_rowCount(0), m_fieldCount(0),
-          m_columnNames(), m_columnMap(), m_hasData(false), m_closed(false), m_connection(conn), m_preparedStatement(prepStmt),
+          m_columnNames(), m_columnMap(), m_hasData(false), m_connection(conn), m_preparedStatement(prepStmt),
           m_globalFileMutex(std::move(globalFileMutex))
     {
+        m_closed.store(false, std::memory_order_seq_cst);
         if (m_stmt)
         {
             // Get column count
@@ -100,17 +111,10 @@ namespace cpp_dbc::SQLite
         return {};
     }
 
+    // ── Destructor ────────────────────────────────────────────────────────────────
     SQLiteDBResultSet::~SQLiteDBResultSet()
     {
-        // Solo llamar a close() si no está ya cerrado
-        if (!m_closed)
-        {
-            auto closeResult = close(std::nothrow);
-            if (!closeResult.has_value())
-            {
-                SQLITE_DEBUG("SQLiteDBResultSet::destructor - close() failed: %s", closeResult.error().what_s().data());
-            }
-        }
+        [[maybe_unused]] auto closeResult = close(std::nothrow);
     }
 
     #ifdef __cpp_exceptions

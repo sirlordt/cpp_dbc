@@ -8,6 +8,7 @@
 
 #if USE_SQLITE
 
+#include <atomic>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -61,7 +62,12 @@ namespace cpp_dbc::SQLite
         friend class SQLiteDBConnection;
         friend class SQLiteDBPreparedStatement;
 
-    private:
+        // ── PrivateCtorTag — prevents direct construction; use create() ──
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
         /**
          * @brief Raw pointer to sqlite3_stmt
          *
@@ -90,7 +96,7 @@ namespace cpp_dbc::SQLite
         std::vector<std::string> m_columnNames;
         std::map<std::string, size_t> m_columnMap;
         bool m_hasData{false};
-        bool m_closed{true};
+        std::atomic<bool> m_closed{true};
         std::weak_ptr<SQLiteDBConnection> m_connection;               // Weak reference to the connection
         std::weak_ptr<SQLiteDBPreparedStatement> m_preparedStatement; // Optional weak reference to prepared statement (if created from PreparedStatement::executeQuery)
 
@@ -130,13 +136,38 @@ namespace cpp_dbc::SQLite
         cpp_dbc::expected<void, DBException> initialize(std::nothrow_t) noexcept;
 
     public:
-        SQLiteDBResultSet(sqlite3_stmt *stmt, bool ownStatement, std::shared_ptr<SQLiteDBConnection> conn, std::shared_ptr<SQLiteDBPreparedStatement> prepStmt, std::shared_ptr<std::recursive_mutex> globalFileMutex);
+        // ── Public nothrow constructor (guarded by PrivateCtorTag) ─────────────
+        SQLiteDBResultSet(PrivateCtorTag,
+                          std::nothrow_t,
+                          sqlite3_stmt *stmt,
+                          bool ownStatement,
+                          std::shared_ptr<SQLiteDBConnection> conn,
+                          std::shared_ptr<SQLiteDBPreparedStatement> prepStmt,
+                          std::shared_ptr<std::recursive_mutex> globalFileMutex) noexcept;
+
         ~SQLiteDBResultSet() override;
 
         SQLiteDBResultSet(const SQLiteDBResultSet &) = delete;
         SQLiteDBResultSet &operator=(const SQLiteDBResultSet &) = delete;
         SQLiteDBResultSet(SQLiteDBResultSet &&) = delete;
         SQLiteDBResultSet &operator=(SQLiteDBResultSet &&) = delete;
+
+#ifdef __cpp_exceptions
+        static std::shared_ptr<SQLiteDBResultSet>
+        create(sqlite3_stmt *stmt,
+               bool ownStatement,
+               std::shared_ptr<SQLiteDBConnection> conn,
+               std::shared_ptr<SQLiteDBPreparedStatement> prepStmt,
+               std::shared_ptr<std::recursive_mutex> globalFileMutex)
+        {
+            auto r = create(std::nothrow, stmt, ownStatement, std::move(conn), std::move(prepStmt), std::move(globalFileMutex));
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
+            return r.value();
+        }
+#endif
 
         static cpp_dbc::expected<std::shared_ptr<SQLiteDBResultSet>, DBException>
         create(std::nothrow_t,
@@ -146,44 +177,17 @@ namespace cpp_dbc::SQLite
                std::shared_ptr<SQLiteDBPreparedStatement> prepStmt,
                std::shared_ptr<std::recursive_mutex> globalFileMutex) noexcept
         {
-            try
+            // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+            auto rs = std::make_shared<SQLiteDBResultSet>(
+                PrivateCtorTag{}, std::nothrow, stmt, ownStatement,
+                std::move(conn), std::move(prepStmt), std::move(globalFileMutex));
+            // Must be called after make_shared (requires shared_ptr to exist for shared_from_this())
+            auto initResult = rs->initialize(std::nothrow);
+            if (!initResult.has_value())
             {
-                auto rs = std::make_shared<SQLiteDBResultSet>(stmt, ownStatement, conn, prepStmt, globalFileMutex);
-                // Must be called after make_shared (requires shared_ptr to exist for shared_from_this())
-                auto initResult = rs->initialize(std::nothrow);
-                if (!initResult.has_value())
-                {
-                    return cpp_dbc::unexpected(initResult.error());
-                }
-                return rs;
+                return cpp_dbc::unexpected(initResult.error());
             }
-            catch (const DBException &ex)
-            {
-                return cpp_dbc::unexpected(ex);
-            }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("K25Q6R7D76I8", ex.what(), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("UO9CAPWGI7G3", "Unknown error creating SQLiteDBResultSet", system_utils::captureCallStack()));
-            }
-        }
-
-        static std::shared_ptr<SQLiteDBResultSet>
-        create(sqlite3_stmt *stmt,
-               bool ownStatement,
-               std::shared_ptr<SQLiteDBConnection> conn,
-               std::shared_ptr<SQLiteDBPreparedStatement> prepStmt,
-               std::shared_ptr<std::recursive_mutex> globalFileMutex)
-        {
-            auto r = create(std::nothrow, stmt, ownStatement, conn, prepStmt, globalFileMutex);
-            if (!r.has_value())
-            {
-                throw r.error();
-            }
-            return r.value();
+            return rs;
         }
 
 #ifdef __cpp_exceptions

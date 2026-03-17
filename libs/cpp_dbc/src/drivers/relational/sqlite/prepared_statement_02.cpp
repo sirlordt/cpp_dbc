@@ -47,7 +47,7 @@ namespace cpp_dbc::SQLite
     {
         std::scoped_lock globalLock(*m_globalFileMutex);
 
-        if (m_closed || !m_stmt)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_stmt)
         {
             return cpp_dbc::unexpected(DBException("S0Z1A2B3C4D5", "Statement is closed",
                                                    system_utils::captureCallStack()));
@@ -86,7 +86,7 @@ namespace cpp_dbc::SQLite
     {
         std::scoped_lock globalLock(*m_globalFileMutex);
 
-        if (m_closed || !m_stmt)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_stmt)
         {
             return cpp_dbc::unexpected(DBException("S4Z5A6B7C8D9", "Statement is closed",
                                                    system_utils::captureCallStack()));
@@ -125,7 +125,7 @@ namespace cpp_dbc::SQLite
     {
         std::scoped_lock globalLock(*m_globalFileMutex);
 
-        if (m_closed || !m_stmt)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_stmt)
         {
             return cpp_dbc::unexpected(DBException("S7Z8A9B0C1D2", "Statement is closed",
                                                    system_utils::captureCallStack()));
@@ -164,7 +164,7 @@ namespace cpp_dbc::SQLite
     {
         std::scoped_lock globalLock(*m_globalFileMutex);
 
-        if (m_closed || !m_stmt)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_stmt)
         {
             return cpp_dbc::unexpected(DBException("T0Z1A2B3C4D5", "Statement is closed",
                                                    system_utils::captureCallStack()));
@@ -213,7 +213,7 @@ namespace cpp_dbc::SQLite
     {
         std::scoped_lock globalLock(*m_globalFileMutex);
 
-        if (m_closed || !m_stmt)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_stmt)
         {
             return cpp_dbc::unexpected(DBException("T4Z5A6B7C8D9", "Statement is closed",
                                                    system_utils::captureCallStack()));
@@ -253,7 +253,7 @@ namespace cpp_dbc::SQLite
     {
         std::scoped_lock globalLock(*m_globalFileMutex);
 
-        if (m_closed || !m_stmt)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_stmt)
         {
             return cpp_dbc::unexpected(DBException("T8Z9A0B1C2D3", "Statement is closed",
                                                    system_utils::captureCallStack()));

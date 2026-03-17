@@ -358,7 +358,7 @@ This applies only to new or modified code. Pre-existing local duplicates do not 
 
 - Use RAII handles for external resources (BsonHandle, RedisReplyHandle, etc.)
 - Defensively check for nulls before dereferencing pointers from external libraries
-- Use `std::atomic` with explicit memory ordering (`memory_order_acquire`/`release`)
+- Use `std::atomic` with explicit memory ordering (`memory_order_seq_cst` by default; `acquire`/`release` only with documented justification)
 - Avoid raw pointers. Use `std::shared_ptr`, `std::unique_ptr`, and `std::weak_ptr` where possible, especially in member/class variables.
 - Always try to use C++17-style constructs and functions for more secure code.
 - Use ranges and avoid index loops where possible.
@@ -497,21 +497,25 @@ public:
 
 This applies only to new or modified code. Pre-existing empty constructors do not need to be updated retroactively.
 
-### `std::atomic` — Always Use `.load(std::memory_order_acquire)`
+### `std::atomic` — Always Use `std::memory_order_seq_cst` by Default
 
-Every read of a `std::atomic` variable **must** call `.load(std::memory_order_acquire)` explicitly. No exceptions. Implicit boolean conversion, bare `.load()` without memory order, and comparison operators that bypass `.load()` are all forbidden:
+Every access to a `std::atomic` variable **must** use an explicit memory order. The default is `std::memory_order_seq_cst` (sequentially consistent) for both loads and stores. This is the strongest ordering — it establishes a single total order visible to all threads, eliminating subtle bugs in multi-variable atomic scenarios (IRIW problem).
+
+Implicit boolean conversion, bare `.load()` without memory order, and comparison operators that bypass `.load()` are all forbidden:
 
 ```cpp
-// Correct
-if (m_running.load(std::memory_order_acquire))
+// Correct — seq_cst (default, always safe)
+if (m_running.load(std::memory_order_seq_cst))
 {
     // ...
 }
 
-if (m_closed.load(std::memory_order_acquire))
+if (m_closed.load(std::memory_order_seq_cst))
 {
     return cpp_dbc::unexpected(...);
 }
+
+m_closed.store(true, std::memory_order_seq_cst);
 
 // Incorrect — implicit conversion, no memory ordering
 if (m_running)         { }  // implicit bool conversion
@@ -519,7 +523,25 @@ if (!m_closed)         { }  // implicit bool conversion
 if (m_running.load())  { }  // missing memory_order argument
 ```
 
-The only exception is `std::atomic::store()`, `exchange()`, and `compare_exchange_*()`, which use `std::memory_order_release` or `std::memory_order_acq_rel` as appropriate for write operations.
+#### When `acquire`/`release` Is Permitted
+
+`std::memory_order_acquire` (loads) and `std::memory_order_release` (stores) may be used **only** as an explicit optimization in documented hot paths where profiling has shown `seq_cst` overhead is measurable. Each downgrade requires a comment explaining why weaker ordering is safe:
+
+```cpp
+// Acquire is sufficient here: single-variable flag check in hot polling loop,
+// no cross-atomic ordering dependency. Profiled: 15% throughput improvement
+// in connection pool getDBConnection() under contention.
+if (m_closed.load(std::memory_order_seq_cst))
+{
+    return cpp_dbc::unexpected(...);
+}
+```
+
+Without such justification, always use `std::memory_order_seq_cst`.
+
+For `exchange()` and `compare_exchange_*()`, use `std::memory_order_seq_cst` by default, or `std::memory_order_acq_rel` with documented justification.
+
+**Migration**: Pre-existing uses of `memory_order_acquire`/`memory_order_release` should be migrated to `memory_order_seq_cst` when the file is being modified for other reasons. This is not a retroactive requirement — update opportunistically as files are touched.
 
 ### String-to-Number Conversion — Always Use `std::from_chars`
 
@@ -814,7 +836,7 @@ A method declared `noexcept` or accepting `std::nothrow_t` **must** call the `st
 // Correct — nothrow method calls nothrow overload, propagates expected
 cpp_dbc::expected<bool, DBException> MyPooledConnection::isClosed(std::nothrow_t) const noexcept
 {
-    if (m_closed.load(std::memory_order_acquire))
+    if (m_closed.load(std::memory_order_seq_cst))
     {
         return true;
     }
@@ -829,7 +851,7 @@ cpp_dbc::expected<bool, DBException> MyPooledConnection::isClosed(std::nothrow_t
 // Incorrect — nothrow method calls throwing overload
 cpp_dbc::expected<bool, DBException> MyPooledConnection::isClosed(std::nothrow_t) const noexcept
 {
-    return m_closed.load(std::memory_order_acquire) || m_conn->isClosed();  // isClosed() can throw!
+    return m_closed.load(std::memory_order_seq_cst) || m_conn->isClosed();  // isClosed() can throw!
 }
 ```
 
@@ -844,7 +866,7 @@ A `noexcept` / `std::nothrow_t` method that calls **only** nothrow overloads (fu
 cpp_dbc::expected<std::shared_ptr<PreparedStatement>, DBException>
 MyConnection::prepareStatement(std::nothrow_t, const std::string &query) noexcept
 {
-    if (m_closed.load(std::memory_order_acquire))
+    if (m_closed.load(std::memory_order_seq_cst))
     {
         return cpp_dbc::unexpected(DBException("XXXXXXXXXXXX", "Connection is closed", system_utils::captureCallStack()));
     }
@@ -858,7 +880,7 @@ MyConnection::prepareStatement(std::nothrow_t, const std::string &query) noexcep
 {
     try
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (m_closed.load(std::memory_order_seq_cst))
         {
             return cpp_dbc::unexpected(DBException("XXXXXXXXXXXX", "Connection is closed", system_utils::captureCallStack()));
         }
@@ -891,7 +913,7 @@ Walk every statement inside the `try` block and ask: *"Can this expression throw
 | `someMethod(std::nothrow)` | **NO** | Takes `std::nothrow_t`, declared `noexcept` |
 | `result.has_value()`, `result.error()` | **NO** | `std::expected` observers are `noexcept` |
 | `result.value()` (after `.has_value()` check) | **NO** | Throws `std::bad_expected_access` only if called without checking — programmer error, not a recoverable exception |
-| `m_flag.load(std::memory_order_acquire)` | **NO** | `std::atomic::load` is `noexcept` |
+| `m_flag.load(std::memory_order_seq_cst)` | **NO** | `std::atomic::load` is `noexcept` |
 | `return {}` / `return cpp_dbc::unexpected(DBException(...))` | **NO** | Value construction; failure is `std::terminate`, not a catchable exception |
 | Guard macros that expand to `return cpp_dbc::unexpected(...)` or `(void)0` | **NO** | The expansion contains only noexcept operations |
 | Simple member reads (`m_tr`, `m_closed`) | **NO** | Plain member access never throws |
@@ -933,7 +955,7 @@ FirebirdDBConnection::returnToPool(std::nothrow_t) noexcept
 
         // m_tr — plain member read → no throw
         // m_closed.load(...) — atomic load → no throw
-        if (!m_tr && !m_closed.load(std::memory_order_acquire))
+        if (!m_tr && !m_closed.load(std::memory_order_seq_cst))
         {
             // startTransaction(std::nothrow) — noexcept, returns std::expected → no throw
             [[maybe_unused]] auto startResult = startTransaction(std::nothrow);
@@ -967,7 +989,7 @@ FirebirdDBConnection::returnToPool(std::nothrow_t) noexcept
         FIREBIRD_DEBUG("  prepareForPoolReturn failed: %s", prepResult.error().what_s().data());
     }
 
-    if (!m_tr && !m_closed.load(std::memory_order_acquire))
+    if (!m_tr && !m_closed.load(std::memory_order_seq_cst))
     {
         [[maybe_unused]] auto startResult = startTransaction(std::nothrow);
         if (!startResult.has_value())
@@ -1301,7 +1323,7 @@ return pool;
 
 ### PrivateCtorTag Pattern — Driver Classes (Creational Pattern)
 
-All driver classes — Connection, PreparedStatement, ResultSet, Blob, InputStream, Cursor, Collection, Document, and **`*DBDriver`** — use the **PrivateCtorTag creational pattern**. `*DBDriver` classes combine PrivateCtorTag with the [Singleton + Connection Registry](#dbdriver--singleton--connection-registry) pattern (`s_instance` weak_ptr + `getInstance()` + `s_connectionRegistry`).
+All driver classes — Connection, PreparedStatement, ResultSet, Blob, InputStream, Cursor, Collection, Document, and **`*DBDriver`** — use the **PrivateCtorTag creational pattern**. `*DBDriver` classes combine PrivateCtorTag with the [Singleton + Connection Registry](#dbdriver--singleton--connection-registry) pattern (`s_instance` shared_ptr + `getInstance()` + `s_connectionRegistry`).
 
 The goal is a **throw-free creational pattern**: no `throw` statement exists anywhere except inside the explicit `::create` throwing wrappers. Constructors never throw — they capture errors in member variables for deferred delivery by the factory.
 
@@ -1386,7 +1408,7 @@ MySQLDBConnection::MySQLDBConnection(PrivateCtorTag,
             return;
         }
         m_conn->setSchema(database);
-        m_closed.store(false, std::memory_order_release);
+        m_closed.store(false, std::memory_order_seq_cst);
     }
     catch (const std::exception &ex)
     {
@@ -1417,7 +1439,7 @@ MyDBPreparedStatement::MyDBPreparedStatement(PrivateCtorTag,
                                              const std::string &sql) noexcept
     : m_connection(std::move(conn)), m_sql(sql)
 {
-    m_closed.store(false, std::memory_order_release);
+    m_closed.store(false, std::memory_order_seq_cst);
 }
 
 // Incorrect — try/catch is dead code; no recoverable exceptions possible
@@ -1429,7 +1451,7 @@ MyDBPreparedStatement::MyDBPreparedStatement(PrivateCtorTag,
 {
     try
     {
-        m_closed.store(false, std::memory_order_release);
+        m_closed.store(false, std::memory_order_seq_cst);
     }
     catch (const std::exception &ex)  // UNREACHABLE — no recoverable throw above
     {
@@ -1706,7 +1728,7 @@ std::expected<Result, DBException> MyClass::query(std::nothrow_t, const std::str
 
 `*DBDriver` classes use the same **PrivateCtorTag creational pattern** as all other driver classes (Connection, PreparedStatement, etc.), with two additional concerns layered on top:
 
-1. **Singleton**: A `static std::weak_ptr<MyDriver> s_instance` + `static std::mutex s_instanceMutex` pair ensures only one driver instance exists at a time. `getInstance()` locks `s_instanceMutex`, tries to promote the weak_ptr, and creates a new instance via `std::make_shared` with `PrivateCtorTag{}` if the weak_ptr is expired.
+1. **Singleton**: A `static std::shared_ptr<MyDriver> s_instance` + `static std::mutex s_instanceMutex` pair ensures only one driver instance exists at a time. `getInstance()` locks `s_instanceMutex`, checks if `s_instance` is non-null, and creates a new instance via `std::make_shared` with `PrivateCtorTag{}` if it is null.
 
 2. **Connection registry**: A `static std::set<std::weak_ptr<MyConnection>, std::owner_less<...>> s_connectionRegistry` + `static std::mutex s_registryMutex` pair tracks all live connections created through `connectRelational()` (or the family-specific connect method). Connections are registered after creation and unregistered when closed.
 
@@ -1723,8 +1745,8 @@ class MyDriver final : public SomeFamilyDBDriver
     };
 
     // ── Singleton state ───────────────────────────────────────────────────
-    static std::weak_ptr<MyDriver> s_instance;
-    static std::mutex              s_instanceMutex;
+    static std::shared_ptr<MyDriver> s_instance;
+    static std::mutex                s_instanceMutex;
 
     // ── Connection registry ───────────────────────────────────────────────
     static std::mutex                                                s_registryMutex;
@@ -1769,8 +1791,8 @@ public:
 // ── Implementation (driver_01.cpp) ────────────────────────────────────────────
 
 // ── Static member initialization ──────────────────────────────────────────
-std::weak_ptr<MyDriver> MyDriver::s_instance;
-std::mutex              MyDriver::s_instanceMutex;
+std::shared_ptr<MyDriver> MyDriver::s_instance;
+std::mutex                MyDriver::s_instanceMutex;
 std::mutex              MyDriver::s_registryMutex;
 std::set<std::weak_ptr<MyConnection>,
          std::owner_less<std::weak_ptr<MyConnection>>> MyDriver::s_connectionRegistry;
@@ -1833,10 +1855,9 @@ cpp_dbc::expected<std::shared_ptr<MyDriver>, DBException>
 MyDriver::getInstance(std::nothrow_t) noexcept
 {
     std::scoped_lock lock(s_instanceMutex);
-    auto existing = s_instance.lock();
-    if (existing)
+    if (s_instance)
     {
-        return existing;
+        return s_instance;
     }
     // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
     // Constructor errors are captured in m_initFailed / m_initError.
@@ -1846,7 +1867,7 @@ MyDriver::getInstance(std::nothrow_t) noexcept
         return cpp_dbc::unexpected(std::move(*inst->m_initError));
     }
     s_instance = inst;
-    return inst;
+    return s_instance;
 }
 
 size_t MyDriver::getConnectionAlive() noexcept

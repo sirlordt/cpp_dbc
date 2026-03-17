@@ -39,12 +39,12 @@ namespace cpp_dbc::SQLite
 
     // SQLiteDBPreparedStatement implementation
     // Private methods
-    void SQLiteDBPreparedStatement::notifyConnClosing()
+    void SQLiteDBPreparedStatement::notifyConnClosing(std::nothrow_t) noexcept
     {
         // Connection is closing, release the statement pointer without calling sqlite3_finalize
         // since the connection is already being destroyed and will clean up all statements
         m_stmt.release(); // Release without calling deleter
-        m_closed = true;
+        m_closed.store(true, std::memory_order_seq_cst);
     }
 
     cpp_dbc::expected<sqlite3 *, DBException> SQLiteDBPreparedStatement::getSQLiteConnection(std::nothrow_t) const noexcept
@@ -161,16 +161,25 @@ namespace cpp_dbc::SQLite
         return {};
     }
 
-    // Public methods - Constructor and destructor
-    #ifdef __cpp_exceptions
-    SQLiteDBPreparedStatement::SQLiteDBPreparedStatement(std::weak_ptr<sqlite3> db, std::weak_ptr<SQLiteDBConnection> conn, std::shared_ptr<std::recursive_mutex> globalFileMutex, const std::string &sql)
-        : m_db(db), m_connection(std::move(conn)), m_sql(sql), m_stmt(nullptr), m_closed(false), m_blobValues(), m_blobObjects(), m_streamObjects(),
+    // ── Public nothrow constructor (PrivateCtorTag) ───────────────────────────────
+    // sqlite3_prepare_v2 is a C API that never throws C++ exceptions.
+    // No recoverable exceptions → no try/catch needed.
+    SQLiteDBPreparedStatement::SQLiteDBPreparedStatement(
+        SQLiteDBPreparedStatement::PrivateCtorTag,
+        std::nothrow_t,
+        std::weak_ptr<sqlite3> db,
+        std::weak_ptr<SQLiteDBConnection> conn,
+        std::shared_ptr<std::recursive_mutex> globalFileMutex,
+        const std::string &sql) noexcept
+        : m_db(std::move(db)), m_connection(std::move(conn)), m_sql(sql), m_stmt(nullptr),
           m_globalFileMutex(std::move(globalFileMutex))
     {
         auto dbResult = getSQLiteConnection(std::nothrow);
         if (!dbResult.has_value())
         {
-            throw dbResult.error();
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>(std::move(dbResult.error()));
+            return;
         }
         sqlite3 *dbPtr = dbResult.value();
 
@@ -178,12 +187,16 @@ namespace cpp_dbc::SQLite
         int result = sqlite3_prepare_v2(dbPtr, m_sql.c_str(), -1, &rawStmt, nullptr);
         if (result != SQLITE_OK)
         {
-            throw DBException("U0A1B2C3D4E5", "Failed to prepare SQLite statement: " + std::string(sqlite3_errmsg(dbPtr)),
-                              system_utils::captureCallStack());
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>("U0A1B2C3D4E5",
+                "Failed to prepare SQLite statement: " + std::string(sqlite3_errmsg(dbPtr)),
+                system_utils::captureCallStack());
+            return;
         }
 
         // Transfer ownership to smart pointer
         m_stmt.reset(rawStmt);
+        m_closed.store(false, std::memory_order_seq_cst);
 
         // Initialize BLOB-related vectors
         int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
@@ -192,32 +205,15 @@ namespace cpp_dbc::SQLite
         m_streamObjects.resize(paramCount);
     }
 
+    // ── Destructor ────────────────────────────────────────────────────────────────
     SQLiteDBPreparedStatement::~SQLiteDBPreparedStatement()
     {
-        try
-        {
-            // Make sure to close the statement and clean up resources
-            if (!m_closed)
-            {
-                close();
-            }
-        }
-        catch (...)
-        {
-            // Ignore exceptions during destruction
-        }
-
-        // Smart pointer m_stmt will automatically call sqlite3_finalize via SQLiteStmtDeleter
-        // No need for manual cleanup - the destructor handles it automatically
-
-        // Mark as closed
-        m_closed = true;
-
-        // Sleep briefly to ensure resources are released
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        [[maybe_unused]] auto closeResult = close(std::nothrow);
     }
 
-    // Throwing API methods
+    // ── Throwing API ──────────────────────────────────────────────────────────────
+#ifdef __cpp_exceptions
+
     void SQLiteDBPreparedStatement::setInt(int parameterIndex, int value)
     {
         auto result = setInt(std::nothrow, parameterIndex, value);
@@ -373,49 +369,17 @@ namespace cpp_dbc::SQLite
         }
         return result.value();
     }
-    #endif // __cpp_exceptions
 
     void SQLiteDBPreparedStatement::close()
     {
-        // Close all result sets FIRST (before closing statement)
-        [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
-
-        if (!m_closed && m_stmt)
+        auto result = close(std::nothrow);
+        if (!result.has_value())
         {
-            // Check if connection is still valid before resetting
-            auto dbPtr = m_db.lock();
-            if (dbPtr)
-            {
-                // Reset the statement first to ensure all bindings are cleared
-                int resetResult = sqlite3_reset(m_stmt.get());
-                if (resetResult != SQLITE_OK)
-                {
-                    SQLITE_DEBUG("7K8L9M0N1O2P: Error resetting SQLite statement: %s",
-                                 sqlite3_errstr(resetResult));
-                }
-
-                int clearResult = sqlite3_clear_bindings(m_stmt.get());
-                if (clearResult != SQLITE_OK)
-                {
-                    SQLITE_DEBUG("3Q4R5S6T7U8V: Error clearing SQLite statement bindings: %s",
-                                 sqlite3_errstr(clearResult));
-                }
-
-                // Smart pointer will automatically call sqlite3_finalize via SQLiteStmtDeleter
-                m_stmt.reset();
-            }
-            else
-            {
-                // Connection is closed, release without finalizing (connection already did it)
-                m_stmt.release();
-                SQLITE_DEBUG("5C6D7E8F9G0H: Connection closed, releasing statement without finalize");
-            }
+            throw result.error();
         }
-        m_closed = true;
-
-        // Sleep briefly to ensure resources are released
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+
+#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::SQLite
 

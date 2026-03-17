@@ -30,6 +30,7 @@
 #include <cstdlib> // Para getenv
 #include <fstream> // Para std::ifstream
 #include <charconv>
+#include <ranges>
 #include <vector>
 #include "cpp_dbc/common/system_constants.hpp"
 #include "cpp_dbc/common/system_utils.hpp"
@@ -55,10 +56,10 @@ namespace cpp_dbc::SQLite
     SQLiteDBDriver::SQLiteDBDriver(SQLiteDBDriver::PrivateCtorTag, std::nothrow_t) noexcept
     {
         // Thread-safe single initialization pattern
-        if (!s_initialized.load(std::memory_order_acquire))
+        if (!s_initialized.load(std::memory_order_seq_cst))
         {
             std::scoped_lock lock(s_initMutex);
-            if (!s_initialized.load(std::memory_order_acquire))
+            if (!s_initialized.load(std::memory_order_seq_cst))
             {
                 // Configure SQLite for thread safety before initialization
                 int configResult = sqlite3_config(SQLITE_CONFIG_SERIALIZED);
@@ -77,7 +78,7 @@ namespace cpp_dbc::SQLite
                 }
 
                 // Mark as initialized
-                s_initialized.store(true, std::memory_order_release);
+                s_initialized.store(true, std::memory_order_seq_cst);
             }
         }
 
@@ -114,7 +115,7 @@ namespace cpp_dbc::SQLite
                     std::erase_if(s_connectionRegistry,
                         [](const auto &w) { return w.expired(); });
                 }
-                s_cleanupPending.store(false, std::memory_order_release);
+                s_cleanupPending.store(false, std::memory_order_seq_cst);
             });
         }
     }
@@ -128,7 +129,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBDriver::closeAllOpenConnections(std::nothrow_t) noexcept
     {
         // Mark driver as closed — reject any new connection attempts
-        m_closed.store(true, std::memory_order_release);
+        m_closed.store(true, std::memory_order_seq_cst);
 
         // Close all open connections before releasing library resources.
         // Collect under lock first, then close outside the lock to avoid
@@ -155,8 +156,8 @@ namespace cpp_dbc::SQLite
     size_t SQLiteDBDriver::getConnectionAlive() noexcept
     {
         std::scoped_lock lock(s_registryMutex);
-        return static_cast<size_t>(std::count_if(
-            s_connectionRegistry.begin(), s_connectionRegistry.end(),
+        return static_cast<size_t>(std::ranges::count_if(
+            s_connectionRegistry,
             [](const auto &w) { return !w.expired(); }));
     }
 
@@ -191,7 +192,7 @@ namespace cpp_dbc::SQLite
     void SQLiteDBDriver::cleanup()
     {
         std::scoped_lock lock(s_initMutex);
-        if (!s_initialized.load(std::memory_order_acquire))
+        if (!s_initialized.load(std::memory_order_seq_cst))
         {
             return;
         }
@@ -219,7 +220,7 @@ namespace cpp_dbc::SQLite
             SQLITE_DEBUG("7W8X9Y0Z1A2B: Exception during SQLite driver shutdown: %s", ex.what());
         }
 
-        s_initialized.store(false, std::memory_order_release);
+        s_initialized.store(false, std::memory_order_seq_cst);
     }
 
 #ifdef __cpp_exceptions
@@ -293,7 +294,7 @@ namespace cpp_dbc::SQLite
         [[maybe_unused]] const std::string &,
         const std::map<std::string, std::string> &options) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (m_closed.load(std::memory_order_seq_cst))
         {
             return cpp_dbc::unexpected(DBException("N2QJBT6FXC5P",
                                                    "Driver is closed, no more connections allowed",

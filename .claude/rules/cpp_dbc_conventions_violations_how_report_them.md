@@ -156,8 +156,8 @@ When performing a full compliance analysis, check each of the following. This li
 - [ ] **String prefix/suffix**: Always `.starts_with()` / `.ends_with()`; never `find() == 0`, `substr()`, `rfind()`, or `compare()` for prefix/suffix checks
 
 ### Atomics & Thread Safety
-- [ ] **`std::atomic` reads**: Always `.load(std::memory_order_acquire)`
-- [ ] **`std::atomic` writes**: Always `.store(..., std::memory_order_release)`
+- [ ] **`std::atomic` reads**: Always `.load(std::memory_order_seq_cst)` by default; `acquire` only with documented hot-path justification
+- [ ] **`std::atomic` writes**: Always `.store(..., std::memory_order_seq_cst)` by default; `release` only with documented hot-path justification
 - [ ] **Thread safety macros**: `DB_DRIVER_LOCK_GUARD(m_mutex)` for conditional locking; non-thread-safe variants still check `m_closed`
 - [ ] **`std::scoped_lock` preference**: Prefer `std::scoped_lock` over `lock_guard`/`unique_lock` wherever it makes sense
 - [ ] **`std::recursive_mutex` preference**: Prefer `std::recursive_mutex` over other mutex types for re-entrant locking
@@ -185,7 +185,7 @@ When performing a full compliance analysis, check each of the following. This li
 - [ ] **Construction state variables**: `bool m_initFailed{false}` + `std::unique_ptr<DBException> m_initError{nullptr}` in per-class PrivateCtorTag classes
 - [ ] **PrivateCtorTag constructor try/catch**: Only present when body contains recoverable C++ exceptions; comment above `try` listing which exceptions are caught; omitted when body is entirely nothrow or only death-sentence exceptions
 - [ ] **Shared PrivateCtorTag (pool classes)**: Single `PrivateCtorTag` defined as `protected` in `DBConnectionPool` base class, shared across the entire pool hierarchy; no `std::nothrow_t` needed; tag must be named `PrivateCtorTag` (not `ConstructorTag`)
-- [ ] **DBDriver singleton**: PrivateCtorTag + `s_instance` weak_ptr + `getInstance()` + connection registry; constructor is `noexcept` with `m_initFailed`/`m_initError`
+- [ ] **DBDriver singleton**: PrivateCtorTag + `s_instance` shared_ptr + `getInstance()` + connection registry; constructor is `noexcept` with `m_initFailed`/`m_initError`
 - [ ] **Static factory `::create`**: Throwing delegates to nothrow; `#ifdef __cpp_exceptions` guards
 - [ ] **`std::move` in factory error paths**: `std::move(*obj->m_initError)` not a copy
 - [ ] **`#ifdef __cpp_exceptions`**: All throwing code properly guarded

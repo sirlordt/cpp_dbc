@@ -44,27 +44,45 @@
 // the file mutex exists for sanitizer compatibility and cross-connection synchronization.
 
 // For nothrow SQLiteDBConnection methods — locks file mutex and returns unexpected if closed
+// Guard: if m_globalFileMutex was never initialized (constructor failed before mutex init),
+// there's nothing to do — m_db is also null and the connection is in a failed state.
 #define SQLITE_CONNECTION_LOCK_OR_RETURN(mark, msg)                                         \
-    std::lock_guard<std::recursive_mutex> lock(*m_globalFileMutex);                         \
-    if (m_closed || !m_db)                                                                  \
+    if (!m_globalFileMutex)                                                                 \
+    {                                                                                       \
+        return cpp_dbc::unexpected(DBException(mark, msg " (connection not initialized)",   \
+                                               cpp_dbc::system_utils::captureCallStack())); \
+    }                                                                                       \
+    std::scoped_lock lock(*m_globalFileMutex);                                              \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_db)                                  \
     {                                                                                       \
         return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",            \
                                                cpp_dbc::system_utils::captureCallStack())); \
     }
 
 // For close() — locks file mutex and returns success if already closed (idempotent)
+// Guard: if m_globalFileMutex was never initialized, nothing to close.
 #define SQLITE_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()                                \
-    std::lock_guard<std::recursive_mutex> lock(*m_globalFileMutex);                         \
-    if (m_closed || !m_db)                                                                  \
+    if (!m_globalFileMutex)                                                                 \
+    {                                                                                       \
+        return {}; /* Mutex never initialized = nothing to close */                         \
+    }                                                                                       \
+    std::scoped_lock lock(*m_globalFileMutex);                                              \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_db)                                  \
     {                                                                                       \
         return {}; /* Already closed = success (idempotent) */                              \
     }
 
 // For nothrow SQLiteDBPreparedStatement methods — locks file mutex and returns unexpected if closed
 // Uses m_stmt instead of m_db since PreparedStatement owns a statement handle, not a db handle.
+// Guard: if m_globalFileMutex was never initialized (constructor failed), nothing to do.
 #define SQLITE_STMT_LOCK_OR_RETURN(mark, msg)                                               \
-    std::lock_guard<std::recursive_mutex> lock(*m_globalFileMutex);                         \
-    if (m_closed || !m_stmt)                                                                \
+    if (!m_globalFileMutex)                                                                 \
+    {                                                                                       \
+        return cpp_dbc::unexpected(DBException(mark, msg " (statement not initialized)",    \
+                                               cpp_dbc::system_utils::captureCallStack())); \
+    }                                                                                       \
+    std::scoped_lock lock(*m_globalFileMutex);                                              \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_stmt)                                \
     {                                                                                       \
         return cpp_dbc::unexpected(DBException(mark, msg " (statement closed)",             \
                                                cpp_dbc::system_utils::captureCallStack())); \

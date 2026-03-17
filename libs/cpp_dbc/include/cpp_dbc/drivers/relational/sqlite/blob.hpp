@@ -27,7 +27,6 @@ namespace cpp_dbc::SQLite
      */
     class SQLiteBlob : public MemoryBlob
     {
-    private:
         /**
          * @brief Safe weak reference to SQLite connection - detects when connection is closed
          *
