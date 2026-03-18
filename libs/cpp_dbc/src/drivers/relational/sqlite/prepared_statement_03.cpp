@@ -43,13 +43,7 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::setBlob(std::nothrow_t, int parameterIndex, std::shared_ptr<Blob> x) noexcept
     {
-        std::scoped_lock globalLock(*m_globalFileMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_stmt)
-        {
-            return cpp_dbc::unexpected(DBException("U1A2B3C4D5E6", "Statement is closed",
-                                                   system_utils::captureCallStack()));
-        }
+        SQLITE_STMT_LOCK_OR_RETURN("U1A2B3C4D5E6", "Statement is closed");
 
         auto dbPtrResult = getSQLiteConnection(std::nothrow);
         if (!dbPtrResult.has_value())
@@ -109,13 +103,7 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x) noexcept
     {
-        std::scoped_lock globalLock(*m_globalFileMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_stmt)
-        {
-            return cpp_dbc::unexpected(DBException("B9C0D1E2F3G4", "Statement is closed",
-                                                   system_utils::captureCallStack()));
-        }
+        SQLITE_STMT_LOCK_OR_RETURN("B9C0D1E2F3G4", "Statement is closed");
 
         auto dbPtrResult = getSQLiteConnection(std::nothrow);
         if (!dbPtrResult.has_value())
@@ -178,13 +166,7 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x, size_t length) noexcept
     {
-        std::scoped_lock globalLock(*m_globalFileMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_stmt)
-        {
-            return cpp_dbc::unexpected(DBException("F9G0H1I2J3K4", "Statement is closed",
-                                                   system_utils::captureCallStack()));
-        }
+        SQLITE_STMT_LOCK_OR_RETURN("F9G0H1I2J3K4", "Statement is closed");
 
         auto dbPtrResult = getSQLiteConnection(std::nothrow);
         if (!dbPtrResult.has_value())
@@ -259,13 +241,7 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::setBytes(std::nothrow_t, int parameterIndex, const uint8_t *x, size_t length) noexcept
     {
-        std::scoped_lock globalLock(*m_globalFileMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_stmt)
-        {
-            return cpp_dbc::unexpected(DBException("U4A5B6C7D8E9", "Statement is closed",
-                                                   system_utils::captureCallStack()));
-        }
+        SQLITE_STMT_LOCK_OR_RETURN("U4A5B6C7D8E9", "Statement is closed");
 
         auto dbPtrResult = getSQLiteConnection(std::nothrow);
         if (!dbPtrResult.has_value())

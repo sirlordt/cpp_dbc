@@ -207,8 +207,8 @@ namespace cpp_dbc::MySQL
         MYSQL_DEBUG("MySQLConnection::constructor(nothrow) - Creating connection to %s:%d/%s", host.c_str(), port, database.c_str());
 
         // Create shared_ptr with custom deleter for MYSQL*
-        m_mysql = makeMySQLHandle(mysql_init(nullptr));
-        if (!m_mysql)
+        m_conn = makeMySQLHandle(mysql_init(nullptr));
+        if (!m_conn)
         {
             m_initFailed = true;
             m_initError = std::make_unique<DBException>("FGGYHVGN7UGO", "Failed to initialize MySQL connection", system_utils::captureCallStack());
@@ -217,7 +217,7 @@ namespace cpp_dbc::MySQL
 
         // Force TCP/IP connection
         unsigned int protocol = MYSQL_PROTOCOL_TCP;
-        if (mysql_options(m_mysql.get(), MYSQL_OPT_PROTOCOL, &protocol) != 0)
+        if (mysql_options(m_conn.get(), MYSQL_OPT_PROTOCOL, &protocol) != 0)
         {
             m_initFailed = true;
             m_initError = std::make_unique<DBException>("VIH8G12GION4",
@@ -250,7 +250,7 @@ namespace cpp_dbc::MySQL
                 {
                     opt = MYSQL_OPT_READ_TIMEOUT;
                 }
-                if (mysql_options(m_mysql.get(), opt, &timeout) != 0)
+                if (mysql_options(m_conn.get(), opt, &timeout) != 0)
                 {
                     m_initFailed = true;
                     m_initError = std::make_unique<DBException>("6NO29VSVU60L",
@@ -261,7 +261,7 @@ namespace cpp_dbc::MySQL
             }
             else if (key == "charset")
             {
-                if (mysql_options(m_mysql.get(), MYSQL_SET_CHARSET_NAME, value.c_str()) != 0)
+                if (mysql_options(m_conn.get(), MYSQL_SET_CHARSET_NAME, value.c_str()) != 0)
                 {
                     m_initFailed = true;
                     m_initError = std::make_unique<DBException>("1PGUVACRCNF8",
@@ -273,26 +273,26 @@ namespace cpp_dbc::MySQL
             else if (key == "auto_reconnect" && value == "true")
             {
                 bool reconnect = true;
-                mysql_options(m_mysql.get(), MYSQL_OPT_RECONNECT, &reconnect);
+                mysql_options(m_conn.get(), MYSQL_OPT_RECONNECT, &reconnect);
             }
         }
 
         // Connect to the database
-        if (!mysql_real_connect(m_mysql.get(), host.c_str(), user.c_str(), password.c_str(),
+        if (!mysql_real_connect(m_conn.get(), host.c_str(), user.c_str(), password.c_str(),
                                 nullptr, port, nullptr, 0))
         {
-            std::string error = mysql_error(m_mysql.get());
-            m_mysql.reset();
+            std::string error = mysql_error(m_conn.get());
+            m_conn.reset();
             m_initFailed = true;
             m_initError = std::make_unique<DBException>("UEE2T50Q196S", "Failed to connect to MySQL: " + error, system_utils::captureCallStack());
             return;
         }
 
         // Select the database if provided
-        if (!database.empty() && mysql_select_db(m_mysql.get(), database.c_str()) != 0)
+        if (!database.empty() && mysql_select_db(m_conn.get(), database.c_str()) != 0)
         {
-            std::string error = mysql_error(m_mysql.get());
-            m_mysql.reset();
+            std::string error = mysql_error(m_conn.get());
+            m_conn.reset();
             m_initFailed = true;
             m_initError = std::make_unique<DBException>("6I07T2DQL8XH", "Failed to select database: " + error, system_utils::captureCallStack());
             return;
@@ -300,10 +300,10 @@ namespace cpp_dbc::MySQL
 
         // Enable auto-commit by default using the C API directly
         // (cannot call setAutoCommit() during construction — virtual dispatch not safe)
-        if (mysql_autocommit(m_mysql.get(), true) != 0)
+        if (mysql_autocommit(m_conn.get(), true) != 0)
         {
-            std::string error = mysql_error(m_mysql.get());
-            m_mysql.reset();
+            std::string error = mysql_error(m_conn.get());
+            m_conn.reset();
             m_initFailed = true;
             m_initError = std::make_unique<DBException>("WNZ2VGHWVLBA", "Failed to enable auto-commit: " + error, system_utils::captureCallStack());
             return;
@@ -314,7 +314,7 @@ namespace cpp_dbc::MySQL
         m_uri = system_utils::buildDBURI("cpp_dbc:mysql://", host, port, database);
 
         // Mark connection as open
-        m_closed.store(false, std::memory_order_release);
+        m_closed.store(false, std::memory_order_seq_cst);
 
         MYSQL_DEBUG("MySQLConnection::constructor(nothrow) - Done, connected to %s", m_uri.c_str());
     }

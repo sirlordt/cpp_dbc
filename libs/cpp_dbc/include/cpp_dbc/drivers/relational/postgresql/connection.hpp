@@ -108,11 +108,11 @@ namespace cpp_dbc::PostgreSQL
          * @brief Connection mutex for thread-safe operations
          *
          * This mutex is shared with all PreparedStatements and ResultSets created from
-         * this connection, accessed via getConnectionMutex(). This ensures that all
+         * this connection, accessed via getConnectionMutex(std::nothrow). This ensures that all
          * operations on the connection and its children are serialized, preventing
          * race conditions.
          */
-        std::recursive_mutex m_connMutex;
+        SharedConnMutex m_connMutex = std::make_shared<std::recursive_mutex>();
 #endif
 
         // ── Construction state ────────────────────────────────────────────────
@@ -212,9 +212,9 @@ namespace cpp_dbc::PostgreSQL
          *
          * @return Reference to the connection's recursive_mutex
          */
-        std::recursive_mutex &getConnectionMutex() noexcept
+        std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
         {
-            return m_connMutex;
+            return *m_connMutex;
         }
 #endif
 

@@ -158,7 +158,15 @@ When performing a full compliance analysis, check each of the following. This li
 ### Atomics & Thread Safety
 - [ ] **`std::atomic` reads**: Always `.load(std::memory_order_seq_cst)` by default; `acquire` only with documented hot-path justification
 - [ ] **`std::atomic` writes**: Always `.store(..., std::memory_order_seq_cst)` by default; `release` only with documented hot-path justification
-- [ ] **Thread safety macros**: `DB_DRIVER_LOCK_GUARD(m_mutex)` for conditional locking; non-thread-safe variants still check `m_closed`
+- [ ] **Native handle name**: Connection's native handle must be named `m_conn` (not `m_mysql`, `m_db`, etc.)
+- [ ] **Connection mutex type**: Must be `SharedConnMutex` (`std::shared_ptr<std::recursive_mutex>`), named `m_connMutex`; never a direct `std::recursive_mutex` member
+- [ ] **`getConnectionMutex(std::nothrow_t)`**: Connection must expose mutex via `std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept`
+- [ ] **Child objects must not store mutex**: PreparedStatement, ResultSet, Cursor, Collection must not have `m_connMutex` or `m_globalFileMutex` as members; acquire via `weak_ptr<Connection>` + RAII helper
+- [ ] **Connection-level macros**: `*_CONNECTION_LOCK_OR_RETURN/THROW/SUCCESS_IF_CLOSED` must check `m_closed || !m_conn`; non-thread-safe `#else` must also check (not `(void)0`)
+- [ ] **RAII ConnectionLock helper**: Each driver must define `*ConnectionLock` class with double-checked locking, `isAcquired() const noexcept`, `operator bool() const noexcept`
+- [ ] **Statement/Child-level macros**: `*_LOCK_OR_RETURN/THROW/SUCCESS_IF_CLOSED` or `*_STMT_LOCK_OR_*` using the RAII helper; lock variable named `<driver>_conn_lock_` (never `__lock`)
+- [ ] **No dead macros**: `DB_DRIVER_MUTEX` and `DB_DRIVER_UNIQUE_LOCK` must not be defined
+- [ ] **Debug macro pattern**: `snprintf` to 1024-byte buffer + truncation only; no `std::cout`, no `snprintf < 0` handling
 - [ ] **`std::scoped_lock` preference**: Prefer `std::scoped_lock` over `lock_guard`/`unique_lock` wherever it makes sense
 - [ ] **`std::recursive_mutex` preference**: Prefer `std::recursive_mutex` over other mutex types for re-entrant locking
 - [ ] **Connection pool mutex exception**: Pool classes must use `std::mutex` (not `recursive_mutex`) because `std::condition_variable` requires it

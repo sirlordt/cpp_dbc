@@ -45,7 +45,7 @@ namespace cpp_dbc::MySQL
         {
             // In materialized mode, m_result is nullptr by design.
             // The ResultSet is valid as long as it has not been closed.
-            if (m_closed.load(std::memory_order_acquire))
+            if (m_closed.load(std::memory_order_seq_cst))
             {
                 return cpp_dbc::unexpected(DBException("LXRZWNZ6SGFE", "ResultSet has been closed", system_utils::captureCallStack()));
             }
@@ -76,7 +76,7 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<void, DBException> MySQLDBResultSet::notifyConnClosing(std::nothrow_t) noexcept
     {
-        m_closed.store(true, std::memory_order_release);
+        m_closed.store(true, std::memory_order_seq_cst);
         return {};
     }
 
@@ -125,7 +125,7 @@ namespace cpp_dbc::MySQL
             m_fieldCount = 0;
         }
 
-        m_closed.store(false, std::memory_order_release);
+        m_closed.store(false, std::memory_order_seq_cst);
     }
 
     // ── Materialized-mode Constructor ──────────────────────────────────────
@@ -149,7 +149,7 @@ namespace cpp_dbc::MySQL
 
         m_currentRowPtrs.resize(m_fieldCount, nullptr);
         m_currentLengths.resize(m_fieldCount, 0);
-        m_closed.store(false, std::memory_order_release);
+        m_closed.store(false, std::memory_order_seq_cst);
     }
 
     MySQLDBResultSet::~MySQLDBResultSet()

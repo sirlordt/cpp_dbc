@@ -39,17 +39,17 @@ namespace cpp_dbc::Firebird
     {
         FIREBIRD_DEBUG("FirebirdPreparedStatement::executeUpdate(nothrow) - Starting");
 
-        FIREBIRD_LOCK_OR_RETURN("OVWWOPF0F4Y4", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("OVWWOPF0F4Y4", "Connection lost");
 
-        FIREBIRD_DEBUG("  m_closed: %s", (m_closed.load(std::memory_order_acquire) ? "true" : "false"));
+        FIREBIRD_DEBUG("  m_closed: %s", (m_closed.load(std::memory_order_seq_cst) ? "true" : "false"));
         FIREBIRD_DEBUG("  m_stmt: %p", (void*)(uintptr_t)m_stmt);
-        if (m_closed.load(std::memory_order_acquire))
+        if (m_closed.load(std::memory_order_seq_cst))
         {
             return cpp_dbc::unexpected(DBException("F6A2B8C4D1E7", "Statement is closed", system_utils::captureCallStack()));
         }
 
         // Check if statement was invalidated by connection due to DDL operation
-        if (m_invalidated.load(std::memory_order_acquire))
+        if (m_invalidated.load(std::memory_order_seq_cst))
         {
             FIREBIRD_DEBUG("  Statement was invalidated by DDL operation!");
             return cpp_dbc::unexpected(DBException("SRK90BKB8M9D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
@@ -193,15 +193,15 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<bool, DBException> FirebirdDBPreparedStatement::execute(std::nothrow_t) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("4EPRL2TOTZ0P", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("4EPRL2TOTZ0P", "Connection lost");
 
-        if (m_closed.load(std::memory_order_acquire))
+        if (m_closed.load(std::memory_order_seq_cst))
         {
             return cpp_dbc::unexpected(DBException("B8C4D0E6F3A9", "Statement is closed", system_utils::captureCallStack()));
         }
 
         // Check if statement was invalidated by connection due to DDL operation
-        if (m_invalidated.load(std::memory_order_acquire))
+        if (m_invalidated.load(std::memory_order_seq_cst))
         {
             return cpp_dbc::unexpected(DBException("T967KCIH016C", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
         }
@@ -229,10 +229,10 @@ namespace cpp_dbc::Firebird
     cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::close(std::nothrow_t) noexcept
     {
         // Use special macro for close() - returns success if already closed (idempotent)
-        FIREBIRD_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
+        FIREBIRD_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
 
         FIREBIRD_DEBUG("FirebirdPreparedStatement::close(nothrow) - Starting");
-        FIREBIRD_DEBUG("  m_closed: %s", (m_closed.load(std::memory_order_acquire) ? "true" : "false"));
+        FIREBIRD_DEBUG("  m_closed: %s", (m_closed.load(std::memory_order_seq_cst) ? "true" : "false"));
         FIREBIRD_DEBUG("  m_stmt: %p", (void*)(uintptr_t)m_stmt);
 
         // Unregister from connection if connection is still alive AND not in reset()
@@ -267,7 +267,7 @@ namespace cpp_dbc::Firebird
         m_inputSqlda.reset();
         m_outputSqlda.reset();
 
-        m_closed.store(true, std::memory_order_release);
+        m_closed.store(true, std::memory_order_seq_cst);
         FIREBIRD_DEBUG("FirebirdPreparedStatement::close(nothrow) - Done");
         return {};
     }

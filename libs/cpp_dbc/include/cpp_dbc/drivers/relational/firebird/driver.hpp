@@ -245,7 +245,7 @@ namespace cpp_dbc::Firebird
     inline isc_db_handle *FirebirdBlob::getDbHandle() const
     {
         auto conn = getConnection();
-        return conn->m_db.get();
+        return conn->m_conn.get();
     }
 
     /**

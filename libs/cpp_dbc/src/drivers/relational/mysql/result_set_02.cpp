@@ -59,7 +59,7 @@ namespace cpp_dbc::MySQL
             m_rowCount = 0;
             m_fieldCount = 0;
         }
-        m_closed.store(true, std::memory_order_release);
+        m_closed.store(true, std::memory_order_seq_cst);
         return {};
     }
 

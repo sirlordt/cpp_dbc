@@ -57,7 +57,7 @@ namespace cpp_dbc::PostgreSQL
      */
     cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::registerStatement(std::nothrow_t, std::weak_ptr<PostgreSQLDBPreparedStatement> stmt) noexcept
     {
-        PG_CONNECTION_LOCK_OR_RETURN("OC3B7VMPTYQ0", "Cannot register statement");
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN("OC3B7VMPTYQ0", "Cannot register statement");
         std::scoped_lock stmtLock(m_statementsMutex);
         if (m_activeStatements.size() > 50)
         {
@@ -83,7 +83,7 @@ namespace cpp_dbc::PostgreSQL
      */
     cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::unregisterStatement(std::nothrow_t, std::weak_ptr<PostgreSQLDBPreparedStatement> stmt) noexcept
     {
-        PG_CONNECTION_LOCK_OR_RETURN("8HARHU7XSIGK", "Cannot unregister statement");
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN("8HARHU7XSIGK", "Cannot unregister statement");
         std::scoped_lock stmtLock(m_statementsMutex);
         // Remove expired weak_ptrs and the specified one
         auto stmtLocked = stmt.lock();
@@ -130,7 +130,7 @@ namespace cpp_dbc::PostgreSQL
         // access causes protocol errors and potential corruption.
         // Note: m_statementsMutex is not needed here because registerStatement() is only
         // called from prepareStatement() which also holds m_connMutex, so we're protected.
-        PG_CONNECTION_LOCK_OR_RETURN("8ZCFAYQKKLXU", "Cannot close statements");
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN("8ZCFAYQKKLXU", "Cannot close statements");
 
         for (auto &weak_stmt : m_activeStatements)
         {
@@ -162,7 +162,7 @@ namespace cpp_dbc::PostgreSQL
      */
     cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::registerResultSet(std::nothrow_t, std::weak_ptr<PostgreSQLDBResultSet> rs) noexcept
     {
-        PG_CONNECTION_LOCK_OR_RETURN("21WYRCIB636U", "Cannot register result set");
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN("21WYRCIB636U", "Cannot register result set");
         std::scoped_lock stmtLock(m_statementsMutex);
         if (m_activeResultSets.size() > 50)
         {
@@ -180,7 +180,7 @@ namespace cpp_dbc::PostgreSQL
      */
     cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::unregisterResultSet(std::nothrow_t, std::weak_ptr<PostgreSQLDBResultSet> rs) noexcept
     {
-        PG_CONNECTION_LOCK_OR_RETURN("0VSIXJXK2CSE", "Cannot unregister result set");
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN("0VSIXJXK2CSE", "Cannot unregister result set");
         std::scoped_lock stmtLock(m_statementsMutex);
         auto rsLocked = rs.lock();
         std::erase_if(m_activeResultSets, [&rsLocked](const auto &w)
@@ -202,7 +202,7 @@ namespace cpp_dbc::PostgreSQL
      */
     cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::closeAllResultSets(std::nothrow_t) noexcept
     {
-        PG_CONNECTION_LOCK_OR_RETURN("NTKCA6GKJCAE", "Cannot close result sets");
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN("NTKCA6GKJCAE", "Cannot close result sets");
 
         for (auto &weak_rs : m_activeResultSets)
         {
@@ -279,7 +279,7 @@ namespace cpp_dbc::PostgreSQL
         // Initialize URI string once (reuse centralized builder for IPv6 bracket handling)
         m_uri = system_utils::buildDBURI("cpp_dbc:postgresql://", host, port, database);
 
-        m_closed.store(false, std::memory_order_release);
+        m_closed.store(false, std::memory_order_seq_cst);
     }
 
     // Destructor

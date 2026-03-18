@@ -29,7 +29,7 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<sqlite3 *, DBException> SQLiteBlob::getSQLiteConnection(std::nothrow_t) const noexcept
     {
-        auto conn = m_db.lock();
+        auto conn = m_conn.lock();
         if (!conn)
         {
             return cpp_dbc::unexpected(DBException("8VHM5QBP014Y", "SQLite connection has been closed", system_utils::captureCallStack()));

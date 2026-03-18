@@ -59,7 +59,7 @@ namespace cpp_dbc::Firebird
             return;
         }
 
-        m_closed.store(false, std::memory_order_release);
+        m_closed.store(false, std::memory_order_seq_cst);
         FIREBIRD_DEBUG("FirebirdPreparedStatement::constructor(nothrow) - Done, m_stmt=%p", (void*)(uintptr_t)m_stmt);
     }
 
@@ -72,7 +72,7 @@ namespace cpp_dbc::Firebird
         FIREBIRD_DEBUG("FirebirdPreparedStatement::notifyConnClosing - Starting");
 
         // Set the invalidated flag first so any concurrent operations fail immediately
-        m_invalidated.store(true, std::memory_order_release);
+        m_invalidated.store(true, std::memory_order_seq_cst);
 
         // Close the statement to release metadata locks and free Firebird handles
         auto closeResult = close(std::nothrow);

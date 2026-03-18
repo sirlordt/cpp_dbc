@@ -85,7 +85,7 @@ namespace cpp_dbc::SQLite
         }
 
         // Create shared_ptr with custom deleter for sqlite3*
-        m_db = makeSQLiteDbHandle(rawDb);
+        m_conn = makeSQLiteDbHandle(rawDb);
         m_closed.store(false, std::memory_order_seq_cst);
 
         SQLITE_DEBUG("Database opened successfully");
@@ -95,15 +95,15 @@ namespace cpp_dbc::SQLite
         // Each :memory: creates a SEPARATE in-memory database, so they need LOCAL mutexes
         if (database == ":memory:")
         {
-            m_dbPath = ":memory:";
+            m_connPath = ":memory:";
             m_globalFileMutex = std::make_shared<std::recursive_mutex>();
             SQLITE_DEBUG("Created LOCAL mutex for :memory: database");
         }
         else
         {
-            m_dbPath = FileMutexRegistry::normalizePath(database);
-            m_globalFileMutex = FileMutexRegistry::getInstance().getMutexForFile(m_dbPath);
-            SQLITE_DEBUG("FileMutexRegistry initialized for: %s", m_dbPath.c_str());
+            m_connPath = FileMutexRegistry::normalizePath(database);
+            m_globalFileMutex = FileMutexRegistry::getInstance().getMutexForFile(m_connPath);
+            SQLITE_DEBUG("FileMutexRegistry initialized for: %s", m_connPath.c_str());
         }
 
         // Apply configuration options via sqlite3_exec (C API, never throws)
@@ -111,7 +111,7 @@ namespace cpp_dbc::SQLite
         auto applyPragma = [&](const char *pragma)
         {
             char *errmsg = nullptr;
-            int rc = sqlite3_exec(m_db.get(), pragma, nullptr, nullptr, &errmsg);
+            int rc = sqlite3_exec(m_conn.get(), pragma, nullptr, nullptr, &errmsg);
             if (rc != SQLITE_OK)
             {
                 SQLITE_DEBUG("PRAGMA failed (%s): %s", pragma, errmsg ? errmsg : "unknown");
@@ -242,7 +242,7 @@ namespace cpp_dbc::SQLite
         // This catches leaked statements or those not tracked in m_activeStatements
         // NOTE: We already hold m_globalFileMutex from the beginning of this function
         sqlite3_stmt *stmt;
-        while ((stmt = sqlite3_next_stmt(m_db.get(), nullptr)) != nullptr)
+        while ((stmt = sqlite3_next_stmt(m_conn.get(), nullptr)) != nullptr)
         {
             int result = sqlite3_finalize(stmt);
             if (result != SQLITE_OK)

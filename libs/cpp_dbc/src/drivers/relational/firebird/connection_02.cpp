@@ -55,9 +55,9 @@ namespace cpp_dbc::Firebird
         }
 
         // The database handle will be closed by the shared_ptr deleter
-        m_db.reset();
+        m_conn.reset();
 
-        m_closed.store(true, std::memory_order_release);
+        m_closed.store(true, std::memory_order_seq_cst);
 
         // Unregister from the driver registry so getConnectionAlive() reflects
         // actual live connections. The owner_less m_self weak_ptr is used for
@@ -119,7 +119,7 @@ namespace cpp_dbc::Firebird
     cpp_dbc::expected<bool, DBException>
     FirebirdDBConnection::isClosed(std::nothrow_t) const noexcept
     {
-        return m_closed.load(std::memory_order_acquire);
+        return m_closed.load(std::memory_order_seq_cst);
     }
 
     cpp_dbc::expected<void, DBException>
@@ -139,7 +139,7 @@ namespace cpp_dbc::Firebird
         }
 
         // Start a fresh transaction for the next use
-        if (!m_tr && !m_closed.load(std::memory_order_acquire))
+        if (!m_tr && !m_closed.load(std::memory_order_seq_cst))
         {
             FIREBIRD_DEBUG("  Starting fresh transaction for pool reuse");
             [[maybe_unused]] auto startResult = startTransaction(std::nothrow);

@@ -45,10 +45,8 @@ namespace cpp_dbc::SQLite
         std::nothrow_t,
         std::weak_ptr<sqlite3> db,
         std::weak_ptr<SQLiteDBConnection> conn,
-        std::shared_ptr<std::recursive_mutex> globalFileMutex,
         const std::string &sql) noexcept
-        : m_db(std::move(db)), m_connection(std::move(conn)), m_sql(sql),
-          m_globalFileMutex(std::move(globalFileMutex))
+        : m_conn(std::move(db)), m_connection(std::move(conn)), m_sql(sql)
     {
         auto dbResult = getSQLiteConnection(std::nothrow);
         if (!dbResult.has_value())
@@ -93,7 +91,7 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<sqlite3 *, DBException> SQLiteDBPreparedStatement::getSQLiteConnection(std::nothrow_t) const noexcept
     {
-        auto conn = m_db.lock();
+        auto conn = m_conn.lock();
         if (!conn)
         {
             return cpp_dbc::unexpected(DBException("QQI768O7OI0F", "SQLite connection has been closed", system_utils::captureCallStack()));

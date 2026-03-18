@@ -42,7 +42,7 @@ namespace cpp_dbc::MySQL
          * and avoid use-after-free errors. The connection owns the MYSQL handle,
          * so we must ensure it's still valid before using it.
          */
-        std::weak_ptr<MYSQL> m_mysql;
+        std::weak_ptr<MYSQL> m_conn;
         std::string m_tableName;
         std::string m_columnName;
         std::string m_whereClause;
@@ -70,7 +70,7 @@ namespace cpp_dbc::MySQL
          */
         cpp_dbc::expected<MYSQL *, DBException> getMySQLHandle(std::nothrow_t) const noexcept
         {
-            auto mysql = m_mysql.lock();
+            auto mysql = m_conn.lock();
             if (!mysql)
             {
                 return cpp_dbc::unexpected(DBException("SWUSJLDWXH53", "Connection has been closed", system_utils::captureCallStack()));
@@ -118,7 +118,7 @@ namespace cpp_dbc::MySQL
          * @param mysql Shared pointer to the MySQL connection handle
          */
         MySQLBlob(PrivateCtorTag, std::nothrow_t, std::shared_ptr<MYSQL> mysql) noexcept
-            : m_mysql(mysql), m_loaded(true)
+            : m_conn(mysql), m_loaded(true)
         {
             // Intentionally empty — all initialization done by the member initializer list
         }
@@ -132,7 +132,7 @@ namespace cpp_dbc::MySQL
          */
         MySQLBlob(PrivateCtorTag, std::nothrow_t, std::shared_ptr<MYSQL> mysql, const std::string &tableName,
                   const std::string &columnName, const std::string &whereClause) noexcept
-            : m_mysql(mysql), m_tableName(tableName), m_columnName(columnName),
+            : m_conn(mysql), m_tableName(tableName), m_columnName(columnName),
               m_whereClause(whereClause)
         {
             // Intentionally empty — all initialization done by the member initializer list
@@ -144,7 +144,7 @@ namespace cpp_dbc::MySQL
          * @param initialData The initial data for the BLOB
          */
         MySQLBlob(PrivateCtorTag, std::nothrow_t, std::shared_ptr<MYSQL> mysql, const std::vector<uint8_t> &initialData) noexcept
-            : MemoryBlob(initialData), m_mysql(mysql), m_loaded(true)
+            : MemoryBlob(initialData), m_conn(mysql), m_loaded(true)
         {
             // Intentionally empty — all initialization done by the member initializer list
         }
@@ -351,7 +351,7 @@ namespace cpp_dbc::MySQL
          */
         bool isConnectionValid(std::nothrow_t) const noexcept
         {
-            return !m_mysql.expired();
+            return !m_conn.expired();
         }
 
         bool isConnectionValid() const noexcept override
@@ -438,7 +438,7 @@ namespace cpp_dbc::MySQL
             {
                 return r;
             }
-            m_mysql = other.m_mysql;
+            m_conn = other.m_conn;
             m_tableName = other.m_tableName;
             m_columnName = other.m_columnName;
             m_whereClause = other.m_whereClause;

@@ -68,9 +68,9 @@ namespace cpp_dbc::MySQL
         }
         }
 
-        if (mysql_query(m_mysql.get(), query.c_str()) != 0)
+        if (mysql_query(m_conn.get(), query.c_str()) != 0)
         {
-            return cpp_dbc::unexpected(DBException("KMGSGPBOPDPV", std::string("Failed to set transaction isolation level: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("KMGSGPBOPDPV", std::string("Failed to set transaction isolation level: ") + mysql_error(m_conn.get()), system_utils::captureCallStack()));
         }
 
         // Verify that the isolation level was actually set
@@ -109,18 +109,18 @@ namespace cpp_dbc::MySQL
         m_inGetTransactionIsolation = true;
 
         // Query the current isolation level (try newer syntax first, then fall back to older MySQL versions)
-        if (mysql_query(m_mysql.get(), "SELECT @@transaction_isolation") != 0 &&
-            mysql_query(m_mysql.get(), "SELECT @@tx_isolation") != 0)
+        if (mysql_query(m_conn.get(), "SELECT @@transaction_isolation") != 0 &&
+            mysql_query(m_conn.get(), "SELECT @@tx_isolation") != 0)
         {
             m_inGetTransactionIsolation = false;
-            return cpp_dbc::unexpected(DBException("I0JKHM4RHV1G", std::string("Failed to get transaction isolation level: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("I0JKHM4RHV1G", std::string("Failed to get transaction isolation level: ") + mysql_error(m_conn.get()), system_utils::captureCallStack()));
         }
 
-        MySQLResHandle resultHandle(mysql_store_result(m_mysql.get()));
+        MySQLResHandle resultHandle(mysql_store_result(m_conn.get()));
         if (!resultHandle)
         {
             m_inGetTransactionIsolation = false;
-            return cpp_dbc::unexpected(DBException("DB6UZR9SYKMQ", std::string("Failed to get result set: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("DB6UZR9SYKMQ", std::string("Failed to get result set: ") + mysql_error(m_conn.get()), system_utils::captureCallStack()));
         }
 
         MYSQL_ROW row = mysql_fetch_row(resultHandle.get());
@@ -178,8 +178,8 @@ namespace cpp_dbc::MySQL
         // is destroyed. This is a pragmatic workaround pending a refcount-based solution.
         std::this_thread::sleep_for(std::chrono::milliseconds(25));
 
-        m_mysql.reset();
-        m_closed.store(true, std::memory_order_release);
+        m_conn.reset();
+        m_closed.store(true, std::memory_order_seq_cst);
 
         // Remove this connection from the driver's registry.
         // m_self holds a weak_ptr with the same control block as the original shared_ptr,
@@ -234,7 +234,7 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<bool, DBException> MySQLDBConnection::isClosed(std::nothrow_t) const noexcept
     {
-        return m_closed.load(std::memory_order_acquire);
+        return m_closed.load(std::memory_order_seq_cst);
     }
 
     cpp_dbc::expected<void, DBException> MySQLDBConnection::returnToPool(std::nothrow_t) noexcept
@@ -319,7 +319,7 @@ namespace cpp_dbc::MySQL
     {
         MYSQL_CONNECTION_LOCK_OR_RETURN("DSU8478ZA6RH", "Connection closed");
 
-        const char *version = mysql_get_server_info(m_mysql.get());
+        const char *version = mysql_get_server_info(m_conn.get());
         if (!version)
         {
             return cpp_dbc::unexpected(DBException(
@@ -337,34 +337,34 @@ namespace cpp_dbc::MySQL
 
         std::map<std::string, std::string> info;
 
-        const char *version = mysql_get_server_info(m_mysql.get());
+        const char *version = mysql_get_server_info(m_conn.get());
         if (version)
         {
             info["ServerVersion"] = version;
         }
 
-        unsigned long serverVersion = mysql_get_server_version(m_mysql.get());
+        unsigned long serverVersion = mysql_get_server_version(m_conn.get());
         info["ServerVersionNumeric"] = std::to_string(serverVersion);
 
-        const char *hostInfo = mysql_get_host_info(m_mysql.get());
+        const char *hostInfo = mysql_get_host_info(m_conn.get());
         if (hostInfo)
         {
             info["HostInfo"] = hostInfo;
         }
 
-        unsigned long protocolVersion = mysql_get_proto_info(m_mysql.get());
+        unsigned long protocolVersion = mysql_get_proto_info(m_conn.get());
         info["ProtocolVersion"] = std::to_string(protocolVersion);
 
-        const char *charset = mysql_character_set_name(m_mysql.get());
+        const char *charset = mysql_character_set_name(m_conn.get());
         if (charset)
         {
             info["CharacterSet"] = charset;
         }
 
-        unsigned long threadId = mysql_thread_id(m_mysql.get());
+        unsigned long threadId = mysql_thread_id(m_conn.get());
         info["ThreadId"] = std::to_string(threadId);
 
-        const char *stat = mysql_stat(m_mysql.get());
+        const char *stat = mysql_stat(m_conn.get());
         if (stat)
         {
             info["ServerStatus"] = stat;

@@ -465,7 +465,7 @@ namespace cpp_dbc::MySQL
             m_stmt.reset(); // Smart pointer will call mysql_stmt_close via deleter
         }
 
-        m_closed.store(true, std::memory_order_release);
+        m_closed.store(true, std::memory_order_seq_cst);
         return {};
     }
 

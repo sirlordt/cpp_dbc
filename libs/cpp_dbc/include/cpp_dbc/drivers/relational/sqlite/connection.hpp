@@ -58,7 +58,7 @@ namespace cpp_dbc::SQLite
          * Uses shared_ptr to allow PreparedStatements to use weak_ptr for safe
          * connection detection. The custom deleter ensures sqlite3_close_v2() is called.
          */
-        SQLiteDbHandle m_db;
+        SQLiteDbHandle m_conn;
 
         std::atomic<bool> m_closed{true};
         // Stored by the create() factory so close() can unregister from the driver registry
@@ -72,7 +72,7 @@ namespace cpp_dbc::SQLite
         std::string m_uri;
 
         // Normalized database file path
-        std::string m_dbPath;
+        std::string m_connPath;
 
         // ── Construction state ────────────────────────────────────────────────
         bool m_initFailed{false};
@@ -219,6 +219,24 @@ namespace cpp_dbc::SQLite
         cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
         cpp_dbc::expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override;
         cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(std::nothrow_t) noexcept override;
+
+        /**
+         * @brief Get the connection mutex for PreparedStatement/ResultSet access
+         *
+         * Allows PreparedStatement and ResultSet to serialize their operations through
+         * the connection mutex via their weak_ptr<SQLiteDBConnection>, without storing
+         * the mutex directly.
+         *
+         * Unlike MySQL/PG/Firebird, this is NOT guarded by #if DB_DRIVER_THREAD_SAFE
+         * because SQLite's file-level mutex is always required (sanitizer compatibility
+         * and cursor-based iteration model).
+         *
+         * @return Reference to the connection's recursive_mutex (file-level mutex)
+         */
+        std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
+        {
+            return *m_globalFileMutex;
+        }
     };
 
 } // namespace cpp_dbc::SQLite

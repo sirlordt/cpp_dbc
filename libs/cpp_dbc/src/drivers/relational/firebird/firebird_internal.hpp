@@ -21,16 +21,16 @@
 
 #if USE_FIREBIRD
 
+#include <atomic>
 #include <mutex>
-#include <iostream>
 #include <cstdio>
+#include <cstring>
 #include "cpp_dbc/common/system_utils.hpp"
 
 // Thread-safety macros for conditional mutex locking
 // Using recursive_mutex to allow the same thread to acquire the lock multiple times
 // This is needed when a method that holds the lock calls another method that also needs the lock
 #if DB_DRIVER_THREAD_SAFE
-
 #define DB_DRIVER_LOCK_GUARD(mutex) std::scoped_lock<std::recursive_mutex> lock(mutex)
 
 // Macros for DBConnection methods - acquire lock and verify connection is not closed
@@ -39,7 +39,7 @@
 // For nothrow DBConnection methods - returns unexpected(DBException) if connection is closed
 #define FIREBIRD_CONNECTION_LOCK_OR_RETURN(mark, msg)                                       \
     DB_DRIVER_LOCK_GUARD(*m_connMutex);                                                     \
-    if (m_closed.load(std::memory_order_acquire))                                           \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)                                  \
     {                                                                                       \
         return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",            \
                                                cpp_dbc::system_utils::captureCallStack())); \
@@ -48,7 +48,7 @@
 // For throwing DBConnection methods - throws DBException if connection is closed
 #define FIREBIRD_CONNECTION_LOCK_OR_THROW(mark, msg)                  \
     DB_DRIVER_LOCK_GUARD(*m_connMutex);                               \
-    if (m_closed.load(std::memory_order_acquire))                     \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)            \
     {                                                                 \
         throw DBException(mark, msg " (connection closed)",           \
                           cpp_dbc::system_utils::captureCallStack()); \
@@ -57,16 +57,34 @@
 // For close() method of DBConnection - returns success if already closed (idempotent)
 #define FIREBIRD_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED() \
     DB_DRIVER_LOCK_GUARD(*m_connMutex);                        \
-    if (m_closed.load(std::memory_order_acquire))              \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)     \
     {                                                          \
-        return {}; /* Already closed = success (idempotent) */ \
+        return {}; /* Already closed = success */              \
     }
 
 #else
 #define DB_DRIVER_LOCK_GUARD(mutex) (void)0
-#define FIREBIRD_CONNECTION_LOCK_OR_RETURN(mark, msg) (void)0
-#define FIREBIRD_CONNECTION_LOCK_OR_THROW(mark, msg) (void)0
-#define FIREBIRD_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED() (void)0
+
+// Non-thread-safe: still check closed state, no locking
+#define FIREBIRD_CONNECTION_LOCK_OR_RETURN(mark, msg)                                       \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)                                  \
+    {                                                                                       \
+        return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",            \
+                                               cpp_dbc::system_utils::captureCallStack())); \
+    }
+
+#define FIREBIRD_CONNECTION_LOCK_OR_THROW(mark, msg)                  \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)            \
+    {                                                                 \
+        throw DBException(mark, msg " (connection closed)",           \
+                          cpp_dbc::system_utils::captureCallStack()); \
+    }
+
+#define FIREBIRD_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED() \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)     \
+    {                                                          \
+        return {}; /* Already closed = success */              \
+    }
 #endif
 
 // ============================================================================
@@ -75,7 +93,7 @@
 // Automatically acquires the connection mutex through the weak_ptr<Connection>.
 // If the connection is destroyed, marks the object as closed and fails gracefully.
 // Usage:
-//   FIREBIRD_LOCK_OR_RETURN(error_code, "error message");
+//   FIREBIRD_STMT_LOCK_OR_RETURN(error_code, "error message");
 // ============================================================================
 #if DB_DRIVER_THREAD_SAFE
 
@@ -99,7 +117,6 @@ namespace cpp_dbc::Firebird
      */
     class FirebirdConnectionLock
     {
-    private:
         std::shared_ptr<FirebirdDBConnection> m_conn; // Keep connection alive while lock is held
         std::unique_lock<std::recursive_mutex> m_lock;
         bool m_acquired{false};
@@ -123,7 +140,7 @@ namespace cpp_dbc::Firebird
         FirebirdConnectionLock(T *obj, std::atomic<bool> &closed)
         {
             // FIRST CHECK: Verify if object is already closed (fast path, no lock needed)
-            if (closed.load(std::memory_order_acquire))
+            if (closed.load(std::memory_order_seq_cst))
             {
                 m_acquired = false;
                 return;
@@ -133,18 +150,18 @@ namespace cpp_dbc::Firebird
             m_conn = obj->m_connection.lock();
             if (!m_conn)
             {
-                // Connection is destroyed - mark object as closed
-                closed.store(true, std::memory_order_release);
+                // Connection is destroyed — mark object as closed
+                closed.store(true, std::memory_order_seq_cst);
                 m_acquired = false;
                 return;
             }
 
             // Acquire the connection's mutex (connection stays alive via m_conn)
-            m_lock = std::unique_lock<std::recursive_mutex>(m_conn->getConnectionMutex());
+            m_lock = std::unique_lock<std::recursive_mutex>(m_conn->getConnectionMutex(std::nothrow));
 
             // SECOND CHECK: Verify again after acquiring lock
             // (Another thread could have closed the object between first check and lock acquisition)
-            if (closed.load(std::memory_order_acquire))
+            if (closed.load(std::memory_order_seq_cst))
             {
                 m_acquired = false;
                 // Lock is released automatically by m_lock destructor
@@ -155,41 +172,64 @@ namespace cpp_dbc::Firebird
             m_acquired = true;
         }
 
-        bool isAcquired() const { return m_acquired; }
-        explicit operator bool() const { return m_acquired; }
+        bool isAcquired() const noexcept
+        {
+            return m_acquired;
+        }
+
+        explicit operator bool() const noexcept
+        {
+            return m_acquired;
+        }
     };
 
 } // namespace cpp_dbc::Firebird
 
 // Macro for nothrow methods - returns unexpected(DBException) if lock fails
-#define FIREBIRD_LOCK_OR_RETURN(mark, msg)                                                  \
-    cpp_dbc::Firebird::FirebirdConnectionLock __lock(this, m_closed);                       \
-    if (!__lock)                                                                            \
+#define FIREBIRD_STMT_LOCK_OR_RETURN(mark, msg)                                                  \
+    cpp_dbc::Firebird::FirebirdConnectionLock firebird_conn_lock_(this, m_closed);                       \
+    if (!firebird_conn_lock_)                                                                            \
     {                                                                                       \
         return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",            \
                                                cpp_dbc::system_utils::captureCallStack())); \
     }
 
 // Macro for throwing methods - throws DBException if lock fails
-#define FIREBIRD_LOCK_OR_THROW(mark, msg)                                                               \
-    cpp_dbc::Firebird::FirebirdConnectionLock __lock(this, m_closed);                                   \
-    if (!__lock)                                                                                        \
+#define FIREBIRD_STMT_LOCK_OR_THROW(mark, msg)                                                               \
+    cpp_dbc::Firebird::FirebirdConnectionLock firebird_conn_lock_(this, m_closed);                                   \
+    if (!firebird_conn_lock_)                                                                                        \
     {                                                                                                   \
         throw DBException(mark, msg " (connection closed)", cpp_dbc::system_utils::captureCallStack()); \
     }
 
 // Macro for close() methods - returns success if already closed (idempotent close)
-#define FIREBIRD_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()                   \
-    cpp_dbc::Firebird::FirebirdConnectionLock __lock(this, m_closed); \
-    if (!__lock)                                                      \
+#define FIREBIRD_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()                   \
+    cpp_dbc::Firebird::FirebirdConnectionLock firebird_conn_lock_(this, m_closed); \
+    if (!firebird_conn_lock_)                                                      \
     {                                                                 \
         return {}; /* Already closed or connection lost = success */  \
     }
 
 #else
-#define FIREBIRD_LOCK_OR_RETURN(mark, msg) (void)0
-#define FIREBIRD_LOCK_OR_THROW(mark, msg) (void)0
-#define FIREBIRD_LOCK_OR_RETURN_SUCCESS_IF_CLOSED() (void)0
+// Non-thread-safe: just check the closed flag, no locking
+#define FIREBIRD_STMT_LOCK_OR_RETURN(mark, msg)                                                  \
+    if (m_closed.load(std::memory_order_seq_cst))                                           \
+    {                                                                                       \
+        return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",            \
+                                               cpp_dbc::system_utils::captureCallStack())); \
+    }
+
+#define FIREBIRD_STMT_LOCK_OR_THROW(mark, msg)                                                               \
+    if (m_closed.load(std::memory_order_seq_cst))                                                       \
+    {                                                                                                   \
+        throw DBException(mark, msg " (connection closed)", cpp_dbc::system_utils::captureCallStack()); \
+    }
+
+#define FIREBIRD_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED() \
+    if (m_closed.load(std::memory_order_seq_cst))   \
+    {                                               \
+        return {}; /* Already closed = success */   \
+    }
 #endif // DB_DRIVER_THREAD_SAFE
 
 // Debug output is controlled by -DDEBUG_FIREBIRD=1 or -DDEBUG_ALL=1 CMake option
@@ -201,9 +241,9 @@ namespace cpp_dbc::Firebird
         int firebird_debug_n = std::snprintf(debug_buffer, sizeof(debug_buffer), format, ##__VA_ARGS__); \
         if (firebird_debug_n >= static_cast<int>(sizeof(debug_buffer)))               \
         {                                                                              \
-            static constexpr const char fb_trunc[] = "...[TRUNCATED]";               \
-            std::memcpy(debug_buffer + sizeof(debug_buffer) - sizeof(fb_trunc),       \
-                        fb_trunc, sizeof(fb_trunc));                                   \
+            static constexpr const char firebird_trunc[] = "...[TRUNCATED]";               \
+            std::memcpy(debug_buffer + sizeof(debug_buffer) - sizeof(firebird_trunc),       \
+                        firebird_trunc, sizeof(firebird_trunc));                                   \
         }                                                                              \
         cpp_dbc::system_utils::logWithTimesMillis("Firebird", debug_buffer);           \
     } while (0)

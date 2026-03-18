@@ -41,7 +41,7 @@ namespace cpp_dbc::PostgreSQL
     // Nothrow execute methods for PostgreSQLDBPreparedStatement
     cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> PostgreSQLDBPreparedStatement::executeQuery(std::nothrow_t) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("AW52136ACFBD", "Statement closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("AW52136ACFBD", "Statement closed");
 
         // Get PGconn* safely through the connection
         auto connResult = getPGConnection(std::nothrow);
@@ -137,7 +137,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<uint64_t, DBException> PostgreSQLDBPreparedStatement::executeUpdate(std::nothrow_t) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("GZNST22PIT6Z", "Statement closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("GZNST22PIT6Z", "Statement closed");
 
         // Get PGconn* safely through the connection
         auto connResult = getPGConnection(std::nothrow);
@@ -237,7 +237,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBPreparedStatement::execute(std::nothrow_t) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("65RZEJG52VXD", "Statement closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("65RZEJG52VXD", "Statement closed");
 
         // Get PGconn* safely through the connection
         auto connResult = getPGConnection(std::nothrow);
@@ -332,7 +332,7 @@ namespace cpp_dbc::PostgreSQL
         // CRITICAL: Must hold the shared connection mutex to prevent race conditions.
         // PQexec(DEALLOCATE) uses the PGconn* connection, so concurrent access from
         // another thread (e.g., connection pool validation) causes protocol errors.
-        PG_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
+        POSTGRESQL_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
 
         if (m_prepared)
         {
@@ -345,19 +345,19 @@ namespace cpp_dbc::PostgreSQL
                 PGresultHandle res(PQexec(conn->m_conn.get(), deallocateSQL.c_str()));
                 if (!res.get())
                 {
-                    PG_DEBUG("close: DEALLOCATE %s failed (OOM): %s",
+                    POSTGRESQL_DEBUG("close: DEALLOCATE %s failed (OOM): %s",
                              m_stmtName.c_str(), PQerrorMessage(conn->m_conn.get()));
                 }
                 else if (PQresultStatus(res.get()) != PGRES_COMMAND_OK)
                 {
-                    PG_DEBUG("close: DEALLOCATE %s failed: %s",
+                    POSTGRESQL_DEBUG("close: DEALLOCATE %s failed: %s",
                              m_stmtName.c_str(), PQresultErrorMessage(res.get()));
                 }
             }
             m_prepared = false;
         }
 
-        m_closed.store(true, std::memory_order_release);
+        m_closed.store(true, std::memory_order_seq_cst);
         return {};
     }
 

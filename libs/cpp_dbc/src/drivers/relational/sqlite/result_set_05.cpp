@@ -40,10 +40,10 @@ namespace cpp_dbc::SQLite
     // BLOB support methods for SQLiteDBResultSet
     cpp_dbc::expected<std::shared_ptr<Blob>, DBException> SQLiteDBResultSet::getBlob(std::nothrow_t, size_t columnIndex) noexcept
     {
-        std::scoped_lock globalLock(*m_globalFileMutex);
+        SQLITE_STMT_LOCK_OR_RETURN("N4DU6DDF2AXG", "Result set is closed");
 
         sqlite3_stmt *stmt = getStmt(std::nothrow);
-        if (!stmt || m_closed.load(std::memory_order_seq_cst) || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
+        if (!stmt || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
         {
             return cpp_dbc::unexpected(DBException("B1C2D3E4F5G6", "Invalid column index or row position for getBlob",
                                                    system_utils::captureCallStack()));
@@ -90,7 +90,7 @@ namespace cpp_dbc::SQLite
         }
 
         // Create a new BLOB object with the data (pass shared_ptr for safe reference)
-        auto blobResult = SQLite::SQLiteBlob::create(std::nothrow, conn->m_db, data);
+        auto blobResult = SQLite::SQLiteBlob::create(std::nothrow, conn->m_conn, data);
         if (!blobResult.has_value())
         {
             return cpp_dbc::unexpected(blobResult.error());
@@ -112,10 +112,10 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> SQLiteDBResultSet::getBinaryStream(std::nothrow_t, size_t columnIndex) noexcept
     {
-        std::scoped_lock globalLock(*m_globalFileMutex);
+        SQLITE_STMT_LOCK_OR_RETURN("8QM45ZIRRF9V", "Result set is closed");
 
         sqlite3_stmt *stmt = getStmt(std::nothrow);
-        if (!stmt || m_closed.load(std::memory_order_seq_cst) || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
+        if (!stmt || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
         {
             return cpp_dbc::unexpected(DBException("CEE30385E0BB", "Invalid column index or row position for getBinaryStream",
                                                    system_utils::captureCallStack()));
@@ -162,10 +162,10 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<std::vector<uint8_t>, DBException> SQLiteDBResultSet::getBytes(std::nothrow_t, size_t columnIndex) noexcept
     {
-        std::scoped_lock globalLock(*m_globalFileMutex);
+        SQLITE_STMT_LOCK_OR_RETURN("F64IM3WFV6JJ", "Result set is closed");
 
         sqlite3_stmt *stmt = getStmt(std::nothrow);
-        if (!stmt || m_closed.load(std::memory_order_seq_cst) || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
+        if (!stmt || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
         {
             return cpp_dbc::unexpected(DBException("L7M8N9O0P1Q2", "Invalid column index or row position for getBytes",
                                                    system_utils::captureCallStack()));

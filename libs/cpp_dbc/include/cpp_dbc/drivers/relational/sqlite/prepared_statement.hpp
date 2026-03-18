@@ -39,6 +39,7 @@ namespace cpp_dbc::SQLite
     {
         friend class SQLiteDBConnection;
         friend class SQLiteDBResultSet;
+        friend class SQLiteConnectionLock;
 
         // ── PrivateCtorTag — prevents direct construction; use create() ──
         struct PrivateCtorTag
@@ -52,7 +53,7 @@ namespace cpp_dbc::SQLite
          * Uses weak_ptr to safely detect when the connection has been closed,
          * preventing use-after-free errors.
          */
-        std::weak_ptr<sqlite3> m_db;
+        std::weak_ptr<sqlite3> m_conn;
 
         /**
          * @brief Weak reference to parent connection
@@ -79,15 +80,6 @@ namespace cpp_dbc::SQLite
         // Registry of active result sets created by this statement
         std::set<std::weak_ptr<SQLiteDBResultSet>, std::owner_less<std::weak_ptr<SQLiteDBResultSet>>> m_activeResultSets;
 
-        /**
-         * @brief Global file-level mutex shared across all connections to the same database file
-         *
-         * This mutex is obtained from FileMutexRegistry via the parent Connection and is shared
-         * among ALL connections, PreparedStatements, and ResultSets for the SAME database file.
-         * This ensures complete file-level synchronization and eliminates ThreadSanitizer false positives.
-         */
-        std::shared_ptr<std::recursive_mutex> m_globalFileMutex;
-
         // ── Construction state ────────────────────────────────────────────────
         bool m_initFailed{false};
         std::unique_ptr<DBException> m_initError{nullptr};
@@ -109,7 +101,6 @@ namespace cpp_dbc::SQLite
                                   std::nothrow_t,
                                   std::weak_ptr<sqlite3> db,
                                   std::weak_ptr<SQLiteDBConnection> conn,
-                                  std::shared_ptr<std::recursive_mutex> globalFileMutex,
                                   const std::string &sql) noexcept;
 
         ~SQLiteDBPreparedStatement() override;
@@ -121,10 +112,9 @@ namespace cpp_dbc::SQLite
         static std::shared_ptr<SQLiteDBPreparedStatement>
         create(std::weak_ptr<sqlite3> db,
                std::weak_ptr<SQLiteDBConnection> conn,
-               std::shared_ptr<std::recursive_mutex> globalFileMutex,
                const std::string &sql)
         {
-            auto r = create(std::nothrow, std::move(db), std::move(conn), std::move(globalFileMutex), sql);
+            auto r = create(std::nothrow, std::move(db), std::move(conn), sql);
             if (!r.has_value())
             {
                 throw r.error();
@@ -164,12 +154,11 @@ namespace cpp_dbc::SQLite
         create(std::nothrow_t,
                std::weak_ptr<sqlite3> db,
                std::weak_ptr<SQLiteDBConnection> conn,
-               std::shared_ptr<std::recursive_mutex> globalFileMutex,
                const std::string &sql) noexcept
         {
             // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
             auto obj = std::make_shared<SQLiteDBPreparedStatement>(
-                PrivateCtorTag{}, std::nothrow, std::move(db), std::move(conn), std::move(globalFileMutex), sql);
+                PrivateCtorTag{}, std::nothrow, std::move(db), std::move(conn), sql);
             if (obj->m_initFailed)
             {
                 return cpp_dbc::unexpected(std::move(*obj->m_initError));

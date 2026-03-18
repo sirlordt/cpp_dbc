@@ -41,7 +41,7 @@ namespace cpp_dbc::Firebird
         // and may throw DBException or std::exception on open/read failures.
         try
         {
-            FIREBIRD_LOCK_OR_RETURN("OJ9DMC2WW02G", "Connection lost");
+            FIREBIRD_STMT_LOCK_OR_RETURN("OJ9DMC2WW02G", "Connection lost");
 
             if (columnIndex >= m_fieldCount)
             {

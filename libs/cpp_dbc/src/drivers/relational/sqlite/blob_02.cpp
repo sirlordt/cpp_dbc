@@ -73,7 +73,7 @@ namespace cpp_dbc::SQLite
         {
             return r;
         }
-        m_db = other.m_db;
+        m_conn = other.m_conn;
         m_tableName = other.m_tableName;
         m_columnName = other.m_columnName;
         m_rowId = other.m_rowId;

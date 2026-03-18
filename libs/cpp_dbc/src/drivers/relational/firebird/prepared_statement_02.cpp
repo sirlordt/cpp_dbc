@@ -41,10 +41,10 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setInt(std::nothrow_t, int parameterIndex, int value) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("7OAQLW6S1NV5", "Connection lost in setInt");
+        FIREBIRD_STMT_LOCK_OR_RETURN("7OAQLW6S1NV5", "Connection lost in setInt");
 
         // Check if statement was invalidated by connection due to DDL operation
-        if (m_invalidated.load(std::memory_order_acquire))
+        if (m_invalidated.load(std::memory_order_seq_cst))
         {
             return cpp_dbc::unexpected(DBException("QLZNHJHJ02IA", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
         }
@@ -55,10 +55,10 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setLong(std::nothrow_t, int parameterIndex, int64_t value) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("4Q9KI4JP2XTB", "Connection lost in setLong");
+        FIREBIRD_STMT_LOCK_OR_RETURN("4Q9KI4JP2XTB", "Connection lost in setLong");
 
         // Check if statement was invalidated by connection due to DDL operation
-        if (m_invalidated.load(std::memory_order_acquire))
+        if (m_invalidated.load(std::memory_order_seq_cst))
         {
             return cpp_dbc::unexpected(DBException("4EW6UBYPUTTG", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
         }
@@ -69,10 +69,10 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setDouble(std::nothrow_t, int parameterIndex, double value) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("ZRWB1E4M2L52", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("ZRWB1E4M2L52", "Connection lost");
 
         // Check if statement was invalidated by connection due to DDL operation
-        if (m_invalidated.load(std::memory_order_acquire))
+        if (m_invalidated.load(std::memory_order_seq_cst))
         {
             return cpp_dbc::unexpected(DBException("TNPH5JLMW6GS", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
         }
@@ -166,10 +166,10 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setString(std::nothrow_t, int parameterIndex, const std::string &value) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("FXE1E4KBWNL8", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("FXE1E4KBWNL8", "Connection lost");
 
         // Check if statement was invalidated by connection due to DDL operation
-        if (m_invalidated.load(std::memory_order_acquire))
+        if (m_invalidated.load(std::memory_order_seq_cst))
         {
             return cpp_dbc::unexpected(DBException("2K8QBRG3F50U", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
         }
@@ -243,10 +243,10 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setBoolean(std::nothrow_t, int parameterIndex, bool value) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("HJ4C76QCZV7E", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("HJ4C76QCZV7E", "Connection lost");
 
         // Check if statement was invalidated by connection due to DDL operation
-        if (m_invalidated.load(std::memory_order_acquire))
+        if (m_invalidated.load(std::memory_order_seq_cst))
         {
             return cpp_dbc::unexpected(DBException("KIHGPUFTQYQZ", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
         }
@@ -257,10 +257,10 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setNull(std::nothrow_t, int parameterIndex, Types) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("OJ9DMC2WW02G", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("OJ9DMC2WW02G", "Connection lost");
 
         // Check if statement was invalidated by connection due to DDL operation
-        if (m_invalidated.load(std::memory_order_acquire))
+        if (m_invalidated.load(std::memory_order_seq_cst))
         {
             return cpp_dbc::unexpected(DBException("FBN1V4SN0L01", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
         }
@@ -278,10 +278,10 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setDate(std::nothrow_t, int parameterIndex, const std::string &value) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("JVSOO8279IPP", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("JVSOO8279IPP", "Connection lost");
 
         // Check if statement was invalidated by connection due to DDL operation
-        if (m_invalidated.load(std::memory_order_acquire))
+        if (m_invalidated.load(std::memory_order_seq_cst))
         {
             return cpp_dbc::unexpected(DBException("FBN1V4SDAT02", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
         }
@@ -302,10 +302,10 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setTimestamp(std::nothrow_t, int parameterIndex, const std::string &value) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("98XYZF12NSDR", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("98XYZF12NSDR", "Connection lost");
 
         // Check if statement was invalidated by connection due to DDL operation
-        if (m_invalidated.load(std::memory_order_acquire))
+        if (m_invalidated.load(std::memory_order_seq_cst))
         {
             return cpp_dbc::unexpected(DBException("FBN1V4STMP03", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
         }
@@ -328,10 +328,10 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setTime(std::nothrow_t, int parameterIndex, const std::string &value) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("Z21IV6744VHW", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("Z21IV6744VHW", "Connection lost");
 
         // Check if statement was invalidated by connection due to DDL operation
-        if (m_invalidated.load(std::memory_order_acquire))
+        if (m_invalidated.load(std::memory_order_seq_cst))
         {
             return cpp_dbc::unexpected(DBException("J9K0L1M2N3O4", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
         }

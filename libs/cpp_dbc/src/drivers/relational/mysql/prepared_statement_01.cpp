@@ -92,7 +92,7 @@ namespace cpp_dbc::MySQL
         m_blobObjects.resize(paramCount);
         m_streamObjects.resize(paramCount);
 
-        m_closed.store(false, std::memory_order_release);
+        m_closed.store(false, std::memory_order_seq_cst);
     }
 
     // ============================================================================

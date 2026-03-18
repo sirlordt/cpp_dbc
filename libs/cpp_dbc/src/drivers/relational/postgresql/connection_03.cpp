@@ -40,9 +40,9 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::commit(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-        if (m_closed.load(std::memory_order_acquire) || !m_conn)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
         {
             return cpp_dbc::unexpected<DBException>(DBException("7E8F9G0H1I2J", "Connection is closed", system_utils::captureCallStack()));
         }
@@ -83,9 +83,9 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::rollback(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-        if (m_closed.load(std::memory_order_acquire) || !m_conn)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
         {
             return cpp_dbc::unexpected<DBException>(DBException("5W6X7Y8Z9A0B", "Connection is closed", system_utils::captureCallStack()));
         }
@@ -126,9 +126,9 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-        if (m_closed.load(std::memory_order_acquire) || !m_conn)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
         {
             return cpp_dbc::unexpected<DBException>(DBException("3O4P5Q6R7S8T", "Connection is closed", system_utils::captureCallStack()));
         }
@@ -221,9 +221,9 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<TransactionIsolationLevel, DBException> PostgreSQLDBConnection::getTransactionIsolation(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-        if (m_closed.load(std::memory_order_acquire) || !m_conn)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
         {
             return cpp_dbc::unexpected<DBException>(DBException("5E6F7G8H9I0J", "Connection is closed", system_utils::captureCallStack()));
         }
@@ -274,9 +274,9 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::close(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-        if (!m_closed.load(std::memory_order_acquire) && m_conn)
+        if (!m_closed.load(std::memory_order_seq_cst) && m_conn)
         {
             // Close all active result sets and statements before closing the connection
             // This ensures deallocation while we have exclusive access
@@ -288,7 +288,7 @@ namespace cpp_dbc::PostgreSQL
 
             // shared_ptr will automatically call PQfinish via PGconnDeleter
             m_conn.reset();
-            m_closed.store(true, std::memory_order_release);
+            m_closed.store(true, std::memory_order_seq_cst);
 
             // Unregister from the driver registry so getConnectionAlive() reflects
             // actual live connections. The owner_less m_self weak_ptr is used for
@@ -300,9 +300,9 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::reset(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-        if (m_closed.load(std::memory_order_acquire) || !m_conn)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
         {
             return {}; // Nothing to reset if already closed
         }
@@ -311,12 +311,12 @@ namespace cpp_dbc::PostgreSQL
         auto closeRsResult = closeAllResultSets(std::nothrow);
         if (!closeRsResult.has_value())
         {
-            PG_DEBUG("  reset: closeAllResultSets failed: %s", closeRsResult.error().what_s().data());
+            POSTGRESQL_DEBUG("  reset: closeAllResultSets failed: %s", closeRsResult.error().what_s().data());
         }
         auto closeStmtsResult = closeAllStatements(std::nothrow);
         if (!closeStmtsResult.has_value())
         {
-            PG_DEBUG("  reset: closeAllStatements failed: %s", closeStmtsResult.error().what_s().data());
+            POSTGRESQL_DEBUG("  reset: closeAllStatements failed: %s", closeStmtsResult.error().what_s().data());
         }
 
         // Rollback any active transaction
@@ -326,7 +326,7 @@ namespace cpp_dbc::PostgreSQL
             auto rbResult = rollback(std::nothrow);
             if (!rbResult.has_value())
             {
-                PG_DEBUG("  reset: rollback failed: %s", rbResult.error().what_s().data());
+                POSTGRESQL_DEBUG("  reset: rollback failed: %s", rbResult.error().what_s().data());
             }
         }
 
@@ -334,7 +334,7 @@ namespace cpp_dbc::PostgreSQL
         auto acResult = setAutoCommit(std::nothrow, true);
         if (!acResult.has_value())
         {
-            PG_DEBUG("  reset: setAutoCommit failed: %s", acResult.error().what_s().data());
+            POSTGRESQL_DEBUG("  reset: setAutoCommit failed: %s", acResult.error().what_s().data());
         }
 
         return {};
@@ -342,7 +342,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::isClosed(std::nothrow_t) const noexcept
     {
-        return m_closed.load(std::memory_order_acquire);
+        return m_closed.load(std::memory_order_seq_cst);
     }
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::returnToPool(std::nothrow_t) noexcept
@@ -352,12 +352,12 @@ namespace cpp_dbc::PostgreSQL
         auto closeRsResult = closeAllResultSets(std::nothrow);
         if (!closeRsResult.has_value())
         {
-            PG_DEBUG("  returnToPool: closeAllResultSets failed: %s", closeRsResult.error().what_s().data());
+            POSTGRESQL_DEBUG("  returnToPool: closeAllResultSets failed: %s", closeRsResult.error().what_s().data());
         }
         auto closeStmtsResult = closeAllStatements(std::nothrow);
         if (!closeStmtsResult.has_value())
         {
-            PG_DEBUG("  returnToPool: closeAllStatements failed: %s", closeStmtsResult.error().what_s().data());
+            POSTGRESQL_DEBUG("  returnToPool: closeAllStatements failed: %s", closeStmtsResult.error().what_s().data());
         }
 
         // 2026-03-12T12:00:00Z
@@ -366,7 +366,7 @@ namespace cpp_dbc::PostgreSQL
         // is a data race (undefined behavior) in multi-threaded builds.
         // Solution: Acquire m_connMutex before reading m_autoCommit. Safe with
         // recursive_mutex since setAutoCommit also acquires m_connMutex internally.
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
         // Restore autocommit for the next user of this connection
         if (!m_autoCommit)
@@ -374,7 +374,7 @@ namespace cpp_dbc::PostgreSQL
             auto acResult = setAutoCommit(std::nothrow, true);
             if (!acResult.has_value())
             {
-                PG_DEBUG("  returnToPool: setAutoCommit failed: %s", acResult.error().what_s().data());
+                POSTGRESQL_DEBUG("  returnToPool: setAutoCommit failed: %s", acResult.error().what_s().data());
             }
         }
 
@@ -453,9 +453,9 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<std::string, DBException> PostgreSQLDBConnection::getServerVersion(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-        if (m_closed.load(std::memory_order_acquire) || !m_conn)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
         {
             return cpp_dbc::unexpected(DBException(
                 "36M3T260UN4J",
@@ -468,9 +468,9 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<std::map<std::string, std::string>, DBException> PostgreSQLDBConnection::getServerInfo(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-        if (m_closed.load(std::memory_order_acquire) || !m_conn)
+        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
         {
             return cpp_dbc::unexpected(DBException(
                 "IB9HNOSWLXD7",

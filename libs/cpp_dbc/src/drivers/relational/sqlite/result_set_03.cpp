@@ -39,10 +39,10 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<int64_t, DBException> SQLiteDBResultSet::getLong(std::nothrow_t, size_t columnIndex) noexcept
     {
-        std::scoped_lock globalLock(*m_globalFileMutex);
+        SQLITE_STMT_LOCK_OR_RETURN("G98AOIPXZMT2", "Result set is closed");
 
         sqlite3_stmt *stmt = getStmt(std::nothrow);
-        if (!stmt || m_closed.load(std::memory_order_seq_cst) || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
+        if (!stmt || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
         {
             return cpp_dbc::unexpected(DBException("DDAABD02C9D3", "Invalid column index or row position",
                                                    system_utils::captureCallStack()));
@@ -72,10 +72,10 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<double, DBException> SQLiteDBResultSet::getDouble(std::nothrow_t, size_t columnIndex) noexcept
     {
-        std::scoped_lock globalLock(*m_globalFileMutex);
+        SQLITE_STMT_LOCK_OR_RETURN("II872R4YKI9O", "Result set is closed");
 
         sqlite3_stmt *stmt = getStmt(std::nothrow);
-        if (!stmt || m_closed.load(std::memory_order_seq_cst) || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
+        if (!stmt || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
         {
             return cpp_dbc::unexpected(DBException("SL4D5E6F7G8H", "Invalid column index or row position",
                                                    system_utils::captureCallStack()));
@@ -105,10 +105,10 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<std::string, DBException> SQLiteDBResultSet::getString(std::nothrow_t, size_t columnIndex) noexcept
     {
-        std::scoped_lock globalLock(*m_globalFileMutex);
+        SQLITE_STMT_LOCK_OR_RETURN("92ESLP56Y566", "Result set is closed");
 
         sqlite3_stmt *stmt = getStmt(std::nothrow);
-        if (!stmt || m_closed.load(std::memory_order_seq_cst) || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
+        if (!stmt || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
         {
             return cpp_dbc::unexpected(DBException("1Y2Z3A4B5C6D", "Invalid column index or row position",
                                                    system_utils::captureCallStack()));
@@ -139,10 +139,10 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<bool, DBException> SQLiteDBResultSet::getBoolean(std::nothrow_t, size_t columnIndex) noexcept
     {
-        std::scoped_lock globalLock(*m_globalFileMutex);
+        SQLITE_STMT_LOCK_OR_RETURN("ZSOZZL8RQL3B", "Result set is closed");
 
         sqlite3_stmt *stmt = getStmt(std::nothrow);
-        if (!stmt || m_closed.load(std::memory_order_seq_cst) || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
+        if (!stmt || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
         {
             return cpp_dbc::unexpected(DBException("O1P2Q3R4S5T6", "Invalid column index or row position",
                                                    system_utils::captureCallStack()));
@@ -160,20 +160,21 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<bool, DBException> SQLiteDBResultSet::getBoolean(std::nothrow_t, const std::string &columnName) noexcept
     {
-        auto intResult = getInt(std::nothrow, columnName);
-        if (!intResult.has_value())
+        auto it = m_columnMap.find(columnName);
+        if (it == m_columnMap.end())
         {
-            return cpp_dbc::unexpected(intResult.error());
+            return cpp_dbc::unexpected(DBException("8D378YMDQ8YQ", "Column not found: " + columnName,
+                                                   system_utils::captureCallStack()));
         }
-        return intResult.value() != 0;
+        return getBoolean(std::nothrow, it->second + 1);
     }
 
     cpp_dbc::expected<bool, DBException> SQLiteDBResultSet::isNull(std::nothrow_t, size_t columnIndex) noexcept
     {
-        std::scoped_lock globalLock(*m_globalFileMutex);
+        SQLITE_STMT_LOCK_OR_RETURN("W4INHLJVGWMR", "Result set is closed");
 
         sqlite3_stmt *stmt = getStmt(std::nothrow);
-        if (!stmt || m_closed.load(std::memory_order_seq_cst) || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
+        if (!stmt || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
         {
             return cpp_dbc::unexpected(DBException("407EBCBBE843", "Invalid column index or row position",
                                                    system_utils::captureCallStack()));

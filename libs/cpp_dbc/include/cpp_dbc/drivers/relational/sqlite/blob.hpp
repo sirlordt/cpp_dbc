@@ -40,7 +40,7 @@ namespace cpp_dbc::SQLite
          * preventing use-after-free errors. The connection is managed by SQLiteConnection
          * using shared_ptr with custom deleter.
          */
-        std::weak_ptr<sqlite3> m_db;
+        std::weak_ptr<sqlite3> m_conn;
         std::string m_tableName;
         std::string m_columnName;
         std::string m_rowId;
@@ -73,7 +73,7 @@ namespace cpp_dbc::SQLite
 
         /** @brief Construct an empty BLOB for in-memory use */
         SQLiteBlob(PrivateCtorTag, std::nothrow_t, std::shared_ptr<sqlite3> db) noexcept
-            : m_db(db), m_loaded(true)
+            : m_conn(db), m_loaded(true)
         {
             // Intentionally empty — initialization done in member initializer list
         }
@@ -82,7 +82,7 @@ namespace cpp_dbc::SQLite
         SQLiteBlob(PrivateCtorTag, std::nothrow_t, std::shared_ptr<sqlite3> db,
                    const std::string &tableName, const std::string &columnName,
                    const std::string &rowId) noexcept
-            : m_db(db), m_tableName(tableName), m_columnName(columnName),
+            : m_conn(db), m_tableName(tableName), m_columnName(columnName),
               m_rowId(rowId), m_loaded(false)
         {
             // Intentionally empty — initialization done in member initializer list
@@ -91,7 +91,7 @@ namespace cpp_dbc::SQLite
         /** @brief Construct a BLOB from existing binary data */
         SQLiteBlob(PrivateCtorTag, std::nothrow_t, std::shared_ptr<sqlite3> db,
                    const std::vector<uint8_t> &initialData) noexcept
-            : MemoryBlob(initialData), m_db(db), m_loaded(true)
+            : MemoryBlob(initialData), m_conn(db), m_loaded(true)
         {
             // Intentionally empty — initialization done in member initializer list
         }
@@ -162,7 +162,7 @@ namespace cpp_dbc::SQLite
          */
         bool isConnectionValid() const noexcept override
         {
-            return !m_db.expired();
+            return !m_conn.expired();
         }
 
         cpp_dbc::expected<void, DBException> copyFrom(std::nothrow_t, const SQLiteBlob &other) noexcept;

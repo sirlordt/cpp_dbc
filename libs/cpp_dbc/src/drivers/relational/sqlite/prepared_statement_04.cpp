@@ -43,13 +43,7 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> SQLiteDBPreparedStatement::executeQuery(std::nothrow_t) noexcept
     {
-        std::scoped_lock globalLock(*m_globalFileMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_stmt)
-        {
-            return cpp_dbc::unexpected(DBException("SL6F7G8H9I0J", "Statement is closed",
-                                                   system_utils::captureCallStack()));
-        }
+        SQLITE_STMT_LOCK_OR_RETURN("SL6F7G8H9I0J", "Statement is closed");
 
         auto dbPtrResult = getSQLiteConnection(std::nothrow);
         if (!dbPtrResult.has_value())
@@ -65,8 +59,7 @@ namespace cpp_dbc::SQLite
                                                    system_utils::captureCallStack()));
         }
 
-        // Pass global file mutex to ResultSet - required because SQLite uses cursor-based iteration
-        auto rsResult = SQLiteDBResultSet::create(std::nothrow, m_stmt.get(), false, m_connection.lock(), shared_from_this(), m_globalFileMutex);
+        auto rsResult = SQLiteDBResultSet::create(std::nothrow, m_stmt.get(), false, m_connection.lock(), shared_from_this());
         if (!rsResult.has_value())
         {
             return cpp_dbc::unexpected(rsResult.error());
@@ -76,13 +69,7 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<uint64_t, DBException> SQLiteDBPreparedStatement::executeUpdate(std::nothrow_t) noexcept
     {
-        std::scoped_lock globalLock(*m_globalFileMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_stmt)
-        {
-            return cpp_dbc::unexpected(DBException("SL8H9I0J1K2L", "Statement is closed",
-                                                   system_utils::captureCallStack()));
-        }
+        SQLITE_STMT_LOCK_OR_RETURN("SL8H9I0J1K2L", "Statement is closed");
 
         auto dbPtrResult = getSQLiteConnection(std::nothrow);
         if (!dbPtrResult.has_value())
@@ -119,13 +106,7 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<bool, DBException> SQLiteDBPreparedStatement::execute(std::nothrow_t) noexcept
     {
-        std::scoped_lock globalLock(*m_globalFileMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_stmt)
-        {
-            return cpp_dbc::unexpected(DBException("SLCL2M3N4O5P", "Statement is closed",
-                                                   system_utils::captureCallStack()));
-        }
+        SQLITE_STMT_LOCK_OR_RETURN("SLCL2M3N4O5P", "Statement is closed");
 
         auto dbPtrResult = getSQLiteConnection(std::nothrow);
         if (!dbPtrResult.has_value())
@@ -154,21 +135,18 @@ namespace cpp_dbc::SQLite
         }
     }
 
-    // No try/catch: all inner calls are nothrow (scoped_lock, C API calls, atomic store,
+    // No try/catch: all inner calls are nothrow (SQLiteConnectionLock, C API calls, atomic store,
     // closeAllResultSets(nothrow)). Only death-sentence exceptions possible.
     cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::close(std::nothrow_t) noexcept
     {
-        // CRITICAL: Must hold the shared connection mutex to prevent race conditions.
-        // sqlite3_finalize() uses the sqlite3* connection handle, so concurrent access from
-        // another thread (e.g., connection pool validation) causes undefined behavior.
-        std::scoped_lock globalLock(*m_globalFileMutex);
+        SQLITE_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
 
         // Close all child result sets FIRST (before closing statement)
         [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
 
-        if (!m_closed.load(std::memory_order_seq_cst) && m_stmt)
+        if (m_stmt)
         {
-            auto dbPtr = m_db.lock();
+            auto dbPtr = m_conn.lock();
             if (dbPtr)
             {
                 int resetResult = sqlite3_reset(m_stmt.get());

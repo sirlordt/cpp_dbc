@@ -53,10 +53,10 @@ namespace cpp_dbc::Firebird
 
             FIREBIRD_DEBUG("FirebirdConnection::prepareStatement(nothrow) - Starting");
             FIREBIRD_DEBUG("  SQL: %s", sql.c_str());
-            FIREBIRD_DEBUG("  m_closed: %s", (m_closed.load(std::memory_order_acquire) ? "true" : "false"));
+            FIREBIRD_DEBUG("  m_closed: %s", (m_closed.load(std::memory_order_seq_cst) ? "true" : "false"));
             FIREBIRD_DEBUG("  m_tr: %ld", (long)m_tr);
 
-            if (m_closed.load(std::memory_order_acquire))
+            if (m_closed.load(std::memory_order_seq_cst))
             {
                 FIREBIRD_DEBUG("  Connection is closed!");
                 return cpp_dbc::unexpected(DBException("C5DB7C0E1EE3", "Connection is closed", system_utils::captureCallStack()));
@@ -78,12 +78,12 @@ namespace cpp_dbc::Firebird
             }
 
             FIREBIRD_DEBUG("  Creating FirebirdDBPreparedStatement...");
-            FIREBIRD_DEBUG("    m_db.get()=%p, *m_db.get()=%ld", (void*)m_db.get(), (m_db.get() ? (long)*m_db.get() : 0L));
+            FIREBIRD_DEBUG("    m_conn.get()=%p, *m_conn.get()=%ld", (void*)m_conn.get(), (m_conn.get() ? (long)*m_conn.get() : 0L));
             FIREBIRD_DEBUG("    m_tr=%ld", (long)m_tr);
             // PreparedStatement no longer receives m_connMutex as parameter
             // It will access the mutex through m_connection weak_ptr when needed
             auto stmtResult = FirebirdDBPreparedStatement::create(
-                std::nothrow, std::weak_ptr<isc_db_handle>(m_db), sql, shared_from_this());
+                std::nothrow, std::weak_ptr<isc_db_handle>(m_conn), sql, shared_from_this());
             if (!stmtResult.has_value())
             {
                 return cpp_dbc::unexpected(stmtResult.error());

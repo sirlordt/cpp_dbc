@@ -218,7 +218,7 @@ namespace cpp_dbc::Firebird
     {
         FIREBIRD_CONNECTION_LOCK_OR_RETURN("HR0QTJ2GVXFT", "Connection closed");
 
-        if (m_closed.load(std::memory_order_acquire))
+        if (m_closed.load(std::memory_order_seq_cst))
         {
             return {};
         }

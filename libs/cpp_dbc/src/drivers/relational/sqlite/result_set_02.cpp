@@ -37,18 +37,11 @@
 namespace cpp_dbc::SQLite
 {
 
-    // No try/catch: all inner calls are nothrow (scoped_lock, C API calls, atomic store,
+    // No try/catch: all inner calls are nothrow (SQLiteConnectionLock, C API calls, atomic store,
     // isClosed(nothrow), unregisterResultSet(nothrow)). Only death-sentence exceptions possible.
     cpp_dbc::expected<void, DBException> SQLiteDBResultSet::close(std::nothrow_t) noexcept
     {
-        // CRITICAL: Must use global file-level mutex because sqlite3_reset() and
-        // sqlite3_finalize() access the sqlite3* connection handle internally.
-        std::scoped_lock globalLock(*m_globalFileMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst))
-        {
-            return {};
-        }
+        SQLITE_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
 
         if (m_ownStatement && m_stmt)
         {
@@ -114,16 +107,16 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<bool, DBException> SQLiteDBResultSet::isEmpty(std::nothrow_t) noexcept
     {
-        std::scoped_lock globalLock(*m_globalFileMutex);
+        SQLITE_STMT_LOCK_OR_RETURN("SL0E1F2G3H4I", "Result set is closed");
         return m_rowPosition == 0 && !m_hasData;
     }
 
     cpp_dbc::expected<bool, DBException> SQLiteDBResultSet::next(std::nothrow_t) noexcept
     {
-        std::scoped_lock globalLock(*m_globalFileMutex);
+        SQLITE_STMT_LOCK_OR_RETURN("SL1A2B3C4D5E", "Result set is closed");
 
         sqlite3_stmt *stmt = getStmt(std::nothrow);
-        if (!stmt || m_closed.load(std::memory_order_seq_cst))
+        if (!stmt)
         {
             return false;
         }
@@ -152,25 +145,28 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<bool, DBException> SQLiteDBResultSet::isBeforeFirst(std::nothrow_t) noexcept
     {
+        SQLITE_STMT_LOCK_OR_RETURN("2DVXWAOV5X23", "Cannot check position");
         return m_rowPosition == 0;
     }
 
     cpp_dbc::expected<bool, DBException> SQLiteDBResultSet::isAfterLast(std::nothrow_t) noexcept
     {
+        SQLITE_STMT_LOCK_OR_RETURN("RCL9SMIMODWQ", "Cannot check position");
         return m_rowPosition > 0 && !m_hasData;
     }
 
     cpp_dbc::expected<uint64_t, DBException> SQLiteDBResultSet::getRow(std::nothrow_t) noexcept
     {
+        SQLITE_STMT_LOCK_OR_RETURN("P1LQEOHYKORE", "Cannot get row");
         return m_rowPosition;
     }
 
     cpp_dbc::expected<int, DBException> SQLiteDBResultSet::getInt(std::nothrow_t, size_t columnIndex) noexcept
     {
-        std::scoped_lock globalLock(*m_globalFileMutex);
+        SQLITE_STMT_LOCK_OR_RETURN("0A7LU8DS9WF3", "Result set is closed");
 
         sqlite3_stmt *stmt = getStmt(std::nothrow);
-        if (!stmt || m_closed.load(std::memory_order_seq_cst) || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
+        if (!stmt || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
         {
             return cpp_dbc::unexpected(DBException("0A7LU8DS9WF3", "Invalid column index or row position",
                                                    system_utils::captureCallStack()));

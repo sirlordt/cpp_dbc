@@ -60,7 +60,7 @@ namespace cpp_dbc::Firebird
         };
 
         // ── Member variables ──────────────────────────────────────────────────
-        FirebirdDbHandle m_db;
+        FirebirdDbHandle m_conn;
         isc_tr_handle m_tr;
         std::atomic<bool> m_closed{true};
         std::atomic<bool> m_resetting{false}; // True during reset() to prevent unregister deadlock
@@ -244,7 +244,7 @@ namespace cpp_dbc::Firebird
          *
          * @return Reference to the connection's recursive_mutex
          */
-        std::recursive_mutex &getConnectionMutex() noexcept
+        std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
         {
             return *m_connMutex;
         }
@@ -256,7 +256,7 @@ namespace cpp_dbc::Firebird
          *
          * Used by ResultSet/PreparedStatement to avoid unregister deadlock during closeAll*()
          */
-        bool isResetting() const noexcept { return m_resetting.load(std::memory_order_acquire); }
+        bool isResetting() const noexcept { return m_resetting.load(std::memory_order_seq_cst); }
 
         cpp_dbc::expected<void, cpp_dbc::DBException> close(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, cpp_dbc::DBException> reset(std::nothrow_t) noexcept override;
