@@ -233,6 +233,10 @@ if(USE_SQLITE)
 
         # SQLiteDBDriver
         src/drivers/relational/sqlite/driver_01.cpp
+
+        # SQLiteBlob
+        src/drivers/relational/sqlite/blob_01.cpp
+        src/drivers/relational/sqlite/blob_02.cpp
     )
 
     # Find SQLite package

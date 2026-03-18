@@ -26,19 +26,6 @@
 #include <cstdio>
 #include "cpp_dbc/common/system_utils.hpp"
 
-// Thread-safety macros for conditional mutex locking
-// Using recursive_mutex to allow the same thread to acquire the lock multiple times
-// This is needed when a method that holds the lock calls another method that also needs the lock
-#if DB_DRIVER_THREAD_SAFE
-#define DB_DRIVER_MUTEX mutable std::recursive_mutex
-#define DB_DRIVER_LOCK_GUARD(mutex) std::lock_guard<std::recursive_mutex> lock(mutex)
-#define DB_DRIVER_UNIQUE_LOCK(mutex) std::unique_lock<std::recursive_mutex> lock(mutex)
-#else
-#define DB_DRIVER_MUTEX
-#define DB_DRIVER_LOCK_GUARD(mutex) (void)0
-#define DB_DRIVER_UNIQUE_LOCK(mutex) (void)0
-#endif
-
 // SQLite uses m_globalFileMutex (file-level mutex from FileMutexRegistry) instead of
 // m_connMutex. The lock is always acquired regardless of DB_DRIVER_THREAD_SAFE because
 // the file mutex exists for sanitizer compatibility and cross-connection synchronization.

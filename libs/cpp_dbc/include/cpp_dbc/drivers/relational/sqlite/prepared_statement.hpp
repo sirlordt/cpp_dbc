@@ -131,26 +131,7 @@ namespace cpp_dbc::SQLite
             }
             return r.value();
         }
-#endif
 
-        static cpp_dbc::expected<std::shared_ptr<SQLiteDBPreparedStatement>, DBException>
-        create(std::nothrow_t,
-               std::weak_ptr<sqlite3> db,
-               std::weak_ptr<SQLiteDBConnection> conn,
-               std::shared_ptr<std::recursive_mutex> globalFileMutex,
-               const std::string &sql) noexcept
-        {
-            // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
-            auto obj = std::make_shared<SQLiteDBPreparedStatement>(
-                PrivateCtorTag{}, std::nothrow, std::move(db), std::move(conn), std::move(globalFileMutex), sql);
-            if (obj->m_initFailed)
-            {
-                return cpp_dbc::unexpected(std::move(*obj->m_initError));
-            }
-            return obj;
-        }
-
-#ifdef __cpp_exceptions
         void setInt(int parameterIndex, int value) override;
         void setLong(int parameterIndex, int64_t value) override;
         void setDouble(int parameterIndex, double value) override;
@@ -174,9 +155,27 @@ namespace cpp_dbc::SQLite
         void close() override;
 
 #endif // __cpp_exceptions
+
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
+
+        static cpp_dbc::expected<std::shared_ptr<SQLiteDBPreparedStatement>, DBException>
+        create(std::nothrow_t,
+               std::weak_ptr<sqlite3> db,
+               std::weak_ptr<SQLiteDBConnection> conn,
+               std::shared_ptr<std::recursive_mutex> globalFileMutex,
+               const std::string &sql) noexcept
+        {
+            // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+            auto obj = std::make_shared<SQLiteDBPreparedStatement>(
+                PrivateCtorTag{}, std::nothrow, std::move(db), std::move(conn), std::move(globalFileMutex), sql);
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            return obj;
+        }
 
         [[nodiscard]] cpp_dbc::expected<void, DBException> setInt(std::nothrow_t, int parameterIndex, int value) noexcept override;
         [[nodiscard]] cpp_dbc::expected<void, DBException> setLong(std::nothrow_t, int parameterIndex, int64_t value) noexcept override;

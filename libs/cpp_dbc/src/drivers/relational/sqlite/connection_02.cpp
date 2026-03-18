@@ -38,6 +38,72 @@ namespace cpp_dbc::SQLite
 {
 
     // Nothrow API
+
+    // No try/catch: all inner calls are nothrow (sqlite3_interrupt is a C function,
+    // closeAllResultSets/closeAllStatements/rollback/setAutoCommit/transactionActive
+    // all take std::nothrow_t). The only possible throws are death-sentence exceptions
+    // (std::bad_alloc, mutex std::system_error) with no meaningful recovery path.
+    cpp_dbc::expected<void, cpp_dbc::DBException> SQLiteDBConnection::reset(std::nothrow_t) noexcept
+    {
+        SQLITE_CONNECTION_LOCK_OR_RETURN("JPDLCGSJGAY2", "Cannot reset connection");
+
+        // 2026-02-15T00:00:00Z
+        // Bug: executeQuery() failure with an invalid column leaves the connection in an
+        // inconsistent state (WAL locks, partial transactions). Subsequent reset() calls
+        // rollback() → executeUpdate("ROLLBACK") which fails with "attempt to write a
+        // readonly database" (R4Z5A6B7C8D9), permanently corrupting the connection.
+        // Solution: Call sqlite3_interrupt() to forcibly cancel pending operations and
+        // clear locks before attempting cleanup, allowing subsequent operations to succeed.
+        sqlite3_interrupt(m_db.get());
+
+        // Close all result sets first, then statements
+        auto closeRsResult = closeAllResultSets(std::nothrow);
+        if (!closeRsResult.has_value())
+        {
+            SQLITE_DEBUG("  reset: closeAllResultSets failed: %s", closeRsResult.error().what_s().data());
+        }
+        auto closeStmtsResult = closeAllStatements(std::nothrow);
+        if (!closeStmtsResult.has_value())
+        {
+            SQLITE_DEBUG("  reset: closeAllStatements failed: %s", closeStmtsResult.error().what_s().data());
+        }
+
+        // Rollback any active transaction
+        auto txActive = transactionActive(std::nothrow);
+        if (txActive.has_value() && txActive.value())
+        {
+            auto rbResult = rollback(std::nothrow);
+            if (!rbResult.has_value())
+            {
+                SQLITE_DEBUG("  reset: rollback failed: %s", rbResult.error().what_s().data());
+            }
+        }
+
+        // Reset auto-commit to true
+        auto acResult = setAutoCommit(std::nothrow, true);
+        if (!acResult.has_value())
+        {
+            SQLITE_DEBUG("  reset: setAutoCommit failed: %s", acResult.error().what_s().data());
+        }
+
+        return {};
+    }
+
+    cpp_dbc::expected<bool, DBException> SQLiteDBConnection::ping(std::nothrow_t) noexcept
+    {
+        auto result = executeQuery(std::nothrow, "SELECT 1");
+        if (!result.has_value())
+        {
+            return cpp_dbc::unexpected(result.error());
+        }
+        auto closeResult = result.value()->close(std::nothrow);
+        if (!closeResult.has_value())
+        {
+            return cpp_dbc::unexpected(closeResult.error());
+        }
+        return true;
+    }
+
     cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> SQLiteDBConnection::prepareStatement(std::nothrow_t, const std::string &sql) noexcept
     {
         std::scoped_lock globalLock(*m_globalFileMutex);

@@ -144,27 +144,7 @@ namespace cpp_dbc::SQLite
             }
             return r.value();
         }
-#endif
 
-        static cpp_dbc::expected<std::shared_ptr<SQLiteDBConnection>, DBException>
-        create(std::nothrow_t,
-               const std::string &database,
-               const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
-        {
-            // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
-            auto conn = std::make_shared<SQLiteDBConnection>(
-                PrivateCtorTag{}, std::nothrow, database, options);
-            if (conn->m_initFailed)
-            {
-                return cpp_dbc::unexpected(std::move(*conn->m_initError));
-            }
-            // Store a weak self-reference so close() can unregister from the driver's
-            // connection registry via owner_less comparison without calling shared_from_this().
-            conn->m_self = conn;
-            return conn;
-        }
-
-#ifdef __cpp_exceptions
         void close() override;
         void reset() override;
         bool isClosed() const override;
@@ -196,9 +176,28 @@ namespace cpp_dbc::SQLite
         std::map<std::string, std::string> getServerInfo() override;
 
 #endif // __cpp_exceptions
+
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
+
+        static cpp_dbc::expected<std::shared_ptr<SQLiteDBConnection>, DBException>
+        create(std::nothrow_t,
+               const std::string &database,
+               const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
+        {
+            // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+            auto conn = std::make_shared<SQLiteDBConnection>(
+                PrivateCtorTag{}, std::nothrow, database, options);
+            if (conn->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*conn->m_initError));
+            }
+            // Store a weak self-reference so close() can unregister from the driver's
+            // connection registry via owner_less comparison without calling shared_from_this().
+            conn->m_self = conn;
+            return conn;
+        }
         cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;
         cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> executeQuery(std::nothrow_t, const std::string &sql) noexcept override;
         cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t, const std::string &sql) noexcept override;

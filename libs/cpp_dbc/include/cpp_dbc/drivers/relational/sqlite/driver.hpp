@@ -65,6 +65,8 @@ namespace cpp_dbc::SQLite
 
         void closeAllOpenConnections(std::nothrow_t) noexcept;
 
+        static void cleanup() noexcept;
+
         friend class SQLiteDBConnection;
 
         // ── Construction state ────────────────────────────────────────────────
@@ -135,8 +137,6 @@ namespace cpp_dbc::SQLite
         std::string getName() const noexcept override;
         std::string getURIScheme() const noexcept override;
         std::string getDriverVersion() const noexcept override;
-
-        static void cleanup() noexcept;
 
         /**
          * @brief Return the number of live connections tracked by the registry.

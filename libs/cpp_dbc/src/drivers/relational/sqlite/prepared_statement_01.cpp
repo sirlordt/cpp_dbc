@@ -37,130 +37,6 @@
 namespace cpp_dbc::SQLite
 {
 
-    // SQLiteDBPreparedStatement implementation
-    // Private methods
-    void SQLiteDBPreparedStatement::notifyConnClosing(std::nothrow_t) noexcept
-    {
-        // Connection is closing, release the statement pointer without calling sqlite3_finalize
-        // since the connection is already being destroyed and will clean up all statements
-        m_stmt.release(); // Release without calling deleter
-        m_closed.store(true, std::memory_order_seq_cst);
-    }
-
-    cpp_dbc::expected<sqlite3 *, DBException> SQLiteDBPreparedStatement::getSQLiteConnection(std::nothrow_t) const noexcept
-    {
-        auto conn = m_db.lock();
-        if (!conn)
-        {
-            return cpp_dbc::unexpected(DBException("QQI768O7OI0F", "SQLite connection has been closed", system_utils::captureCallStack()));
-        }
-        return conn.get();
-    }
-
-    cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::registerResultSet(std::nothrow_t, std::weak_ptr<SQLiteDBResultSet> rs) noexcept
-    {
-        // LOCK CONSISTENCY FIX (2026-02-15): Changed from m_resultSetsMutex to
-        // m_globalFileMutex to ensure ALL accesses to m_activeResultSets use the
-        // same mutex. Previously, closeAllResultSets() used m_globalFileMutex while
-        // registerResultSet()/unregisterResultSet() used m_resultSetsMutex, creating
-        // a data race (same data protected by different mutexes in different contexts).
-        //
-        // Now ALL access to m_activeResultSets is consistently protected by
-        // m_globalFileMutex, which is the file-level lock shared by all connections
-        // to the same SQLite database file.
-        SQLITE_STMT_LOCK_OR_RETURN("AWVN6T7OBL1H", "Cannot register result set");
-        if (m_activeResultSets.size() > 20)  // Smaller threshold than Connection
-        {
-            std::erase_if(m_activeResultSets, [](const auto &w) { return w.expired(); });
-        }
-        m_activeResultSets.insert(rs);
-        return {};
-    }
-
-    cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::unregisterResultSet(std::nothrow_t, std::weak_ptr<SQLiteDBResultSet> rs) noexcept
-    {
-        // LOCK CONSISTENCY FIX (2026-02-15): Changed from m_resultSetsMutex to
-        // m_globalFileMutex for consistency with closeAllResultSets() and
-        // registerResultSet(). All modifications to m_activeResultSets must use
-        // the same mutex to prevent data races.
-        SQLITE_STMT_LOCK_OR_RETURN("IP2U0VDA3R85", "Cannot unregister result set");
-        // Remove expired weak_ptrs and the specified one
-        for (auto it = m_activeResultSets.begin(); it != m_activeResultSets.end();)
-        {
-            auto locked = it->lock();
-            auto rsLocked = rs.lock();
-            if (!locked || (rsLocked && locked.get() == rsLocked.get()))
-            {
-                it = m_activeResultSets.erase(it);
-            }
-            else
-            {
-                ++it;
-            }
-        }
-        return {};
-    }
-
-    cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::closeAllResultSets(std::nothrow_t) noexcept
-    {
-        // LOCK ORDER FIX (2026-02-15): Previously, this method acquired both
-        // m_globalFileMutex and then m_resultSetsMutex (nested lock). This caused
-        // Helgrind LockOrder violations because different code paths acquire locks
-        // in different relative orders:
-        //
-        // Path 1 (from pool): pool mutex → m_globalFileMutex → m_resultSetsMutex
-        // Path 2 (from destructor): m_globalFileMutex → m_resultSetsMutex
-        //
-        // This creates potential for deadlock if two threads simultaneously:
-        //   Thread A: holds pool mutex, waits for m_globalFileMutex
-        //   Thread B: holds m_globalFileMutex, waits for pool mutex (indirectly)
-        //
-        // SOLUTION: m_globalFileMutex is a file-level lock shared by all connections
-        // to the same SQLite database file (via FileMutexRegistry). It protects ALL
-        // access to the underlying sqlite3* connection. Since m_activeResultSets is
-        // part of the prepared statement state and is only accessed when working with
-        // the sqlite3* connection, it is already implicitly protected by
-        // m_globalFileMutex. Therefore, the additional m_resultSetsMutex lock is
-        // redundant and can be safely removed.
-        //
-        // SAFETY: Access to m_activeResultSets is now protected solely by
-        // m_globalFileMutex, which is acquired by ALL methods that interact with
-        // the SQLite prepared statement (execute, executeQuery, executeUpdate, etc.).
-        // This provides sufficient synchronization without introducing lock ordering
-        // issues.
-        //
-        // TRADE-OFF: This reduces lock granularity (broader lock scope) but eliminates
-        // potential deadlocks. Since SQLite operations are typically fast and
-        // m_globalFileMutex is already required for correctness with ThreadSanitizer,
-        // this is an acceptable trade-off.
-        //
-        // Reference: Helgrind error logs in logs/test/2026-02-15-18-46-52/22_RUN02_fail.log
-        SQLITE_STMT_LOCK_OR_RETURN("19GTGW7K56I0", "Cannot close result sets");
-
-        // CRITICAL: Copy weak_ptrs to temporary vector to avoid iterator invalidation.
-        // When we call rs->close(), it calls unregisterResultSet() which modifies
-        // m_activeResultSets, invalidating iterators if we iterate directly.
-        std::vector<std::weak_ptr<SQLiteDBResultSet>> resultSetsToClose;
-        resultSetsToClose.reserve(m_activeResultSets.size());
-        for (const auto &weak_rs : m_activeResultSets)
-        {
-            resultSetsToClose.push_back(weak_rs);
-        }
-        m_activeResultSets.clear();
-
-        // Now close all result sets without holding the registry lock
-        for (auto &weak_rs : resultSetsToClose)
-        {
-            auto rs = weak_rs.lock();
-            if (rs)
-            {
-                // Use nothrow close — we are in a noexcept method
-                [[maybe_unused]] auto closeResult = rs->close(std::nothrow);
-            }
-        }
-        return {};
-    }
-
     // ── Public nothrow constructor (PrivateCtorTag) ───────────────────────────────
     // sqlite3_prepare_v2 is a C API that never throws C++ exceptions.
     // No recoverable exceptions → no try/catch needed.
@@ -203,6 +79,107 @@ namespace cpp_dbc::SQLite
         m_blobValues.resize(paramCount);
         m_blobObjects.resize(paramCount);
         m_streamObjects.resize(paramCount);
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────────────
+
+    void SQLiteDBPreparedStatement::notifyConnClosing(std::nothrow_t) noexcept
+    {
+        // Connection is closing, release the statement pointer without calling sqlite3_finalize
+        // since the connection is already being destroyed and will clean up all statements
+        m_stmt.release(); // Release without calling deleter
+        m_closed.store(true, std::memory_order_seq_cst);
+    }
+
+    cpp_dbc::expected<sqlite3 *, DBException> SQLiteDBPreparedStatement::getSQLiteConnection(std::nothrow_t) const noexcept
+    {
+        auto conn = m_db.lock();
+        if (!conn)
+        {
+            return cpp_dbc::unexpected(DBException("QQI768O7OI0F", "SQLite connection has been closed", system_utils::captureCallStack()));
+        }
+        return conn.get();
+    }
+
+    cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::registerResultSet(std::nothrow_t, std::weak_ptr<SQLiteDBResultSet> rs) noexcept
+    {
+        // 2026-02-15T00:00:00Z
+        // Bug: closeAllResultSets() used m_globalFileMutex while registerResultSet()/
+        // unregisterResultSet() used m_resultSetsMutex, creating a data race (same
+        // data protected by different mutexes in different contexts).
+        // Solution: Changed from m_resultSetsMutex to m_globalFileMutex so ALL access
+        // to m_activeResultSets is consistently protected by the file-level lock.
+        SQLITE_STMT_LOCK_OR_RETURN("AWVN6T7OBL1H", "Cannot register result set");
+        if (m_activeResultSets.size() > 20)  // Smaller threshold than Connection
+        {
+            std::erase_if(m_activeResultSets, [](const auto &w) { return w.expired(); });
+        }
+        m_activeResultSets.insert(rs);
+        return {};
+    }
+
+    cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::unregisterResultSet(std::nothrow_t, std::weak_ptr<SQLiteDBResultSet> rs) noexcept
+    {
+        // 2026-02-15T00:00:00Z
+        // Bug: unregisterResultSet() used m_resultSetsMutex while closeAllResultSets()
+        // used m_globalFileMutex, creating a data race on m_activeResultSets.
+        // Solution: Changed to m_globalFileMutex for consistency with all other
+        // m_activeResultSets access paths.
+        SQLITE_STMT_LOCK_OR_RETURN("IP2U0VDA3R85", "Cannot unregister result set");
+        // Remove expired weak_ptrs and the specified one
+        for (auto it = m_activeResultSets.begin(); it != m_activeResultSets.end();)
+        {
+            auto locked = it->lock();
+            auto rsLocked = rs.lock();
+            if (!locked || (rsLocked && locked.get() == rsLocked.get()))
+            {
+                it = m_activeResultSets.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+        return {};
+    }
+
+    cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::closeAllResultSets(std::nothrow_t) noexcept
+    {
+        // 2026-02-15T00:00:00Z
+        // Bug: This method acquired both m_globalFileMutex and then m_resultSetsMutex
+        // (nested lock), causing Helgrind LockOrder violations. Different code paths
+        // acquire locks in different relative orders:
+        //   Path 1 (from pool): pool mutex -> m_globalFileMutex -> m_resultSetsMutex
+        //   Path 2 (from destructor): m_globalFileMutex -> m_resultSetsMutex
+        // creating potential deadlock if threads acquire locks concurrently.
+        // Solution: Removed m_resultSetsMutex entirely. m_globalFileMutex (file-level
+        // lock via FileMutexRegistry) already protects ALL access to the sqlite3*
+        // connection state, including m_activeResultSets, making the second mutex
+        // redundant. Broader lock scope but eliminates potential deadlocks.
+        SQLITE_STMT_LOCK_OR_RETURN("19GTGW7K56I0", "Cannot close result sets");
+
+        // CRITICAL: Copy weak_ptrs to temporary vector to avoid iterator invalidation.
+        // When we call rs->close(), it calls unregisterResultSet() which modifies
+        // m_activeResultSets, invalidating iterators if we iterate directly.
+        std::vector<std::weak_ptr<SQLiteDBResultSet>> resultSetsToClose;
+        resultSetsToClose.reserve(m_activeResultSets.size());
+        for (const auto &weak_rs : m_activeResultSets)
+        {
+            resultSetsToClose.push_back(weak_rs);
+        }
+        m_activeResultSets.clear();
+
+        // Now close all result sets without holding the registry lock
+        for (auto &weak_rs : resultSetsToClose)
+        {
+            auto rs = weak_rs.lock();
+            if (rs)
+            {
+                // Use nothrow close — we are in a noexcept method
+                [[maybe_unused]] auto closeResult = rs->close(std::nothrow);
+            }
+        }
+        return {};
     }
 
     // ── Destructor ────────────────────────────────────────────────────────────────
