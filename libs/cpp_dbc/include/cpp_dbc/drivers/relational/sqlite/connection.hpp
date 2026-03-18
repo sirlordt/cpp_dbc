@@ -45,6 +45,7 @@ namespace cpp_dbc::SQLite
     {
         friend class SQLiteDBPreparedStatement;
         friend class SQLiteDBResultSet;
+        friend class SQLiteBlob;
 
         // ── PrivateCtorTag — prevents direct construction; use create() ──
         struct PrivateCtorTag

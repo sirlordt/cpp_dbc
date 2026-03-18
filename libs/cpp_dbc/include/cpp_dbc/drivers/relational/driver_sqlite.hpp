@@ -23,10 +23,10 @@
 
 #include "sqlite/handles.hpp"
 #include "sqlite/input_stream.hpp"
-#include "sqlite/blob.hpp"
 #include "sqlite/result_set.hpp"
 #include "sqlite/prepared_statement.hpp"
 #include "sqlite/connection.hpp"
+#include "sqlite/blob.hpp"
 #include "sqlite/driver.hpp"
 
 #endif // CPP_DBC_DRIVER_SQLITE_HPP

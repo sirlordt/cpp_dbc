@@ -115,7 +115,12 @@ namespace cpp_dbc::SQLite
         }
         sqlite3 *dbPtr = dbPtrResult.value();
 
-        sqlite3_reset(m_stmt.get());
+        int resetResult = sqlite3_reset(m_stmt.get());
+        if (resetResult != SQLITE_OK)
+        {
+            return cpp_dbc::unexpected(DBException("YQM80QQADT4X", "Failed to reset statement: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(resetResult) + ")",
+                                                   system_utils::captureCallStack()));
+        }
 
         int result = sqlite3_step(m_stmt.get());
 

@@ -668,6 +668,7 @@ Driver ──── s_connectionRegistry (tracks all live connections)
         │                   │
         │                   ├── shared with → PreparedStatement (via weak_ptr<Connection>)
         │                   ├── shared with → ResultSet (via weak_ptr<Connection>)
+        │                   ├── shared with → Blob (via weak_ptr<Connection>, created by ResultSet)
         │                   ├── shared with → Cursor (document DBs, via weak_ptr<Connection>)
         │                   └── shared with → Collection (document DBs, via weak_ptr<Connection>)
         │
@@ -681,7 +682,7 @@ Driver ──── s_connectionRegistry (tracks all live connections)
 
 2. **Mutex type**: Always `SharedConnMutex` (`std::shared_ptr<std::recursive_mutex>`), never a direct `std::recursive_mutex` member. The `shared_ptr` allows child objects to access the mutex safely through `weak_ptr<Connection>` → `getConnectionMutex(std::nothrow)`.
 
-3. **Child objects never store the mutex**: PreparedStatement, ResultSet, Cursor, Collection, and any other child class that depends on a Connection must **not** store `m_connMutex` or any mutex as a member. They acquire the mutex at runtime through their `m_connection` weak_ptr using the RAII helper class.
+3. **Child objects never store the mutex**: PreparedStatement, ResultSet, Blob, Cursor, Collection, and any other child class that depends on a Connection must **not** store `m_connMutex` or any mutex as a member. They acquire the mutex at runtime through their `m_connection` weak_ptr using the RAII helper class. Note: `*InputStream` classes are **not** child objects of the Connection — they are pure in-memory byte buffers with no connection reference or DB dependency.
 
 4. **`getConnectionMutex(std::nothrow_t)`**: Every `*DBConnection` must expose this method in the public section:
 
@@ -693,6 +694,62 @@ std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
 ```
 
 This applies to **all database families** — relational, document, KV, columnar. Any class that semantically depends on a Connection and accesses shared resources through it must follow this pattern.
+
+5. **Blob is a child object of Connection (not of ResultSet)**: `*Blob` classes are created by ResultSet (via `getBlob()`) but their lifecycle dependency is **directly on Connection**, not on ResultSet. They perform native database API calls (e.g., lazy-loading via `ensureLoaded()`, persisting via `save()`) and **must** follow the same synchronization pattern as PreparedStatement and ResultSet:
+
+   - Store `std::weak_ptr<*DBConnection> m_connection` (not `weak_ptr<NativeHandle>` like `weak_ptr<MYSQL>` or `weak_ptr<sqlite3>`)
+   - Store `mutable std::atomic<bool> m_closed{false}` for double-checked locking
+   - Declare `friend class *ConnectionLock` so the RAII helper can access `m_connection`
+   - Use `*_STMT_LOCK_OR_RETURN` / `*_STMT_LOCK_OR_THROW` before any native DB API call
+   - Obtain the native handle through the connection (e.g., `conn->m_conn`) under the lock, **not** through a separate `weak_ptr<NativeHandle>`
+
+   **`*InputStream` is NOT a child object of Connection.** All current `*InputStream` implementations are pure in-memory byte buffers (`std::vector<uint8_t>` + position cursor) with no `m_connection`, no `weak_ptr`, and no native DB API calls. They copy data at construction and are fully self-contained. They do not require synchronization, connection lifecycle checks, or `*_STMT_LOCK_OR_RETURN` guards.
+
+   ```cpp
+   // Correct — Blob acquires lock before native DB calls
+   cpp_dbc::expected<void, DBException> MyBlob::ensureLoaded(std::nothrow_t) const noexcept
+   {
+       if (m_loaded) { return {}; }
+
+       MY_STMT_LOCK_OR_RETURN("XXXXXXXXXXXX", "Blob connection closed");
+
+       auto dbResult = getSQLiteConnection(std::nothrow);  // goes through m_connection
+       // ... native DB API calls under the lock ...
+   }
+
+   // Incorrect — Blob holds weak_ptr<NativeHandle> and calls DB API without lock
+   cpp_dbc::expected<void, DBException> MyBlob::ensureLoaded(std::nothrow_t) const noexcept
+   {
+       auto handle = m_nativeHandle.lock();  // WRONG: no connection lock acquired
+       native_api_call(handle.get());        // WRONG: unprotected native call
+   }
+   ```
+
+6. **Child objects must reject operations when the parent connection is closed**: Every child object (PreparedStatement, ResultSet, Blob, Cursor, Collection, Document) must verify that the parent connection is **both alive and open** before processing any request. This is a **double check**:
+
+   - **`weak_ptr` expired** → the connection object has been destroyed. The child must mark itself as closed (`m_closed = true`) and return an error.
+   - **`conn->m_closed == true`** → the connection object still exists but has been explicitly closed. The child must also reject the operation and return an error.
+
+   Both checks are handled automatically by the `*ConnectionLock` RAII helper (thread-safe path) and by the non-thread-safe `*_STMT_LOCK_OR_RETURN` macros. The `*ConnectionLock` constructor checks `m_connection.lock()` (expiry) and then re-checks `m_closed` after acquiring the lock. The non-thread-safe macros check `m_closed` and then `m_connection.expired()`.
+
+   **This rule applies even to child objects that operate purely in-memory.** For example, MySQL and PostgreSQL ResultSets use the "store result" model — all data is in client memory and `next()`/`getString()` do not communicate with the server. Nevertheless, if the parent connection has been closed, the ResultSet must refuse new operations. The connection being closed means the session is over — continuing to serve data from a closed session violates the lifecycle contract and can lead to inconsistent state if the ResultSet is later used to create new child objects (e.g., getting a Blob from a ResultSet column).
+
+   ```cpp
+   // Correct — child rejects operation when parent connection is closed,
+   // even though it only reads in-memory data
+   cpp_dbc::expected<std::string, DBException> MyResultSet::getString(std::nothrow_t, size_t col) noexcept
+   {
+       MY_STMT_LOCK_OR_RETURN("XXXXXXXXXXXX", "Result set closed");
+       // ... read from in-memory buffer ...
+   }
+
+   // Incorrect — child serves data without checking parent connection state
+   cpp_dbc::expected<std::string, DBException> MyResultSet::getString(std::nothrow_t, size_t col) noexcept
+   {
+       // No guard — if connection was closed, this silently succeeds
+       return m_data[col];  // WRONG: should verify connection is open first
+   }
+   ```
 
 ### Two-Tier Locking Macros
 
@@ -719,7 +776,7 @@ Each driver defines **two groups of macros** in its `*_internal.hpp`, following 
     { return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)", ...)); }
 ```
 
-**Statement/Child-level macros** — used inside PreparedStatement, ResultSet, and any child class. Use the `*ConnectionLock` RAII helper to acquire the mutex through `weak_ptr<Connection>`:
+**Statement/Child-level macros** — used inside PreparedStatement, ResultSet, Blob, Cursor, Collection, Document, and any child class that performs native DB API calls. Use the `*ConnectionLock` RAII helper to acquire the mutex through `weak_ptr<Connection>`:
 
 | Macro | Purpose |
 |-------|---------|

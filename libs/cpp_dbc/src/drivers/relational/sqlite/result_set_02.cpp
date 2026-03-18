@@ -137,7 +137,7 @@ namespace cpp_dbc::SQLite
         }
         else
         {
-            return cpp_dbc::unexpected(DBException("SL1A2B3C4D5E",
+            return cpp_dbc::unexpected(DBException("4QKKLQ0KJ8AE",
                 "Error stepping through SQLite result set: " + std::string(sqlite3_errmsg(sqlite3_db_handle(stmt))),
                 system_utils::captureCallStack()));
         }

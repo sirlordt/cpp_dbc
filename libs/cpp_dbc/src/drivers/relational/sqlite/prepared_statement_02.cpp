@@ -103,7 +103,7 @@ namespace cpp_dbc::SQLite
         int result = sqlite3_bind_int64(m_stmt.get(), parameterIndex, value);
         if (result != SQLITE_OK)
         {
-            return cpp_dbc::unexpected(DBException("S6Z7A8B9C0D1", "Failed to bind long parameter: " + std::string(sqlite3_errmsg(dbPtr)),
+            return cpp_dbc::unexpected(DBException("S6Z7A8B9C0D1", "Failed to bind long parameter: " + std::string(sqlite3_errmsg(dbPtr)) + " (index=" + std::to_string(parameterIndex) + ", value=" + std::to_string(value) + ", result=" + std::to_string(result) + ")",
                                                    system_utils::captureCallStack()));
         }
         return {};
@@ -246,7 +246,7 @@ namespace cpp_dbc::SQLite
         int result = sqlite3_bind_null(m_stmt.get(), parameterIndex);
         if (result != SQLITE_OK)
         {
-            return cpp_dbc::unexpected(DBException("T9Z0A1B2C3D4", "Failed to bind null parameter: " + std::string(sqlite3_errmsg(dbPtr)),
+            return cpp_dbc::unexpected(DBException("T9Z0A1B2C3D4", "Failed to bind null parameter: " + std::string(sqlite3_errmsg(dbPtr)) + " (index=" + std::to_string(parameterIndex) + ", result=" + std::to_string(result) + ")",
                                                    system_utils::captureCallStack()));
         }
         return {};

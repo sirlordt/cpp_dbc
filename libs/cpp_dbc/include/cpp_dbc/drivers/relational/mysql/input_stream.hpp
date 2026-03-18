@@ -169,6 +169,8 @@ namespace cpp_dbc::MySQL
             // Solution: Copy other.m_position to preserve the read position.
             m_data = other.m_data;
             m_position = other.m_position;
+            m_initFailed = false;
+            m_initError = nullptr;
             return {};
         }
 

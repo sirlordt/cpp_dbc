@@ -17,16 +17,23 @@
 
 namespace cpp_dbc::SQLite
 {
+    class SQLiteDBConnection; // Forward declaration for weak_ptr and friend
+    class SQLiteConnectionLock; // Forward declaration for friend
+
     /**
      * @brief SQLite Blob implementation with lazy loading from database
      *
      * Extends MemoryBlob with database-backed lazy loading via sqlite3 APIs.
-     * Uses weak_ptr to safely detect when the connection has been closed.
+     * Synchronizes DB access through the parent connection's mutex via
+     * weak_ptr<SQLiteDBConnection>, following the same pattern as
+     * PreparedStatement and ResultSet.
      *
-     * @see MemoryBlob, SQLiteDBResultSet
+     * @see MemoryBlob, SQLiteDBResultSet, SQLiteDBConnection
      */
     class SQLiteBlob : public MemoryBlob
     {
+        friend class SQLiteConnectionLock;
+
         // ── PrivateCtorTag — prevents direct construction; use create() ──
         struct PrivateCtorTag
         {
@@ -34,25 +41,31 @@ namespace cpp_dbc::SQLite
         };
 
         /**
-         * @brief Safe weak reference to SQLite connection - detects when connection is closed
+         * @brief Weak reference to parent connection for mutex acquisition
          *
-         * Uses weak_ptr to safely detect when the connection has been closed,
-         * preventing use-after-free errors. The connection is managed by SQLiteConnection
-         * using shared_ptr with custom deleter.
+         * Used by SQLiteConnectionLock (RAII helper) to acquire the connection's
+         * file-level mutex. When expired, the blob operates in pure in-memory mode
+         * (no DB I/O possible). The blob does not need to know the mutex type or
+         * origin — it acquires it through the connection, same as PreparedStatement
+         * and ResultSet.
          */
-        std::weak_ptr<sqlite3> m_conn;
+        std::weak_ptr<SQLiteDBConnection> m_connection;
+
         std::string m_tableName;
         std::string m_columnName;
         std::string m_rowId;
         mutable bool m_loaded{false};
+        mutable std::atomic<bool> m_closed{false};
 
         // ── Construction state ────────────────────────────────────────────────
         bool m_initFailed{false};
         std::unique_ptr<DBException> m_initError{nullptr};
 
         /**
-         * @brief Helper method to get sqlite3* safely, returns unexpected if connection is closed
-         * @return The sqlite3 connection pointer or error
+         * @brief Helper method to get sqlite3* safely through the connection
+         * @return The sqlite3 connection pointer or error if connection is closed
+         *
+         * Must be called under the connection lock (via SQLITE_STMT_LOCK_OR_RETURN).
          */
         cpp_dbc::expected<sqlite3 *, DBException> getSQLiteConnection(std::nothrow_t) const noexcept;
 
@@ -72,28 +85,31 @@ namespace cpp_dbc::SQLite
         // string/vector copies) or trivially noexcept (weak_ptr copy, bool assign).
 
         /** @brief Construct an empty BLOB for in-memory use */
-        SQLiteBlob(PrivateCtorTag, std::nothrow_t, std::shared_ptr<sqlite3> db) noexcept
-            : m_conn(db), m_loaded(true)
+        SQLiteBlob(PrivateCtorTag, std::nothrow_t,
+                   std::weak_ptr<SQLiteDBConnection> conn) noexcept
+            : m_loaded(true)
         {
-            // Intentionally empty — initialization done in member initializer list
+            m_connection = std::move(conn);
         }
 
         /** @brief Construct a lazy-loading BLOB from a database row */
-        SQLiteBlob(PrivateCtorTag, std::nothrow_t, std::shared_ptr<sqlite3> db,
+        SQLiteBlob(PrivateCtorTag, std::nothrow_t,
+                   std::weak_ptr<SQLiteDBConnection> conn,
                    const std::string &tableName, const std::string &columnName,
                    const std::string &rowId) noexcept
-            : m_conn(db), m_tableName(tableName), m_columnName(columnName),
-              m_rowId(rowId), m_loaded(false)
+            : m_tableName(tableName), m_columnName(columnName),
+              m_rowId(rowId)
         {
-            // Intentionally empty — initialization done in member initializer list
+            m_connection = std::move(conn);
         }
 
         /** @brief Construct a BLOB from existing binary data */
-        SQLiteBlob(PrivateCtorTag, std::nothrow_t, std::shared_ptr<sqlite3> db,
+        SQLiteBlob(PrivateCtorTag, std::nothrow_t,
+                   std::weak_ptr<SQLiteDBConnection> conn,
                    const std::vector<uint8_t> &initialData) noexcept
-            : MemoryBlob(initialData), m_conn(db), m_loaded(true)
+            : MemoryBlob(initialData), m_loaded(true)
         {
-            // Intentionally empty — initialization done in member initializer list
+            m_connection = std::move(conn);
         }
 
         ~SQLiteBlob() override = default;
@@ -109,12 +125,12 @@ namespace cpp_dbc::SQLite
 
         // ── Throwing static factories (delegate to nothrow) ──────────────────
 
-        static std::shared_ptr<SQLiteBlob> create(std::shared_ptr<sqlite3> db);
+        static std::shared_ptr<SQLiteBlob> create(std::weak_ptr<SQLiteDBConnection> conn);
 
-        static std::shared_ptr<SQLiteBlob> create(std::shared_ptr<sqlite3> db,
+        static std::shared_ptr<SQLiteBlob> create(std::weak_ptr<SQLiteDBConnection> conn,
                                                    const std::string &tableName, const std::string &columnName, const std::string &rowId);
 
-        static std::shared_ptr<SQLiteBlob> create(std::shared_ptr<sqlite3> db,
+        static std::shared_ptr<SQLiteBlob> create(std::weak_ptr<SQLiteDBConnection> conn,
                                                    const std::vector<uint8_t> &initialData);
 
         // ── Throwing public methods ──────────────────────────────────────────
@@ -146,12 +162,15 @@ namespace cpp_dbc::SQLite
         // ── Nothrow static factories ─────────────────────────────────────────
         // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
 
-        static cpp_dbc::expected<std::shared_ptr<SQLiteBlob>, DBException> create(std::nothrow_t, std::shared_ptr<sqlite3> db) noexcept;
+        static cpp_dbc::expected<std::shared_ptr<SQLiteBlob>, DBException> create(std::nothrow_t,
+                                                                                  std::weak_ptr<SQLiteDBConnection> conn) noexcept;
 
-        static cpp_dbc::expected<std::shared_ptr<SQLiteBlob>, DBException> create(std::nothrow_t, std::shared_ptr<sqlite3> db,
+        static cpp_dbc::expected<std::shared_ptr<SQLiteBlob>, DBException> create(std::nothrow_t,
+                                                                                  std::weak_ptr<SQLiteDBConnection> conn,
                                                                                   const std::string &tableName, const std::string &columnName, const std::string &rowId) noexcept;
 
-        static cpp_dbc::expected<std::shared_ptr<SQLiteBlob>, DBException> create(std::nothrow_t, std::shared_ptr<sqlite3> db,
+        static cpp_dbc::expected<std::shared_ptr<SQLiteBlob>, DBException> create(std::nothrow_t,
+                                                                                  std::weak_ptr<SQLiteDBConnection> conn,
                                                                                   const std::vector<uint8_t> &initialData) noexcept;
 
         // ── Nothrow public methods ───────────────────────────────────────────
@@ -162,7 +181,7 @@ namespace cpp_dbc::SQLite
          */
         bool isConnectionValid() const noexcept override
         {
-            return !m_conn.expired();
+            return !m_connection.expired();
         }
 
         cpp_dbc::expected<void, DBException> copyFrom(std::nothrow_t, const SQLiteBlob &other) noexcept;

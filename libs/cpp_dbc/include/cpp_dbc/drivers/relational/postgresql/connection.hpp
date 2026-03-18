@@ -40,6 +40,7 @@ namespace cpp_dbc::PostgreSQL
     {
         friend class PostgreSQLDBPreparedStatement;
         friend class PostgreSQLDBResultSet;
+        friend class PostgreSQLBlob;
 
         /**
          * @brief Private tag for the passkey idiom — enables std::make_shared

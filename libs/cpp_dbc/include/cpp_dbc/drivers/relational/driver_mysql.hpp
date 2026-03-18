@@ -23,10 +23,10 @@
 
 #include "mysql/handles.hpp"
 #include "mysql/input_stream.hpp"
-#include "mysql/blob.hpp"
 #include "mysql/result_set.hpp"
 #include "mysql/prepared_statement.hpp"
 #include "mysql/connection.hpp"
+#include "mysql/blob.hpp"
 #include "mysql/driver.hpp"
 
 #endif // CPP_DBC_DRIVER_MYSQL_HPP

@@ -256,7 +256,7 @@ namespace cpp_dbc::Firebird
             ISC_QUAD *blobId = reinterpret_cast<ISC_QUAD *>(var->sqldata);
             try
             {
-                auto blob = std::make_shared<FirebirdBlob>(conn, *blobId);
+                auto blob = FirebirdBlob::create(conn, *blobId);
                 std::vector<uint8_t> data = blob->getBytes(0, blob->length());
                 return std::string(data.begin(), data.end());
             }

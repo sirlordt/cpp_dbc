@@ -197,8 +197,13 @@ namespace cpp_dbc::Firebird
                 return cpp_dbc::unexpected(DBException("E9F5A1B7C4D1", "Connection has been closed", system_utils::captureCallStack()));
             }
 
-            // Create a FirebirdBlob with the data using the connection-based constructor
-            auto blob = std::make_shared<FirebirdBlob>(conn, data);
+            // Create a FirebirdBlob with the data using the connection weak_ptr
+            auto blobResult = FirebirdBlob::create(std::nothrow, m_connection, data);
+            if (!blobResult.has_value())
+            {
+                return cpp_dbc::unexpected(blobResult.error());
+            }
+            auto blob = blobResult.value();
 
             // Save the blob to the database and get its ID via nothrow overload
             auto saveResult = blob->save(std::nothrow);

@@ -54,7 +54,7 @@ namespace cpp_dbc::SQLite
 
         if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
         {
-            auto nullBlobResult = SQLite::SQLiteBlob::create(std::nothrow, std::shared_ptr<sqlite3>());
+            auto nullBlobResult = SQLite::SQLiteBlob::create(std::nothrow, std::weak_ptr<SQLiteDBConnection>{});
             if (!nullBlobResult.has_value())
             {
                 return cpp_dbc::unexpected(nullBlobResult.error());
@@ -81,16 +81,8 @@ namespace cpp_dbc::SQLite
             std::memcpy(data.data(), blobData, blobSize);
         }
 
-        // Get a shared_ptr to the connection
-        auto conn = m_connection.lock();
-        if (!conn)
-        {
-            return cpp_dbc::unexpected(DBException("N3O4P5Q6R7S8", "Connection is no longer valid",
-                                                   system_utils::captureCallStack()));
-        }
-
-        // Create a new BLOB object with the data (pass shared_ptr for safe reference)
-        auto blobResult = SQLite::SQLiteBlob::create(std::nothrow, conn->m_conn, data);
+        // Create a new BLOB object with the data (pass connection weak_ptr for synchronization)
+        auto blobResult = SQLite::SQLiteBlob::create(std::nothrow, m_connection, data);
         if (!blobResult.has_value())
         {
             return cpp_dbc::unexpected(blobResult.error());

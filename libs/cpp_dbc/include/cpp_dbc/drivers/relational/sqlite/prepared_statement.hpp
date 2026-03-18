@@ -8,6 +8,7 @@
 
 #if USE_SQLITE
 
+#include <atomic>
 #include <vector>
 #include <string>
 #include <memory>

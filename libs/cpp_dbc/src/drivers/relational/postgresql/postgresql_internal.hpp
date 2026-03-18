@@ -231,9 +231,16 @@ namespace cpp_dbc::PostgreSQL
     }
 
 #else
+// Non-thread-safe: check closed flag AND connection weak_ptr expiry (no locking).
 #define POSTGRESQL_STMT_LOCK_OR_RETURN(mark, msg)                                                       \
     if (m_closed.load(std::memory_order_seq_cst))                                               \
     {                                                                                           \
+        return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",                \
+                                               cpp_dbc::system_utils::captureCallStack()));     \
+    }                                                                                           \
+    if (m_connection.expired())                                                                 \
+    {                                                                                           \
+        m_closed.store(true, std::memory_order_seq_cst);                                       \
         return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",                \
                                                cpp_dbc::system_utils::captureCallStack()));     \
     }
@@ -242,12 +249,22 @@ namespace cpp_dbc::PostgreSQL
     if (m_closed.load(std::memory_order_seq_cst))                                                            \
     {                                                                                                        \
         throw DBException(mark, msg " (connection closed)", cpp_dbc::system_utils::captureCallStack());      \
+    }                                                                                                        \
+    if (m_connection.expired())                                                                              \
+    {                                                                                                        \
+        m_closed.store(true, std::memory_order_seq_cst);                                                    \
+        throw DBException(mark, msg " (connection closed)", cpp_dbc::system_utils::captureCallStack());      \
     }
 
 #define POSTGRESQL_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()                                              \
     if (m_closed.load(std::memory_order_seq_cst))                                               \
     {                                                                                           \
         return {}; /* Already closed or connection lost = success */                             \
+    }                                                                                           \
+    if (m_connection.expired())                                                                 \
+    {                                                                                           \
+        m_closed.store(true, std::memory_order_seq_cst);                                       \
+        return {}; /* Connection lost = success */                                              \
     }
 #endif // DB_DRIVER_THREAD_SAFE
 

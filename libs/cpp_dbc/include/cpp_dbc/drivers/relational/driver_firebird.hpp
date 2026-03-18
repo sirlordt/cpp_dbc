@@ -26,10 +26,10 @@
 
 #include "firebird/handles.hpp"
 #include "firebird/input_stream.hpp"
-#include "firebird/blob.hpp"
 #include "firebird/result_set.hpp"
 #include "firebird/prepared_statement.hpp"
 #include "firebird/connection.hpp"
+#include "firebird/blob.hpp"
 #include "firebird/driver.hpp"
 
 #endif // CPP_DBC_DRIVER_FIREBIRD_HPP

@@ -22,15 +22,18 @@
 
 #if USE_SQLITE
 
+#include "sqlite_internal.hpp"
+
 namespace cpp_dbc::SQLite
 {
 
     // ── Nothrow static factories ─────────────────────────────────────────────────
     // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
 
-    cpp_dbc::expected<std::shared_ptr<SQLiteBlob>, DBException> SQLiteBlob::create(std::nothrow_t, std::shared_ptr<sqlite3> db) noexcept
+    cpp_dbc::expected<std::shared_ptr<SQLiteBlob>, DBException> SQLiteBlob::create(std::nothrow_t,
+                                                                                   std::weak_ptr<SQLiteDBConnection> conn) noexcept
     {
-        auto obj = std::make_shared<SQLiteBlob>(PrivateCtorTag{}, std::nothrow, db);
+        auto obj = std::make_shared<SQLiteBlob>(PrivateCtorTag{}, std::nothrow, std::move(conn));
         if (obj->m_initFailed)
         {
             return cpp_dbc::unexpected(std::move(*obj->m_initError));
@@ -38,10 +41,11 @@ namespace cpp_dbc::SQLite
         return obj;
     }
 
-    cpp_dbc::expected<std::shared_ptr<SQLiteBlob>, DBException> SQLiteBlob::create(std::nothrow_t, std::shared_ptr<sqlite3> db,
-                                                                                  const std::string &tableName, const std::string &columnName, const std::string &rowId) noexcept
+    cpp_dbc::expected<std::shared_ptr<SQLiteBlob>, DBException> SQLiteBlob::create(std::nothrow_t,
+                                                                                   std::weak_ptr<SQLiteDBConnection> conn,
+                                                                                   const std::string &tableName, const std::string &columnName, const std::string &rowId) noexcept
     {
-        auto obj = std::make_shared<SQLiteBlob>(PrivateCtorTag{}, std::nothrow, db, tableName, columnName, rowId);
+        auto obj = std::make_shared<SQLiteBlob>(PrivateCtorTag{}, std::nothrow, std::move(conn), tableName, columnName, rowId);
         if (obj->m_initFailed)
         {
             return cpp_dbc::unexpected(std::move(*obj->m_initError));
@@ -49,10 +53,11 @@ namespace cpp_dbc::SQLite
         return obj;
     }
 
-    cpp_dbc::expected<std::shared_ptr<SQLiteBlob>, DBException> SQLiteBlob::create(std::nothrow_t, std::shared_ptr<sqlite3> db,
-                                                                                  const std::vector<uint8_t> &initialData) noexcept
+    cpp_dbc::expected<std::shared_ptr<SQLiteBlob>, DBException> SQLiteBlob::create(std::nothrow_t,
+                                                                                   std::weak_ptr<SQLiteDBConnection> conn,
+                                                                                   const std::vector<uint8_t> &initialData) noexcept
     {
-        auto obj = std::make_shared<SQLiteBlob>(PrivateCtorTag{}, std::nothrow, db, initialData);
+        auto obj = std::make_shared<SQLiteBlob>(PrivateCtorTag{}, std::nothrow, std::move(conn), initialData);
         if (obj->m_initFailed)
         {
             return cpp_dbc::unexpected(std::move(*obj->m_initError));
@@ -73,7 +78,7 @@ namespace cpp_dbc::SQLite
         {
             return r;
         }
-        m_conn = other.m_conn;
+        m_connection = other.m_connection;
         m_tableName = other.m_tableName;
         m_columnName = other.m_columnName;
         m_rowId = other.m_rowId;
@@ -97,6 +102,9 @@ namespace cpp_dbc::SQLite
         {
             return cpp_dbc::unexpected(colResult.error());
         }
+
+        // Acquire connection lock for the entire sqlite3 statement lifecycle
+        SQLITE_STMT_LOCK_OR_RETURN("BCOMBRIZ3NOO", "Blob connection closed");
 
         auto dbResult = getSQLiteConnection(std::nothrow);
         if (!dbResult.has_value())
@@ -241,7 +249,10 @@ namespace cpp_dbc::SQLite
             return cpp_dbc::unexpected(colResult.error());
         }
 
-        // Get the SQLite connection safely
+        // Acquire connection lock for the entire sqlite3 statement lifecycle
+        SQLITE_STMT_LOCK_OR_RETURN("78BBDB81BED9", "Blob connection closed");
+
+        // Get the SQLite connection safely (under lock)
         auto dbResult = getSQLiteConnection(std::nothrow);
         if (!dbResult.has_value())
         {
@@ -261,6 +272,11 @@ namespace cpp_dbc::SQLite
         }
 
         // Bind the BLOB data (parameter 1)
+        if (m_data.size() > static_cast<size_t>(INT_MAX))
+        {
+            sqlite3_finalize(stmt);
+            return cpp_dbc::unexpected(DBException("EJ5YEPBHG2HG", "BLOB data too large for sqlite3_bind_blob: " + std::to_string(m_data.size()) + " bytes exceeds INT_MAX", system_utils::captureCallStack()));
+        }
         result = sqlite3_bind_blob(stmt, 1, m_data.data(), static_cast<int>(m_data.size()), SQLITE_STATIC);
         if (result != SQLITE_OK)
         {

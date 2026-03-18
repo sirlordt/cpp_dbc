@@ -138,11 +138,13 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<std::vector<std::string>, DBException> SQLiteDBResultSet::getColumnNames(std::nothrow_t) noexcept
     {
+        SQLITE_STMT_LOCK_OR_RETURN("JMCBOO4MZQ8S", "Result set is closed");
         return m_columnNames;
     }
 
     cpp_dbc::expected<size_t, DBException> SQLiteDBResultSet::getColumnCount(std::nothrow_t) noexcept
     {
+        SQLITE_STMT_LOCK_OR_RETURN("5MCT0MQX2LPX", "Result set is closed");
         return m_fieldCount;
     }
 

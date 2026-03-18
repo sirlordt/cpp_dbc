@@ -2552,7 +2552,7 @@ size_t XxxDBDriver::getConnectionAlive() noexcept
 
 #### Overview
 
-Every Connection class creates a mutex that protects operations on the underlying C API handle. Child classes (PreparedStatement, ResultSet, Cursor, Collection, Document, etc.) that depend semantically and functionally on the Connection may share this mutex or create their own, depending on the database's execution model.
+Every Connection class creates a mutex that protects operations on the underlying C API handle. Child classes (PreparedStatement, ResultSet, Blob, Cursor, Collection, Document, etc.) that depend semantically and/or functionally on the Connection may share this mutex or create their own, depending on the database's execution model. Note: `*InputStream` classes are NOT child objects of Connection — they are pure in-memory byte buffers with no connection reference. Blob is created by ResultSet (via `getBlob()`) but its lifecycle dependency is directly on Connection, not on ResultSet.
 
 The key architectural invariant is:
 
@@ -2560,6 +2560,11 @@ The key architectural invariant is:
 2. **Children hold a `std::weak_ptr` back to Connection** — not a raw pointer, to detect parent destruction safely
 3. **Connection tracks all children** — via `std::set<std::weak_ptr<Child>, std::owner_less<...>>` registries
 4. **When Connection closes, all children close** — releases C API resources and marks them as closed
+5. **Children reject operations when the parent connection is closed** — every child object must verify that the parent connection is **both alive and open** before processing any request. This is a double check:
+   - `weak_ptr` expired → connection destroyed → child marks itself closed, returns error
+   - `conn->m_closed == true` → connection explicitly closed but still alive → child returns error
+
+   This applies **even to child objects that operate purely in-memory** (e.g., MySQL/PostgreSQL ResultSets in the Lax model where all data is in client memory). A closed connection means the session is over — continuing to serve data from a closed session violates the lifecycle contract. The `*_STMT_LOCK_OR_RETURN` macros (both thread-safe and non-thread-safe variants) enforce this automatically via the `*ConnectionLock` RAII helper or the `m_closed` + `m_connection.expired()` checks.
 
 #### Mutex Strictness Levels
 
@@ -2581,9 +2586,12 @@ Firebird uses a **cursor-based** execution model. `isc_dsql_fetch()` communicate
 Connection ─── m_connMutex (shared_ptr<recursive_mutex>)
   │
   ├── PreparedStatement ─── accesses mutex via m_connection.lock()->getConnectionMutex(std::nothrow)
-  │
-  └── ResultSet ─────────── accesses mutex via m_connection.lock()->getConnectionMutex(std::nothrow)
+  ├── ResultSet ─────────── accesses mutex via m_connection.lock()->getConnectionMutex(std::nothrow)
+  └── Blob ──────────────── accesses mutex via m_connection.lock()->getConnectionMutex(std::nothrow)
+                            (created by ResultSet, but depends on Connection)
 ```
+
+> **Note**: `*InputStream` is not shown — it is a pure in-memory byte buffer with no connection dependency.
 
 ##### Extra-Strict (SQLite)
 
@@ -2595,12 +2603,14 @@ FileMutexRegistry (singleton)
   ├── "/path/to/db1.sqlite" ─── globalFileMutex_A (shared_ptr<recursive_mutex>)
   │     │
   │     ├── Connection_1 ─── m_globalFileMutex = globalFileMutex_A
-  │     │     ├── PreparedStatement ─── m_globalFileMutex = globalFileMutex_A
-  │     │     └── ResultSet ─────────── m_globalFileMutex = globalFileMutex_A
+  │     │     ├── PreparedStatement ─── via m_connection.lock()->getConnectionMutex(std::nothrow)
+  │     │     ├── ResultSet ─────────── via m_connection.lock()->getConnectionMutex(std::nothrow)
+  │     │     └── Blob ──────────────── via m_connection.lock()->getConnectionMutex(std::nothrow)
   │     │
   │     └── Connection_2 ─── m_globalFileMutex = globalFileMutex_A  (SAME mutex!)
-  │           ├── PreparedStatement ─── m_globalFileMutex = globalFileMutex_A
-  │           └── ResultSet ─────────── m_globalFileMutex = globalFileMutex_A
+  │           ├── PreparedStatement ─── via m_connection.lock()->getConnectionMutex(std::nothrow)
+  │           ├── ResultSet ─────────── via m_connection.lock()->getConnectionMutex(std::nothrow)
+  │           └── Blob ──────────────── via m_connection.lock()->getConnectionMutex(std::nothrow)
   │
   └── "/path/to/db2.sqlite" ─── globalFileMutex_B (different mutex)
         │
@@ -2625,9 +2635,29 @@ Connection ─── m_connMutex (shared_ptr<recursive_mutex>)
   ├── PreparedStatement ─── accesses mutex via m_connection.lock()->getConnectionMutex(std::nothrow)
   │                         (shares connection's mutex)
   │
-  └── ResultSet ─────────── m_mutex (own independent recursive_mutex)
-                            (does NOT share connection's mutex)
+  ├── ResultSet ─────────── m_mutex (own independent recursive_mutex)
+  │                         (does NOT share connection's mutex — but still checks
+  │                          parent connection state via m_connection weak_ptr)
+  │
+  └── Blob ──────────────── accesses mutex via m_connection.lock()->getConnectionMutex(std::nothrow)
+                            (created by ResultSet, depends on Connection — ensureLoaded/save use native API)
 ```
+
+##### Blob — Always Synchronized (Created by ResultSet, Depends on Connection)
+
+Blob classes are **created by ResultSet** (via `getBlob()`) but their lifecycle dependency is **directly on Connection**, not on ResultSet. They perform native database API calls (`ensureLoaded()`, `save()`) and must follow the same synchronization pattern as PreparedStatement:
+
+| Requirement | Description |
+|-------------|-------------|
+| `m_connection` | `std::weak_ptr<*DBConnection>` — **not** `weak_ptr<NativeHandle>` |
+| `m_closed` | `mutable std::atomic<bool>{false}` — for double-checked locking |
+| `friend` | `friend class *ConnectionLock` — so the RAII helper can access `m_connection` |
+| Lock before native calls | `*_STMT_LOCK_OR_RETURN` / `*_STMT_LOCK_OR_THROW` before any native DB API call |
+| Handle access | Obtain native handle through connection (e.g., `conn->m_conn`) under the lock |
+
+This applies regardless of the mutex strictness level (Strict, Extra-Strict, or Lax). The Blob does not need to know the type of mutex or where it comes from — it acquires it through the connection, identical to PreparedStatement.
+
+**`*InputStream` is NOT a child object of Connection.** All current `*InputStream` implementations are pure in-memory byte buffers (`std::vector<uint8_t>` + position cursor) with no `m_connection`, no `weak_ptr`, and no native DB API calls. They copy data at construction and are fully self-contained. They do not appear in the ownership diagrams above.
 
 #### Child Registry Pattern
 

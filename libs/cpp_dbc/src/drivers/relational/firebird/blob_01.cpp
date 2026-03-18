@@ -14,55 +14,53 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file blob_01.cpp
- @brief SQLite database driver implementation - SQLiteBlob (private helpers, throwing methods)
+ @brief Firebird database driver implementation - FirebirdBlob (private helpers, throwing methods)
 
 */
 
-#include "cpp_dbc/drivers/relational/driver_sqlite.hpp"
+#include "cpp_dbc/drivers/relational/driver_firebird.hpp"
 
-#if USE_SQLITE
+#if USE_FIREBIRD
 
-namespace cpp_dbc::SQLite
+namespace cpp_dbc::Firebird
 {
 
     // ── Private helpers ───────────────────────────────────────────────────────────
 
-    cpp_dbc::expected<sqlite3 *, DBException> SQLiteBlob::getSQLiteConnection(std::nothrow_t) const noexcept
+    cpp_dbc::expected<std::shared_ptr<FirebirdDBConnection>, DBException> FirebirdBlob::getConnection(std::nothrow_t) const noexcept
     {
         auto conn = m_connection.lock();
         if (!conn)
         {
-            return cpp_dbc::unexpected(DBException("8VHM5QBP014Y", "SQLite connection has been closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("FAPY178ZS5UI", "Connection has been closed", system_utils::captureCallStack()));
         }
-        if (!conn->m_conn)
+        return conn;
+    }
+
+    isc_db_handle *FirebirdBlob::getDbHandle(std::nothrow_t) const noexcept
+    {
+        auto conn = m_connection.lock();
+        if (!conn)
         {
-            return cpp_dbc::unexpected(DBException("8VHM5QBP014Y", "SQLite connection handle is null", system_utils::captureCallStack()));
+            return nullptr;
         }
         return conn->m_conn.get();
     }
 
-    cpp_dbc::expected<void, DBException> SQLiteBlob::validateIdentifier(std::nothrow_t, const std::string &identifier) noexcept
+    isc_tr_handle *FirebirdBlob::getTrHandle(std::nothrow_t) const noexcept
     {
-        if (identifier.empty())
+        auto conn = m_connection.lock();
+        if (!conn)
         {
-            return cpp_dbc::unexpected(DBException("SL0KQV7GOWPA", "Empty SQL identifier not allowed", system_utils::captureCallStack()));
+            return nullptr;
         }
-        for (char c : identifier)
-        {
-            if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_')
-            {
-                return cpp_dbc::unexpected(DBException("UJBY12IVMBRI",
-                                                       "Invalid character in SQL identifier '" + identifier + "': only alphanumeric and underscore allowed",
-                                                       system_utils::captureCallStack()));
-            }
-        }
-        return {};
+        return &conn->m_tr;
     }
 
     // ── Throwing API ──────────────────────────────────────────────────────────────
 #ifdef __cpp_exceptions
 
-    std::shared_ptr<SQLiteBlob> SQLiteBlob::create(std::weak_ptr<SQLiteDBConnection> conn)
+    std::shared_ptr<FirebirdBlob> FirebirdBlob::create(std::weak_ptr<FirebirdDBConnection> conn)
     {
         auto r = create(std::nothrow, std::move(conn));
         if (!r.has_value())
@@ -72,10 +70,9 @@ namespace cpp_dbc::SQLite
         return r.value();
     }
 
-    std::shared_ptr<SQLiteBlob> SQLiteBlob::create(std::weak_ptr<SQLiteDBConnection> conn,
-                                                   const std::string &tableName, const std::string &columnName, const std::string &rowId)
+    std::shared_ptr<FirebirdBlob> FirebirdBlob::create(std::weak_ptr<FirebirdDBConnection> conn, ISC_QUAD blobId)
     {
-        auto r = create(std::nothrow, std::move(conn), tableName, columnName, rowId);
+        auto r = create(std::nothrow, std::move(conn), blobId);
         if (!r.has_value())
         {
             throw r.error();
@@ -83,8 +80,8 @@ namespace cpp_dbc::SQLite
         return r.value();
     }
 
-    std::shared_ptr<SQLiteBlob> SQLiteBlob::create(std::weak_ptr<SQLiteDBConnection> conn,
-                                                   const std::vector<uint8_t> &initialData)
+    std::shared_ptr<FirebirdBlob> FirebirdBlob::create(std::weak_ptr<FirebirdDBConnection> conn,
+                                                        const std::vector<uint8_t> &initialData)
     {
         auto r = create(std::nothrow, std::move(conn), initialData);
         if (!r.has_value())
@@ -94,7 +91,7 @@ namespace cpp_dbc::SQLite
         return r.value();
     }
 
-    void SQLiteBlob::copyFrom(const SQLiteBlob &other)
+    void FirebirdBlob::copyFrom(const FirebirdBlob &other)
     {
         auto r = copyFrom(std::nothrow, other);
         if (!r.has_value())
@@ -103,7 +100,7 @@ namespace cpp_dbc::SQLite
         }
     }
 
-    void SQLiteBlob::ensureLoaded() const
+    void FirebirdBlob::ensureLoaded() const
     {
         auto r = ensureLoaded(std::nothrow);
         if (!r.has_value())
@@ -112,7 +109,7 @@ namespace cpp_dbc::SQLite
         }
     }
 
-    size_t SQLiteBlob::length() const
+    size_t FirebirdBlob::length() const
     {
         auto r = length(std::nothrow);
         if (!r.has_value())
@@ -122,9 +119,9 @@ namespace cpp_dbc::SQLite
         return r.value();
     }
 
-    std::vector<uint8_t> SQLiteBlob::getBytes(size_t pos, size_t length) const
+    std::vector<uint8_t> FirebirdBlob::getBytes(size_t pos, size_t len) const
     {
-        auto r = getBytes(std::nothrow, pos, length);
+        auto r = getBytes(std::nothrow, pos, len);
         if (!r.has_value())
         {
             throw r.error();
@@ -132,7 +129,7 @@ namespace cpp_dbc::SQLite
         return r.value();
     }
 
-    std::shared_ptr<InputStream> SQLiteBlob::getBinaryStream() const
+    std::shared_ptr<InputStream> FirebirdBlob::getBinaryStream() const
     {
         auto r = getBinaryStream(std::nothrow);
         if (!r.has_value())
@@ -142,7 +139,7 @@ namespace cpp_dbc::SQLite
         return r.value();
     }
 
-    std::shared_ptr<OutputStream> SQLiteBlob::setBinaryStream(size_t pos)
+    std::shared_ptr<OutputStream> FirebirdBlob::setBinaryStream(size_t pos)
     {
         auto r = setBinaryStream(std::nothrow, pos);
         if (!r.has_value())
@@ -152,7 +149,7 @@ namespace cpp_dbc::SQLite
         return r.value();
     }
 
-    void SQLiteBlob::setBytes(size_t pos, const std::vector<uint8_t> &bytes)
+    void FirebirdBlob::setBytes(size_t pos, const std::vector<uint8_t> &bytes)
     {
         auto r = setBytes(std::nothrow, pos, bytes);
         if (!r.has_value())
@@ -161,16 +158,16 @@ namespace cpp_dbc::SQLite
         }
     }
 
-    void SQLiteBlob::setBytes(size_t pos, const uint8_t *bytes, size_t length)
+    void FirebirdBlob::setBytes(size_t pos, const uint8_t *bytes, size_t len)
     {
-        auto r = setBytes(std::nothrow, pos, bytes, length);
+        auto r = setBytes(std::nothrow, pos, bytes, len);
         if (!r.has_value())
         {
             throw r.error();
         }
     }
 
-    void SQLiteBlob::truncate(size_t len)
+    void FirebirdBlob::truncate(size_t len)
     {
         auto r = truncate(std::nothrow, len);
         if (!r.has_value())
@@ -179,16 +176,17 @@ namespace cpp_dbc::SQLite
         }
     }
 
-    void SQLiteBlob::save()
+    ISC_QUAD FirebirdBlob::save()
     {
         auto r = save(std::nothrow);
         if (!r.has_value())
         {
             throw r.error();
         }
+        return r.value();
     }
 
-    void SQLiteBlob::free()
+    void FirebirdBlob::free()
     {
         auto r = free(std::nothrow);
         if (!r.has_value())
@@ -199,6 +197,6 @@ namespace cpp_dbc::SQLite
 
 #endif // __cpp_exceptions
 
-} // namespace cpp_dbc::SQLite
+} // namespace cpp_dbc::Firebird
 
-#endif // USE_SQLITE
+#endif // USE_FIREBIRD

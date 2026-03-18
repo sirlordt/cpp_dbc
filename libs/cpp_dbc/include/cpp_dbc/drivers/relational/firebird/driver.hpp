@@ -233,31 +233,6 @@ namespace cpp_dbc::Firebird
         static size_t getConnectionAlive() noexcept;
     };
 
-    // ============================================================================
-    // FirebirdBlob inline method implementations
-    // These must be defined after FirebirdConnection is fully defined
-    // ============================================================================
-
-    /**
-     * @brief Get the database handle from the connection
-     * @return Pointer to the database handle
-     */
-    inline isc_db_handle *FirebirdBlob::getDbHandle() const
-    {
-        auto conn = getConnection();
-        return conn->m_conn.get();
-    }
-
-    /**
-     * @brief Get the transaction handle from the connection
-     * @return Pointer to the transaction handle
-     */
-    inline isc_tr_handle *FirebirdBlob::getTrHandle() const
-    {
-        auto conn = getConnection();
-        return &conn->m_tr;
-    }
-
 } // namespace cpp_dbc::Firebird
 
 #else // USE_FIREBIRD

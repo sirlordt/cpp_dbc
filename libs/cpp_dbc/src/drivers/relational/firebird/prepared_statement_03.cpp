@@ -196,6 +196,8 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setBytes(std::nothrow_t, int parameterIndex, const std::vector<uint8_t> &x) noexcept
     {
+        FIREBIRD_STMT_LOCK_OR_RETURN("Q5RPTYW39AWR", "Connection lost");
+
         // Check if statement was invalidated by connection due to DDL operation
         if (m_invalidated.load(std::memory_order_seq_cst))
         {
@@ -234,9 +236,14 @@ namespace cpp_dbc::Firebird
                 return cpp_dbc::unexpected(DBException("C3D9E5F1A8B5", "Connection has been closed", system_utils::captureCallStack()));
             }
 
-            // Create a FirebirdBlob with the data using the connection-based constructor
+            // Create a FirebirdBlob with the data using the connection weak_ptr
             std::vector<uint8_t> blobData(x, x + length);
-            auto blob = std::make_shared<FirebirdBlob>(conn, blobData);
+            auto blobResult = FirebirdBlob::create(std::nothrow, m_connection, blobData);
+            if (!blobResult.has_value())
+            {
+                return cpp_dbc::unexpected(blobResult.error());
+            }
+            auto blob = blobResult.value();
 
             // Save the blob to the database via nothrow overload and get its ID
             auto saveResult = blob->save(std::nothrow);

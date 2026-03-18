@@ -641,84 +641,84 @@ TEST_CASE("ScyllaMemoryInputStream copyFrom()", "[10_071_51_scylladb_stream_copy
 
 #if USE_SQLITE
 
-#include <cpp_dbc/drivers/relational/sqlite/blob.hpp>
+#include <cpp_dbc/drivers/relational/driver_sqlite.hpp>
 
 TEST_CASE("SQLiteBlob create() factory", "[10_071_60_sqlite_blob_create]")
 {
-    // nullptr is valid — the constructor just stores it as weak_ptr; no DB access.
-    std::shared_ptr<sqlite3> nullDb{nullptr};
+    // Empty weak_ptr is valid — the constructor stores it; no DB access needed for in-memory ops.
+    std::weak_ptr<cpp_dbc::SQLite::SQLiteDBConnection> noConn;
 
-    SECTION("create(std::nothrow, db) — empty blob, m_loaded=true")
+    SECTION("create(std::nothrow, conn) — empty blob, m_loaded=true")
     {
-        auto r = cpp_dbc::SQLite::SQLiteBlob::create(std::nothrow, nullDb);
+        auto r = cpp_dbc::SQLite::SQLiteBlob::create(std::nothrow, noConn);
         REQUIRE(r.has_value());
         REQUIRE(r.value() != nullptr);
         // m_loaded is true so length() works without DB
         REQUIRE(r.value()->length() == 0);
     }
 
-    SECTION("create(db) — throwing wrapper")
+    SECTION("create(conn) — throwing wrapper")
     {
-        auto blob = cpp_dbc::SQLite::SQLiteBlob::create(nullDb);
+        auto blob = cpp_dbc::SQLite::SQLiteBlob::create(noConn);
         REQUIRE(blob != nullptr);
         REQUIRE(blob->length() == 0);
     }
 
-    SECTION("create(std::nothrow, db, initialData) — blob with data")
+    SECTION("create(std::nothrow, conn, initialData) — blob with data")
     {
         std::vector<uint8_t> data = {0x01, 0x02, 0x03};
-        auto r = cpp_dbc::SQLite::SQLiteBlob::create(std::nothrow, nullDb, data);
+        auto r = cpp_dbc::SQLite::SQLiteBlob::create(std::nothrow, noConn, data);
         REQUIRE(r.has_value());
         REQUIRE(r.value()->length() == 3);
         REQUIRE(r.value()->getBytes(0, 3) == data);
     }
 
-    SECTION("create(db, initialData) — throwing wrapper with data")
+    SECTION("create(conn, initialData) — throwing wrapper with data")
     {
         std::vector<uint8_t> data = {0xAA, 0xBB};
-        auto blob = cpp_dbc::SQLite::SQLiteBlob::create(nullDb, data);
+        auto blob = cpp_dbc::SQLite::SQLiteBlob::create(noConn, data);
         REQUIRE(blob != nullptr);
         REQUIRE(blob->length() == 2);
         REQUIRE(blob->getBytes(0, 2) == data);
     }
 
-    SECTION("create(std::nothrow, db, tableName, columnName, rowId) — lazy-load blob")
+    SECTION("create(std::nothrow, conn, tableName, columnName, rowId) — lazy-load blob")
     {
         // m_loaded is false until ensureLoaded() is called — connection check is deferred
         auto r = cpp_dbc::SQLite::SQLiteBlob::create(
-            std::nothrow, nullDb, "my_table", "my_column", "42");
+            std::nothrow, noConn, "my_table", "my_column", "42");
         REQUIRE(r.has_value());
         REQUIRE(r.value() != nullptr);
-        // isConnectionValid() should be false since the shared_ptr is null
+        // isConnectionValid() should be false since the weak_ptr is empty
         REQUIRE_FALSE(r.value()->isConnectionValid());
     }
 
-    SECTION("create(db, tableName, columnName, rowId) — throwing wrapper")
+    SECTION("create(conn, tableName, columnName, rowId) — throwing wrapper")
     {
         auto blob = cpp_dbc::SQLite::SQLiteBlob::create(
-            nullDb, "tbl", "col", "1");
+            noConn, "tbl", "col", "1");
         REQUIRE(blob != nullptr);
         REQUIRE_FALSE(blob->isConnectionValid());
     }
 
     SECTION("two create() calls produce independent instances")
     {
-        auto b1 = cpp_dbc::SQLite::SQLiteBlob::create(nullDb);
-        auto b2 = cpp_dbc::SQLite::SQLiteBlob::create(nullDb);
+        auto b1 = cpp_dbc::SQLite::SQLiteBlob::create(noConn);
+        auto b2 = cpp_dbc::SQLite::SQLiteBlob::create(noConn);
         REQUIRE(b1.get() != b2.get());
     }
 }
 
 TEST_CASE("SQLiteBlob copyFrom()", "[10_071_61_sqlite_blob_copyfrom]")
 {
-    std::shared_ptr<sqlite3> nullDb{nullptr};
+    std::weak_ptr<cpp_dbc::SQLite::SQLiteDBConnection> noConn;
 
     SECTION("copyFrom(std::nothrow, other) — copies data and metadata")
     {
         std::vector<uint8_t> data = {0x10, 0x20, 0x30};
-        auto src = cpp_dbc::SQLite::SQLiteBlob::create(nullDb, data);
+        auto src = cpp_dbc::SQLite::SQLiteBlob::create(noConn, data);
 
-        auto dst = cpp_dbc::SQLite::SQLiteBlob::create(nullDb);
+        auto dst = cpp_dbc::SQLite::SQLiteBlob::create(noConn);
         REQUIRE(dst->length() == 0);
 
         auto r = dst->copyFrom(std::nothrow, *src);
@@ -730,35 +730,30 @@ TEST_CASE("SQLiteBlob copyFrom()", "[10_071_61_sqlite_blob_copyfrom]")
     SECTION("copyFrom(other) — throwing wrapper")
     {
         std::vector<uint8_t> data = {0xFF, 0xEE};
-        auto src = cpp_dbc::SQLite::SQLiteBlob::create(nullDb, data);
-        auto dst = cpp_dbc::SQLite::SQLiteBlob::create(nullDb);
+        auto src = cpp_dbc::SQLite::SQLiteBlob::create(noConn, data);
+        auto dst = cpp_dbc::SQLite::SQLiteBlob::create(noConn);
 
         REQUIRE_NOTHROW(dst->copyFrom(*src));
         REQUIRE(dst->length() == 2);
         REQUIRE(dst->getBytes(0, 2) == data);
     }
 
-    SECTION("copyFrom — copies lazy-load metadata (tableName, columnName, rowId)")
+    SECTION("copyFrom — copies connection metadata after copy")
     {
-        // Use a real non-null shared_ptr so weak_ptr.expired() is false
-        auto fakeDb = std::shared_ptr<sqlite3>(static_cast<sqlite3 *>(nullptr),
-                                               [](sqlite3 *) {
-                                                   // Intentionally empty — no real sqlite3 handle to close
-                                               });
         auto src = cpp_dbc::SQLite::SQLiteBlob::create(
-            fakeDb, "orders", "attachment", "99");
+            noConn, "orders", "attachment", "99");
 
-        auto dst = cpp_dbc::SQLite::SQLiteBlob::create(fakeDb);
+        auto dst = cpp_dbc::SQLite::SQLiteBlob::create(noConn);
         dst->copyFrom(*src);
 
-        // After copy, dst shares the same weak_ptr as src → same validity
+        // After copy, both have the same connection validity (both empty weak_ptr → false)
         REQUIRE(dst->isConnectionValid() == src->isConnectionValid());
     }
 
     SECTION("copyFrom — self-assignment is a no-op")
     {
         std::vector<uint8_t> data = {0x01};
-        auto blob = cpp_dbc::SQLite::SQLiteBlob::create(nullDb, data);
+        auto blob = cpp_dbc::SQLite::SQLiteBlob::create(noConn, data);
 
         REQUIRE_NOTHROW(blob->copyFrom(*blob));
         REQUIRE(blob->length() == 1);
@@ -767,8 +762,8 @@ TEST_CASE("SQLiteBlob copyFrom()", "[10_071_61_sqlite_blob_copyfrom]")
     SECTION("copyFrom — deep copy: modifying dst does not affect src")
     {
         std::vector<uint8_t> data = {0x01, 0x02, 0x03, 0x04};
-        auto src = cpp_dbc::SQLite::SQLiteBlob::create(nullDb, data);
-        auto dst = cpp_dbc::SQLite::SQLiteBlob::create(nullDb);
+        auto src = cpp_dbc::SQLite::SQLiteBlob::create(noConn, data);
+        auto dst = cpp_dbc::SQLite::SQLiteBlob::create(noConn);
         dst->copyFrom(*src);
 
         dst->truncate(2);
@@ -785,78 +780,80 @@ TEST_CASE("SQLiteBlob copyFrom()", "[10_071_61_sqlite_blob_copyfrom]")
 
 #if USE_MYSQL
 
-#include <cpp_dbc/drivers/relational/mysql/blob.hpp>
+#include <cpp_dbc/drivers/relational/driver_mysql.hpp>
 
 TEST_CASE("MySQLBlob create() factory", "[10_071_70_mysql_blob_create]")
 {
-    std::shared_ptr<MYSQL> nullMysql{nullptr};
+    // Empty weak_ptr is valid — the constructor stores it; no DB access needed for in-memory ops.
+    std::weak_ptr<cpp_dbc::MySQL::MySQLDBConnection> noConn;
 
-    SECTION("create(std::nothrow, mysql) — empty blob")
+    SECTION("create(std::nothrow, conn) — empty blob")
     {
-        auto r = cpp_dbc::MySQL::MySQLBlob::create(std::nothrow, nullMysql);
+        auto r = cpp_dbc::MySQL::MySQLBlob::create(std::nothrow, noConn);
         REQUIRE(r.has_value());
         REQUIRE(r.value() != nullptr);
         REQUIRE(r.value()->length() == 0);
     }
 
-    SECTION("create(mysql) — throwing wrapper")
+    SECTION("create(conn) — throwing wrapper")
     {
-        auto blob = cpp_dbc::MySQL::MySQLBlob::create(nullMysql);
+        auto blob = cpp_dbc::MySQL::MySQLBlob::create(noConn);
         REQUIRE(blob != nullptr);
         REQUIRE(blob->length() == 0);
     }
 
-    SECTION("create(std::nothrow, mysql, initialData) — blob with data")
+    SECTION("create(std::nothrow, conn, initialData) — blob with data")
     {
         std::vector<uint8_t> data = {0x0A, 0x0B, 0x0C};
-        auto r = cpp_dbc::MySQL::MySQLBlob::create(std::nothrow, nullMysql, data);
+        auto r = cpp_dbc::MySQL::MySQLBlob::create(std::nothrow, noConn, data);
         REQUIRE(r.has_value());
         REQUIRE(r.value()->length() == 3);
         REQUIRE(r.value()->getBytes(0, 3) == data);
     }
 
-    SECTION("create(mysql, initialData) — throwing wrapper with data")
+    SECTION("create(conn, initialData) — throwing wrapper with data")
     {
         std::vector<uint8_t> data = {0xDE, 0xAD};
-        auto blob = cpp_dbc::MySQL::MySQLBlob::create(nullMysql, data);
+        auto blob = cpp_dbc::MySQL::MySQLBlob::create(noConn, data);
         REQUIRE(blob != nullptr);
         REQUIRE(blob->length() == 2);
     }
 
-    SECTION("create(std::nothrow, mysql, tableName, columnName, whereClause) — lazy-load blob")
+    SECTION("create(std::nothrow, conn, tableName, columnName, whereClause) — lazy-load blob")
     {
         auto r = cpp_dbc::MySQL::MySQLBlob::create(
-            std::nothrow, nullMysql, "users", "avatar", "id=1");
+            std::nothrow, noConn, "users", "avatar", "id=1");
         REQUIRE(r.has_value());
         REQUIRE(r.value() != nullptr);
+        // isConnectionValid() should be false since the weak_ptr is empty
         REQUIRE_FALSE(r.value()->isConnectionValid());
     }
 
-    SECTION("create(mysql, tableName, columnName, whereClause) — throwing wrapper")
+    SECTION("create(conn, tableName, columnName, whereClause) — throwing wrapper")
     {
         auto blob = cpp_dbc::MySQL::MySQLBlob::create(
-            nullMysql, "files", "content", "id=42");
+            noConn, "files", "content", "id=42");
         REQUIRE(blob != nullptr);
         REQUIRE_FALSE(blob->isConnectionValid());
     }
 
     SECTION("two create() calls produce independent instances")
     {
-        auto b1 = cpp_dbc::MySQL::MySQLBlob::create(nullMysql);
-        auto b2 = cpp_dbc::MySQL::MySQLBlob::create(nullMysql);
+        auto b1 = cpp_dbc::MySQL::MySQLBlob::create(noConn);
+        auto b2 = cpp_dbc::MySQL::MySQLBlob::create(noConn);
         REQUIRE(b1.get() != b2.get());
     }
 }
 
 TEST_CASE("MySQLBlob copyFrom()", "[10_071_71_mysql_blob_copyfrom]")
 {
-    std::shared_ptr<MYSQL> nullMysql{nullptr};
+    std::weak_ptr<cpp_dbc::MySQL::MySQLDBConnection> noConn;
 
     SECTION("copyFrom(std::nothrow, other) — copies data")
     {
         std::vector<uint8_t> data = {0x11, 0x22, 0x33};
-        auto src = cpp_dbc::MySQL::MySQLBlob::create(nullMysql, data);
-        auto dst = cpp_dbc::MySQL::MySQLBlob::create(nullMysql);
+        auto src = cpp_dbc::MySQL::MySQLBlob::create(noConn, data);
+        auto dst = cpp_dbc::MySQL::MySQLBlob::create(noConn);
 
         auto r = dst->copyFrom(std::nothrow, *src);
         REQUIRE(r.has_value());
@@ -867,32 +864,28 @@ TEST_CASE("MySQLBlob copyFrom()", "[10_071_71_mysql_blob_copyfrom]")
     SECTION("copyFrom(other) — throwing wrapper")
     {
         std::vector<uint8_t> data = {0x55, 0x66};
-        auto src = cpp_dbc::MySQL::MySQLBlob::create(nullMysql, data);
-        auto dst = cpp_dbc::MySQL::MySQLBlob::create(nullMysql);
+        auto src = cpp_dbc::MySQL::MySQLBlob::create(noConn, data);
+        auto dst = cpp_dbc::MySQL::MySQLBlob::create(noConn);
 
         REQUIRE_NOTHROW(dst->copyFrom(*src));
         REQUIRE(dst->length() == 2);
     }
 
-    SECTION("copyFrom — copies lazy-load metadata (tableName, columnName, whereClause)")
+    SECTION("copyFrom — copies connection metadata after copy")
     {
-        // Use a non-null shared_ptr with a no-op deleter so isConnectionValid() is true
-        auto fakeMysql = std::shared_ptr<MYSQL>(static_cast<MYSQL *>(nullptr),
-                                                [](MYSQL *) {
-                                                    // Intentionally empty — no real MYSQL handle to free
-                                                });
         auto src = cpp_dbc::MySQL::MySQLBlob::create(
-            fakeMysql, "products", "image", "id=7");
-        auto dst = cpp_dbc::MySQL::MySQLBlob::create(fakeMysql);
+            noConn, "products", "image", "id=7");
+        auto dst = cpp_dbc::MySQL::MySQLBlob::create(noConn);
         dst->copyFrom(*src);
 
+        // After copy, both have the same connection validity (both empty weak_ptr → false)
         REQUIRE(dst->isConnectionValid() == src->isConnectionValid());
     }
 
     SECTION("copyFrom — self-assignment is a no-op")
     {
         std::vector<uint8_t> data = {0xAB};
-        auto blob = cpp_dbc::MySQL::MySQLBlob::create(nullMysql, data);
+        auto blob = cpp_dbc::MySQL::MySQLBlob::create(noConn, data);
         REQUIRE_NOTHROW(blob->copyFrom(*blob));
         REQUIRE(blob->length() == 1);
     }
@@ -900,8 +893,8 @@ TEST_CASE("MySQLBlob copyFrom()", "[10_071_71_mysql_blob_copyfrom]")
     SECTION("copyFrom — deep copy: modifying dst does not affect src")
     {
         std::vector<uint8_t> data = {0x01, 0x02, 0x03};
-        auto src = cpp_dbc::MySQL::MySQLBlob::create(nullMysql, data);
-        auto dst = cpp_dbc::MySQL::MySQLBlob::create(nullMysql);
+        auto src = cpp_dbc::MySQL::MySQLBlob::create(noConn, data);
+        auto dst = cpp_dbc::MySQL::MySQLBlob::create(noConn);
         dst->copyFrom(*src);
 
         dst->truncate(1);
@@ -918,15 +911,16 @@ TEST_CASE("MySQLBlob copyFrom()", "[10_071_71_mysql_blob_copyfrom]")
 
 #if USE_POSTGRESQL
 
-#include <cpp_dbc/drivers/relational/postgresql/blob.hpp>
+#include <cpp_dbc/drivers/relational/driver_postgresql.hpp>
 
 TEST_CASE("PostgreSQLBlob create() factory", "[10_071_80_postgresql_blob_create]")
 {
-    std::shared_ptr<PGconn> nullConn{nullptr};
+    // Empty weak_ptr is valid — the constructor stores it; no DB access needed for in-memory ops.
+    std::weak_ptr<cpp_dbc::PostgreSQL::PostgreSQLDBConnection> noConn;
 
     SECTION("create(std::nothrow, conn) — empty blob, m_loaded=true")
     {
-        auto r = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(std::nothrow, nullConn);
+        auto r = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(std::nothrow, noConn);
         REQUIRE(r.has_value());
         REQUIRE(r.value() != nullptr);
         REQUIRE(r.value()->length() == 0);
@@ -934,7 +928,7 @@ TEST_CASE("PostgreSQLBlob create() factory", "[10_071_80_postgresql_blob_create]
 
     SECTION("create(conn) — throwing wrapper")
     {
-        auto blob = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(nullConn);
+        auto blob = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(noConn);
         REQUIRE(blob != nullptr);
         REQUIRE(blob->length() == 0);
     }
@@ -943,7 +937,7 @@ TEST_CASE("PostgreSQLBlob create() factory", "[10_071_80_postgresql_blob_create]
     {
         const uint8_t raw[] = {0xCA, 0xFE};
         std::vector<uint8_t> data(raw, raw + 2);
-        auto r = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(std::nothrow, nullConn, data);
+        auto r = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(std::nothrow, noConn, data);
         REQUIRE(r.has_value());
         REQUIRE(r.value()->length() == 2);
         REQUIRE(r.value()->getBytes(0, 2) == data);
@@ -952,15 +946,14 @@ TEST_CASE("PostgreSQLBlob create() factory", "[10_071_80_postgresql_blob_create]
     SECTION("create(conn, initialData) — throwing wrapper with data")
     {
         std::vector<uint8_t> data = {0x01, 0x02, 0x03};
-        auto blob = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(nullConn, data);
+        auto blob = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(noConn, data);
         REQUIRE(blob != nullptr);
         REQUIRE(blob->length() == 3);
     }
 
     SECTION("create(std::nothrow, conn, oid) — lazy-load blob by OID")
     {
-        // m_loaded is false until ensureLoaded() is called — connection check deferred
-        auto r = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(std::nothrow, nullConn, Oid{12345});
+        auto r = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(std::nothrow, noConn, Oid{12345});
         REQUIRE(r.has_value());
         REQUIRE(r.value() != nullptr);
         REQUIRE(r.value()->getOid() == 12345);
@@ -969,28 +962,28 @@ TEST_CASE("PostgreSQLBlob create() factory", "[10_071_80_postgresql_blob_create]
 
     SECTION("create(conn, oid) — throwing wrapper")
     {
-        auto blob = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(nullConn, Oid{99});
+        auto blob = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(noConn, Oid{99});
         REQUIRE(blob != nullptr);
         REQUIRE(blob->getOid() == 99);
     }
 
     SECTION("two create() calls produce independent instances")
     {
-        auto b1 = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(nullConn);
-        auto b2 = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(nullConn);
+        auto b1 = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(noConn);
+        auto b2 = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(noConn);
         REQUIRE(b1.get() != b2.get());
     }
 }
 
 TEST_CASE("PostgreSQLBlob copyFrom()", "[10_071_81_postgresql_blob_copyfrom]")
 {
-    std::shared_ptr<PGconn> nullConn{nullptr};
+    std::weak_ptr<cpp_dbc::PostgreSQL::PostgreSQLDBConnection> noConn;
 
     SECTION("copyFrom(std::nothrow, other) — copies data")
     {
         std::vector<uint8_t> data = {0xAA, 0xBB, 0xCC};
-        auto src = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(nullConn, data);
-        auto dst = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(nullConn);
+        auto src = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(noConn, data);
+        auto dst = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(noConn);
 
         auto r = dst->copyFrom(std::nothrow, *src);
         REQUIRE(r.has_value());
@@ -1001,8 +994,8 @@ TEST_CASE("PostgreSQLBlob copyFrom()", "[10_071_81_postgresql_blob_copyfrom]")
     SECTION("copyFrom(other) — throwing wrapper")
     {
         std::vector<uint8_t> data = {0x77, 0x88};
-        auto src = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(nullConn, data);
-        auto dst = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(nullConn);
+        auto src = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(noConn, data);
+        auto dst = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(noConn);
 
         REQUIRE_NOTHROW(dst->copyFrom(*src));
         REQUIRE(dst->length() == 2);
@@ -1010,8 +1003,8 @@ TEST_CASE("PostgreSQLBlob copyFrom()", "[10_071_81_postgresql_blob_copyfrom]")
 
     SECTION("copyFrom — copies OID from lazy-load blob")
     {
-        auto src = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(nullConn, Oid{777});
-        auto dst = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(nullConn);
+        auto src = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(noConn, Oid{777});
+        auto dst = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(noConn);
         dst->copyFrom(*src);
 
         REQUIRE(dst->getOid() == 777);
@@ -1020,7 +1013,7 @@ TEST_CASE("PostgreSQLBlob copyFrom()", "[10_071_81_postgresql_blob_copyfrom]")
     SECTION("copyFrom — self-assignment is a no-op")
     {
         std::vector<uint8_t> data = {0x42};
-        auto blob = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(nullConn, data);
+        auto blob = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(noConn, data);
         REQUIRE_NOTHROW(blob->copyFrom(*blob));
         REQUIRE(blob->length() == 1);
     }
@@ -1028,8 +1021,8 @@ TEST_CASE("PostgreSQLBlob copyFrom()", "[10_071_81_postgresql_blob_copyfrom]")
     SECTION("copyFrom — deep copy: modifying dst does not affect src")
     {
         std::vector<uint8_t> data = {0x01, 0x02, 0x03, 0x04};
-        auto src = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(nullConn, data);
-        auto dst = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(nullConn);
+        auto src = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(noConn, data);
+        auto dst = cpp_dbc::PostgreSQL::PostgreSQLBlob::create(noConn);
         dst->copyFrom(*src);
 
         dst->truncate(2);
@@ -1046,53 +1039,53 @@ TEST_CASE("PostgreSQLBlob copyFrom()", "[10_071_81_postgresql_blob_copyfrom]")
 
 #if USE_FIREBIRD
 
-#include <cpp_dbc/drivers/relational/firebird/blob.hpp>
+#include <cpp_dbc/drivers/relational/driver_firebird.hpp>
 
 TEST_CASE("FirebirdBlob create() factory", "[10_071_90_firebird_blob_create]")
 {
-    // nullptr connection — constructors only store weak_ptr, no DB access at construction
-    std::shared_ptr<cpp_dbc::Firebird::FirebirdDBConnection> nullConn{nullptr};
+    // Empty weak_ptr is valid — the constructor stores it; no DB access needed for in-memory ops.
+    std::weak_ptr<cpp_dbc::Firebird::FirebirdDBConnection> noConn;
 
-    SECTION("create(std::nothrow, connection) — empty blob, m_loaded=true")
+    SECTION("create(std::nothrow, conn) — empty blob, m_loaded=true")
     {
-        auto r = cpp_dbc::Firebird::FirebirdBlob::create(std::nothrow, nullConn);
+        auto r = cpp_dbc::Firebird::FirebirdBlob::create(std::nothrow, noConn);
         REQUIRE(r.has_value());
         REQUIRE(r.value() != nullptr);
         REQUIRE(r.value()->length() == 0);
         REQUIRE_FALSE(r.value()->hasValidId());
     }
 
-    SECTION("create(connection) — throwing wrapper")
+    SECTION("create(conn) — throwing wrapper")
     {
-        auto blob = cpp_dbc::Firebird::FirebirdBlob::create(nullConn);
+        auto blob = cpp_dbc::Firebird::FirebirdBlob::create(noConn);
         REQUIRE(blob != nullptr);
         REQUIRE(blob->length() == 0);
         REQUIRE_FALSE(blob->hasValidId());
     }
 
-    SECTION("create(std::nothrow, connection, initialData) — blob with data")
+    SECTION("create(std::nothrow, conn, initialData) — blob with data")
     {
         std::vector<uint8_t> data = {0xF0, 0xF1, 0xF2};
-        auto r = cpp_dbc::Firebird::FirebirdBlob::create(std::nothrow, nullConn, data);
+        auto r = cpp_dbc::Firebird::FirebirdBlob::create(std::nothrow, noConn, data);
         REQUIRE(r.has_value());
         REQUIRE(r.value()->length() == 3);
         REQUIRE(r.value()->getBytes(0, 3) == data);
     }
 
-    SECTION("create(connection, initialData) — throwing wrapper with data")
+    SECTION("create(conn, initialData) — throwing wrapper with data")
     {
         std::vector<uint8_t> data = {0xBB, 0xCC};
-        auto blob = cpp_dbc::Firebird::FirebirdBlob::create(nullConn, data);
+        auto blob = cpp_dbc::Firebird::FirebirdBlob::create(noConn, data);
         REQUIRE(blob != nullptr);
         REQUIRE(blob->length() == 2);
     }
 
-    SECTION("create(std::nothrow, connection, blobId) — lazy-load blob by ID")
+    SECTION("create(std::nothrow, conn, blobId) — lazy-load blob by ID")
     {
         ISC_QUAD blobId{};
         blobId.gds_quad_high = 1;
         blobId.gds_quad_low = 42;
-        auto r = cpp_dbc::Firebird::FirebirdBlob::create(std::nothrow, nullConn, blobId);
+        auto r = cpp_dbc::Firebird::FirebirdBlob::create(std::nothrow, noConn, blobId);
         REQUIRE(r.has_value());
         REQUIRE(r.value() != nullptr);
         // Lazy-loaded blob has a valid ID set at construction
@@ -1100,33 +1093,33 @@ TEST_CASE("FirebirdBlob create() factory", "[10_071_90_firebird_blob_create]")
         REQUIRE_FALSE(r.value()->isConnectionValid());
     }
 
-    SECTION("create(connection, blobId) — throwing wrapper")
+    SECTION("create(conn, blobId) — throwing wrapper")
     {
         ISC_QUAD blobId{};
         blobId.gds_quad_high = 0;
         blobId.gds_quad_low = 7;
-        auto blob = cpp_dbc::Firebird::FirebirdBlob::create(nullConn, blobId);
+        auto blob = cpp_dbc::Firebird::FirebirdBlob::create(noConn, blobId);
         REQUIRE(blob != nullptr);
         REQUIRE(blob->hasValidId());
     }
 
     SECTION("two create() calls produce independent instances")
     {
-        auto b1 = cpp_dbc::Firebird::FirebirdBlob::create(nullConn);
-        auto b2 = cpp_dbc::Firebird::FirebirdBlob::create(nullConn);
+        auto b1 = cpp_dbc::Firebird::FirebirdBlob::create(noConn);
+        auto b2 = cpp_dbc::Firebird::FirebirdBlob::create(noConn);
         REQUIRE(b1.get() != b2.get());
     }
 }
 
 TEST_CASE("FirebirdBlob copyFrom()", "[10_071_91_firebird_blob_copyfrom]")
 {
-    std::shared_ptr<cpp_dbc::Firebird::FirebirdDBConnection> nullConn{nullptr};
+    std::weak_ptr<cpp_dbc::Firebird::FirebirdDBConnection> noConn;
 
     SECTION("copyFrom(std::nothrow, other) — copies data")
     {
         std::vector<uint8_t> data = {0x11, 0x22, 0x33};
-        auto src = cpp_dbc::Firebird::FirebirdBlob::create(nullConn, data);
-        auto dst = cpp_dbc::Firebird::FirebirdBlob::create(nullConn);
+        auto src = cpp_dbc::Firebird::FirebirdBlob::create(noConn, data);
+        auto dst = cpp_dbc::Firebird::FirebirdBlob::create(noConn);
 
         auto r = dst->copyFrom(std::nothrow, *src);
         REQUIRE(r.has_value());
@@ -1137,8 +1130,8 @@ TEST_CASE("FirebirdBlob copyFrom()", "[10_071_91_firebird_blob_copyfrom]")
     SECTION("copyFrom(other) — throwing wrapper")
     {
         std::vector<uint8_t> data = {0x44, 0x55};
-        auto src = cpp_dbc::Firebird::FirebirdBlob::create(nullConn, data);
-        auto dst = cpp_dbc::Firebird::FirebirdBlob::create(nullConn);
+        auto src = cpp_dbc::Firebird::FirebirdBlob::create(noConn, data);
+        auto dst = cpp_dbc::Firebird::FirebirdBlob::create(noConn);
 
         REQUIRE_NOTHROW(dst->copyFrom(*src));
         REQUIRE(dst->length() == 2);
@@ -1149,8 +1142,8 @@ TEST_CASE("FirebirdBlob copyFrom()", "[10_071_91_firebird_blob_copyfrom]")
         ISC_QUAD blobId{};
         blobId.gds_quad_high = 2;
         blobId.gds_quad_low = 99;
-        auto src = cpp_dbc::Firebird::FirebirdBlob::create(nullConn, blobId);
-        auto dst = cpp_dbc::Firebird::FirebirdBlob::create(nullConn);
+        auto src = cpp_dbc::Firebird::FirebirdBlob::create(noConn, blobId);
+        auto dst = cpp_dbc::Firebird::FirebirdBlob::create(noConn);
         dst->copyFrom(*src);
 
         REQUIRE(dst->hasValidId());
@@ -1162,7 +1155,7 @@ TEST_CASE("FirebirdBlob copyFrom()", "[10_071_91_firebird_blob_copyfrom]")
     SECTION("copyFrom — self-assignment is a no-op")
     {
         std::vector<uint8_t> data = {0xAA};
-        auto blob = cpp_dbc::Firebird::FirebirdBlob::create(nullConn, data);
+        auto blob = cpp_dbc::Firebird::FirebirdBlob::create(noConn, data);
         REQUIRE_NOTHROW(blob->copyFrom(*blob));
         REQUIRE(blob->length() == 1);
     }
@@ -1170,8 +1163,8 @@ TEST_CASE("FirebirdBlob copyFrom()", "[10_071_91_firebird_blob_copyfrom]")
     SECTION("copyFrom — deep copy: modifying dst does not affect src")
     {
         std::vector<uint8_t> data = {0x01, 0x02, 0x03};
-        auto src = cpp_dbc::Firebird::FirebirdBlob::create(nullConn, data);
-        auto dst = cpp_dbc::Firebird::FirebirdBlob::create(nullConn);
+        auto src = cpp_dbc::Firebird::FirebirdBlob::create(noConn, data);
+        auto dst = cpp_dbc::Firebird::FirebirdBlob::create(noConn);
         dst->copyFrom(*src);
 
         dst->truncate(1);

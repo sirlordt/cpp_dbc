@@ -54,7 +54,7 @@ namespace cpp_dbc::PostgreSQL
         if (PQgetisnull(m_result.get(), row, idx))
         {
             // Return an empty blob with no connection (data is already loaded)
-            auto emptyBlobResult = PostgreSQLBlob::create(std::nothrow, std::shared_ptr<PGconn>());
+            auto emptyBlobResult = PostgreSQLBlob::create(std::nothrow, std::weak_ptr<PostgreSQLDBConnection>{});
             if (!emptyBlobResult.has_value())
             {
                 return cpp_dbc::unexpected<DBException>(emptyBlobResult.error());
@@ -77,10 +77,8 @@ namespace cpp_dbc::PostgreSQL
         }
         std::vector<uint8_t> data = bytesResult.value();
 
-        // Create a PostgreSQLBlob with the data via factory
-        // Note: We pass an empty shared_ptr because the data is already loaded
-        // and the blob won't need to query the database
-        auto blobResult = PostgreSQLBlob::create(std::nothrow, std::shared_ptr<PGconn>(), data);
+        // Create a PostgreSQLBlob with the data (pass connection weak_ptr for synchronization)
+        auto blobResult = PostgreSQLBlob::create(std::nothrow, m_connection, data);
         if (!blobResult.has_value())
         {
             return cpp_dbc::unexpected<DBException>(blobResult.error());
