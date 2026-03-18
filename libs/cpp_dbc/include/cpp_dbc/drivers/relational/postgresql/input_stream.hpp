@@ -168,6 +168,8 @@ namespace cpp_dbc::PostgreSQL
             }
             m_data = other.m_data;
             m_position = 0;
+            m_initFailed = false;
+            m_initError = nullptr;
             return {};
         }
 

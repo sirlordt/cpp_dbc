@@ -38,246 +38,146 @@ namespace cpp_dbc::SQLite
 {
 
     // Execute methods for SQLiteDBPreparedStatement - Nothrow API
+    // No try/catch: all inner calls are nothrow (scoped_lock, C API calls, nothrow create).
+    // Only death-sentence exceptions possible.
+
     cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> SQLiteDBPreparedStatement::executeQuery(std::nothrow_t) noexcept
     {
-        try
+        SQLITE_STMT_LOCK_OR_RETURN("SL6F7G8H9I0J", "Statement is closed");
+
+        auto dbPtrResult = getSQLiteConnection(std::nothrow);
+        if (!dbPtrResult.has_value())
         {
-            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
-
-            if (m_closed || !m_stmt)
-            {
-                return cpp_dbc::unexpected(DBException("SL6F7G8H9I0J", "Statement is closed",
-                                                       system_utils::captureCallStack()));
-            }
-
-            // Get the SQLite connection safely (nothrow, returns expected)
-            auto dbPtrResult = getSQLiteConnection(std::nothrow);
-            if (!dbPtrResult.has_value())
-            {
-                return cpp_dbc::unexpected(dbPtrResult.error());
-            }
-            sqlite3 *dbPtr = dbPtrResult.value();
-
-            // Reset the statement to ensure it's ready for execution
-            int resetResult = sqlite3_reset(m_stmt.get());
-            if (resetResult != SQLITE_OK)
-            {
-                return cpp_dbc::unexpected(DBException("SL7G8H9I0J1K", "Failed to reset statement: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(resetResult) + ")",
-                                                       system_utils::captureCallStack()));
-            }
-
-            // Pass global file mutex to ResultSet - required because SQLite uses cursor-based iteration
-            // where sqlite3_step() and sqlite3_column_*() access the connection handle on every call.
-            // Unlike MySQL/PostgreSQL where results are fully loaded into client memory.
-            auto rsResult = SQLiteDBResultSet::create(std::nothrow, m_stmt.get(), false, m_connection.lock(), shared_from_this(), m_globalFileMutex);
-            if (!rsResult.has_value())
-            {
-                return cpp_dbc::unexpected(rsResult.error());
-            }
-            return std::shared_ptr<RelationalDBResultSet>(rsResult.value());
+            return cpp_dbc::unexpected(dbPtrResult.error());
         }
-        catch (const DBException &ex)
+        sqlite3 *dbPtr = dbPtrResult.value();
+
+        int resetResult = sqlite3_reset(m_stmt.get());
+        if (resetResult != SQLITE_OK)
         {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("EQ1A1B2C3D4E",
-                                                   std::string("executeQuery failed: ") + ex.what(),
+            return cpp_dbc::unexpected(DBException("SL7G8H9I0J1K", "Failed to reset statement: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(resetResult) + ")",
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+
+        auto rsResult = SQLiteDBResultSet::create(std::nothrow, m_stmt.get(), false, m_connection.lock(), shared_from_this());
+        if (!rsResult.has_value())
         {
-            return cpp_dbc::unexpected(DBException("EQ1A1B2C3D4F",
-                                                   "executeQuery failed: unknown error",
-                                                   system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(rsResult.error());
         }
+        return std::shared_ptr<RelationalDBResultSet>(rsResult.value());
     }
 
     cpp_dbc::expected<uint64_t, DBException> SQLiteDBPreparedStatement::executeUpdate(std::nothrow_t) noexcept
     {
-        try
+        SQLITE_STMT_LOCK_OR_RETURN("SL8H9I0J1K2L", "Statement is closed");
+
+        auto dbPtrResult = getSQLiteConnection(std::nothrow);
+        if (!dbPtrResult.has_value())
         {
-            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
-
-            if (m_closed || !m_stmt)
-            {
-                return cpp_dbc::unexpected(DBException("SL8H9I0J1K2L", "Statement is closed",
-                                                       system_utils::captureCallStack()));
-            }
-
-            // Get the SQLite connection safely (nothrow, returns expected)
-            auto dbPtrResult = getSQLiteConnection(std::nothrow);
-            if (!dbPtrResult.has_value())
-            {
-                return cpp_dbc::unexpected(dbPtrResult.error());
-            }
-            sqlite3 *dbPtr = dbPtrResult.value();
-
-            // Reset the statement to ensure it's ready for execution
-            int resetResult = sqlite3_reset(m_stmt.get());
-            if (resetResult != SQLITE_OK)
-            {
-                return cpp_dbc::unexpected(DBException("SL9I0J1K2L3M", "Failed to reset statement: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(resetResult) + ")",
-                                                       system_utils::captureCallStack()));
-            }
-
-            // Execute the statement
-            int result = sqlite3_step(m_stmt.get());
-            if (result != SQLITE_DONE)
-            {
-                return cpp_dbc::unexpected(DBException("SLAJ0K1L2M3N", "Failed to execute update: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(result) + ")",
-                                                       system_utils::captureCallStack()));
-            }
-
-            // Get the number of affected rows
-            uint64_t changes = sqlite3_changes(dbPtr);
-
-            // Reset the statement after execution to allow reuse
-            resetResult = sqlite3_reset(m_stmt.get());
-            if (resetResult != SQLITE_OK)
-            {
-                return cpp_dbc::unexpected(DBException("SLBK1L2M3N4O", "Failed to reset statement after execution: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(resetResult) + ")",
-                                                       system_utils::captureCallStack()));
-            }
-
-            return changes;
+            return cpp_dbc::unexpected(dbPtrResult.error());
         }
-        catch (const DBException &ex)
+        sqlite3 *dbPtr = dbPtrResult.value();
+
+        int resetResult = sqlite3_reset(m_stmt.get());
+        if (resetResult != SQLITE_OK)
         {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("EU1A1B2C3D4E",
-                                                   std::string("executeUpdate failed: ") + ex.what(),
+            return cpp_dbc::unexpected(DBException("SL9I0J1K2L3M", "Failed to reset statement: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(resetResult) + ")",
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+
+        int result = sqlite3_step(m_stmt.get());
+        if (result != SQLITE_DONE)
         {
-            return cpp_dbc::unexpected(DBException("EU1A1B2C3D4F",
-                                                   "executeUpdate failed: unknown error",
+            return cpp_dbc::unexpected(DBException("SLAJ0K1L2M3N", "Failed to execute update: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(result) + ")",
                                                    system_utils::captureCallStack()));
         }
+
+        uint64_t changes = sqlite3_changes(dbPtr);
+
+        resetResult = sqlite3_reset(m_stmt.get());
+        if (resetResult != SQLITE_OK)
+        {
+            return cpp_dbc::unexpected(DBException("SLBK1L2M3N4O", "Failed to reset statement after execution: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(resetResult) + ")",
+                                                   system_utils::captureCallStack()));
+        }
+
+        return changes;
     }
 
     cpp_dbc::expected<bool, DBException> SQLiteDBPreparedStatement::execute(std::nothrow_t) noexcept
     {
-        try
+        SQLITE_STMT_LOCK_OR_RETURN("SLCL2M3N4O5P", "Statement is closed");
+
+        auto dbPtrResult = getSQLiteConnection(std::nothrow);
+        if (!dbPtrResult.has_value())
         {
-            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
-
-            if (m_closed || !m_stmt)
-            {
-                return cpp_dbc::unexpected(DBException("SLCL2M3N4O5P", "Statement is closed",
-                                                       system_utils::captureCallStack()));
-            }
-
-            // Get the SQLite connection safely (nothrow, returns expected)
-            auto dbPtrResult = getSQLiteConnection(std::nothrow);
-            if (!dbPtrResult.has_value())
-            {
-                return cpp_dbc::unexpected(dbPtrResult.error());
-            }
-            sqlite3 *dbPtr = dbPtrResult.value();
-
-            // Reset the statement to ensure it's ready for execution
-            sqlite3_reset(m_stmt.get());
-
-            // Execute the statement
-            int result = sqlite3_step(m_stmt.get());
-
-            if (result == SQLITE_ROW)
-            {
-                // There are rows to fetch, so this is a query
-                sqlite3_reset(m_stmt.get());
-                return true;
-            }
-            else if (result == SQLITE_DONE)
-            {
-                // No rows to fetch, so this is an update
-                return false;
-            }
-            else
-            {
-                return cpp_dbc::unexpected(DBException("SLDM3N4O5P6Q", "Failed to execute statement: " + std::string(sqlite3_errmsg(dbPtr)),
-                                                       system_utils::captureCallStack()));
-            }
+            return cpp_dbc::unexpected(dbPtrResult.error());
         }
-        catch (const DBException &ex)
+        sqlite3 *dbPtr = dbPtrResult.value();
+
+        int resetResult = sqlite3_reset(m_stmt.get());
+        if (resetResult != SQLITE_OK)
         {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("EX1A1B2C3D4E",
-                                                   std::string("execute failed: ") + ex.what(),
+            return cpp_dbc::unexpected(DBException("YQM80QQADT4X", "Failed to reset statement: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(resetResult) + ")",
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+
+        int result = sqlite3_step(m_stmt.get());
+
+        if (result == SQLITE_ROW)
         {
-            return cpp_dbc::unexpected(DBException("EX1A1B2C3D4F",
-                                                   "execute failed: unknown error",
+            sqlite3_reset(m_stmt.get());
+            return true;
+        }
+        else if (result == SQLITE_DONE)
+        {
+            return false;
+        }
+        else
+        {
+            return cpp_dbc::unexpected(DBException("SLDM3N4O5P6Q", "Failed to execute statement: " + std::string(sqlite3_errmsg(dbPtr)),
                                                    system_utils::captureCallStack()));
         }
     }
 
+    // No try/catch: all inner calls are nothrow (SQLiteConnectionLock, C API calls, atomic store,
+    // closeAllResultSets(nothrow)). Only death-sentence exceptions possible.
     cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::close(std::nothrow_t) noexcept
     {
-        try
-        {
-            // CRITICAL: Must hold the shared connection mutex to prevent race conditions.
-            // sqlite3_finalize() uses the sqlite3* connection handle, so concurrent access from
-            // another thread (e.g., connection pool validation) causes undefined behavior.
-            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
+        SQLITE_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
 
-            if (!m_closed && m_stmt)
+        // Close all child result sets FIRST (before closing statement)
+        [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
+
+        if (m_stmt)
+        {
+            auto dbPtr = m_conn.lock();
+            if (dbPtr)
             {
-                auto dbPtr = m_db.lock();
-                if (dbPtr)
+                int resetResult = sqlite3_reset(m_stmt.get());
+                if (resetResult != SQLITE_OK)
                 {
-                    int resetResult = sqlite3_reset(m_stmt.get());
-                    if (resetResult != SQLITE_OK)
-                    {
-                        SQLITE_DEBUG("7K8L9M0N1O2P: Error resetting SQLite statement: %s",
-                                     sqlite3_errstr(resetResult));
-                    }
-
-                    int clearResult = sqlite3_clear_bindings(m_stmt.get());
-                    if (clearResult != SQLITE_OK)
-                    {
-                        SQLITE_DEBUG("3Q4R5S6T7U8V: Error clearing SQLite statement bindings: %s",
-                                     sqlite3_errstr(clearResult));
-                    }
-
-                    m_stmt.reset();
+                    SQLITE_DEBUG("7K8L9M0N1O2P: Error resetting SQLite statement: %s",
+                                 sqlite3_errstr(resetResult));
                 }
-                else
+
+                int clearResult = sqlite3_clear_bindings(m_stmt.get());
+                if (clearResult != SQLITE_OK)
                 {
-                    m_stmt.release();
-                    SQLITE_DEBUG("5C6D7E8F9G0H: Connection closed, releasing statement without finalize");
+                    SQLITE_DEBUG("3Q4R5S6T7U8V: Error clearing SQLite statement bindings: %s",
+                                 sqlite3_errstr(clearResult));
                 }
+
+                m_stmt.reset();
             }
-            m_closed = true;
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            return {};
+            else
+            {
+                m_stmt.release();
+                SQLITE_DEBUG("5C6D7E8F9G0H: Connection closed, releasing statement without finalize");
+            }
         }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("CL1A1B2C3D4E",
-                                                   std::string("close failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("CL1A1B2C3D4F",
-                                                   "close failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        m_closed.store(true, std::memory_order_seq_cst);
+        return {};
     }
 
 } // namespace cpp_dbc::SQLite

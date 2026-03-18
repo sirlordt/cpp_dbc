@@ -37,13 +37,13 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<bool, DBException> FirebirdDBResultSet::next(std::nothrow_t) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("ZALQADMF0DBS", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("ZALQADMF0DBS", "Connection lost");
 
         FIREBIRD_DEBUG("FirebirdResultSet::next - Starting");
-        FIREBIRD_DEBUG("  m_closed: %s", (m_closed.load(std::memory_order_acquire) ? "true" : "false"));
+        FIREBIRD_DEBUG("  m_closed: %s", (m_closed.load(std::memory_order_seq_cst) ? "true" : "false"));
         FIREBIRD_DEBUG("  m_stmt valid: %s", (m_stmt ? "yes" : "no"));
 
-        if (m_closed.load(std::memory_order_acquire))
+        if (m_closed.load(std::memory_order_seq_cst))
         {
             FIREBIRD_DEBUG("FirebirdResultSet::next - ResultSet is closed, returning false");
             return false;
@@ -106,19 +106,19 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<bool, DBException> FirebirdDBResultSet::isBeforeFirst(std::nothrow_t) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("GCBPQQTEZH46", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("GCBPQQTEZH46", "Connection lost");
         return m_rowPosition == 0 && !m_hasData;
     }
 
     cpp_dbc::expected<bool, DBException> FirebirdDBResultSet::isAfterLast(std::nothrow_t) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("G1PFWP82F0TY", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("G1PFWP82F0TY", "Connection lost");
         return !m_hasData && m_rowPosition > 0;
     }
 
     cpp_dbc::expected<uint64_t, DBException> FirebirdDBResultSet::getRow(std::nothrow_t) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("49D6QLPRDFO5", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("49D6QLPRDFO5", "Connection lost");
         return m_rowPosition;
     }
 
@@ -128,7 +128,7 @@ namespace cpp_dbc::Firebird
         // for malformed or overflow values retrieved from the database.
         try
         {
-            FIREBIRD_LOCK_OR_RETURN("KKJ6AU7N7GC0", "Connection lost");
+            FIREBIRD_STMT_LOCK_OR_RETURN("KKJ6AU7N7GC0", "Connection lost");
             auto valResult = getColumnValue(std::nothrow, columnIndex);
             if (!valResult.has_value())
             {
@@ -167,7 +167,7 @@ namespace cpp_dbc::Firebird
         // for malformed or overflow values retrieved from the database.
         try
         {
-            FIREBIRD_LOCK_OR_RETURN("BKG4AMM82M79", "Connection lost");
+            FIREBIRD_STMT_LOCK_OR_RETURN("BKG4AMM82M79", "Connection lost");
             auto valResult = getColumnValue(std::nothrow, columnIndex);
             if (!valResult.has_value())
             {
@@ -206,7 +206,7 @@ namespace cpp_dbc::Firebird
         // for malformed or overflow values retrieved from the database.
         try
         {
-            FIREBIRD_LOCK_OR_RETURN("WW48OXWIIVBF", "Connection lost");
+            FIREBIRD_STMT_LOCK_OR_RETURN("WW48OXWIIVBF", "Connection lost");
             FIREBIRD_DEBUG("getDouble(columnIndex=%zu)", columnIndex);
             auto valResult = getColumnValue(std::nothrow, columnIndex);
             if (!valResult.has_value())
@@ -243,7 +243,7 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<std::string, DBException> FirebirdDBResultSet::getString(std::nothrow_t, size_t columnIndex) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("FEKRO46JEMTL", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("FEKRO46JEMTL", "Connection lost");
         return getColumnValue(std::nothrow, columnIndex);
     }
 
@@ -259,7 +259,7 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<bool, DBException> FirebirdDBResultSet::getBoolean(std::nothrow_t, size_t columnIndex) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("C9VHRLKU1UYP", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("C9VHRLKU1UYP", "Connection lost");
         auto valResult = getColumnValue(std::nothrow, columnIndex);
         if (!valResult.has_value())
         {
@@ -290,7 +290,7 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<bool, DBException> FirebirdDBResultSet::isNull(std::nothrow_t, size_t columnIndex) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("ICSJV6F47KZD", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("ICSJV6F47KZD", "Connection lost");
         if (columnIndex >= m_fieldCount)
         {
             return cpp_dbc::unexpected(DBException("B4C0D6E2F9A5", "Column index out of range: " + std::to_string(columnIndex),

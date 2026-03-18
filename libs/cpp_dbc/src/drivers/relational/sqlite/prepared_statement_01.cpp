@@ -37,19 +37,61 @@
 namespace cpp_dbc::SQLite
 {
 
-    // SQLiteDBPreparedStatement implementation
-    // Private methods
-    void SQLiteDBPreparedStatement::notifyConnClosing()
+    // ── Public nothrow constructor (PrivateCtorTag) ───────────────────────────────
+    // sqlite3_prepare_v2 is a C API that never throws C++ exceptions.
+    // No recoverable exceptions → no try/catch needed.
+    SQLiteDBPreparedStatement::SQLiteDBPreparedStatement(
+        SQLiteDBPreparedStatement::PrivateCtorTag,
+        std::nothrow_t,
+        std::weak_ptr<sqlite3> db,
+        std::weak_ptr<SQLiteDBConnection> conn,
+        const std::string &sql) noexcept
+        : m_conn(std::move(db)), m_connection(std::move(conn)), m_sql(sql)
+    {
+        auto dbResult = getSQLiteConnection(std::nothrow);
+        if (!dbResult.has_value())
+        {
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>(std::move(dbResult.error()));
+            return;
+        }
+        sqlite3 *dbPtr = dbResult.value();
+
+        sqlite3_stmt *rawStmt = nullptr;
+        int result = sqlite3_prepare_v2(dbPtr, m_sql.c_str(), -1, &rawStmt, nullptr);
+        if (result != SQLITE_OK)
+        {
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>("U0A1B2C3D4E5",
+                "Failed to prepare SQLite statement: " + std::string(sqlite3_errmsg(dbPtr)),
+                system_utils::captureCallStack());
+            return;
+        }
+
+        // Transfer ownership to smart pointer
+        m_stmt.reset(rawStmt);
+        m_closed.store(false, std::memory_order_seq_cst);
+
+        // Initialize BLOB-related vectors
+        int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
+        m_blobValues.resize(paramCount);
+        m_blobObjects.resize(paramCount);
+        m_streamObjects.resize(paramCount);
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────────────
+
+    void SQLiteDBPreparedStatement::notifyConnClosing(std::nothrow_t) noexcept
     {
         // Connection is closing, release the statement pointer without calling sqlite3_finalize
         // since the connection is already being destroyed and will clean up all statements
         m_stmt.release(); // Release without calling deleter
-        m_closed = true;
+        m_closed.store(true, std::memory_order_seq_cst);
     }
 
     cpp_dbc::expected<sqlite3 *, DBException> SQLiteDBPreparedStatement::getSQLiteConnection(std::nothrow_t) const noexcept
     {
-        auto conn = m_db.lock();
+        auto conn = m_conn.lock();
         if (!conn)
         {
             return cpp_dbc::unexpected(DBException("QQI768O7OI0F", "SQLite connection has been closed", system_utils::captureCallStack()));
@@ -59,15 +101,12 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::registerResultSet(std::nothrow_t, std::weak_ptr<SQLiteDBResultSet> rs) noexcept
     {
-        // LOCK CONSISTENCY FIX (2026-02-15): Changed from m_resultSetsMutex to
-        // m_globalFileMutex to ensure ALL accesses to m_activeResultSets use the
-        // same mutex. Previously, closeAllResultSets() used m_globalFileMutex while
-        // registerResultSet()/unregisterResultSet() used m_resultSetsMutex, creating
-        // a data race (same data protected by different mutexes in different contexts).
-        //
-        // Now ALL access to m_activeResultSets is consistently protected by
-        // m_globalFileMutex, which is the file-level lock shared by all connections
-        // to the same SQLite database file.
+        // 2026-02-15T00:00:00Z
+        // Bug: closeAllResultSets() used m_globalFileMutex while registerResultSet()/
+        // unregisterResultSet() used m_resultSetsMutex, creating a data race (same
+        // data protected by different mutexes in different contexts).
+        // Solution: Changed from m_resultSetsMutex to m_globalFileMutex so ALL access
+        // to m_activeResultSets is consistently protected by the file-level lock.
         SQLITE_STMT_LOCK_OR_RETURN("AWVN6T7OBL1H", "Cannot register result set");
         if (m_activeResultSets.size() > 20)  // Smaller threshold than Connection
         {
@@ -79,10 +118,11 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::unregisterResultSet(std::nothrow_t, std::weak_ptr<SQLiteDBResultSet> rs) noexcept
     {
-        // LOCK CONSISTENCY FIX (2026-02-15): Changed from m_resultSetsMutex to
-        // m_globalFileMutex for consistency with closeAllResultSets() and
-        // registerResultSet(). All modifications to m_activeResultSets must use
-        // the same mutex to prevent data races.
+        // 2026-02-15T00:00:00Z
+        // Bug: unregisterResultSet() used m_resultSetsMutex while closeAllResultSets()
+        // used m_globalFileMutex, creating a data race on m_activeResultSets.
+        // Solution: Changed to m_globalFileMutex for consistency with all other
+        // m_activeResultSets access paths.
         SQLITE_STMT_LOCK_OR_RETURN("IP2U0VDA3R85", "Cannot unregister result set");
         // Remove expired weak_ptrs and the specified one
         for (auto it = m_activeResultSets.begin(); it != m_activeResultSets.end();)
@@ -103,38 +143,17 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::closeAllResultSets(std::nothrow_t) noexcept
     {
-        // LOCK ORDER FIX (2026-02-15): Previously, this method acquired both
-        // m_globalFileMutex and then m_resultSetsMutex (nested lock). This caused
-        // Helgrind LockOrder violations because different code paths acquire locks
-        // in different relative orders:
-        //
-        // Path 1 (from pool): pool mutex → m_globalFileMutex → m_resultSetsMutex
-        // Path 2 (from destructor): m_globalFileMutex → m_resultSetsMutex
-        //
-        // This creates potential for deadlock if two threads simultaneously:
-        //   Thread A: holds pool mutex, waits for m_globalFileMutex
-        //   Thread B: holds m_globalFileMutex, waits for pool mutex (indirectly)
-        //
-        // SOLUTION: m_globalFileMutex is a file-level lock shared by all connections
-        // to the same SQLite database file (via FileMutexRegistry). It protects ALL
-        // access to the underlying sqlite3* connection. Since m_activeResultSets is
-        // part of the prepared statement state and is only accessed when working with
-        // the sqlite3* connection, it is already implicitly protected by
-        // m_globalFileMutex. Therefore, the additional m_resultSetsMutex lock is
-        // redundant and can be safely removed.
-        //
-        // SAFETY: Access to m_activeResultSets is now protected solely by
-        // m_globalFileMutex, which is acquired by ALL methods that interact with
-        // the SQLite prepared statement (execute, executeQuery, executeUpdate, etc.).
-        // This provides sufficient synchronization without introducing lock ordering
-        // issues.
-        //
-        // TRADE-OFF: This reduces lock granularity (broader lock scope) but eliminates
-        // potential deadlocks. Since SQLite operations are typically fast and
-        // m_globalFileMutex is already required for correctness with ThreadSanitizer,
-        // this is an acceptable trade-off.
-        //
-        // Reference: Helgrind error logs in logs/test/2026-02-15-18-46-52/22_RUN02_fail.log
+        // 2026-02-15T00:00:00Z
+        // Bug: This method acquired both m_globalFileMutex and then m_resultSetsMutex
+        // (nested lock), causing Helgrind LockOrder violations. Different code paths
+        // acquire locks in different relative orders:
+        //   Path 1 (from pool): pool mutex -> m_globalFileMutex -> m_resultSetsMutex
+        //   Path 2 (from destructor): m_globalFileMutex -> m_resultSetsMutex
+        // creating potential deadlock if threads acquire locks concurrently.
+        // Solution: Removed m_resultSetsMutex entirely. m_globalFileMutex (file-level
+        // lock via FileMutexRegistry) already protects ALL access to the sqlite3*
+        // connection state, including m_activeResultSets, making the second mutex
+        // redundant. Broader lock scope but eliminates potential deadlocks.
         SQLITE_STMT_LOCK_OR_RETURN("19GTGW7K56I0", "Cannot close result sets");
 
         // CRITICAL: Copy weak_ptrs to temporary vector to avoid iterator invalidation.
@@ -161,63 +180,15 @@ namespace cpp_dbc::SQLite
         return {};
     }
 
-    // Public methods - Constructor and destructor
-    #ifdef __cpp_exceptions
-    SQLiteDBPreparedStatement::SQLiteDBPreparedStatement(std::weak_ptr<sqlite3> db, std::weak_ptr<SQLiteDBConnection> conn, std::shared_ptr<std::recursive_mutex> globalFileMutex, const std::string &sql)
-        : m_db(db), m_connection(std::move(conn)), m_sql(sql), m_stmt(nullptr), m_closed(false), m_blobValues(), m_blobObjects(), m_streamObjects(),
-          m_globalFileMutex(std::move(globalFileMutex))
-    {
-        auto dbResult = getSQLiteConnection(std::nothrow);
-        if (!dbResult.has_value())
-        {
-            throw dbResult.error();
-        }
-        sqlite3 *dbPtr = dbResult.value();
-
-        sqlite3_stmt *rawStmt = nullptr;
-        int result = sqlite3_prepare_v2(dbPtr, m_sql.c_str(), -1, &rawStmt, nullptr);
-        if (result != SQLITE_OK)
-        {
-            throw DBException("U0A1B2C3D4E5", "Failed to prepare SQLite statement: " + std::string(sqlite3_errmsg(dbPtr)),
-                              system_utils::captureCallStack());
-        }
-
-        // Transfer ownership to smart pointer
-        m_stmt.reset(rawStmt);
-
-        // Initialize BLOB-related vectors
-        int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
-        m_blobValues.resize(paramCount);
-        m_blobObjects.resize(paramCount);
-        m_streamObjects.resize(paramCount);
-    }
-
+    // ── Destructor ────────────────────────────────────────────────────────────────
     SQLiteDBPreparedStatement::~SQLiteDBPreparedStatement()
     {
-        try
-        {
-            // Make sure to close the statement and clean up resources
-            if (!m_closed)
-            {
-                close();
-            }
-        }
-        catch (...)
-        {
-            // Ignore exceptions during destruction
-        }
-
-        // Smart pointer m_stmt will automatically call sqlite3_finalize via SQLiteStmtDeleter
-        // No need for manual cleanup - the destructor handles it automatically
-
-        // Mark as closed
-        m_closed = true;
-
-        // Sleep briefly to ensure resources are released
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        [[maybe_unused]] auto closeResult = close(std::nothrow);
     }
 
-    // Throwing API methods
+    // ── Throwing API ──────────────────────────────────────────────────────────────
+#ifdef __cpp_exceptions
+
     void SQLiteDBPreparedStatement::setInt(int parameterIndex, int value)
     {
         auto result = setInt(std::nothrow, parameterIndex, value);
@@ -373,49 +344,17 @@ namespace cpp_dbc::SQLite
         }
         return result.value();
     }
-    #endif // __cpp_exceptions
 
     void SQLiteDBPreparedStatement::close()
     {
-        // Close all result sets FIRST (before closing statement)
-        [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
-
-        if (!m_closed && m_stmt)
+        auto result = close(std::nothrow);
+        if (!result.has_value())
         {
-            // Check if connection is still valid before resetting
-            auto dbPtr = m_db.lock();
-            if (dbPtr)
-            {
-                // Reset the statement first to ensure all bindings are cleared
-                int resetResult = sqlite3_reset(m_stmt.get());
-                if (resetResult != SQLITE_OK)
-                {
-                    SQLITE_DEBUG("7K8L9M0N1O2P: Error resetting SQLite statement: %s",
-                                 sqlite3_errstr(resetResult));
-                }
-
-                int clearResult = sqlite3_clear_bindings(m_stmt.get());
-                if (clearResult != SQLITE_OK)
-                {
-                    SQLITE_DEBUG("3Q4R5S6T7U8V: Error clearing SQLite statement bindings: %s",
-                                 sqlite3_errstr(clearResult));
-                }
-
-                // Smart pointer will automatically call sqlite3_finalize via SQLiteStmtDeleter
-                m_stmt.reset();
-            }
-            else
-            {
-                // Connection is closed, release without finalizing (connection already did it)
-                m_stmt.release();
-                SQLITE_DEBUG("5C6D7E8F9G0H: Connection closed, releasing statement without finalize");
-            }
+            throw result.error();
         }
-        m_closed = true;
-
-        // Sleep briefly to ensure resources are released
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+
+#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::SQLite
 

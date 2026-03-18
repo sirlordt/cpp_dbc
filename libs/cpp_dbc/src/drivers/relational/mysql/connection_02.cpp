@@ -40,7 +40,7 @@ namespace cpp_dbc::MySQL
     {
         MYSQL_CONNECTION_LOCK_OR_RETURN("QRN556B0TNNX", "Cannot ping");
 
-        if (mysql_ping(m_mysql.get()) != 0)
+        if (mysql_ping(m_conn.get()) != 0)
         {
             return false;
         }
@@ -100,15 +100,15 @@ namespace cpp_dbc::MySQL
 
             MYSQL_CONNECTION_LOCK_OR_RETURN("0KKYQGC8X7KF", "Cannot execute query");
 
-            if (mysql_query(m_mysql.get(), sql.c_str()) != 0)
+            if (mysql_query(m_conn.get(), sql.c_str()) != 0)
             {
-                return cpp_dbc::unexpected(DBException("LDUQOJQ0UO5C", std::string("Query failed: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("LDUQOJQ0UO5C", std::string("Query failed: ") + mysql_error(m_conn.get()), system_utils::captureCallStack()));
             }
 
-            MYSQL_RES *result = mysql_store_result(m_mysql.get());
-            if (!result && mysql_field_count(m_mysql.get()) > 0)
+            MYSQL_RES *result = mysql_store_result(m_conn.get());
+            if (!result && mysql_field_count(m_conn.get()) > 0)
             {
-                return cpp_dbc::unexpected(DBException("VJU5PI2HJ7DB", std::string("Failed to get result set: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("VJU5PI2HJ7DB", std::string("Failed to get result set: ") + mysql_error(m_conn.get()), system_utils::captureCallStack()));
             }
 
             auto rsResult = MySQLDBResultSet::create(std::nothrow, result, shared_from_this());
@@ -143,12 +143,12 @@ namespace cpp_dbc::MySQL
     {
         MYSQL_CONNECTION_LOCK_OR_RETURN("KXRO97HR1PLJ", "Cannot execute update");
 
-        if (mysql_query(m_mysql.get(), sql.c_str()) != 0)
+        if (mysql_query(m_conn.get(), sql.c_str()) != 0)
         {
-            return cpp_dbc::unexpected(DBException("OAKJBNYP41SP", std::string("Update failed: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("OAKJBNYP41SP", std::string("Update failed: ") + mysql_error(m_conn.get()), system_utils::captureCallStack()));
         }
 
-        return mysql_affected_rows(m_mysql.get());
+        return mysql_affected_rows(m_conn.get());
     }
 
     cpp_dbc::expected<void, DBException> MySQLDBConnection::setAutoCommit(std::nothrow_t, bool autoCommitFlag) noexcept
@@ -162,9 +162,9 @@ namespace cpp_dbc::MySQL
             {
                 // Enable autocommit (1) and deactivate transactions
                 std::string query = "SET autocommit=1";
-                if (mysql_query(m_mysql.get(), query.c_str()) != 0)
+                if (mysql_query(m_conn.get(), query.c_str()) != 0)
                 {
-                    return cpp_dbc::unexpected(DBException("G69BR0Y3T54B", std::string("Failed to set autocommit mode: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
+                    return cpp_dbc::unexpected(DBException("G69BR0Y3T54B", std::string("Failed to set autocommit mode: ") + mysql_error(m_conn.get()), system_utils::captureCallStack()));
                 }
 
                 this->m_autoCommit = true;
@@ -202,9 +202,9 @@ namespace cpp_dbc::MySQL
 
         // Start transaction by disabling autocommit
         std::string query = "SET autocommit=0";
-        if (mysql_query(m_mysql.get(), query.c_str()) != 0)
+        if (mysql_query(m_conn.get(), query.c_str()) != 0)
         {
-            return cpp_dbc::unexpected(DBException("797I0D2WFCWY", std::string("Failed to begin transaction: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("797I0D2WFCWY", std::string("Failed to begin transaction: ") + mysql_error(m_conn.get()), system_utils::captureCallStack()));
         }
 
         m_autoCommit = false;
@@ -229,9 +229,9 @@ namespace cpp_dbc::MySQL
             return {};
         }
 
-        if (mysql_query(m_mysql.get(), "COMMIT") != 0)
+        if (mysql_query(m_conn.get(), "COMMIT") != 0)
         {
-            return cpp_dbc::unexpected(DBException("EE9LVJATQS6L", std::string("Commit failed: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("EE9LVJATQS6L", std::string("Commit failed: ") + mysql_error(m_conn.get()), system_utils::captureCallStack()));
         }
 
         m_transactionActive = false;
@@ -254,9 +254,9 @@ namespace cpp_dbc::MySQL
             return {};
         }
 
-        if (mysql_query(m_mysql.get(), "ROLLBACK") != 0)
+        if (mysql_query(m_conn.get(), "ROLLBACK") != 0)
         {
-            return cpp_dbc::unexpected(DBException("ARRBS9Z8OOZ1", std::string("Rollback failed: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("ARRBS9Z8OOZ1", std::string("Rollback failed: ") + mysql_error(m_conn.get()), system_utils::captureCallStack()));
         }
 
         m_transactionActive = false;

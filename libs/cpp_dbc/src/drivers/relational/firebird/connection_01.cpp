@@ -133,7 +133,7 @@ namespace cpp_dbc::Firebird
             FIREBIRD_DEBUG("  Attached successfully, dbHandle=%p, *dbHandle=%p", (void *)dbHandle, (void *)(uintptr_t)*dbHandle);
 
             // Create shared_ptr with custom deleter
-            m_db = std::shared_ptr<isc_db_handle>(dbHandle, FirebirdDbDeleter{});
+            m_conn = std::shared_ptr<isc_db_handle>(dbHandle, FirebirdDbDeleter{});
 
             // Cache URI — database may start with '/' (prepended by parseURI for remote connections).
             // Strip leading '/' from database before passing to buildDBURI, which adds its own separator.
@@ -144,7 +144,7 @@ namespace cpp_dbc::Firebird
             }
             m_uri = system_utils::buildDBURI("cpp_dbc:firebird://", host, port, dbView);
 
-            m_closed.store(false, std::memory_order_release);
+            m_closed.store(false, std::memory_order_seq_cst);
 
             // Start initial transaction if autocommit is enabled
             FIREBIRD_DEBUG("  m_autoCommit: %s", (m_autoCommit ? "true" : "false"));
@@ -155,7 +155,7 @@ namespace cpp_dbc::Firebird
                 if (!txResult.has_value())
                 {
                     // Clean up the database handle before reporting failure
-                    m_db.reset();
+                    m_conn.reset();
                     m_initFailed = true;
                     m_initError = std::make_unique<DBException>(txResult.error());
                     return;
@@ -281,8 +281,8 @@ namespace cpp_dbc::Firebird
         tpb.push_back(isc_tpb_wait);
 
         FIREBIRD_DEBUG("  Calling isc_start_transaction...");
-        FIREBIRD_DEBUG("    m_db.get()=%p, *m_db.get()=%p", (void *)m_db.get(), (void *)(uintptr_t)(m_db.get() ? *m_db.get() : 0));
-        if (isc_start_transaction(status, &m_tr, 1, m_db.get(),
+        FIREBIRD_DEBUG("    m_conn.get()=%p, *m_conn.get()=%p", (void *)m_conn.get(), (void *)(uintptr_t)(m_conn.get() ? *m_conn.get() : 0));
+        if (isc_start_transaction(status, &m_tr, 1, m_conn.get(),
                                   static_cast<unsigned short>(tpb.size()), tpb.data()))
         {
             std::string errorMsg = interpretStatusVector(status);

@@ -41,7 +41,7 @@ namespace cpp_dbc::PostgreSQL
     // Nothrow API implementation for PostgreSQLDBPreparedStatement
     cpp_dbc::expected<void, DBException> PostgreSQLDBPreparedStatement::setInt(std::nothrow_t, int parameterIndex, int value) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("TZ8CIEUDRRDZ", "Statement closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("TZ8CIEUDRRDZ", "Statement closed");
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
         {
@@ -61,7 +61,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBPreparedStatement::setLong(std::nothrow_t, int parameterIndex, int64_t value) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("S22VCA06J9SD", "Statement closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("S22VCA06J9SD", "Statement closed");
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
         {
@@ -81,7 +81,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBPreparedStatement::setDouble(std::nothrow_t, int parameterIndex, double value) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("FXJTYR0J1U5N", "Statement closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("FXJTYR0J1U5N", "Statement closed");
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
         {
@@ -114,7 +114,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBPreparedStatement::setString(std::nothrow_t, int parameterIndex, const std::string &value) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("CQ67RABRDN5X", "Statement closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("CQ67RABRDN5X", "Statement closed");
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
         {
@@ -134,7 +134,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBPreparedStatement::setBoolean(std::nothrow_t, int parameterIndex, bool value) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("W7WSIUM0UULF", "Statement closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("W7WSIUM0UULF", "Statement closed");
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
         {
@@ -154,7 +154,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBPreparedStatement::setNull(std::nothrow_t, int parameterIndex, Types type) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("BU4ZAP1U9B0Z", "Statement closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("BU4ZAP1U9B0Z", "Statement closed");
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
         {
@@ -210,7 +210,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBPreparedStatement::setDate(std::nothrow_t, int parameterIndex, const std::string &value) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("O6C34GOIZEPU", "Statement closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("O6C34GOIZEPU", "Statement closed");
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
         {
@@ -230,7 +230,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBPreparedStatement::setTimestamp(std::nothrow_t, int parameterIndex, const std::string &value) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("BS0JG24YH3B3", "Statement closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("BS0JG24YH3B3", "Statement closed");
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
         {
@@ -250,7 +250,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBPreparedStatement::setTime(std::nothrow_t, int parameterIndex, const std::string &value) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("G8LC8NTXNVSP", "Statement closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("G8LC8NTXNVSP", "Statement closed");
 
         if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
         {

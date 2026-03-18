@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <climits>
 #include <cstring>
+#include <memory>
 #include <vector>
 
 namespace cpp_dbc::SQLite
@@ -24,9 +25,18 @@ namespace cpp_dbc::SQLite
      */
     class SQLiteInputStream : public InputStream
     {
-    private:
+        // ── PrivateCtorTag — prevents direct construction; use create() ──
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
         std::vector<uint8_t> m_data;
         size_t m_position{0};
+
+        // ── Construction state ────────────────────────────────────────────────
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
 
         static cpp_dbc::expected<const uint8_t *, DBException> validateAndEnd(std::nothrow_t, const void *buffer, size_t length) noexcept
         {
@@ -37,39 +47,38 @@ namespace cpp_dbc::SQLite
             return static_cast<const uint8_t *>(buffer) + length;
         }
 
-        static const uint8_t *validateAndEnd(const void *buffer, size_t length)
-        {
-            auto r = validateAndEnd(std::nothrow, buffer, length);
-            if (!r.has_value())
-            {
-                throw r.error();
-            }
-            return r.value();
-        }
-
     public:
-        SQLiteInputStream(const void *buffer, size_t length)
-            : m_data(static_cast<const uint8_t *>(buffer), validateAndEnd(buffer, length)) {}
-
-        static cpp_dbc::expected<std::shared_ptr<SQLiteInputStream>, DBException> create(std::nothrow_t, const void *buffer, size_t length) noexcept
+        // ── Public nothrow constructor (guarded by PrivateCtorTag) ─────────────
+        // No recoverable exceptions: validateAndEnd is nothrow, vector::assign
+        // can only throw std::bad_alloc (death sentence). No try/catch needed.
+        SQLiteInputStream(PrivateCtorTag, std::nothrow_t, const void *buffer, size_t length) noexcept
         {
-            try
+            auto validateResult = validateAndEnd(std::nothrow, buffer, length);
+            if (!validateResult.has_value())
             {
-                return std::make_shared<SQLiteInputStream>(buffer, length);
+                m_initFailed = true;
+                m_initError = std::make_unique<DBException>(std::move(validateResult.error()));
+                return;
             }
-            catch (const DBException &ex)
+            if (length > 0 && buffer != nullptr)
             {
-                return cpp_dbc::unexpected(ex);
-            }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("FA81AE85ZCSQ", ex.what(), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("HHTU4ZAX05S1", "Unknown error creating SQLiteInputStream", system_utils::captureCallStack()));
+                const auto *begin = static_cast<const uint8_t *>(buffer);
+                m_data.assign(begin, begin + length);
             }
         }
+
+        ~SQLiteInputStream() override = default;
+
+        SQLiteInputStream(const SQLiteInputStream &) = delete;
+        SQLiteInputStream &operator=(const SQLiteInputStream &) = delete;
+
+        // ====================================================================
+        // THROWING API - Exception-based (requires __cpp_exceptions)
+        // ====================================================================
+
+#ifdef __cpp_exceptions
+
+        // ── Throwing static factory (delegates to nothrow) ───────────────────
 
         static std::shared_ptr<SQLiteInputStream> create(const void *buffer, size_t length)
         {
@@ -81,16 +90,7 @@ namespace cpp_dbc::SQLite
             return r.value();
         }
 
-        cpp_dbc::expected<void, DBException> copyFrom(std::nothrow_t, const SQLiteInputStream &other) noexcept
-        {
-            if (this == &other)
-            {
-                return {};
-            }
-            m_data = other.m_data;
-            m_position = 0;
-            return {};
-        }
+        // ── Throwing public methods ──────────────────────────────────────────
 
         void copyFrom(const SQLiteInputStream &other)
         {
@@ -100,12 +100,6 @@ namespace cpp_dbc::SQLite
                 throw r.error();
             }
         }
-
-        // ====================================================================
-        // THROWING API - Exception-based (requires __cpp_exceptions)
-        // ====================================================================
-
-#ifdef __cpp_exceptions
 
         int read(uint8_t *buffer, size_t length) override
         {
@@ -136,9 +130,38 @@ namespace cpp_dbc::SQLite
         }
 
 #endif // __cpp_exceptions
+
         // ====================================================================
-        // NOTHROW VERSIONS - Exception-free API
+        // NOTHROW API - Exception-free (always available)
         // ====================================================================
+
+        // ── Nothrow static factory ───────────────────────────────────────────
+        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+
+        static cpp_dbc::expected<std::shared_ptr<SQLiteInputStream>, DBException> create(std::nothrow_t, const void *buffer, size_t length) noexcept
+        {
+            auto obj = std::make_shared<SQLiteInputStream>(PrivateCtorTag{}, std::nothrow, buffer, length);
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            return obj;
+        }
+
+        // ── Nothrow public methods ───────────────────────────────────────────
+
+        cpp_dbc::expected<void, DBException> copyFrom(std::nothrow_t, const SQLiteInputStream &other) noexcept
+        {
+            if (this == &other)
+            {
+                return {};
+            }
+            m_data = other.m_data;
+            m_position = 0;
+            m_initFailed = false;
+            m_initError = nullptr;
+            return {};
+        }
 
         cpp_dbc::expected<int, DBException> read(std::nothrow_t, uint8_t *buffer, size_t length) noexcept override
         {

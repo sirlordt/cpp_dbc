@@ -23,10 +23,10 @@
 
 #include "postgresql/handles.hpp"
 #include "postgresql/input_stream.hpp"
-#include "postgresql/blob.hpp"
 #include "postgresql/result_set.hpp"
 #include "postgresql/prepared_statement.hpp"
 #include "postgresql/connection.hpp"
+#include "postgresql/blob.hpp"
 #include "postgresql/driver.hpp"
 
 #endif // CPP_DBC_DRIVER_POSTGRESQL_HPP

@@ -82,7 +82,7 @@ namespace cpp_dbc::PostgreSQL
                     std::erase_if(s_connectionRegistry,
                         [](const auto &w) { return w.expired(); });
                 }
-                s_cleanupPending.store(false, std::memory_order_release);
+                s_cleanupPending.store(false, std::memory_order_seq_cst);
             });
         }
     }
@@ -105,7 +105,7 @@ namespace cpp_dbc::PostgreSQL
     void PostgreSQLDBDriver::closeAllOpenConnections(std::nothrow_t) noexcept
     {
         // Mark driver as closed — reject any new connection attempts
-        m_closed.store(true, std::memory_order_release);
+        m_closed.store(true, std::memory_order_seq_cst);
 
         // Close all open connections before releasing library resources.
         // Collect under lock first, then close outside the lock to avoid
@@ -145,7 +145,7 @@ namespace cpp_dbc::PostgreSQL
 
     PostgreSQLDBDriver::~PostgreSQLDBDriver()
     {
-        PG_DEBUG("PostgreSQLDBDriver::destructor - Destroying driver");
+        POSTGRESQL_DEBUG("PostgreSQLDBDriver::destructor - Destroying driver");
 
         closeAllOpenConnections(std::nothrow);
 
@@ -201,7 +201,7 @@ namespace cpp_dbc::PostgreSQL
                                       false, // allowLocalConnection
                                       true)) // requireDatabase (PostgreSQL requires database)
         {
-            PG_DEBUG("PostgreSQLDBDriver::parseURI - Failed to parse URI: %s", uri.c_str());
+            POSTGRESQL_DEBUG("PostgreSQLDBDriver::parseURI - Failed to parse URI: %s", uri.c_str());
             return cpp_dbc::unexpected(DBException("1P567517HBSK",
                                                    "Failed to parse PostgreSQL URI: " + uri,
                                                    system_utils::captureCallStack()));
@@ -276,7 +276,7 @@ namespace cpp_dbc::PostgreSQL
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (m_closed.load(std::memory_order_seq_cst))
         {
             return cpp_dbc::unexpected(DBException("R7DYVH4KN8SZ",
                                                    "Driver is closed, no more connections allowed",

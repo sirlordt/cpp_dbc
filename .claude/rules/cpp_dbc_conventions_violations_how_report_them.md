@@ -156,9 +156,20 @@ When performing a full compliance analysis, check each of the following. This li
 - [ ] **String prefix/suffix**: Always `.starts_with()` / `.ends_with()`; never `find() == 0`, `substr()`, `rfind()`, or `compare()` for prefix/suffix checks
 
 ### Atomics & Thread Safety
-- [ ] **`std::atomic` reads**: Always `.load(std::memory_order_acquire)`
-- [ ] **`std::atomic` writes**: Always `.store(..., std::memory_order_release)`
-- [ ] **Thread safety macros**: `DB_DRIVER_LOCK_GUARD(m_mutex)` for conditional locking; non-thread-safe variants still check `m_closed`
+- [ ] **`std::atomic` reads**: Always `.load(std::memory_order_seq_cst)` by default; `acquire` only with documented hot-path justification
+- [ ] **`std::atomic` writes**: Always `.store(..., std::memory_order_seq_cst)` by default; `release` only with documented hot-path justification
+- [ ] **Native handle name**: Connection's native handle must be named `m_conn` (not `m_mysql`, `m_db`, etc.)
+- [ ] **Connection mutex type**: Must be `SharedConnMutex` (`std::shared_ptr<std::recursive_mutex>`), named `m_connMutex`; never a direct `std::recursive_mutex` member
+- [ ] **`getConnectionMutex(std::nothrow_t)`**: Connection must expose mutex via `std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept`
+- [ ] **Child objects must not store mutex**: PreparedStatement, ResultSet, Blob, Cursor, Collection, Document must not have `m_connMutex` or `m_globalFileMutex` as members; acquire via `weak_ptr<Connection>` + RAII helper. Note: `*InputStream` is NOT a child of Connection — it is a pure in-memory byte buffer with no connection dependency.
+- [ ] **Blob synchronization**: Blob classes (child of Connection, created by ResultSet) that perform native DB API calls (`ensureLoaded`, `save`, etc.) must use `weak_ptr<*DBConnection> m_connection` (not `weak_ptr<NativeHandle>`), `mutable atomic<bool> m_closed`, `friend *ConnectionLock`, and `*_STMT_LOCK_OR_RETURN` before any native call
+- [ ] **Connection-level macros**: `*_CONNECTION_LOCK_OR_RETURN/THROW/SUCCESS_IF_CLOSED` must check `m_closed || !m_conn`; non-thread-safe `#else` must also check (not `(void)0`)
+- [ ] **RAII ConnectionLock helper**: Each driver must define `*ConnectionLock` class with double-checked locking, `isAcquired() const noexcept`, `operator bool() const noexcept`
+- [ ] **Statement/Child-level macros**: `*_LOCK_OR_RETURN/THROW/SUCCESS_IF_CLOSED` or `*_STMT_LOCK_OR_*` using the RAII helper in PreparedStatement, ResultSet, Blob, Cursor, Collection, Document; lock variable named `<driver>_conn_lock_` (never `__lock`)
+- [ ] **Child objects reject operations when parent connection is closed**: Every child (PreparedStatement, ResultSet, Blob, Cursor, Collection, Document) must guard every public method with `*_STMT_LOCK_OR_RETURN` or equivalent — checking both `weak_ptr` expiry AND `conn->m_closed`. Applies even to in-memory child objects (e.g., MySQL/PostgreSQL ResultSet in Lax model). `*InputStream` is exempt — it has no connection dependency.
+- [ ] **Non-thread-safe macros check `m_connection.expired()`**: The `#else` (non-thread-safe) variants of `*_STMT_LOCK_OR_RETURN/THROW/SUCCESS_IF_CLOSED` must check `m_connection.expired()` and set `m_closed = true` if expired, not just check `m_closed`
+- [ ] **No dead macros**: `DB_DRIVER_MUTEX` and `DB_DRIVER_UNIQUE_LOCK` must not be defined
+- [ ] **Debug macro pattern**: `snprintf` to 1024-byte buffer + truncation only; no `std::cout`, no `snprintf < 0` handling
 - [ ] **`std::scoped_lock` preference**: Prefer `std::scoped_lock` over `lock_guard`/`unique_lock` wherever it makes sense
 - [ ] **`std::recursive_mutex` preference**: Prefer `std::recursive_mutex` over other mutex types for re-entrant locking
 - [ ] **Connection pool mutex exception**: Pool classes must use `std::mutex` (not `recursive_mutex`) because `std::condition_variable` requires it
@@ -185,7 +196,7 @@ When performing a full compliance analysis, check each of the following. This li
 - [ ] **Construction state variables**: `bool m_initFailed{false}` + `std::unique_ptr<DBException> m_initError{nullptr}` in per-class PrivateCtorTag classes
 - [ ] **PrivateCtorTag constructor try/catch**: Only present when body contains recoverable C++ exceptions; comment above `try` listing which exceptions are caught; omitted when body is entirely nothrow or only death-sentence exceptions
 - [ ] **Shared PrivateCtorTag (pool classes)**: Single `PrivateCtorTag` defined as `protected` in `DBConnectionPool` base class, shared across the entire pool hierarchy; no `std::nothrow_t` needed; tag must be named `PrivateCtorTag` (not `ConstructorTag`)
-- [ ] **DBDriver singleton**: PrivateCtorTag + `s_instance` weak_ptr + `getInstance()` + connection registry; constructor is `noexcept` with `m_initFailed`/`m_initError`
+- [ ] **DBDriver singleton**: PrivateCtorTag + `s_instance` shared_ptr + `getInstance()` + connection registry; constructor is `noexcept` with `m_initFailed`/`m_initError`
 - [ ] **Static factory `::create`**: Throwing delegates to nothrow; `#ifdef __cpp_exceptions` guards
 - [ ] **`std::move` in factory error paths**: `std::move(*obj->m_initError)` not a copy
 - [ ] **`#ifdef __cpp_exceptions`**: All throwing code properly guarded
@@ -209,3 +220,5 @@ research/<driver_name>_improvements_<N>.md
 ```
 
 Where `<N>` is an incrementing number (1, 2, 3...) to allow multiple analysis passes on the same driver. Example: `research/mysql_driver_improvements_1.md`, `research/sqlite_driver_improvements_1.md`.
+
+**Immutability rule**: Existing report files must **never** be modified or overwritten. Each new analysis pass must create a new file with the next incremental number. If `research/sqlite_driver_improvements_2.md` already exists, the next report must be `research/sqlite_driver_improvements_3.md`. Previous reports serve as historical record of the driver's compliance evolution.

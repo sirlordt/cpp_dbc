@@ -81,7 +81,7 @@ namespace cpp_dbc::Firebird
                     std::erase_if(s_connectionRegistry,
                         [](const auto &w) { return w.expired(); });
                 }
-                s_cleanupPending.store(false, std::memory_order_release);
+                s_cleanupPending.store(false, std::memory_order_seq_cst);
             });
         }
     }
@@ -102,7 +102,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBDriver::closeAllOpenConnections(std::nothrow_t) noexcept
     {
         // Mark driver as closed — reject any new connection attempts
-        m_closed.store(true, std::memory_order_release);
+        m_closed.store(true, std::memory_order_seq_cst);
 
         // Close all open connections before releasing library resources.
         // Collect under lock first, then close outside the lock to avoid
@@ -365,7 +365,7 @@ namespace cpp_dbc::Firebird
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (m_closed.load(std::memory_order_seq_cst))
         {
             return cpp_dbc::unexpected(DBException("H8LMRV3JYD1N",
                                                    "Driver is closed, no more connections allowed",

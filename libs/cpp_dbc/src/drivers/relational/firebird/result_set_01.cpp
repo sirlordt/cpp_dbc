@@ -78,7 +78,7 @@ namespace cpp_dbc::Firebird
                 return;
             }
         }
-        m_closed.store(false, std::memory_order_release);
+        m_closed.store(false, std::memory_order_seq_cst);
         FIREBIRD_DEBUG("FirebirdResultSet::constructor - Done");
     }
 
@@ -256,7 +256,7 @@ namespace cpp_dbc::Firebird
             ISC_QUAD *blobId = reinterpret_cast<ISC_QUAD *>(var->sqldata);
             try
             {
-                auto blob = std::make_shared<FirebirdBlob>(conn, *blobId);
+                auto blob = FirebirdBlob::create(conn, *blobId);
                 std::vector<uint8_t> data = blob->getBytes(0, blob->length());
                 return std::string(data.begin(), data.end());
             }
@@ -283,7 +283,7 @@ namespace cpp_dbc::Firebird
         // Don't actually free the statement since the connection is closing.
         // Just mark as closed to prevent further operations.
         // No lock needed — m_closed is atomic.
-        m_closed.store(true, std::memory_order_release);
+        m_closed.store(true, std::memory_order_seq_cst);
         return {};
     }
 

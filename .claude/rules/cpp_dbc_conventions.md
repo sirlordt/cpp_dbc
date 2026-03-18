@@ -358,7 +358,7 @@ This applies only to new or modified code. Pre-existing local duplicates do not 
 
 - Use RAII handles for external resources (BsonHandle, RedisReplyHandle, etc.)
 - Defensively check for nulls before dereferencing pointers from external libraries
-- Use `std::atomic` with explicit memory ordering (`memory_order_acquire`/`release`)
+- Use `std::atomic` with explicit memory ordering (`memory_order_seq_cst` by default; `acquire`/`release` only with documented justification)
 - Avoid raw pointers. Use `std::shared_ptr`, `std::unique_ptr`, and `std::weak_ptr` where possible, especially in member/class variables.
 - Always try to use C++17-style constructs and functions for more secure code.
 - Use ranges and avoid index loops where possible.
@@ -497,21 +497,25 @@ public:
 
 This applies only to new or modified code. Pre-existing empty constructors do not need to be updated retroactively.
 
-### `std::atomic` — Always Use `.load(std::memory_order_acquire)`
+### `std::atomic` — Always Use `std::memory_order_seq_cst` by Default
 
-Every read of a `std::atomic` variable **must** call `.load(std::memory_order_acquire)` explicitly. No exceptions. Implicit boolean conversion, bare `.load()` without memory order, and comparison operators that bypass `.load()` are all forbidden:
+Every access to a `std::atomic` variable **must** use an explicit memory order. The default is `std::memory_order_seq_cst` (sequentially consistent) for both loads and stores. This is the strongest ordering — it establishes a single total order visible to all threads, eliminating subtle bugs in multi-variable atomic scenarios (IRIW problem).
+
+Implicit boolean conversion, bare `.load()` without memory order, and comparison operators that bypass `.load()` are all forbidden:
 
 ```cpp
-// Correct
-if (m_running.load(std::memory_order_acquire))
+// Correct — seq_cst (default, always safe)
+if (m_running.load(std::memory_order_seq_cst))
 {
     // ...
 }
 
-if (m_closed.load(std::memory_order_acquire))
+if (m_closed.load(std::memory_order_seq_cst))
 {
     return cpp_dbc::unexpected(...);
 }
+
+m_closed.store(true, std::memory_order_seq_cst);
 
 // Incorrect — implicit conversion, no memory ordering
 if (m_running)         { }  // implicit bool conversion
@@ -519,7 +523,25 @@ if (!m_closed)         { }  // implicit bool conversion
 if (m_running.load())  { }  // missing memory_order argument
 ```
 
-The only exception is `std::atomic::store()`, `exchange()`, and `compare_exchange_*()`, which use `std::memory_order_release` or `std::memory_order_acq_rel` as appropriate for write operations.
+#### When `acquire`/`release` Is Permitted
+
+`std::memory_order_acquire` (loads) and `std::memory_order_release` (stores) may be used **only** as an explicit optimization in documented hot paths where profiling has shown `seq_cst` overhead is measurable. Each downgrade requires a comment explaining why weaker ordering is safe:
+
+```cpp
+// Acquire is sufficient here: single-variable flag check in hot polling loop,
+// no cross-atomic ordering dependency. Profiled: 15% throughput improvement
+// in connection pool getDBConnection() under contention.
+if (m_closed.load(std::memory_order_seq_cst))
+{
+    return cpp_dbc::unexpected(...);
+}
+```
+
+Without such justification, always use `std::memory_order_seq_cst`.
+
+For `exchange()` and `compare_exchange_*()`, use `std::memory_order_seq_cst` by default, or `std::memory_order_acq_rel` with documented justification.
+
+**Migration**: Pre-existing uses of `memory_order_acquire`/`memory_order_release` should be migrated to `memory_order_seq_cst` when the file is being modified for other reasons. This is not a retroactive requirement — update opportunistically as files are touched.
 
 ### String-to-Number Conversion — Always Use `std::from_chars`
 
@@ -631,10 +653,225 @@ if (filename.compare(filename.size() - 4, 4, ".cpp") == 0)  // WRONG: use .ends_
 
 ## Thread Safety
 
-- Use `DB_DRIVER_LOCK_GUARD(m_mutex)` macro for conditional locking
 - The `DB_DRIVER_THREAD_SAFE` flag controls whether mutexes are active
 - Prefer `std::scoped_lock` over other lock guard types (`lock_guard`, `unique_lock`) wherever it makes sense, as it avoids deadlocks and is safer by default
 - Prefer `std::recursive_mutex` over other mutex types (`mutex`, `timed_mutex`) wherever it makes sense, to allow re-entrant locking within the same thread without deadlock
+
+### Connection Mutex — Ownership and Sharing Model
+
+Every `*DBConnection` owns a single `SharedConnMutex` (`std::shared_ptr<std::recursive_mutex>`) named `m_connMutex`. This mutex is **shared with all child objects** that operate on the connection — semantically or functionally. The ownership graph is:
+
+```text
+Driver ──── s_connectionRegistry (tracks all live connections)
+  │
+  └── DBConnection ─── m_connMutex (SharedConnMutex, per-connection)
+        │                   │
+        │                   ├── shared with → PreparedStatement (via weak_ptr<Connection>)
+        │                   ├── shared with → ResultSet (via weak_ptr<Connection>)
+        │                   ├── shared with → Blob (via weak_ptr<Connection>, created by ResultSet)
+        │                   ├── shared with → Cursor (document DBs, via weak_ptr<Connection>)
+        │                   └── shared with → Collection (document DBs, via weak_ptr<Connection>)
+        │
+        ├── m_activeStatements: Set<weak_ptr<PreparedStatement>>
+        └── m_activeResultSets: Set<weak_ptr<ResultSet>>
+```
+
+**Key rules**:
+
+1. **Native handle name**: The native connection handle (e.g., `MYSQL*`, `PGconn*`, `sqlite3*`, `isc_db_handle`) must be named `m_conn` in all drivers. This ensures consistency across the codebase.
+
+2. **Mutex type**: Always `SharedConnMutex` (`std::shared_ptr<std::recursive_mutex>`), never a direct `std::recursive_mutex` member. The `shared_ptr` allows child objects to access the mutex safely through `weak_ptr<Connection>` → `getConnectionMutex(std::nothrow)`.
+
+3. **Child objects never store the mutex**: PreparedStatement, ResultSet, Blob, Cursor, Collection, and any other child class that depends on a Connection must **not** store `m_connMutex` or any mutex as a member. They acquire the mutex at runtime through their `m_connection` weak_ptr using the RAII helper class. Note: `*InputStream` classes are **not** child objects of the Connection — they are pure in-memory byte buffers with no connection reference or DB dependency.
+
+4. **`getConnectionMutex(std::nothrow_t)`**: Every `*DBConnection` must expose this method in the public section:
+
+```cpp
+std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
+{
+    return *m_connMutex;
+}
+```
+
+This applies to **all database families** — relational, document, KV, columnar. Any class that semantically depends on a Connection and accesses shared resources through it must follow this pattern.
+
+5. **Blob is a child object of Connection (not of ResultSet)**: `*Blob` classes are created by ResultSet (via `getBlob()`) but their lifecycle dependency is **directly on Connection**, not on ResultSet. They perform native database API calls (e.g., lazy-loading via `ensureLoaded()`, persisting via `save()`) and **must** follow the same synchronization pattern as PreparedStatement and ResultSet:
+
+   - Store `std::weak_ptr<*DBConnection> m_connection` (not `weak_ptr<NativeHandle>` like `weak_ptr<MYSQL>` or `weak_ptr<sqlite3>`)
+   - Store `mutable std::atomic<bool> m_closed{false}` for double-checked locking
+   - Declare `friend class *ConnectionLock` so the RAII helper can access `m_connection`
+   - Use `*_STMT_LOCK_OR_RETURN` / `*_STMT_LOCK_OR_THROW` before any native DB API call
+   - Obtain the native handle through the connection (e.g., `conn->m_conn`) under the lock, **not** through a separate `weak_ptr<NativeHandle>`
+
+   **`*InputStream` is NOT a child object of Connection.** All current `*InputStream` implementations are pure in-memory byte buffers (`std::vector<uint8_t>` + position cursor) with no `m_connection`, no `weak_ptr`, and no native DB API calls. They copy data at construction and are fully self-contained. They do not require synchronization, connection lifecycle checks, or `*_STMT_LOCK_OR_RETURN` guards.
+
+   ```cpp
+   // Correct — Blob acquires lock before native DB calls
+   cpp_dbc::expected<void, DBException> MyBlob::ensureLoaded(std::nothrow_t) const noexcept
+   {
+       if (m_loaded) { return {}; }
+
+       MY_STMT_LOCK_OR_RETURN("XXXXXXXXXXXX", "Blob connection closed");
+
+       auto dbResult = getSQLiteConnection(std::nothrow);  // goes through m_connection
+       // ... native DB API calls under the lock ...
+   }
+
+   // Incorrect — Blob holds weak_ptr<NativeHandle> and calls DB API without lock
+   cpp_dbc::expected<void, DBException> MyBlob::ensureLoaded(std::nothrow_t) const noexcept
+   {
+       auto handle = m_nativeHandle.lock();  // WRONG: no connection lock acquired
+       native_api_call(handle.get());        // WRONG: unprotected native call
+   }
+   ```
+
+6. **Child objects must reject operations when the parent connection is closed**: Every child object (PreparedStatement, ResultSet, Blob, Cursor, Collection, Document) must verify that the parent connection is **both alive and open** before processing any request. This is a **double check**:
+
+   - **`weak_ptr` expired** → the connection object has been destroyed. The child must mark itself as closed (`m_closed = true`) and return an error.
+   - **`conn->m_closed == true`** → the connection object still exists but has been explicitly closed. The child must also reject the operation and return an error.
+
+   Both checks are handled automatically by the `*ConnectionLock` RAII helper (thread-safe path) and by the non-thread-safe `*_STMT_LOCK_OR_RETURN` macros. The `*ConnectionLock` constructor checks `m_connection.lock()` (expiry) and then re-checks `m_closed` after acquiring the lock. The non-thread-safe macros check `m_closed` and then `m_connection.expired()`.
+
+   **This rule applies even to child objects that operate purely in-memory.** For example, MySQL and PostgreSQL ResultSets use the "store result" model — all data is in client memory and `next()`/`getString()` do not communicate with the server. Nevertheless, if the parent connection has been closed, the ResultSet must refuse new operations. The connection being closed means the session is over — continuing to serve data from a closed session violates the lifecycle contract and can lead to inconsistent state if the ResultSet is later used to create new child objects (e.g., getting a Blob from a ResultSet column).
+
+   ```cpp
+   // Correct — child rejects operation when parent connection is closed,
+   // even though it only reads in-memory data
+   cpp_dbc::expected<std::string, DBException> MyResultSet::getString(std::nothrow_t, size_t col) noexcept
+   {
+       MY_STMT_LOCK_OR_RETURN("XXXXXXXXXXXX", "Result set closed");
+       // ... read from in-memory buffer ...
+   }
+
+   // Incorrect — child serves data without checking parent connection state
+   cpp_dbc::expected<std::string, DBException> MyResultSet::getString(std::nothrow_t, size_t col) noexcept
+   {
+       // No guard — if connection was closed, this silently succeeds
+       return m_data[col];  // WRONG: should verify connection is open first
+   }
+   ```
+
+### Two-Tier Locking Macros
+
+Each driver defines **two groups of macros** in its `*_internal.hpp`, following a unified pattern across all drivers:
+
+**Connection-level macros** — used inside `*DBConnection` methods. Lock `m_connMutex` directly and check both `m_closed` and the native handle `m_conn`:
+
+| Macro | Purpose |
+|-------|---------|
+| `*_CONNECTION_LOCK_OR_RETURN(mark, msg)` | Nothrow methods — returns `unexpected` if closed |
+| `*_CONNECTION_LOCK_OR_THROW(mark, msg)` | Throwing methods — throws `DBException` if closed |
+| `*_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()` | `close()` methods — returns `{}` if already closed (idempotent) |
+
+```cpp
+// Thread-safe variant
+#define MY_CONNECTION_LOCK_OR_RETURN(mark, msg)                                              \
+    DB_DRIVER_LOCK_GUARD(*m_connMutex);                                                      \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)                                 \
+    { return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)", ...)); }
+
+// Non-thread-safe variant (no lock, but still checks state)
+#define MY_CONNECTION_LOCK_OR_RETURN(mark, msg)                                              \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)                                 \
+    { return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)", ...)); }
+```
+
+**Statement/Child-level macros** — used inside PreparedStatement, ResultSet, Blob, Cursor, Collection, Document, and any child class that performs native DB API calls. Use the `*ConnectionLock` RAII helper to acquire the mutex through `weak_ptr<Connection>`:
+
+| Macro | Purpose |
+|-------|---------|
+| `*_LOCK_OR_RETURN(mark, msg)` / `*_STMT_LOCK_OR_RETURN(mark, msg)` | Nothrow methods — returns `unexpected` |
+| `*_LOCK_OR_THROW(mark, msg)` / `*_STMT_LOCK_OR_THROW(mark, msg)` | Throwing methods — throws `DBException` |
+| `*_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()` / `*_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()` | `close()` methods — returns `{}` |
+
+```cpp
+// Thread-safe variant (uses RAII helper with double-checked locking)
+#define MY_STMT_LOCK_OR_RETURN(mark, msg)                                                    \
+    cpp_dbc::MyNS::MyConnectionLock my_conn_lock_(this, m_closed);                           \
+    if (!my_conn_lock_)                                                                      \
+    { return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)", ...)); }
+
+// Non-thread-safe variant (just checks m_closed)
+#define MY_STMT_LOCK_OR_RETURN(mark, msg)                                                    \
+    if (m_closed.load(std::memory_order_seq_cst))                                            \
+    { return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)", ...)); }
+```
+
+### RAII Connection Lock Helper
+
+Every driver must define a `*ConnectionLock` RAII helper class in its `*_internal.hpp`, inside the driver's namespace. This class acquires the connection's mutex through `weak_ptr<Connection>` with double-checked locking:
+
+```cpp
+class MyConnectionLock
+{
+    std::shared_ptr<MyDBConnection> m_conn;  // Keeps connection alive while lock is held
+    std::unique_lock<std::recursive_mutex> m_lock;
+    bool m_acquired{false};
+
+public:
+    template <typename T>
+    MyConnectionLock(T *obj, std::atomic<bool> &closed)
+    {
+        // FIRST CHECK: fast path — already closed, no lock needed
+        if (closed.load(std::memory_order_seq_cst)) { return; }
+
+        // Obtain connection and KEEP IT ALIVE
+        m_conn = obj->m_connection.lock();
+        if (!m_conn) { closed.store(true, std::memory_order_seq_cst); return; }
+
+        // Acquire mutex (connection stays alive via m_conn)
+        m_lock = std::unique_lock<std::recursive_mutex>(m_conn->getConnectionMutex(std::nothrow));
+
+        // SECOND CHECK: another thread may have closed between first check and lock
+        if (closed.load(std::memory_order_seq_cst)) { return; }
+
+        m_acquired = true;
+    }
+
+    bool isAcquired() const noexcept { return m_acquired; }
+    explicit operator bool() const noexcept { return m_acquired; }
+};
+```
+
+**Naming conventions**:
+- Class: `<Driver>ConnectionLock` (e.g., `MySQLConnectionLock`, `FirebirdConnectionLock`)
+- Lock variable in macros: `<driver>_conn_lock_` (e.g., `mysql_conn_lock_`, `firebird_conn_lock_`). Never use reserved identifiers like `__lock`.
+- `m_conn` inside the helper refers to `shared_ptr<*DBConnection>` (not the native handle) — different scope, no collision.
+- `isAcquired()` and `operator bool()` must be `const noexcept`.
+
+### `DB_DRIVER_LOCK_GUARD` — The Only Auxiliary Macro
+
+The only auxiliary threading macro is `DB_DRIVER_LOCK_GUARD(mutex)`. It expands to `std::scoped_lock<std::recursive_mutex> lock(mutex)` when `DB_DRIVER_THREAD_SAFE` is enabled, or `(void)0` when disabled. It is used by connection-level macros internally and for direct locking in connection methods.
+
+The following macros are **removed** and must not be defined:
+- `DB_DRIVER_MUTEX` — dead code, never used. Use `SharedConnMutex` directly.
+- `DB_DRIVER_UNIQUE_LOCK` — dead code, never used.
+
+### Debug Macro Pattern
+
+Each driver defines a `*_DEBUG(format, ...)` macro in its `*_internal.hpp`. The pattern is identical across all drivers — `snprintf` to a fixed 1024-byte buffer with truncation handling:
+
+```cpp
+#if (defined(DEBUG_<DRIVER>) && DEBUG_<DRIVER>) || (defined(DEBUG_ALL) && DEBUG_ALL)
+#define MY_DEBUG(format, ...)                                                                \
+    do                                                                                       \
+    {                                                                                        \
+        char debug_buffer[1024];                                                             \
+        int debug_n = std::snprintf(debug_buffer, sizeof(debug_buffer), format, ##__VA_ARGS__); \
+        if (debug_n >= static_cast<int>(sizeof(debug_buffer)))                               \
+        {                                                                                    \
+            static constexpr const char trunc[] = "...[TRUNCATED]";                          \
+            std::memcpy(debug_buffer + sizeof(debug_buffer) - sizeof(trunc),                 \
+                        trunc, sizeof(trunc));                                               \
+        }                                                                                    \
+        cpp_dbc::system_utils::logWithTimesMillis("<Driver>", debug_buffer);                 \
+    } while (0)
+#else
+#define MY_DEBUG(...) ((void)0)
+#endif
+```
+
+Do **not** use `std::cout` for debug output. Do **not** handle `snprintf` returning negative — only handle truncation.
 
 ### Exception: Connection Pool Mutex
 
@@ -814,7 +1051,7 @@ A method declared `noexcept` or accepting `std::nothrow_t` **must** call the `st
 // Correct — nothrow method calls nothrow overload, propagates expected
 cpp_dbc::expected<bool, DBException> MyPooledConnection::isClosed(std::nothrow_t) const noexcept
 {
-    if (m_closed.load(std::memory_order_acquire))
+    if (m_closed.load(std::memory_order_seq_cst))
     {
         return true;
     }
@@ -829,7 +1066,7 @@ cpp_dbc::expected<bool, DBException> MyPooledConnection::isClosed(std::nothrow_t
 // Incorrect — nothrow method calls throwing overload
 cpp_dbc::expected<bool, DBException> MyPooledConnection::isClosed(std::nothrow_t) const noexcept
 {
-    return m_closed.load(std::memory_order_acquire) || m_conn->isClosed();  // isClosed() can throw!
+    return m_closed.load(std::memory_order_seq_cst) || m_conn->isClosed();  // isClosed() can throw!
 }
 ```
 
@@ -844,7 +1081,7 @@ A `noexcept` / `std::nothrow_t` method that calls **only** nothrow overloads (fu
 cpp_dbc::expected<std::shared_ptr<PreparedStatement>, DBException>
 MyConnection::prepareStatement(std::nothrow_t, const std::string &query) noexcept
 {
-    if (m_closed.load(std::memory_order_acquire))
+    if (m_closed.load(std::memory_order_seq_cst))
     {
         return cpp_dbc::unexpected(DBException("XXXXXXXXXXXX", "Connection is closed", system_utils::captureCallStack()));
     }
@@ -858,7 +1095,7 @@ MyConnection::prepareStatement(std::nothrow_t, const std::string &query) noexcep
 {
     try
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (m_closed.load(std::memory_order_seq_cst))
         {
             return cpp_dbc::unexpected(DBException("XXXXXXXXXXXX", "Connection is closed", system_utils::captureCallStack()));
         }
@@ -891,7 +1128,7 @@ Walk every statement inside the `try` block and ask: *"Can this expression throw
 | `someMethod(std::nothrow)` | **NO** | Takes `std::nothrow_t`, declared `noexcept` |
 | `result.has_value()`, `result.error()` | **NO** | `std::expected` observers are `noexcept` |
 | `result.value()` (after `.has_value()` check) | **NO** | Throws `std::bad_expected_access` only if called without checking — programmer error, not a recoverable exception |
-| `m_flag.load(std::memory_order_acquire)` | **NO** | `std::atomic::load` is `noexcept` |
+| `m_flag.load(std::memory_order_seq_cst)` | **NO** | `std::atomic::load` is `noexcept` |
 | `return {}` / `return cpp_dbc::unexpected(DBException(...))` | **NO** | Value construction; failure is `std::terminate`, not a catchable exception |
 | Guard macros that expand to `return cpp_dbc::unexpected(...)` or `(void)0` | **NO** | The expansion contains only noexcept operations |
 | Simple member reads (`m_tr`, `m_closed`) | **NO** | Plain member access never throws |
@@ -918,7 +1155,7 @@ FirebirdDBConnection::returnToPool(std::nothrow_t) noexcept
     try
     {
         // FIREBIRD_CONNECTION_LOCK_OR_RETURN expands to:
-        //   std::lock_guard<std::recursive_mutex> lock(*m_connMutex);  (noexcept — mutex lock failure
+        //   std::scoped_lock<std::recursive_mutex> lock(*m_connMutex);  (noexcept — mutex lock failure
         //                                                                is a programming error → terminate)
         //   if (m_closed.load(...)) return cpp_dbc::unexpected(DBException(...));
         // → no throw possible
@@ -933,7 +1170,7 @@ FirebirdDBConnection::returnToPool(std::nothrow_t) noexcept
 
         // m_tr — plain member read → no throw
         // m_closed.load(...) — atomic load → no throw
-        if (!m_tr && !m_closed.load(std::memory_order_acquire))
+        if (!m_tr && !m_closed.load(std::memory_order_seq_cst))
         {
             // startTransaction(std::nothrow) — noexcept, returns std::expected → no throw
             [[maybe_unused]] auto startResult = startTransaction(std::nothrow);
@@ -967,7 +1204,7 @@ FirebirdDBConnection::returnToPool(std::nothrow_t) noexcept
         FIREBIRD_DEBUG("  prepareForPoolReturn failed: %s", prepResult.error().what_s().data());
     }
 
-    if (!m_tr && !m_closed.load(std::memory_order_acquire))
+    if (!m_tr && !m_closed.load(std::memory_order_seq_cst))
     {
         [[maybe_unused]] auto startResult = startTransaction(std::nothrow);
         if (!startResult.has_value())
@@ -980,7 +1217,7 @@ FirebirdDBConnection::returnToPool(std::nothrow_t) noexcept
 }
 ```
 
-The `FIREBIRD_CONNECTION_LOCK_OR_RETURN` macro uses `std::lock_guard<std::recursive_mutex>` internally. As explained in the death-sentence rule above, any exception from that lock would be `std::system_error` — unrecoverable, so the absence of try/catch is correct.
+The `FIREBIRD_CONNECTION_LOCK_OR_RETURN` macro uses `std::scoped_lock<std::recursive_mutex>` internally (via `DB_DRIVER_LOCK_GUARD(*m_connMutex)`). As explained in the death-sentence rule above, any exception from that lock would be `std::system_error` — unrecoverable, so the absence of try/catch is correct.
 
 ### `catch(...)` Requires a Preceding `catch(const std::exception &ex)`
 
@@ -1301,7 +1538,7 @@ return pool;
 
 ### PrivateCtorTag Pattern — Driver Classes (Creational Pattern)
 
-All driver classes — Connection, PreparedStatement, ResultSet, Blob, InputStream, Cursor, Collection, Document, and **`*DBDriver`** — use the **PrivateCtorTag creational pattern**. `*DBDriver` classes combine PrivateCtorTag with the [Singleton + Connection Registry](#dbdriver--singleton--connection-registry) pattern (`s_instance` weak_ptr + `getInstance()` + `s_connectionRegistry`).
+All driver classes — Connection, PreparedStatement, ResultSet, Blob, InputStream, Cursor, Collection, Document, and **`*DBDriver`** — use the **PrivateCtorTag creational pattern**. `*DBDriver` classes combine PrivateCtorTag with the [Singleton + Connection Registry](#dbdriver--singleton--connection-registry) pattern (`s_instance` shared_ptr + `getInstance()` + `s_connectionRegistry`).
 
 The goal is a **throw-free creational pattern**: no `throw` statement exists anywhere except inside the explicit `::create` throwing wrappers. Constructors never throw — they capture errors in member variables for deferred delivery by the factory.
 
@@ -1386,7 +1623,7 @@ MySQLDBConnection::MySQLDBConnection(PrivateCtorTag,
             return;
         }
         m_conn->setSchema(database);
-        m_closed.store(false, std::memory_order_release);
+        m_closed.store(false, std::memory_order_seq_cst);
     }
     catch (const std::exception &ex)
     {
@@ -1417,7 +1654,7 @@ MyDBPreparedStatement::MyDBPreparedStatement(PrivateCtorTag,
                                              const std::string &sql) noexcept
     : m_connection(std::move(conn)), m_sql(sql)
 {
-    m_closed.store(false, std::memory_order_release);
+    m_closed.store(false, std::memory_order_seq_cst);
 }
 
 // Incorrect — try/catch is dead code; no recoverable exceptions possible
@@ -1429,7 +1666,7 @@ MyDBPreparedStatement::MyDBPreparedStatement(PrivateCtorTag,
 {
     try
     {
-        m_closed.store(false, std::memory_order_release);
+        m_closed.store(false, std::memory_order_seq_cst);
     }
     catch (const std::exception &ex)  // UNREACHABLE — no recoverable throw above
     {
@@ -1706,7 +1943,7 @@ std::expected<Result, DBException> MyClass::query(std::nothrow_t, const std::str
 
 `*DBDriver` classes use the same **PrivateCtorTag creational pattern** as all other driver classes (Connection, PreparedStatement, etc.), with two additional concerns layered on top:
 
-1. **Singleton**: A `static std::weak_ptr<MyDriver> s_instance` + `static std::mutex s_instanceMutex` pair ensures only one driver instance exists at a time. `getInstance()` locks `s_instanceMutex`, tries to promote the weak_ptr, and creates a new instance via `std::make_shared` with `PrivateCtorTag{}` if the weak_ptr is expired.
+1. **Singleton**: A `static std::shared_ptr<MyDriver> s_instance` + `static std::mutex s_instanceMutex` pair ensures only one driver instance exists at a time. `getInstance()` locks `s_instanceMutex`, checks if `s_instance` is non-null, and creates a new instance via `std::make_shared` with `PrivateCtorTag{}` if it is null.
 
 2. **Connection registry**: A `static std::set<std::weak_ptr<MyConnection>, std::owner_less<...>> s_connectionRegistry` + `static std::mutex s_registryMutex` pair tracks all live connections created through `connectRelational()` (or the family-specific connect method). Connections are registered after creation and unregistered when closed.
 
@@ -1723,8 +1960,8 @@ class MyDriver final : public SomeFamilyDBDriver
     };
 
     // ── Singleton state ───────────────────────────────────────────────────
-    static std::weak_ptr<MyDriver> s_instance;
-    static std::mutex              s_instanceMutex;
+    static std::shared_ptr<MyDriver> s_instance;
+    static std::mutex                s_instanceMutex;
 
     // ── Connection registry ───────────────────────────────────────────────
     static std::mutex                                                s_registryMutex;
@@ -1769,8 +2006,8 @@ public:
 // ── Implementation (driver_01.cpp) ────────────────────────────────────────────
 
 // ── Static member initialization ──────────────────────────────────────────
-std::weak_ptr<MyDriver> MyDriver::s_instance;
-std::mutex              MyDriver::s_instanceMutex;
+std::shared_ptr<MyDriver> MyDriver::s_instance;
+std::mutex                MyDriver::s_instanceMutex;
 std::mutex              MyDriver::s_registryMutex;
 std::set<std::weak_ptr<MyConnection>,
          std::owner_less<std::weak_ptr<MyConnection>>> MyDriver::s_connectionRegistry;
@@ -1833,10 +2070,9 @@ cpp_dbc::expected<std::shared_ptr<MyDriver>, DBException>
 MyDriver::getInstance(std::nothrow_t) noexcept
 {
     std::scoped_lock lock(s_instanceMutex);
-    auto existing = s_instance.lock();
-    if (existing)
+    if (s_instance)
     {
-        return existing;
+        return s_instance;
     }
     // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
     // Constructor errors are captured in m_initFailed / m_initError.
@@ -1846,7 +2082,7 @@ MyDriver::getInstance(std::nothrow_t) noexcept
         return cpp_dbc::unexpected(std::move(*inst->m_initError));
     }
     s_instance = inst;
-    return inst;
+    return s_instance;
 }
 
 size_t MyDriver::getConnectionAlive() noexcept

@@ -37,7 +37,7 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<std::string, DBException> FirebirdDBResultSet::getDate(std::nothrow_t, size_t columnIndex) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("7OAQLW6S1NV5", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("7OAQLW6S1NV5", "Connection lost");
         return getColumnValue(std::nothrow, columnIndex);
     }
 
@@ -53,7 +53,7 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<std::string, DBException> FirebirdDBResultSet::getTimestamp(std::nothrow_t, size_t columnIndex) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("4Q9KI4JP2XTB", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("4Q9KI4JP2XTB", "Connection lost");
         return getColumnValue(std::nothrow, columnIndex);
     }
 
@@ -69,7 +69,7 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<std::string, DBException> FirebirdDBResultSet::getTime(std::nothrow_t, size_t columnIndex) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("ZRWB1E4M2L52", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("ZRWB1E4M2L52", "Connection lost");
         return getColumnValue(std::nothrow, columnIndex);
     }
 
@@ -85,20 +85,20 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<std::vector<std::string>, DBException> FirebirdDBResultSet::getColumnNames(std::nothrow_t) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("FXE1E4KBWNL8", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("FXE1E4KBWNL8", "Connection lost");
         return m_columnNames;
     }
 
     cpp_dbc::expected<size_t, DBException> FirebirdDBResultSet::getColumnCount(std::nothrow_t) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("HJ4C76QCZV7E", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("HJ4C76QCZV7E", "Connection lost");
         return m_fieldCount;
     }
 
     cpp_dbc::expected<void, DBException> FirebirdDBResultSet::close(std::nothrow_t) noexcept
     {
         // Use special macro for close() - returns success if already closed (idempotent)
-        FIREBIRD_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
+        FIREBIRD_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
 
         // Unregister from connection if connection is still alive AND not in reset()
         // During reset(), closeAllResultSets() already holds the lock and clears the list
@@ -109,7 +109,7 @@ namespace cpp_dbc::Firebird
         }
 
         // Mark as closed FIRST to prevent double-close attempts
-        m_closed.store(true, std::memory_order_release);
+        m_closed.store(true, std::memory_order_seq_cst);
 
         if (m_ownStatement)
         {
@@ -144,7 +144,7 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<bool, DBException> FirebirdDBResultSet::isEmpty(std::nothrow_t) noexcept
     {
-        FIREBIRD_LOCK_OR_RETURN("VEMY08W2KUSH", "Connection lost");
+        FIREBIRD_STMT_LOCK_OR_RETURN("VEMY08W2KUSH", "Connection lost");
         return !m_hasData && m_rowPosition == 0;
     }
 

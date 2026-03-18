@@ -41,7 +41,7 @@ namespace cpp_dbc::Firebird
         // and may throw DBException or std::exception on open/read failures.
         try
         {
-            FIREBIRD_LOCK_OR_RETURN("OJ9DMC2WW02G", "Connection lost");
+            FIREBIRD_STMT_LOCK_OR_RETURN("OJ9DMC2WW02G", "Connection lost");
 
             if (columnIndex >= m_fieldCount)
             {
@@ -67,7 +67,12 @@ namespace cpp_dbc::Firebird
             }
 
             ISC_QUAD *blobId = reinterpret_cast<ISC_QUAD *>(var->sqldata);
-            return cpp_dbc::expected<std::shared_ptr<Blob>, DBException>(std::static_pointer_cast<Blob>(std::make_shared<FirebirdBlob>(conn, *blobId)));
+            auto blobResult = FirebirdBlob::create(std::nothrow, m_connection, *blobId);
+            if (!blobResult.has_value())
+            {
+                return cpp_dbc::unexpected(blobResult.error());
+            }
+            return std::shared_ptr<Blob>(blobResult.value());
         }
         catch (const DBException &ex)
         {

@@ -52,7 +52,7 @@ namespace cpp_dbc::MySQL
         };
 
         // ── Member variables ──────────────────────────────────────────────────
-        MySQLHandle m_mysql; // shared_ptr allows PreparedStatements to use weak_ptr
+        MySQLHandle m_conn; // shared_ptr allows PreparedStatements to use weak_ptr
         std::atomic<bool> m_closed{true};
         std::atomic<bool> m_resetting{false}; // True during reset() to prevent unregister deadlock
         bool m_autoCommit{true};
@@ -232,7 +232,7 @@ namespace cpp_dbc::MySQL
          */
         MYSQL *getMySQLNativeHandle(std::nothrow_t) const noexcept
         {
-            return m_mysql.get();
+            return m_conn.get();
         }
 
 #if DB_DRIVER_THREAD_SAFE
@@ -259,7 +259,7 @@ namespace cpp_dbc::MySQL
          */
         bool isResetting(std::nothrow_t) const noexcept
         {
-            return m_resetting.load(std::memory_order_acquire);
+            return m_resetting.load(std::memory_order_seq_cst);
         }
 
     protected:

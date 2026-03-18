@@ -40,7 +40,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<std::shared_ptr<Blob>, DBException> PostgreSQLDBResultSet::getBlob(std::nothrow_t, size_t columnIndex) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("I2CHEPML9LC0", "ResultSet closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("I2CHEPML9LC0", "ResultSet closed");
 
         if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
         {
@@ -54,7 +54,7 @@ namespace cpp_dbc::PostgreSQL
         if (PQgetisnull(m_result.get(), row, idx))
         {
             // Return an empty blob with no connection (data is already loaded)
-            auto emptyBlobResult = PostgreSQLBlob::create(std::nothrow, std::shared_ptr<PGconn>());
+            auto emptyBlobResult = PostgreSQLBlob::create(std::nothrow, std::weak_ptr<PostgreSQLDBConnection>{});
             if (!emptyBlobResult.has_value())
             {
                 return cpp_dbc::unexpected<DBException>(emptyBlobResult.error());
@@ -77,10 +77,8 @@ namespace cpp_dbc::PostgreSQL
         }
         std::vector<uint8_t> data = bytesResult.value();
 
-        // Create a PostgreSQLBlob with the data via factory
-        // Note: We pass an empty shared_ptr because the data is already loaded
-        // and the blob won't need to query the database
-        auto blobResult = PostgreSQLBlob::create(std::nothrow, std::shared_ptr<PGconn>(), data);
+        // Create a PostgreSQLBlob with the data (pass connection weak_ptr for synchronization)
+        auto blobResult = PostgreSQLBlob::create(std::nothrow, m_connection, data);
         if (!blobResult.has_value())
         {
             return cpp_dbc::unexpected<DBException>(blobResult.error());
@@ -101,7 +99,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> PostgreSQLDBResultSet::getBinaryStream(std::nothrow_t, size_t columnIndex) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("B8W0HZIB7T53", "ResultSet closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("B8W0HZIB7T53", "ResultSet closed");
 
         if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
         {
@@ -167,7 +165,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<std::vector<uint8_t>, DBException> PostgreSQLDBResultSet::getBytes(std::nothrow_t, size_t columnIndex) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("Z4HNF1D9W3VG", "ResultSet closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("Z4HNF1D9W3VG", "ResultSet closed");
 
         if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
         {

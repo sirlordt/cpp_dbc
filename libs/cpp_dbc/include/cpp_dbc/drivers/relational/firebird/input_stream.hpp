@@ -24,52 +24,50 @@ namespace cpp_dbc::Firebird
      */
     class FirebirdInputStream : public InputStream
     {
-    private:
+        // ── PrivateCtorTag — prevents direct construction; use create() ──
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
         std::vector<uint8_t> m_data;
         size_t m_position{0};
 
-        static cpp_dbc::expected<const uint8_t *, DBException> validateAndEnd(std::nothrow_t, const void *buffer, size_t length) noexcept
+        // ── Construction state ────────────────────────────────────────────────
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
+
+    public:
+        // ── Public nothrow constructor (guarded by PrivateCtorTag) ─────────────
+        // No try/catch: vector copy from valid range is death-sentence only (bad_alloc).
+        // Validation failure is captured in m_initFailed/m_initError.
+        FirebirdInputStream(PrivateCtorTag, std::nothrow_t, const void *buffer, size_t length) noexcept
         {
             if (length > 0 && buffer == nullptr)
             {
-                return cpp_dbc::unexpected(DBException("EBAO9P4HU5U9", "Null buffer passed to FirebirdInputStream", system_utils::captureCallStack()));
+                m_initFailed = true;
+                m_initError = std::make_unique<DBException>("EBAO9P4HU5U9",
+                    "Null buffer passed to FirebirdInputStream",
+                    system_utils::captureCallStack());
+                return;
             }
-            return static_cast<const uint8_t *>(buffer) + length;
+            if (length > 0)
+            {
+                auto begin = static_cast<const uint8_t *>(buffer);
+                m_data.assign(begin, begin + length);
+            }
         }
 
-        static const uint8_t *validateAndEnd(const void *buffer, size_t length)
-        {
-            auto r = validateAndEnd(std::nothrow, buffer, length);
-            if (!r.has_value())
-            {
-                throw r.error();
-            }
-            return r.value();
-        }
+        ~FirebirdInputStream() override = default;
 
-    public:
-        FirebirdInputStream(const void *buffer, size_t length)
-            : m_data(static_cast<const uint8_t *>(buffer), validateAndEnd(buffer, length)) {}
+        FirebirdInputStream(const FirebirdInputStream &) = delete;
+        FirebirdInputStream &operator=(const FirebirdInputStream &) = delete;
 
-        static cpp_dbc::expected<std::shared_ptr<FirebirdInputStream>, DBException> create(std::nothrow_t, const void *buffer, size_t length) noexcept
-        {
-            try
-            {
-                return std::make_shared<FirebirdInputStream>(buffer, length);
-            }
-            catch (const DBException &ex)
-            {
-                return cpp_dbc::unexpected(ex);
-            }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("9YQRI9IF8GVA", ex.what(), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("DHA01HM85U21", "Unknown error creating FirebirdInputStream", system_utils::captureCallStack()));
-            }
-        }
+        // ====================================================================
+        // THROWING API - Exception-based (requires __cpp_exceptions)
+        // ====================================================================
+
+#ifdef __cpp_exceptions
 
         static std::shared_ptr<FirebirdInputStream> create(const void *buffer, size_t length)
         {
@@ -81,17 +79,6 @@ namespace cpp_dbc::Firebird
             return r.value();
         }
 
-        cpp_dbc::expected<void, DBException> copyFrom(std::nothrow_t, const FirebirdInputStream &other) noexcept
-        {
-            if (this == &other)
-            {
-                return {};
-            }
-            m_data = other.m_data;
-            m_position = 0;
-            return {};
-        }
-
         void copyFrom(const FirebirdInputStream &other)
         {
             auto r = copyFrom(std::nothrow, other);
@@ -100,12 +87,6 @@ namespace cpp_dbc::Firebird
                 throw r.error();
             }
         }
-
-        // ====================================================================
-        // THROWING API - Exception-based (requires __cpp_exceptions)
-        // ====================================================================
-
-#ifdef __cpp_exceptions
 
         int read(uint8_t *buffer, size_t length) override
         {
@@ -136,9 +117,35 @@ namespace cpp_dbc::Firebird
         }
 
 #endif // __cpp_exceptions
-       // ====================================================================
-       // NOTHROW VERSIONS - Exception-free API
-       // ====================================================================
+
+        // ====================================================================
+        // NOTHROW API - Exception-free (always available)
+        // ====================================================================
+
+        // ── Nothrow static factory ───────────────────────────────────────────
+        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+        static cpp_dbc::expected<std::shared_ptr<FirebirdInputStream>, DBException> create(std::nothrow_t, const void *buffer, size_t length) noexcept
+        {
+            auto obj = std::make_shared<FirebirdInputStream>(PrivateCtorTag{}, std::nothrow, buffer, length);
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            return obj;
+        }
+
+        cpp_dbc::expected<void, DBException> copyFrom(std::nothrow_t, const FirebirdInputStream &other) noexcept
+        {
+            if (this == &other)
+            {
+                return {};
+            }
+            m_data = other.m_data;
+            m_position = 0;
+            m_initFailed = false;
+            m_initError = nullptr;
+            return {};
+        }
 
         cpp_dbc::expected<int, DBException> read(std::nothrow_t, uint8_t *buffer, size_t length) noexcept override
         {

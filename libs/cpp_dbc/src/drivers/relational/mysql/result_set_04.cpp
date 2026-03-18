@@ -61,7 +61,7 @@ namespace cpp_dbc::MySQL
         if (m_currentRow[idx] == nullptr)
         {
             // Return an empty blob with no connection (data is already loaded)
-            auto blobResult = MySQL::MySQLBlob::create(std::nothrow, std::shared_ptr<MYSQL>());
+            auto blobResult = MySQL::MySQLBlob::create(std::nothrow, std::weak_ptr<MySQLDBConnection>{});
             if (!blobResult.has_value())
             {
                 return cpp_dbc::unexpected(blobResult.error());
@@ -88,7 +88,7 @@ namespace cpp_dbc::MySQL
             std::memcpy(data.data(), m_currentRow[idx], lengths[idx]);
         }
 
-        auto blobResult = MySQL::MySQLBlob::create(std::nothrow, std::shared_ptr<MYSQL>(), data);
+        auto blobResult = MySQL::MySQLBlob::create(std::nothrow, m_connection, data);
         if (!blobResult.has_value())
         {
             return cpp_dbc::unexpected(blobResult.error());

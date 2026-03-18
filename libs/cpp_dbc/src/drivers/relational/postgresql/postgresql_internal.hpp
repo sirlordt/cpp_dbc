@@ -51,63 +51,59 @@ namespace cpp_dbc::PostgreSQL::oid
 // Using recursive_mutex to allow the same thread to acquire the lock multiple times
 // This is needed when a method that holds the lock calls another method that also needs the lock
 #if DB_DRIVER_THREAD_SAFE
-#define DB_DRIVER_MUTEX mutable std::recursive_mutex
 #define DB_DRIVER_LOCK_GUARD(mutex) std::scoped_lock<std::recursive_mutex> lock(mutex)
-#define DB_DRIVER_UNIQUE_LOCK(mutex) std::unique_lock<std::recursive_mutex> lock(mutex)
 
 // Macros for DBConnection methods - acquire lock and verify connection is not closed
 // These are used in PostgreSQLDBConnection instead of plain DB_DRIVER_LOCK_GUARD
 
 // For nothrow DBConnection methods - returns unexpected(DBException) if connection is closed
-#define PG_CONNECTION_LOCK_OR_RETURN(mark, msg)                                                 \
-    DB_DRIVER_LOCK_GUARD(m_connMutex);                                                         \
-    if (m_closed.load(std::memory_order_acquire) || !m_conn)                                    \
+#define POSTGRESQL_CONNECTION_LOCK_OR_RETURN(mark, msg)                                                 \
+    DB_DRIVER_LOCK_GUARD(*m_connMutex);                                                         \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)                                    \
     {                                                                                           \
         return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",                \
                                                cpp_dbc::system_utils::captureCallStack()));     \
     }
 
 // For throwing DBConnection methods - throws DBException if connection is closed
-#define PG_CONNECTION_LOCK_OR_THROW(mark, msg)                            \
-    DB_DRIVER_LOCK_GUARD(m_connMutex);                                   \
-    if (m_closed.load(std::memory_order_acquire) || !m_conn)              \
+#define POSTGRESQL_CONNECTION_LOCK_OR_THROW(mark, msg)                            \
+    DB_DRIVER_LOCK_GUARD(*m_connMutex);                                   \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)              \
     {                                                                     \
         throw DBException(mark, msg " (connection closed)",               \
                           cpp_dbc::system_utils::captureCallStack());     \
     }
 
 // For close() method of DBConnection - returns success if already closed (idempotent)
-#define PG_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()                  \
-    DB_DRIVER_LOCK_GUARD(m_connMutex);                                   \
-    if (m_closed.load(std::memory_order_acquire) || !m_conn)              \
+#define POSTGRESQL_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()                  \
+    DB_DRIVER_LOCK_GUARD(*m_connMutex);                                   \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)              \
     {                                                                     \
         return {}; /* Already closed = success */                         \
     }
 
 #else
-#define DB_DRIVER_MUTEX
 #define DB_DRIVER_LOCK_GUARD(mutex) (void)0
-#define DB_DRIVER_UNIQUE_LOCK(mutex) (void)0
 
 // Non-thread-safe: still check closed state, no locking
-#define PG_CONNECTION_LOCK_OR_RETURN(mark, msg)                                                 \
-    if (m_closed.load(std::memory_order_acquire) || !m_conn)                                    \
+#define POSTGRESQL_CONNECTION_LOCK_OR_RETURN(mark, msg)                                                 \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)                                    \
     {                                                                                           \
         return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",                \
                                                cpp_dbc::system_utils::captureCallStack()));     \
     }
 
-#define PG_CONNECTION_LOCK_OR_THROW(mark, msg)                            \
-    if (m_closed.load(std::memory_order_acquire) || !m_conn)              \
+#define POSTGRESQL_CONNECTION_LOCK_OR_THROW(mark, msg)                            \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)              \
     {                                                                     \
         throw DBException(mark, msg " (connection closed)",               \
                           cpp_dbc::system_utils::captureCallStack());     \
     }
 
-#define PG_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()                  \
-    if (m_closed.load(std::memory_order_acquire) || !m_conn)              \
+#define POSTGRESQL_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()                  \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)              \
     {                                                                     \
-        return {};                                                        \
+        return {}; /* Already closed = success */                         \
     }
 #endif
 
@@ -117,7 +113,7 @@ namespace cpp_dbc::PostgreSQL::oid
 // Automatically acquires the connection mutex through the weak_ptr<Connection>.
 // If the connection is destroyed, marks the object as closed and fails gracefully.
 // Usage:
-//   PG_STMT_LOCK_OR_RETURN(error_code, "error message");
+//   POSTGRESQL_STMT_LOCK_OR_RETURN(error_code, "error message");
 // ============================================================================
 #if DB_DRIVER_THREAD_SAFE
 
@@ -136,7 +132,7 @@ namespace cpp_dbc::PostgreSQL
      * the object as closed instead of crashing.
      *
      * IMPORTANT: This class keeps the DBConnection alive via shared_ptr while the lock
-     * is held. This is necessary because the mutex itself is owned by
+     * is held. This is necessary because the mutex itself is a shared_ptr owned by
      * DBConnection, and we need to prevent the mutex from being destroyed while locked.
      */
     class PostgreSQLConnectionLock
@@ -164,7 +160,7 @@ namespace cpp_dbc::PostgreSQL
         PostgreSQLConnectionLock(T *obj, std::atomic<bool> &closed)
         {
             // FIRST CHECK: Verify if object is already closed (fast path, no lock needed)
-            if (closed.load(std::memory_order_acquire))
+            if (closed.load(std::memory_order_seq_cst))
             {
                 m_acquired = false;
                 return;
@@ -174,18 +170,18 @@ namespace cpp_dbc::PostgreSQL
             m_conn = obj->m_connection.lock();
             if (!m_conn)
             {
-                // Connection is destroyed - mark object as closed
-                closed.store(true, std::memory_order_release);
+                // Connection is destroyed — mark object as closed
+                closed.store(true, std::memory_order_seq_cst);
                 m_acquired = false;
                 return;
             }
 
             // Acquire the connection's mutex (connection stays alive via m_conn)
-            m_lock = std::unique_lock<std::recursive_mutex>(m_conn->getConnectionMutex());
+            m_lock = std::unique_lock<std::recursive_mutex>(m_conn->getConnectionMutex(std::nothrow));
 
             // SECOND CHECK: Verify again after acquiring lock
             // (Another thread could have closed the object between first check and lock acquisition)
-            if (closed.load(std::memory_order_acquire))
+            if (closed.load(std::memory_order_seq_cst))
             {
                 m_acquired = false;
                 // Lock is released automatically by m_lock destructor
@@ -196,80 +192,99 @@ namespace cpp_dbc::PostgreSQL
             m_acquired = true;
         }
 
-        bool isAcquired() const { return m_acquired; }
-        explicit operator bool() const { return m_acquired; }
+        bool isAcquired() const noexcept
+        {
+            return m_acquired;
+        }
+
+        explicit operator bool() const noexcept
+        {
+            return m_acquired;
+        }
     };
 
 } // namespace cpp_dbc::PostgreSQL
 
 // Macro for nothrow methods - returns unexpected(DBException) if lock fails
-#define PG_STMT_LOCK_OR_RETURN(mark, msg)                                                       \
-    cpp_dbc::PostgreSQL::PostgreSQLConnectionLock pg_stmt_lock(this, m_closed);                        \
-    if (!pg_stmt_lock)                                                                                \
+#define POSTGRESQL_STMT_LOCK_OR_RETURN(mark, msg)                                                       \
+    cpp_dbc::PostgreSQL::PostgreSQLConnectionLock postgresql_conn_lock_(this, m_closed);                        \
+    if (!postgresql_conn_lock_)                                                                                \
     {                                                                                           \
         return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",                \
                                                cpp_dbc::system_utils::captureCallStack()));     \
     }
 
 // Macro for throwing methods - throws DBException if lock fails
-#define PG_STMT_LOCK_OR_THROW(mark, msg)                                                                    \
-    cpp_dbc::PostgreSQL::PostgreSQLConnectionLock pg_stmt_lock(this, m_closed);                                    \
-    if (!pg_stmt_lock)                                                                                             \
+#define POSTGRESQL_STMT_LOCK_OR_THROW(mark, msg)                                                                    \
+    cpp_dbc::PostgreSQL::PostgreSQLConnectionLock postgresql_conn_lock_(this, m_closed);                                    \
+    if (!postgresql_conn_lock_)                                                                                             \
     {                                                                                                        \
         throw DBException(mark, msg " (connection closed)", cpp_dbc::system_utils::captureCallStack());      \
     }
 
 // Macro for close() methods - returns success if already closed (idempotent close)
-#define PG_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()                                              \
-    cpp_dbc::PostgreSQL::PostgreSQLConnectionLock pg_stmt_lock(this, m_closed);                        \
-    if (!pg_stmt_lock)                                                                                \
+#define POSTGRESQL_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()                                              \
+    cpp_dbc::PostgreSQL::PostgreSQLConnectionLock postgresql_conn_lock_(this, m_closed);                        \
+    if (!postgresql_conn_lock_)                                                                                \
     {                                                                                           \
         return {}; /* Already closed or connection lost = success */                             \
     }
 
 #else
-#define PG_STMT_LOCK_OR_RETURN(mark, msg)                                                       \
-    if (m_closed.load(std::memory_order_acquire))                                               \
+// Non-thread-safe: check closed flag AND connection weak_ptr expiry (no locking).
+#define POSTGRESQL_STMT_LOCK_OR_RETURN(mark, msg)                                                       \
+    if (m_closed.load(std::memory_order_seq_cst))                                               \
     {                                                                                           \
+        return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",                \
+                                               cpp_dbc::system_utils::captureCallStack()));     \
+    }                                                                                           \
+    if (m_connection.expired())                                                                 \
+    {                                                                                           \
+        m_closed.store(true, std::memory_order_seq_cst);                                       \
         return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",                \
                                                cpp_dbc::system_utils::captureCallStack()));     \
     }
 
-#define PG_STMT_LOCK_OR_THROW(mark, msg)                                                                    \
-    if (m_closed.load(std::memory_order_acquire))                                                            \
+#define POSTGRESQL_STMT_LOCK_OR_THROW(mark, msg)                                                                    \
+    if (m_closed.load(std::memory_order_seq_cst))                                                            \
     {                                                                                                        \
+        throw DBException(mark, msg " (connection closed)", cpp_dbc::system_utils::captureCallStack());      \
+    }                                                                                                        \
+    if (m_connection.expired())                                                                              \
+    {                                                                                                        \
+        m_closed.store(true, std::memory_order_seq_cst);                                                    \
         throw DBException(mark, msg " (connection closed)", cpp_dbc::system_utils::captureCallStack());      \
     }
 
-#define PG_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()                                              \
-    if (m_closed.load(std::memory_order_acquire))                                               \
+#define POSTGRESQL_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()                                              \
+    if (m_closed.load(std::memory_order_seq_cst))                                               \
     {                                                                                           \
         return {}; /* Already closed or connection lost = success */                             \
+    }                                                                                           \
+    if (m_connection.expired())                                                                 \
+    {                                                                                           \
+        m_closed.store(true, std::memory_order_seq_cst);                                       \
+        return {}; /* Connection lost = success */                                              \
     }
 #endif // DB_DRIVER_THREAD_SAFE
 
 // Debug output is controlled by -DDEBUG_POSTGRESQL=1 or -DDEBUG_ALL=1 CMake option
 #if (defined(DEBUG_POSTGRESQL) && DEBUG_POSTGRESQL) || (defined(DEBUG_ALL) && DEBUG_ALL)
-#define PG_DEBUG(format, ...)                                                                     \
+#define POSTGRESQL_DEBUG(format, ...)                                                                     \
     do                                                                                            \
     {                                                                                             \
         char debug_buffer[1024];                                                                  \
-        int pg_debug_n = std::snprintf(debug_buffer, sizeof(debug_buffer), format, ##__VA_ARGS__);\
-        if (pg_debug_n < 0)                                                                       \
+        int postgresql_debug_n = std::snprintf(debug_buffer, sizeof(debug_buffer), format, ##__VA_ARGS__);\
+        if (postgresql_debug_n >= static_cast<int>(sizeof(debug_buffer)))                                 \
         {                                                                                         \
-            static constexpr const char pg_fallback[] = "PostgreSQL debug formatting failed";     \
-            std::memcpy(debug_buffer, pg_fallback, sizeof(pg_fallback));                          \
-        }                                                                                         \
-        else if (pg_debug_n >= static_cast<int>(sizeof(debug_buffer)))                            \
-        {                                                                                         \
-            static constexpr const char pg_trunc[] = "...[TRUNCATED]";                            \
-            std::memcpy(debug_buffer + sizeof(debug_buffer) - sizeof(pg_trunc),                   \
-                        pg_trunc, sizeof(pg_trunc));                                              \
+            static constexpr const char postgresql_trunc[] = "...[TRUNCATED]";                            \
+            std::memcpy(debug_buffer + sizeof(debug_buffer) - sizeof(postgresql_trunc),                   \
+                        postgresql_trunc, sizeof(postgresql_trunc));                                              \
         }                                                                                         \
         cpp_dbc::system_utils::logWithTimesMillis("PostgreSQL", debug_buffer);                    \
     } while (0)
 #else
-#define PG_DEBUG(...) ((void)0)
+#define POSTGRESQL_DEBUG(...) ((void)0)
 #endif
 
 #endif // USE_POSTGRESQL

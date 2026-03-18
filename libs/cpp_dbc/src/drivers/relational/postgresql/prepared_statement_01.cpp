@@ -54,7 +54,7 @@ namespace cpp_dbc::PostgreSQL
         if (!result.has_value())
         {
             // Log the error but don't throw - connection is already closing
-            PG_DEBUG("Failed to close prepared statement: %s", result.error().what_s().data());
+            POSTGRESQL_DEBUG("Failed to close prepared statement: %s", result.error().what_s().data());
         }
     }
 
@@ -196,7 +196,7 @@ namespace cpp_dbc::PostgreSQL
         std::ranges::fill(m_paramFormats, 0); // 0 = text, 1 = binary
         std::ranges::fill(m_paramTypes, 0);   // 0 = let server guess
 
-        m_closed.store(false, std::memory_order_release);
+        m_closed.store(false, std::memory_order_seq_cst);
     }
 
     PostgreSQLDBPreparedStatement::~PostgreSQLDBPreparedStatement()
@@ -205,7 +205,7 @@ namespace cpp_dbc::PostgreSQL
         if (!result.has_value())
         {
             // Log the error but don't throw - in destructor
-            PG_DEBUG("Failed to close prepared statement: %s", result.error().what_s().data());
+            POSTGRESQL_DEBUG("Failed to close prepared statement: %s", result.error().what_s().data());
         }
     }
 

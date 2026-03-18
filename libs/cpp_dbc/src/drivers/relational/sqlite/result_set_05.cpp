@@ -40,264 +40,162 @@ namespace cpp_dbc::SQLite
     // BLOB support methods for SQLiteDBResultSet
     cpp_dbc::expected<std::shared_ptr<Blob>, DBException> SQLiteDBResultSet::getBlob(std::nothrow_t, size_t columnIndex) noexcept
     {
-        try
+        SQLITE_STMT_LOCK_OR_RETURN("N4DU6DDF2AXG", "Result set is closed");
+
+        sqlite3_stmt *stmt = getStmt(std::nothrow);
+        if (!stmt || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
         {
-            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
-
-            sqlite3_stmt *stmt = getStmt();
-            if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
-            {
-                return cpp_dbc::unexpected(DBException("B1C2D3E4F5G6", "Invalid column index or row position for getBlob",
-                                                       system_utils::captureCallStack()));
-            }
-
-            // SQLite column indexes are 0-based, but our API is 1-based (like JDBC)
-            int idx = static_cast<int>(columnIndex - 1);
-
-            if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
-            {
-                return std::shared_ptr<Blob>(std::make_shared<SQLite::SQLiteBlob>(std::shared_ptr<sqlite3>()));
-            }
-
-            // Check if the column is a BLOB type
-            if (sqlite3_column_type(stmt, idx) != SQLITE_BLOB)
-            {
-                return cpp_dbc::unexpected(DBException("H7I8J9K0L1M2", "Column is not a BLOB type",
-                                                       system_utils::captureCallStack()));
-            }
-
-            // Get the binary data
-            const void *blobData = sqlite3_column_blob(stmt, idx);
-            int blobSize = sqlite3_column_bytes(stmt, idx);
-
-            // Create a vector with the data
-            std::vector<uint8_t> data;
-            if (blobData && blobSize > 0)
-            {
-                data.resize(blobSize);
-                std::memcpy(data.data(), blobData, blobSize);
-            }
-
-            // Get a shared_ptr to the connection
-            auto conn = m_connection.lock();
-            if (!conn)
-            {
-                return cpp_dbc::unexpected(DBException("N3O4P5Q6R7S8", "Connection is no longer valid",
-                                                       system_utils::captureCallStack()));
-            }
-
-            // Create a new BLOB object with the data (pass shared_ptr for safe reference)
-            return std::shared_ptr<Blob>(std::make_shared<SQLite::SQLiteBlob>(conn->m_db, data));
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("GBLO1A2B3C4D",
-                                                   std::string("getBlob failed: ") + ex.what(),
+            return cpp_dbc::unexpected(DBException("B1C2D3E4F5G6", "Invalid column index or row position for getBlob",
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+
+        // SQLite column indexes are 0-based, but our API is 1-based (like JDBC)
+        int idx = static_cast<int>(columnIndex - 1);
+
+        if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
         {
-            return cpp_dbc::unexpected(DBException("GBLO1A2B3C4E",
-                                                   "getBlob failed: unknown error",
+            auto nullBlobResult = SQLite::SQLiteBlob::create(std::nothrow, std::weak_ptr<SQLiteDBConnection>{});
+            if (!nullBlobResult.has_value())
+            {
+                return cpp_dbc::unexpected(nullBlobResult.error());
+            }
+            return std::shared_ptr<Blob>(nullBlobResult.value());
+        }
+
+        // Check if the column is a BLOB type
+        if (sqlite3_column_type(stmt, idx) != SQLITE_BLOB)
+        {
+            return cpp_dbc::unexpected(DBException("H7I8J9K0L1M2", "Column is not a BLOB type",
                                                    system_utils::captureCallStack()));
         }
+
+        // Get the binary data
+        const void *blobData = sqlite3_column_blob(stmt, idx);
+        int blobSize = sqlite3_column_bytes(stmt, idx);
+
+        // Create a vector with the data
+        std::vector<uint8_t> data;
+        if (blobData && blobSize > 0)
+        {
+            data.resize(blobSize);
+            std::memcpy(data.data(), blobData, blobSize);
+        }
+
+        // Create a new BLOB object with the data (pass connection weak_ptr for synchronization)
+        auto blobResult = SQLite::SQLiteBlob::create(std::nothrow, m_connection, data);
+        if (!blobResult.has_value())
+        {
+            return cpp_dbc::unexpected(blobResult.error());
+        }
+        return std::shared_ptr<Blob>(blobResult.value());
     }
 
     cpp_dbc::expected<std::shared_ptr<Blob>, DBException> SQLiteDBResultSet::getBlob(std::nothrow_t, const std::string &columnName) noexcept
     {
-        try
+        auto it = m_columnMap.find(columnName);
+        if (it == m_columnMap.end())
         {
-            auto it = m_columnMap.find(columnName);
-            if (it == m_columnMap.end())
-            {
-                return cpp_dbc::unexpected(DBException("T9U0V1W2X3Y4", "Column not found: " + columnName,
-                                                       system_utils::captureCallStack()));
-            }
+            return cpp_dbc::unexpected(DBException("T9U0V1W2X3Y4", "Column not found: " + columnName,
+                                                   system_utils::captureCallStack()));
+        }
 
-            return getBlob(std::nothrow, it->second + 1); // +1 because getBlob(int) is 1-based
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("GBLN1A2B3C4D",
-                                                   std::string("getBlob failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("GBLN1A2B3C4E",
-                                                   "getBlob failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return getBlob(std::nothrow, it->second + 1); // +1 because getBlob(int) is 1-based
     }
 
     cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> SQLiteDBResultSet::getBinaryStream(std::nothrow_t, size_t columnIndex) noexcept
     {
-        try
+        SQLITE_STMT_LOCK_OR_RETURN("8QM45ZIRRF9V", "Result set is closed");
+
+        sqlite3_stmt *stmt = getStmt(std::nothrow);
+        if (!stmt || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
         {
-            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
-
-            sqlite3_stmt *stmt = getStmt();
-            if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
-            {
-                return cpp_dbc::unexpected(DBException("CEE30385E0BB", "Invalid column index or row position for getBinaryStream",
-                                                       system_utils::captureCallStack()));
-            }
-
-            // SQLite column indexes are 0-based, but our API is 1-based (like JDBC)
-            int idx = static_cast<int>(columnIndex - 1);
-
-            if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
-            {
-                // Return an empty stream
-                return std::shared_ptr<InputStream>(std::make_shared<SQLite::SQLiteInputStream>(nullptr, 0));
-            }
-
-            // Get the binary data
-            const void *blobData = sqlite3_column_blob(stmt, idx);
-            int blobSize = sqlite3_column_bytes(stmt, idx);
-
-            // Create a new input stream with the data
-            return std::shared_ptr<InputStream>(std::make_shared<SQLite::SQLiteInputStream>(blobData, blobSize));
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("GBIS1A2B3C4D",
-                                                   std::string("getBinaryStream failed: ") + ex.what(),
+            return cpp_dbc::unexpected(DBException("CEE30385E0BB", "Invalid column index or row position for getBinaryStream",
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+
+        // SQLite column indexes are 0-based, but our API is 1-based (like JDBC)
+        int idx = static_cast<int>(columnIndex - 1);
+
+        if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
         {
-            return cpp_dbc::unexpected(DBException("GBIS1A2B3C4E",
-                                                   "getBinaryStream failed: unknown error",
-                                                   system_utils::captureCallStack()));
+            // Return an empty stream
+            auto emptyStreamResult = SQLite::SQLiteInputStream::create(std::nothrow, nullptr, 0);
+            if (!emptyStreamResult.has_value())
+            {
+                return cpp_dbc::unexpected(emptyStreamResult.error());
+            }
+            return std::shared_ptr<InputStream>(emptyStreamResult.value());
         }
+
+        // Get the binary data
+        const void *blobData = sqlite3_column_blob(stmt, idx);
+        int blobSize = sqlite3_column_bytes(stmt, idx);
+
+        // Create a new input stream with the data
+        auto streamResult = SQLite::SQLiteInputStream::create(std::nothrow, blobData, blobSize);
+        if (!streamResult.has_value())
+        {
+            return cpp_dbc::unexpected(streamResult.error());
+        }
+        return std::shared_ptr<InputStream>(streamResult.value());
     }
 
     cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> SQLiteDBResultSet::getBinaryStream(std::nothrow_t, const std::string &columnName) noexcept
     {
-        try
+        auto it = m_columnMap.find(columnName);
+        if (it == m_columnMap.end())
         {
-            auto it = m_columnMap.find(columnName);
-            if (it == m_columnMap.end())
-            {
-                return cpp_dbc::unexpected(DBException("F1G2H3I4J5K6", "Column not found: " + columnName,
-                                                       system_utils::captureCallStack()));
-            }
+            return cpp_dbc::unexpected(DBException("F1G2H3I4J5K6", "Column not found: " + columnName,
+                                                   system_utils::captureCallStack()));
+        }
 
-            return getBinaryStream(std::nothrow, it->second + 1); // +1 because getBinaryStream(int) is 1-based
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("GBIN1A2B3C4D",
-                                                   std::string("getBinaryStream failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("GBIN1A2B3C4E",
-                                                   "getBinaryStream failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return getBinaryStream(std::nothrow, it->second + 1); // +1 because getBinaryStream(int) is 1-based
     }
 
     cpp_dbc::expected<std::vector<uint8_t>, DBException> SQLiteDBResultSet::getBytes(std::nothrow_t, size_t columnIndex) noexcept
     {
-        try
+        SQLITE_STMT_LOCK_OR_RETURN("F64IM3WFV6JJ", "Result set is closed");
+
+        sqlite3_stmt *stmt = getStmt(std::nothrow);
+        if (!stmt || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
         {
-            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
-
-            sqlite3_stmt *stmt = getStmt();
-            if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
-            {
-                return cpp_dbc::unexpected(DBException("L7M8N9O0P1Q2", "Invalid column index or row position for getBytes",
-                                                       system_utils::captureCallStack()));
-            }
-
-            // SQLite column indexes are 0-based, but our API is 1-based (like JDBC)
-            int idx = static_cast<int>(columnIndex - 1);
-
-            if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
-            {
-                return std::vector<uint8_t>{};
-            }
-
-            // Get the binary data
-            const void *blobData = sqlite3_column_blob(stmt, idx);
-            int blobSize = sqlite3_column_bytes(stmt, idx);
-
-            // Create a vector with the data
-            std::vector<uint8_t> data;
-            if (blobData && blobSize > 0)
-            {
-                data.resize(blobSize);
-                std::memcpy(data.data(), blobData, blobSize);
-            }
-
-            return data;
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("GBYT1A2B3C4D",
-                                                   std::string("getBytes failed: ") + ex.what(),
+            return cpp_dbc::unexpected(DBException("L7M8N9O0P1Q2", "Invalid column index or row position for getBytes",
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+
+        // SQLite column indexes are 0-based, but our API is 1-based (like JDBC)
+        int idx = static_cast<int>(columnIndex - 1);
+
+        if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
         {
-            return cpp_dbc::unexpected(DBException("GBYT1A2B3C4E",
-                                                   "getBytes failed: unknown error",
-                                                   system_utils::captureCallStack()));
+            return std::vector<uint8_t>{};
         }
+
+        // Get the binary data
+        const void *blobData = sqlite3_column_blob(stmt, idx);
+        int blobSize = sqlite3_column_bytes(stmt, idx);
+
+        // Create a vector with the data
+        std::vector<uint8_t> data;
+        if (blobData && blobSize > 0)
+        {
+            data.resize(blobSize);
+            std::memcpy(data.data(), blobData, blobSize);
+        }
+
+        return data;
     }
 
     cpp_dbc::expected<std::vector<uint8_t>, DBException> SQLiteDBResultSet::getBytes(std::nothrow_t, const std::string &columnName) noexcept
     {
-        try
+        auto it = m_columnMap.find(columnName);
+        if (it == m_columnMap.end())
         {
-            auto it = m_columnMap.find(columnName);
-            if (it == m_columnMap.end())
-            {
-                return cpp_dbc::unexpected(DBException("WDX9BB6U91FM", "Column not found: " + columnName,
-                                                       system_utils::captureCallStack()));
-            }
+            return cpp_dbc::unexpected(DBException("WDX9BB6U91FM", "Column not found: " + columnName,
+                                                   system_utils::captureCallStack()));
+        }
 
-            return getBytes(std::nothrow, it->second + 1); // +1 because getBytes(int) is 1-based
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("GBYN1A2B3C4D",
-                                                   std::string("getBytes failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("GBYN1A2B3C4E",
-                                                   "getBytes failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return getBytes(std::nothrow, it->second + 1); // +1 because getBytes(int) is 1-based
     }
 
 } // namespace cpp_dbc::SQLite

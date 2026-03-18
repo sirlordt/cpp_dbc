@@ -40,7 +40,7 @@ namespace cpp_dbc::PostgreSQL
     // Nothrow API implementation for PostgreSQLDBResultSet
     cpp_dbc::expected<void, DBException> PostgreSQLDBResultSet::close(std::nothrow_t) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
+        POSTGRESQL_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
 
         if (m_result)
         {
@@ -51,19 +51,19 @@ namespace cpp_dbc::PostgreSQL
             m_fieldCount = 0;
         }
 
-        m_closed.store(true, std::memory_order_release);
+        m_closed.store(true, std::memory_order_seq_cst);
         return {};
     }
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBResultSet::isEmpty(std::nothrow_t) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("RSF1C75S69Q1", "ResultSet closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("RSF1C75S69Q1", "ResultSet closed");
         return m_rowCount == 0;
     }
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBResultSet::next(std::nothrow_t) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("5WZNXG6OE0UP", "ResultSet closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("5WZNXG6OE0UP", "ResultSet closed");
 
         if (!m_result)
         {
@@ -84,19 +84,19 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBResultSet::isBeforeFirst(std::nothrow_t) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("IJQSRD95YK97", "ResultSet closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("IJQSRD95YK97", "ResultSet closed");
         return m_rowPosition == 0;
     }
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBResultSet::isAfterLast(std::nothrow_t) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("HLFS518ZZMZC", "ResultSet closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("HLFS518ZZMZC", "ResultSet closed");
         return m_result && m_rowPosition > m_rowCount;
     }
 
     cpp_dbc::expected<uint64_t, DBException> PostgreSQLDBResultSet::getRow(std::nothrow_t) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("89CFESJGIUQG", "ResultSet closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("89CFESJGIUQG", "ResultSet closed");
 
         if (!m_result || m_rowPosition == 0 || m_rowPosition > m_rowCount)
         {
@@ -108,7 +108,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<int, DBException> PostgreSQLDBResultSet::getInt(std::nothrow_t, size_t columnIndex) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("HCUXXM9XAIFG", "ResultSet closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("HCUXXM9XAIFG", "ResultSet closed");
 
         if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
         {
@@ -148,7 +148,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<int64_t, DBException> PostgreSQLDBResultSet::getLong(std::nothrow_t, size_t columnIndex) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("ZJ6C11P1OOF7", "ResultSet closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("ZJ6C11P1OOF7", "ResultSet closed");
 
         if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
         {
@@ -187,7 +187,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<double, DBException> PostgreSQLDBResultSet::getDouble(std::nothrow_t, size_t columnIndex) noexcept
     {
-        PG_STMT_LOCK_OR_RETURN("D9I12ECS7WCL", "ResultSet closed");
+        POSTGRESQL_STMT_LOCK_OR_RETURN("D9I12ECS7WCL", "ResultSet closed");
 
         if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
         {

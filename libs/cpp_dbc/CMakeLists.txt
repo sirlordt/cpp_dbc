@@ -162,6 +162,10 @@ if(USE_MYSQL)
         src/drivers/relational/mysql/prepared_statement_02.cpp
         src/drivers/relational/mysql/prepared_statement_03.cpp
 
+        # MySQLBlob
+        src/drivers/relational/mysql/blob_01.cpp
+        src/drivers/relational/mysql/blob_02.cpp
+
         # MySQLDBConnection
         src/drivers/relational/mysql/connection_01.cpp
         src/drivers/relational/mysql/connection_02.cpp
@@ -193,6 +197,10 @@ if(USE_POSTGRESQL)
         src/drivers/relational/postgresql/prepared_statement_02.cpp
         src/drivers/relational/postgresql/prepared_statement_03.cpp
         src/drivers/relational/postgresql/prepared_statement_04.cpp
+
+        # PostgreSQLBlob
+        src/drivers/relational/postgresql/blob_01.cpp
+        src/drivers/relational/postgresql/blob_02.cpp
 
         # PostgreSQLDBConnection
         src/drivers/relational/postgresql/connection_01.cpp
@@ -233,6 +241,10 @@ if(USE_SQLITE)
 
         # SQLiteDBDriver
         src/drivers/relational/sqlite/driver_01.cpp
+
+        # SQLiteBlob
+        src/drivers/relational/sqlite/blob_01.cpp
+        src/drivers/relational/sqlite/blob_02.cpp
     )
 
     # Find SQLite package
@@ -258,6 +270,10 @@ if(USE_FIREBIRD)
         src/drivers/relational/firebird/prepared_statement_02.cpp
         src/drivers/relational/firebird/prepared_statement_03.cpp
         src/drivers/relational/firebird/prepared_statement_04.cpp
+
+        # FirebirdBlob
+        src/drivers/relational/firebird/blob_01.cpp
+        src/drivers/relational/firebird/blob_02.cpp
 
         # FirebirdDBConnection
         src/drivers/relational/firebird/connection_01.cpp
