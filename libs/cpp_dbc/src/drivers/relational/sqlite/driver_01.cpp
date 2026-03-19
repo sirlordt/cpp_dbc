@@ -267,11 +267,10 @@ namespace cpp_dbc::SQLite
     cpp_dbc::expected<std::map<std::string, std::string>, DBException> SQLiteDBDriver::parseURI(
         std::nothrow_t, const std::string &uri) noexcept
     {
-        constexpr std::string_view SCHEME_SUFFIX = "sqlite://";
-        const auto fullPrefixLen = cpp_dbc::system_constants::URI_PREFIX.size() + SCHEME_SUFFIX.size();
+        const std::string fullPrefix =
+            std::string(cpp_dbc::system_constants::URI_PREFIX) + "sqlite://";
 
-        if (!uri.starts_with(cpp_dbc::system_constants::URI_PREFIX) ||
-            !std::string_view(uri).substr(cpp_dbc::system_constants::URI_PREFIX.size()).starts_with(SCHEME_SUFFIX))
+        if (!uri.starts_with(fullPrefix))
         {
             return cpp_dbc::unexpected(DBException("5RHF8WK03IZG",
                                                    "Invalid SQLite URI: " + uri,
@@ -279,7 +278,7 @@ namespace cpp_dbc::SQLite
         }
 
         // SQLite has no network — host is empty, port is 0
-        std::string database = uri.substr(fullPrefixLen);
+        std::string database = uri.substr(fullPrefix.size());
         if (database.empty())
         {
             return cpp_dbc::unexpected(DBException("5V9WQBTN67OL",

@@ -1,5 +1,7 @@
 # How to Report Convention Violations
 
+> **CRITICAL**: Every analysis MUST be written to a `.md` file on disk at `research/<driver_name>_improvements_<N>.md`. Showing results only in chat output is NOT valid. See "Output Location" at the end of this document.
+
 When asked to analyze code for convention compliance, produce a structured report following the format below. The reference conventions are defined in `.claude/rules/cpp_dbc_conventions.md`.
 
 ## Report Structure
@@ -147,7 +149,7 @@ When performing a full compliance analysis, check each of the following. This li
 - [ ] **Null checks**: Defensively check for nulls before dereferencing pointers from external libraries
 - [ ] **Smart pointers**: Avoid raw pointers; use `shared_ptr`, `unique_ptr`, `weak_ptr` in member/class variables
 - [ ] **C++17 constructs**: Use C++17-style constructs and functions for more secure code
-- [ ] **No `const_cast`**: Avoid `const_cast` to remove const; only permitted as last resort with third-party APIs and documented justification
+- [ ] **No `const_cast`**: Avoid `const_cast` to remove const; only permitted as last resort with third-party APIs and documented justification. **Accepted exception**: MySQL ResultSet materialized mode — `MYSQL_ROW` is `typedef char**` (MySQL C API, cannot be changed); the `const_cast` in `next()` is documented and not a violation
 - [ ] **Ranges over index loops**: Prefer ranges, avoid index loops where possible
 - [ ] **Member initialization**: Prefer in-class initializers over constructor body
 - [ ] **Empty constructors**: Prefer `= default` over empty braces `{}`
@@ -156,17 +158,19 @@ When performing a full compliance analysis, check each of the following. This li
 - [ ] **String prefix/suffix**: Always `.starts_with()` / `.ends_with()`; never `find() == 0`, `substr()`, `rfind()`, or `compare()` for prefix/suffix checks
 
 ### Atomics & Thread Safety
-- [ ] **`std::atomic` reads**: Always `.load(std::memory_order_seq_cst)` by default; `acquire` only with documented hot-path justification
-- [ ] **`std::atomic` writes**: Always `.store(..., std::memory_order_seq_cst)` by default; `release` only with documented hot-path justification
+- [ ] **`std::atomic` reads**: Always `.load(std::memory_order_seq_cst)` — no implicit bool conversion, no bare `.load()` without memory order
+- [ ] **`std::atomic` writes**: Always `.store(..., std::memory_order_seq_cst)` — no bare `.store()` without memory order
+- [ ] **`std::atomic` exchange/CAS**: Always `std::memory_order_seq_cst` for `.exchange()` and `.compare_exchange_*()`
+- [ ] **Weaker ordering requires justification**: Any use of `acquire`/`release`/`acq_rel`/`relaxed` must have a mandatory comment immediately above explaining (a) why seq_cst was replaced, (b) profiling evidence, (c) correctness proof. Without the comment, the weaker ordering is a violation regardless of technical safety
 - [ ] **Native handle name**: Connection's native handle must be named `m_conn` (not `m_mysql`, `m_db`, etc.)
 - [ ] **Connection mutex type**: Must be `SharedConnMutex` (`std::shared_ptr<std::recursive_mutex>`), named `m_connMutex`; never a direct `std::recursive_mutex` member
-- [ ] **`getConnectionMutex(std::nothrow_t)`**: Connection must expose mutex via `std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept`
-- [ ] **Child objects must not store mutex**: PreparedStatement, ResultSet, Blob, Cursor, Collection, Document must not have `m_connMutex` or `m_globalFileMutex` as members; acquire via `weak_ptr<Connection>` + RAII helper. Note: `*InputStream` is NOT a child of Connection — it is a pure in-memory byte buffer with no connection dependency.
+- [ ] **`getConnectionMutex(std::nothrow_t)`**: Connection must declare `std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept` in the **`protected`** section (not public); accessed by `*ConnectionLock` via `friend class`
+- [ ] **Child objects must not store connection mutex**: PreparedStatement, Blob, Cursor, Collection, Document must not have `m_connMutex` or `m_globalFileMutex` as members; acquire via `weak_ptr<Connection>` + RAII helper. **Exception**: Store-result ResultSets (MySQL, PostgreSQL) may use their own independent `m_mutex` instead of the connection mutex — they load all data into client memory and never contact the server during iteration. Note: `*InputStream` is NOT a child of Connection — it is a pure in-memory byte buffer with no connection dependency.
 - [ ] **Blob synchronization**: Blob classes (child of Connection, created by ResultSet) that perform native DB API calls (`ensureLoaded`, `save`, etc.) must use `weak_ptr<*DBConnection> m_connection` (not `weak_ptr<NativeHandle>`), `mutable atomic<bool> m_closed`, `friend *ConnectionLock`, and `*_STMT_LOCK_OR_RETURN` before any native call
 - [ ] **Connection-level macros**: `*_CONNECTION_LOCK_OR_RETURN/THROW/SUCCESS_IF_CLOSED` must check `m_closed || !m_conn`; non-thread-safe `#else` must also check (not `(void)0`)
 - [ ] **RAII ConnectionLock helper**: Each driver must define `*ConnectionLock` class with double-checked locking, `isAcquired() const noexcept`, `operator bool() const noexcept`
-- [ ] **Statement/Child-level macros**: `*_LOCK_OR_RETURN/THROW/SUCCESS_IF_CLOSED` or `*_STMT_LOCK_OR_*` using the RAII helper in PreparedStatement, ResultSet, Blob, Cursor, Collection, Document; lock variable named `<driver>_conn_lock_` (never `__lock`)
-- [ ] **Child objects reject operations when parent connection is closed**: Every child (PreparedStatement, ResultSet, Blob, Cursor, Collection, Document) must guard every public method with `*_STMT_LOCK_OR_RETURN` or equivalent — checking both `weak_ptr` expiry AND `conn->m_closed`. Applies even to in-memory child objects (e.g., MySQL/PostgreSQL ResultSet in Lax model). `*InputStream` is exempt — it has no connection dependency.
+- [ ] **Statement/Child-level macros**: `*_LOCK_OR_RETURN/THROW/SUCCESS_IF_CLOSED` or `*_STMT_LOCK_OR_*` using the RAII helper in PreparedStatement, ResultSet, Blob, Cursor, Collection, Document; lock variable named `<driver>_conn_lock_` (never `__lock`). **Exception**: Store-result ResultSets (MySQL, PostgreSQL) use their own local mutex macros instead of the `*ConnectionLock` RAII helper — but still check `m_closed` + `m_connection.expired()`
+- [ ] **Child objects reject operations when parent connection is closed**: Every child (PreparedStatement, ResultSet, Blob, Cursor, Collection, Document) must guard every public method checking both `weak_ptr` expiry AND `m_closed`. This applies even to store-result ResultSets (MySQL, PostgreSQL) that only read in-memory data — the lifecycle contract is enforced regardless of mutex source. `*InputStream` is exempt — it has no connection dependency.
 - [ ] **Non-thread-safe macros check `m_connection.expired()`**: The `#else` (non-thread-safe) variants of `*_STMT_LOCK_OR_RETURN/THROW/SUCCESS_IF_CLOSED` must check `m_connection.expired()` and set `m_closed = true` if expired, not just check `m_closed`
 - [ ] **No dead macros**: `DB_DRIVER_MUTEX` and `DB_DRIVER_UNIQUE_LOCK` must not be defined
 - [ ] **Debug macro pattern**: `snprintf` to 1024-byte buffer + truncation only; no `std::cout`, no `snprintf < 0` handling
@@ -189,8 +193,8 @@ When performing a full compliance analysis, check each of the following. This li
 
 ### Class Layout & Patterns
 - [ ] **Redundant `private:` in `class`**: Must be omitted (required in `struct`)
-- [ ] **Class layout**: Correct access specifier order (`private` -> `protected` -> `public`)
-- [ ] **Header layout ordering**: Throwing API before nothrow methods in public section
+- [ ] **Standard class layout — canonical order**: Items 1-13 in the mandatory order: PrivateCtorTag → member variables → construction state → private helpers → protected members → protected helpers → public constructor → destructor → deleted copy/move → throwing block (`#ifdef`) → nothrow block. Applies to ALL classes with dual throw/nothrow API
+- [ ] **Header public section — two blocks**: All throwing methods in a single `#ifdef __cpp_exceptions` block first, then all nothrow methods in a separate block after `#endif`. No interleaving, no multiple `#ifdef` blocks, no throwing methods outside the guard, no nothrow methods inside it. Order within throwing block must match order within nothrow block
 - [ ] **No private constructors**: All constructors must be public, guarded by `PrivateCtorTag`; private constructors must be migrated
 - [ ] **PrivateCtorTag pattern (per-class)**: Correctly implemented in driver classes (Connection, PreparedStatement, ResultSet, Blob, InputStream, Cursor, Collection, Document); tag defined as private struct in the class itself
 - [ ] **Construction state variables**: `bool m_initFailed{false}` + `std::unique_ptr<DBException> m_initError{nullptr}` in per-class PrivateCtorTag classes
@@ -200,8 +204,9 @@ When performing a full compliance analysis, check each of the following. This li
 - [ ] **Static factory `::create`**: Throwing delegates to nothrow; `#ifdef __cpp_exceptions` guards
 - [ ] **`std::move` in factory error paths**: `std::move(*obj->m_initError)` not a copy
 - [ ] **`#ifdef __cpp_exceptions`**: All throwing code properly guarded
-- [ ] **Public methods**: Dual API pattern (throwing + nothrow) where required
+- [ ] **Public methods — dual API**: Public-facing classes (drivers, pools, connections, statements, result sets, blobs, input streams) must have both throwing and nothrow APIs. Internal implementation classes (RAII helpers, registries, internal structs) may omit the throwing API entirely — only the nothrow API is required
 - [ ] **Source file distribution**: `_01.cpp` / `_02.cpp` / `_03.cpp` pattern followed
+- [ ] **Definition order matches declaration order**: Method definitions in `.cpp` files must appear in the same order as their declarations in the `.hpp` header. Private/protected helpers first, then throwing block (`#ifdef __cpp_exceptions`), then nothrow methods — all following the top-to-bottom header order within each group
 
 ### Naming Conventions
 - [ ] **Namespace naming**: Nested under `cpp_dbc` with brand's official casing (`cpp_dbc::MySQL`, `cpp_dbc::PostgreSQL`, etc.)
@@ -211,14 +216,37 @@ When performing a full compliance analysis, check each of the following. This li
 
 ---
 
-## Output Location
+## Output Location — MANDATORY File on Disk
 
-Convention violation reports are saved to:
+> **THIS IS A BLOCKING REQUIREMENT. NO EXCEPTIONS. NO ALTERNATIVES.**
+
+Every convention compliance analysis **MUST** produce a `.md` file written to disk at the following path:
 
 ```text
 research/<driver_name>_improvements_<N>.md
 ```
 
-Where `<N>` is an incrementing number (1, 2, 3...) to allow multiple analysis passes on the same driver. Example: `research/mysql_driver_improvements_1.md`, `research/sqlite_driver_improvements_1.md`.
+Where `<N>` is an incrementing number (1, 2, 3...) to allow multiple analysis passes on the same driver. Example: `research/mysql_driver_improvements_7.md`, `research/firebird_driver_improvements_2.md`.
 
-**Immutability rule**: Existing report files must **never** be modified or overwritten. Each new analysis pass must create a new file with the next incremental number. If `research/sqlite_driver_improvements_2.md` already exists, the next report must be `research/sqlite_driver_improvements_3.md`. Previous reports serve as historical record of the driver's compliance evolution.
+### What counts as a valid report
+
+The **only** valid deliverable is a `.md` file physically written to disk using the `Write` tool. The following do **NOT** satisfy this requirement:
+
+- Showing the report in the chat/terminal output — **NOT VALID**
+- Summarizing findings verbally — **NOT VALID**
+- Printing findings to stdout — **NOT VALID**
+- Storing findings only in memory or context — **NOT VALID**
+- Promising to write the file later — **NOT VALID**
+
+If the file does not exist on disk at `research/<driver_name>_improvements_<N>.md` after the analysis, the analysis is **incomplete and must not be considered done**.
+
+### Workflow
+
+1. Read all files in scope
+2. Analyze against conventions
+3. **Write the report file to disk** using the `Write` tool — this step is not optional
+4. Confirm to the user that the file was written and provide the path
+
+### Immutability rule
+
+Existing report files must **never** be modified or overwritten. Each new analysis pass must create a new file with the next incremental number. If `research/sqlite_driver_improvements_2.md` already exists, the next report must be `research/sqlite_driver_improvements_3.md`. Previous reports serve as historical record of the driver's compliance evolution.

@@ -105,7 +105,7 @@ namespace cpp_dbc::Firebird
 
         if (!db || !tr)
         {
-            return cpp_dbc::unexpected(DBException("K3M7N9P2Q5R8", "Invalid database or transaction handle", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("LYMIBUVLDD64", "Invalid database or transaction handle", system_utils::captureCallStack()));
         }
 
         ISC_STATUS_ARRAY status;
@@ -114,7 +114,7 @@ namespace cpp_dbc::Firebird
         // Open the blob
         if (isc_open_blob2(status, db, tr, &blobHandle, &m_blobId, 0, nullptr))
         {
-            return cpp_dbc::unexpected(DBException("K3M7N9P2Q5R8", "Failed to open BLOB for reading", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("VAX7UHY9SXIW", "Failed to open BLOB for reading", system_utils::captureCallStack()));
         }
 
         // Read the blob data in chunks
@@ -177,7 +177,7 @@ namespace cpp_dbc::Firebird
 
         if (!db || !tr)
         {
-            return cpp_dbc::unexpected(DBException("N6Q0R2S8T4U1", "Invalid database or transaction handle", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("RE6SSPWHKX23", "Invalid database or transaction handle", system_utils::captureCallStack()));
         }
 
         ISC_STATUS_ARRAY status;
@@ -186,7 +186,7 @@ namespace cpp_dbc::Firebird
         // Create a new blob
         if (isc_create_blob2(status, db, tr, &blobHandle, &m_blobId, 0, nullptr))
         {
-            return cpp_dbc::unexpected(DBException("N6Q0R2S8T4U1", "Failed to create BLOB for writing", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("ZSULMGK9FPVN", "Failed to create BLOB for writing", system_utils::captureCallStack()));
         }
 
         // Write the data in chunks

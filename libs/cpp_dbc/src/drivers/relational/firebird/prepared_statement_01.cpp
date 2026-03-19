@@ -40,7 +40,8 @@ namespace cpp_dbc::Firebird
     // FirebirdDBPreparedStatement Implementation - Private Nothrow Constructor
     // ============================================================================
 
-    FirebirdDBPreparedStatement::FirebirdDBPreparedStatement(std::nothrow_t,
+    FirebirdDBPreparedStatement::FirebirdDBPreparedStatement(PrivateCtorTag,
+                                                             std::nothrow_t,
                                                              std::weak_ptr<isc_db_handle> db,
                                                              const std::string &sql,
                                                              std::weak_ptr<FirebirdDBConnection> conn) noexcept
@@ -55,7 +56,7 @@ namespace cpp_dbc::Firebird
         {
             // Store the error for deferred delivery via create(nothrow_t) — do not throw
             m_initFailed = true;
-            m_initError = prepResult.error();
+            m_initError = std::make_unique<DBException>(std::move(prepResult.error()));
             return;
         }
 

@@ -390,33 +390,27 @@ const auto &ref = getConfig();
 const_cast<Config &>(ref).setDebug(true);  // WRONG: fix getConfig() or setDebug() instead
 ```
 
-**Real-world example — MySQL ResultSet materialized mode** (SonarQube cpp:S859):
+**Accepted exception — MySQL ResultSet materialized mode** (SonarQube cpp:S859):
 
-`MYSQL_ROW` is a MySQL C API typedef for `char**` (non-const). In materialized mode, row data lives in `std::vector<std::optional<std::string>>`, and `std::string::c_str()` returns `const char*`. The `const_cast` bridges the const mismatch to reuse the same `m_currentRow` (`MYSQL_ROW`) interface for both native and materialized rows:
+`MYSQL_ROW` is a MySQL C API typedef for `char**` (non-const). This typedef **cannot be changed** — it is part of the MySQL C client library's public ABI. In the MySQL driver's materialized ResultSet mode, row data lives in `std::vector<std::optional<std::string>>`, and `std::string::c_str()` returns `const char*`. The `const_cast` bridges this const mismatch so that all existing getters (`getInt`, `getString`, `getDouble`, etc.) work unchanged for both native and materialized modes through the single `m_currentRow` (`MYSQL_ROW`) interface:
 
 ```cpp
-// Problematic — const_cast to satisfy MYSQL_ROW (char**) interface
-const auto &row = m_materializedRows[m_rowPosition];
-for (size_t i = 0; i < m_fieldCount; ++i)
-{
-    if (row[i].has_value())
-    {
-        // c_str() returns const char*, but MYSQL_ROW expects char*
-        m_currentRowPtrs[i] = const_cast<char *>(row[i].value().c_str());  // SonarQube cpp:S859
-        m_currentLengths[i] = static_cast<unsigned long>(row[i].value().size());
-    }
-}
+// Accepted — MySQL C API limitation, not a convention violation.
+// MYSQL_ROW is typedef char** — a third-party typedef that cannot be changed.
+// All access through m_currentRow is provably read-only (no getter writes through the pointer).
+// Changing m_currentRowPtrs to const char* would require either:
+//   (a) reinterpret_cast<MYSQL_ROW> to assign to m_currentRow — equally unsafe
+//   (b) branching every getter on m_materialized — massive code duplication with no safety gain
+// The const_cast is the least-bad solution for a limitation imposed by the MySQL C API.
+m_currentRowPtrs[i] = const_cast<char *>(row[i].value().c_str());
 m_currentRow = m_currentRowPtrs.data();  // MYSQL_ROW = char**
-
-// Better — change m_currentRowPtrs to const char* and avoid const_cast entirely
-std::vector<const char *> m_currentRowPtrs;  // const-correct pointer storage
-// ...
-m_currentRowPtrs[i] = row[i].value().c_str();  // no cast needed
 ```
 
-The preferred fix is to redesign the internal storage to use `const char*` instead of `char*`, eliminating the need for `const_cast` altogether. The `const_cast` is only acceptable as a temporary measure when the third-party typedef cannot be changed and all access through those pointers is provably read-only.
+**This is NOT a convention violation.** It is a documented, accepted exception caused by a third-party C API typedef that the project cannot control. The `const_cast` must always be accompanied by a `// NOSONAR(cpp:S859)` annotation explaining the MySQL C API constraint. Any analysis tool or compliance audit must skip this specific `const_cast` when checking the MySQL driver.
 
-This applies only to new or modified code. Pre-existing uses of `const_cast` should be migrated when encountered and the case applies.
+**This exception applies exclusively to the MySQL driver's materialized ResultSet mode.** No other driver in the project has this constraint. If a future driver encounters a similar third-party typedef limitation, it must be documented here as a named exception with the same level of justification.
+
+This applies only to new or modified code. Pre-existing uses of `const_cast` in other contexts should be migrated when encountered and the case applies.
 
 ### Member Initialization — Prefer In-Class Initializers Over Constructor Body
 
@@ -497,22 +491,19 @@ public:
 
 This applies only to new or modified code. Pre-existing empty constructors do not need to be updated retroactively.
 
-### `std::atomic` — Always Use `std::memory_order_seq_cst` by Default
+### `std::atomic` — Always Use Explicit `std::memory_order_seq_cst`
 
-Every access to a `std::atomic` variable **must** use an explicit memory order. The default is `std::memory_order_seq_cst` (sequentially consistent) for both loads and stores. This is the strongest ordering — it establishes a single total order visible to all threads, eliminating subtle bugs in multi-variable atomic scenarios (IRIW problem).
+Every access to a `std::atomic` variable — `.load()`, `.store()`, `.exchange()`, `.compare_exchange_*()` — **must** pass `std::memory_order_seq_cst` explicitly. No exceptions by default. This is the strongest ordering — it establishes a single total order visible to all threads, eliminates subtle bugs in multi-variable atomic scenarios (IRIW problem), and makes the code's intent unambiguous to every reader.
 
-Implicit boolean conversion, bare `.load()` without memory order, and comparison operators that bypass `.load()` are all forbidden:
+**The cost of `seq_cst` is negligible in virtually all real-world usage.** On x86, `seq_cst` loads compile to the same instruction as `acquire` loads — the difference is zero. `seq_cst` stores add a single `MFENCE` or `XCHG` instruction. In a database driver library where atomic operations guard connection state, pool flags, and lifecycle checks, this cost is immeasurable against the microsecond-scale I/O operations that surround them.
+
+Implicit boolean conversion, bare `.load()` without memory order, and comparison operators that bypass `.load()` are all **forbidden**:
 
 ```cpp
-// Correct — seq_cst (default, always safe)
+// Correct — seq_cst, always safe, always explicit
 if (m_running.load(std::memory_order_seq_cst))
 {
     // ...
-}
-
-if (m_closed.load(std::memory_order_seq_cst))
-{
-    return cpp_dbc::unexpected(...);
 }
 
 m_closed.store(true, std::memory_order_seq_cst);
@@ -523,25 +514,32 @@ if (!m_closed)         { }  // implicit bool conversion
 if (m_running.load())  { }  // missing memory_order argument
 ```
 
-#### When `acquire`/`release` Is Permitted
+#### When Weaker Ordering Is Permitted
 
-`std::memory_order_acquire` (loads) and `std::memory_order_release` (stores) may be used **only** as an explicit optimization in documented hot paths where profiling has shown `seq_cst` overhead is measurable. Each downgrade requires a comment explaining why weaker ordering is safe:
+Weaker orderings (`acquire`, `release`, `acq_rel`, `relaxed`) are permitted **only** when **all** of the following conditions are met:
+
+1. **Profiling evidence**: Measurable performance data (not speculation) shows that `seq_cst` is a bottleneck in that specific code path — e.g., billions of calls per second in a tight loop where the atomic operation dominates the profile.
+2. **Correctness proof**: The weaker ordering is provably safe for the specific usage pattern — single-variable flag with no cross-atomic ordering dependency, no IRIW scenario, etc.
+3. **Mandatory comment**: A comment **immediately above** the line explains (a) why `seq_cst` was replaced, (b) what profiling showed, and (c) why the weaker ordering is correct. Without this comment, the weaker ordering is a convention violation regardless of whether it is technically safe.
 
 ```cpp
-// Acquire is sufficient here: single-variable flag check in hot polling loop,
-// no cross-atomic ordering dependency. Profiled: 15% throughput improvement
-// in connection pool getDBConnection() under contention.
-if (m_closed.load(std::memory_order_seq_cst))
+// JUSTIFIED WEAKENING: single-variable boolean flag in cleanup coalescing path.
+// No cross-atomic ordering dependency — only this one flag is checked.
+// Profiled under 10K connections/sec: seq_cst added 3% overhead to registerConnection()
+// due to MFENCE contention on the cleanup flag. acq_rel eliminates the fence while
+// preserving the exchange atomicity needed for the compare-and-post pattern.
+if (!s_cleanupPending.exchange(true, std::memory_order_acq_rel))
 {
-    return cpp_dbc::unexpected(...);
+    // ...
 }
+
+// WRONG — no justification comment, no profiling evidence
+if (!s_cleanupPending.exchange(true, std::memory_order_acq_rel))  // violation
 ```
 
-Without such justification, always use `std::memory_order_seq_cst`.
+**In practice, almost no code path in this project will ever need weaker ordering.** The atomic operations guard connection lifecycle flags, pool state, and cleanup coordination — all of which execute at I/O-bound frequencies (microseconds to milliseconds per operation). The overhead of `seq_cst` over `acquire`/`release` is nanoseconds. If you find yourself wanting to weaken an ordering, step back and ask: "Is this atomic operation really called billions of times per second?" If not, use `seq_cst`.
 
-For `exchange()` and `compare_exchange_*()`, use `std::memory_order_seq_cst` by default, or `std::memory_order_acq_rel` with documented justification.
-
-**Migration**: Pre-existing uses of `memory_order_acquire`/`memory_order_release` should be migrated to `memory_order_seq_cst` when the file is being modified for other reasons. This is not a retroactive requirement — update opportunistically as files are touched.
+**Migration**: Pre-existing uses of `memory_order_acquire`/`memory_order_release`/`memory_order_acq_rel` without the mandatory justification comment should be migrated to `memory_order_seq_cst` when the file is being modified for other reasons. This is not a retroactive requirement — update opportunistically as files are touched.
 
 ### String-to-Number Conversion — Always Use `std::from_chars`
 
@@ -682,16 +680,27 @@ Driver ──── s_connectionRegistry (tracks all live connections)
 
 2. **Mutex type**: Always `SharedConnMutex` (`std::shared_ptr<std::recursive_mutex>`), never a direct `std::recursive_mutex` member. The `shared_ptr` allows child objects to access the mutex safely through `weak_ptr<Connection>` → `getConnectionMutex(std::nothrow)`.
 
-3. **Child objects never store the mutex**: PreparedStatement, ResultSet, Blob, Cursor, Collection, and any other child class that depends on a Connection must **not** store `m_connMutex` or any mutex as a member. They acquire the mutex at runtime through their `m_connection` weak_ptr using the RAII helper class. Note: `*InputStream` classes are **not** child objects of the Connection — they are pure in-memory byte buffers with no connection reference or DB dependency.
+3. **Child objects never store the connection mutex**: PreparedStatement, Blob, Cursor, Collection, and any other child class that performs native DB API calls must **not** store `m_connMutex` or any connection-level mutex as a member. They acquire the mutex at runtime through their `m_connection` weak_ptr using the RAII helper class (`*ConnectionLock`).
 
-4. **`getConnectionMutex(std::nothrow_t)`**: Every `*DBConnection` must expose this method in the public section:
+   **Exception — Store-result ResultSets (Lax locking model)**: ResultSet implementations that use the "store result" model (e.g., MySQL's `mysql_store_result()`, PostgreSQL's `PQexec()`) load ALL data into client memory at construction. After that, `next()`/`getString()`/etc. only read in-memory structures — they do NOT communicate with the connection handle. These ResultSets **may** use their own independent `std::recursive_mutex` (`m_mutex`) instead of acquiring the connection's mutex via `*ConnectionLock`. They still hold a `weak_ptr<Connection>` and must check parent connection state (`m_closed` + `m_connection.expired()`) before every operation — the lifecycle contract is enforced, only the mutex source differs.
+
+   This exception applies **only** to ResultSet classes whose underlying C API fetches all rows at construction and never contacts the server during iteration. Drivers where `next()` communicates with the server (Firebird's `isc_dsql_fetch()`, SQLite's `sqlite3_step()`) must use the strict/extra-strict model and share the connection mutex.
+
+   If a new driver is added whose ResultSet follows the store-result model, it should follow this same relaxed locking pattern — and be listed alongside MySQL and PostgreSQL as an exception in this convention and in the checklist.
+
+   Note: `*InputStream` classes are **not** child objects of the Connection — they are pure in-memory byte buffers with no connection reference or DB dependency.
+
+4. **`getConnectionMutex(std::nothrow_t)`**: Every `*DBConnection` must declare this method in the **`protected`** section — it is an implementation detail, not part of the public API. The `*ConnectionLock` RAII helper accesses it through `friend class *ConnectionLock` declared in the Connection class:
 
 ```cpp
-std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
-{
-    return *m_connMutex;
-}
+protected:
+    std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
+    {
+        return *m_connMutex;
+    }
 ```
+
+The Connection class must also declare `friend class *ConnectionLock` so the RAII helper can call this method. This keeps the mutex access pattern encapsulated — only the driver's own lock helper can acquire the connection mutex, not arbitrary external code.
 
 This applies to **all database families** — relational, document, KV, columnar. Any class that semantically depends on a Connection and accesses shared resources through it must follow this pattern.
 
@@ -733,6 +742,8 @@ This applies to **all database families** — relational, document, KV, columnar
    Both checks are handled automatically by the `*ConnectionLock` RAII helper (thread-safe path) and by the non-thread-safe `*_STMT_LOCK_OR_RETURN` macros. The `*ConnectionLock` constructor checks `m_connection.lock()` (expiry) and then re-checks `m_closed` after acquiring the lock. The non-thread-safe macros check `m_closed` and then `m_connection.expired()`.
 
    **This rule applies even to child objects that operate purely in-memory.** For example, MySQL and PostgreSQL ResultSets use the "store result" model — all data is in client memory and `next()`/`getString()` do not communicate with the server. Nevertheless, if the parent connection has been closed, the ResultSet must refuse new operations. The connection being closed means the session is over — continuing to serve data from a closed session violates the lifecycle contract and can lead to inconsistent state if the ResultSet is later used to create new child objects (e.g., getting a Blob from a ResultSet column).
+
+   **Important distinction — lifecycle check vs. mutex source**: Store-result ResultSets (MySQL, PostgreSQL) are exempt from sharing the connection mutex (they use their own `m_mutex` — see rule #3 exception above), but they are **not** exempt from the lifecycle check. They must still verify that the parent connection is alive and open before every operation. The `*_STMT_LOCK_OR_RETURN` macros (or equivalent local-mutex guards) must check `m_closed` and `m_connection.expired()` regardless of which mutex is used for serialization.
 
    ```cpp
    // Correct — child rejects operation when parent connection is closed,
@@ -911,14 +922,22 @@ Internal class methods (`private` or `protected`) must:
 
 This eliminates hidden control flow, makes error propagation explicit, and prevents exceptions from escaping internal implementation boundaries.
 
+**The underlying principle is the same one that governs internal classes** (see [When the Throwing API May Be Omitted](#when-the-throwing-api-may-be-omitted)): the throwing API exists exclusively for external consumers who choose exception-based error handling. Private and protected methods are never called from outside the class — they are internal implementation details. A throwing variant of an internal method has zero callers and is therefore dead code. The same reasoning applies at three levels:
+
+| Level | Throwing API needed? | Why |
+|-------|---------------------|-----|
+| Public methods of public-facing classes | **Yes** | External consumers choose throw vs. nothrow |
+| Public methods of internal-only classes | **No** | No external consumer exists |
+| Private/protected methods of **any** class | **No** | Only called internally — internal callers always use nothrow |
+
 **Exception — protected override methods**: When a base class (abstract interface) declares both a throwing and a nothrow version of a `virtual` method, the derived class **must** override both versions to satisfy the interface contract. In this case, the `protected override` method follows the same dual throw/nothrow pattern as `public` methods: the throwing override delegates to the nothrow override. This is not a design choice of the derived class — it is a requirement imposed by the base class.
 
 **The dual throw/nothrow pattern (two versions of the same method) applies exclusively to:**
-- `public` methods
+- `public` methods of public-facing classes
 - `public override` methods
 - `protected override` methods (overriding a base class interface that declares both versions)
 
-**Private methods and non-override protected methods must only have the nothrow version.** A throwing variant for internal methods is unnecessary — there is no external caller that needs it, and it adds dead code. Internal callers always use the nothrow version and check `.has_value()`.
+**Private methods and non-override protected methods must only have the nothrow version — in ALL classes, without exception.** A throwing variant for internal methods is unnecessary — there is no external caller that needs it, and it adds dead code. Internal callers always use the nothrow version and check `.has_value()`. This rule applies equally to driver classes, pool classes, internal helpers, and any other class in the project.
 
 **Migration rule**: If an existing private or non-override protected method is found with a throwing signature (no `std::nothrow_t`, no `noexcept`, may throw), it **must** be converted to the nothrow pattern: add `std::nothrow_t` as first parameter, declare `noexcept`, and return `std::expected<T, DBException>` if it contains fallible operations. The throwing version must be removed entirely — it is not kept for backwards compatibility. **All call sites must be updated** to reflect the new signature: pass `std::nothrow` as first argument and handle the `std::expected` return value via `.has_value()` and `.error()` instead of try/catch. Note: `.value()` throws `std::bad_expected_access` if the expected holds an error, so it must only be called after a preceding `.has_value()` check confirms success. After migration, if all inner calls at a call site are now nothrow and no code can throw exceptions other than death sentences (`std::bad_alloc`, mutex `std::system_error`), any surrounding try/catch blocks become dead code and **must be removed** — see [No Redundant try/catch in Nothrow Methods](#no-redundant-trycatch-in-nothrow-methods).
 
@@ -1298,6 +1317,48 @@ Classes whose construction can fail, or that must remain compilable under `-fno-
 
 The access specifier order is always **`private` → `protected` → `public`**. The `protected` section is optional and only present when the class is designed for inheritance. Within each section the order is: member variables first, then methods.
 
+#### Public Section — Two Blocks: Throwing First, Then Nothrow
+
+The `public:` section of every class that has a dual throw/nothrow API **must** be organized as exactly **two blocks** for the public methods:
+
+1. **Throwing block** — a single `#ifdef __cpp_exceptions` / `#endif` guard containing ALL throwing public methods (factory, getters, setters, lifecycle — everything). No throwing method may appear outside this block. No nothrow method may appear inside it.
+
+2. **Nothrow block** — immediately after the `#endif`, containing ALL nothrow public methods (factory, getters, setters, lifecycle — everything). This block is always compiled, regardless of exception support.
+
+```cpp
+public:
+    // ── Constructor, destructor, deleted ops (always compiled) ─────────
+    MyClass(PrivateCtorTag, std::nothrow_t, ...) noexcept;
+    ~MyClass() override;
+    MyClass(const MyClass &) = delete;
+    MyClass &operator=(const MyClass &) = delete;
+
+    // ════════════════════════════════════════════════════════════════════
+    // BLOCK 1: THROWING API — single #ifdef, all throwing methods inside
+    // ════════════════════════════════════════════════════════════════════
+#ifdef __cpp_exceptions
+    static std::shared_ptr<MyClass> create(...);
+    void connect();
+    void close();
+    Result query(const std::string &sql);
+#endif
+
+    // ════════════════════════════════════════════════════════════════════
+    // BLOCK 2: NOTHROW API — always compiled, all nothrow methods here
+    // ════════════════════════════════════════════════════════════════════
+    static cpp_dbc::expected<std::shared_ptr<MyClass>, DBException>
+    create(std::nothrow_t, ...) noexcept;
+    cpp_dbc::expected<void, DBException> connect(std::nothrow_t) noexcept;
+    cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept;
+    cpp_dbc::expected<Result, DBException> query(std::nothrow_t, const std::string &sql) noexcept;
+```
+
+**Forbidden patterns**:
+- Interleaving throwing and nothrow declarations (e.g., `connect()` then `connect(std::nothrow)` then `close()` then `close(std::nothrow)`)
+- Multiple `#ifdef __cpp_exceptions` blocks in the same `public:` section
+- Throwing methods outside the `#ifdef __cpp_exceptions` guard
+- Nothrow methods inside the `#ifdef __cpp_exceptions` guard
+
 ### `private:` Access Specifier — Omit in `class`, Require in `struct`
 
 In C++, `class` defaults to `private` access and `struct` defaults to `public` access. Since the layout puts private members first:
@@ -1352,17 +1413,47 @@ struct MyStruct
 
 This applies only to new or modified class/struct definitions. Pre-existing definitions do not need to be updated retroactively.
 
+### Standard Class Layout — Canonical Order
+
+The following layout is the **mandatory canonical order** for every class in the project that follows the PrivateCtorTag + factory pattern.
+
+Every item must appear in exactly this order. Items that do not apply to a specific class (e.g., `protected` section in a non-inheritable class, or `PrivateCtorTag` in a class that uses a shared tag from a base) are simply omitted — the relative order of the remaining items **must not change**.
+
+This is not a suggestion or a guideline — it is the required structure. Code reviews and compliance audits verify this order.
+
+#### When the Dual Throw/Nothrow Public API Is Required
+
+The dual public API (Block 1: throwing + Block 2: nothrow) is **mandatory** for classes that are part of the library's **public-facing API** — classes that external consumers of `cpp_dbc` instantiate, call, or receive as return values. These classes must support both exception-based and exception-free usage patterns because the consumer chooses the style:
+
+- **Driver classes**: `*DBDriver`, `*DBConnection`, `*DBPreparedStatement`, `*DBResultSet`, `*Blob`, `*InputStream`, `*Cursor`, `*Collection`, `*Document`
+- **Pool classes**: `*DBConnectionPool`, `*PooledDBConnection`
+- **Any class returned by a public factory or getter** that the consumer interacts with directly
+
+#### When the Throwing API May Be Omitted
+
+Classes that are **internal implementation details** — never exposed outside the library, never instantiated or called by external consumers — do **not** need the throwing public API. For these classes, the `#ifdef __cpp_exceptions` block (items 10-11) is omitted entirely, and only the nothrow API exists:
+
+- **RAII helpers**: `*ConnectionLock`, `FirebirdStmtHandle`, `XSQLDAHandle`
+- **Internal registries**: `FileMutexRegistry`, `SerialQueue`
+- **Internal structs**: `ParsedFirebirdComponents`, `ParsedDBURI`
+- **Any class that is only used within the library's own `.cpp` files**
+
+These internal classes still follow the canonical layout order for all other items (PrivateCtorTag, member variables, constructor, destructor, nothrow methods). They simply skip items 10-11 because there is no external consumer that would call a throwing version — it would be dead code.
+
 ```cpp
 class MyClass
 {
-    // ── private ────────────────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════════
+    // PRIVATE SECTION (implicit in class — no private: tag)
+    // ══════════════════════════════════════════════════════════════════════════
+
     // 1. PrivateCtorTag (prevents external construction; see PrivateCtorTag Pattern)
     struct PrivateCtorTag
     {
         explicit PrivateCtorTag() = default;
     };
 
-    // 2. Member variables
+    // 2. Member variables (all class state)
     std::string      m_host;
     int              m_port{0};
 
@@ -1373,16 +1464,22 @@ class MyClass
     // 4. Private helper functions (noexcept, return std::expected)
     std::expected<void, DBException> helperFoo(std::nothrow_t) noexcept;
 
+    // ══════════════════════════════════════════════════════════════════════════
+    // PROTECTED SECTION (optional — only when the class is designed for inheritance)
+    // ══════════════════════════════════════════════════════════════════════════
+
 protected:
-    // ── protected (optional — only when the class is designed for inheritance) ─
     // 5. Protected member variables (if any)
     int m_retryCount{3};
 
     // 6. Protected nothrow helper methods (noexcept, return std::expected)
     std::expected<void, DBException> retryInternal(std::nothrow_t) noexcept;
 
+    // ══════════════════════════════════════════════════════════════════════════
+    // PUBLIC SECTION
+    // ══════════════════════════════════════════════════════════════════════════
+
 public:
-    // ── public ─────────────────────────────────────────────────────────────────
     // 7. Public nothrow constructor (guarded by PrivateCtorTag)
     MyClass(PrivateCtorTag, std::nothrow_t, std::string host, int port) noexcept;
 
@@ -1393,24 +1490,51 @@ public:
     MyClass(const MyClass &)            = delete;
     MyClass &operator=(const MyClass &) = delete;
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // BLOCK 1: ALL throwing methods — single #ifdef, everything inside
+    // ──────────────────────────────────────────────────────────────────────────
 #ifdef __cpp_exceptions
-    // 10. Throwing static factory (only compiled when exceptions are enabled)
+    // 10. Throwing static factory (delegates to nothrow)
     static std::shared_ptr<MyClass> create(std::string host, int port);
 
-    // 11. Throwing public methods
+    // 11. Throwing public methods (same order as their nothrow counterparts below)
     void   connect();
     Result query(const std::string &sql);
 #endif
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // BLOCK 2: ALL nothrow methods — always compiled
+    // ──────────────────────────────────────────────────────────────────────────
 
     // 12. Nothrow static factory (always compiled)
     static std::expected<std::shared_ptr<MyClass>, DBException>
     create(std::nothrow_t, std::string host, int port) noexcept;
 
-    // 13. Nothrow public methods (always compiled)
+    // 13. Nothrow public methods (same order as their throwing counterparts above)
     std::expected<void,   DBException> connect(std::nothrow_t) noexcept;
     std::expected<Result, DBException> query(std::nothrow_t, const std::string &sql) noexcept;
 };
 ```
+
+**Key rules for this layout**:
+
+| # | Item | Section | Required |
+|---|------|---------|----------|
+| 1 | `PrivateCtorTag` struct | private | Always (per-class or shared from base) |
+| 2 | Member variables | private | Always |
+| 3 | `m_initFailed` / `m_initError` | private | Always (classes with fallible construction) |
+| 4 | Private helper methods | private | When needed |
+| 5 | Protected member variables | protected | When inheritable |
+| 6 | Protected helper methods | protected | When inheritable |
+| 7 | Public constructor (PrivateCtorTag) | public | Always |
+| 8 | Destructor | public | Always |
+| 9 | Deleted copy/move | public | Always |
+| 10 | Throwing factory | public, `#ifdef` | Public-facing classes only (see above) |
+| 11 | Throwing methods | public, `#ifdef` | Public-facing classes only (see above) |
+| 12 | Nothrow factory | public | Always |
+| 13 | Nothrow methods | public | Always |
+
+The order within Block 1 (throwing) must match the order within Block 2 (nothrow). If the throwing block declares `connect()` then `close()` then `query()`, the nothrow block must declare `connect(std::nothrow_t)` then `close(std::nothrow_t)` then `query(std::nothrow_t)` in the same order.
 
 **Private constructors are forbidden.** All constructors must be **public** and guarded by `PrivateCtorTag`. For driver classes, `PrivateCtorTag` is defined as a `private` struct in the class itself. For pool classes, a single shared `PrivateCtorTag` is defined as a `protected` struct in the abstract base class (`DBConnectionPool`) and referenced by all derived classes — see [Shared PrivateCtorTag — Pool Classes](#shared-privatectortag--pool-classes) for the rationale. The tag name is always `PrivateCtorTag` — never `ConstructorTag` or any other name. This ensures compatibility with `std::make_shared` and `std::enable_shared_from_this`, and makes the construction path uniform across the entire codebase.
 
@@ -1931,7 +2055,34 @@ std::expected<Result, DBException> MyClass::query(std::nothrow_t, const std::str
 
 2. **`#ifdef __cpp_exceptions` scope**: Every throwing declaration in the header and every throwing definition in `.cpp` files must sit inside `#ifdef __cpp_exceptions` / `#endif`. This applies to the throwing `create` and to every throwing public method.
 
-3. **Ordering within a `.cpp` file**: When a `.cpp` file contains both throwing and nothrow methods, the `#ifdef __cpp_exceptions` block always comes first, followed by the nothrow implementations. This mirrors the declaration order in the header.
+3. **Ordering within a `.cpp` file — MUST match the header declaration order**: The order in which methods are **defined** (implemented) in each `.cpp` file **must** match the order in which they are **declared** in the corresponding `.hpp` header. This applies to every method in every `.cpp` file, not just throwing vs. nothrow groups.
+
+   **Within each `.cpp` file**, the ordering rules are:
+   - When the file contains both throwing and nothrow methods, the `#ifdef __cpp_exceptions` block comes first, followed by the nothrow implementations. This mirrors the declaration order in the header (throwing API is declared before nothrow API in the `public:` section).
+   - Within the throwing block, methods appear in the same order as their declarations in the header.
+   - Within the nothrow block, methods appear in the same order as their declarations in the header.
+   - Private/protected helpers that are defined in the same `.cpp` file appear before public methods (matching header order: `private` → `protected` → `public`).
+
+   **Why this matters**: When a developer reads a header to understand the class interface, then opens the `.cpp` to see implementation details, they expect to find methods in the same top-to-bottom order. Mismatched ordering forces the reader to jump around the file, wastes time, and increases the risk of merge conflicts when two developers modify nearby methods.
+
+   ```cpp
+   // Header declares:
+   //   private: helperA(), helperB()
+   //   public:  throwing: close(), query()
+   //            nothrow:  close(nothrow), query(nothrow)
+
+   // CORRECT .cpp ordering:
+   // 1. helperA()
+   // 2. helperB()
+   // 3. #ifdef __cpp_exceptions
+   //      close()
+   //      query()
+   //    #endif
+   // 4. close(nothrow)
+   // 5. query(nothrow)
+
+   // INCORRECT — query() defined before close(), breaking header order
+   ```
 
 4. **Nothrow factory uses the public PrivateCtorTag constructor**: `create(std::nothrow_t, ...)` allocates the object via `std::make_shared` using the `PrivateCtorTag`-guarded public constructor. For driver classes, fallible initialization happens inside the constructor itself (errors captured in `m_initFailed` / `m_initError`). For pool classes, trivially safe initialization happens in the constructor, and fallible setup is deferred to `initializePool(std::nothrow)` called by the factory after construction.
 

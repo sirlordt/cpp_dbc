@@ -83,7 +83,7 @@ namespace cpp_dbc::MySQL
 
         // Coalesced cleanup: only post when the registry has grown past the
         // cleanup threshold and no cleanup task is already queued.
-        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_acq_rel))
+        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_seq_cst))
         {
             SerialQueue::global().post([]()
                                        {
@@ -104,7 +104,7 @@ namespace cpp_dbc::MySQL
 
     // See initialize() comment above for why cleanup() calls mysql_library_end()
     // unconditionally without s_initialized guard.
-    void MySQLDBDriver::cleanup()
+    void MySQLDBDriver::cleanup(std::nothrow_t) noexcept
     {
         mysql_library_end();
     }
@@ -156,7 +156,7 @@ namespace cpp_dbc::MySQL
 
         closeAllOpenConnections(std::nothrow);
 
-        cleanup();
+        cleanup(std::nothrow);
     }
 
     // ============================================================================

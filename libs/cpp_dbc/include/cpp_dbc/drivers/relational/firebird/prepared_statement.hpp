@@ -39,7 +39,12 @@ namespace cpp_dbc::Firebird
         friend class FirebirdDBConnection;
         friend class FirebirdConnectionLock;
 
-    private:
+        // ── PrivateCtorTag — prevents direct construction; use create() ──
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
         // ── Member variables ──────────────────────────────────────────────────
         std::weak_ptr<isc_db_handle> m_dbHandle;
 
@@ -97,23 +102,9 @@ namespace cpp_dbc::Firebird
          * @brief Error captured when constructor initialization fails
          *
          * Holds the DBException that would have been thrown, for deferred delivery.
+         * Only allocated on the failure path (~256 bytes saved per successful instance).
          */
-        DBException m_initError{"W5NGKYRJZB0X", "", {}};
-
-        // ── Private nothrow constructor ───────────────────────────────────────
-        /**
-         * @brief Private nothrow constructor — contains all initialization logic
-         *
-         * Calls prepareStatement(std::nothrow) internally. On failure, sets
-         * m_initFailed and m_initError instead of throwing. Only intended to be
-         * called from the static create() factory methods via `new`.
-         *
-         * @note create(nothrow_t) uses `new` (not std::make_shared) to access this private constructor.
-         */
-        FirebirdDBPreparedStatement(std::nothrow_t,
-                                    std::weak_ptr<isc_db_handle> db,
-                                    const std::string &sql,
-                                    std::weak_ptr<FirebirdDBConnection> conn) noexcept;
+        std::unique_ptr<DBException> m_initError{nullptr};
 
         // ── Private helper methods ────────────────────────────────────────────
         /**
@@ -128,6 +119,15 @@ namespace cpp_dbc::Firebird
         cpp_dbc::expected<void, DBException> setParameter(std::nothrow_t, int parameterIndex, const void *data, size_t length, short sqlType) noexcept;
 
     public:
+        // ── Public nothrow constructor (guarded by PrivateCtorTag) ─────────────
+        // No try/catch in body: prepareStatement(std::nothrow) is nothrow and errors
+        // are captured in m_initFailed/m_initError.
+        FirebirdDBPreparedStatement(PrivateCtorTag,
+                                    std::nothrow_t,
+                                    std::weak_ptr<isc_db_handle> db,
+                                    const std::string &sql,
+                                    std::weak_ptr<FirebirdDBConnection> conn) noexcept;
+
         // ── Destructor ────────────────────────────────────────────────────────
         ~FirebirdDBPreparedStatement() override;
 
@@ -189,14 +189,13 @@ namespace cpp_dbc::Firebird
                const std::string &sql,
                std::weak_ptr<FirebirdDBConnection> conn) noexcept
         {
-            // Use `new` instead of std::make_shared: std::make_shared cannot access private constructors,
-            // but a static class member function can. The private nothrow constructor stores init
-            // errors in m_initFailed/m_initError rather than throwing, so no try/catch is needed here.
-            auto obj = std::shared_ptr<FirebirdDBPreparedStatement>(
-                new FirebirdDBPreparedStatement(std::nothrow, db, sql, conn));
+            // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+            // Constructor errors are captured in m_initFailed / m_initError.
+            auto obj = std::make_shared<FirebirdDBPreparedStatement>(
+                PrivateCtorTag{}, std::nothrow, db, sql, conn);
             if (obj->m_initFailed)
             {
-                return cpp_dbc::unexpected(obj->m_initError);
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
             }
             return obj;
         }

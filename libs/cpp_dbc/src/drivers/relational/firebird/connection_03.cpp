@@ -154,7 +154,7 @@ namespace cpp_dbc::Firebird
             upperSql = upperSql.substr(start);
         }
 
-        if (upperSql.find("CREATE DATABASE") == 0 || upperSql.find("CREATE SCHEMA") == 0)
+        if (upperSql.starts_with("CREATE DATABASE") || upperSql.starts_with("CREATE SCHEMA"))
         {
             FIREBIRD_DEBUG("FirebirdConnection::executeUpdate(nothrow) - Detected CREATE DATABASE statement");
             return executeCreateDatabase(std::nothrow, sql);
@@ -163,10 +163,10 @@ namespace cpp_dbc::Firebird
         // Check if this is a DDL statement that requires metadata lock cleanup
         // DDL operations like DROP, ALTER, CREATE, RECREATE need exclusive metadata locks
         // If there are active prepared statements holding metadata locks, we get deadlock
-        bool isDDL = (upperSql.find("DROP ") == 0 ||
-                      upperSql.find("ALTER ") == 0 ||
-                      upperSql.find("CREATE ") == 0 ||
-                      upperSql.find("RECREATE ") == 0);
+        bool isDDL = (upperSql.starts_with("DROP ") ||
+                      upperSql.starts_with("ALTER ") ||
+                      upperSql.starts_with("CREATE ") ||
+                      upperSql.starts_with("RECREATE "));
 
         if (isDDL)
         {

@@ -283,7 +283,12 @@ namespace cpp_dbc::PostgreSQL
             [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
             [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
 
-            // Sleep for 25ms to avoid problems with concurrency
+            // 2026-03-19T00:00:00Z
+            // Bug: Immediate teardown after closing statements/result sets races with
+            // concurrent PostgreSQL connection cleanup paths (e.g., pool validation pings),
+            // causing intermittent close-time failures under Helgrind/ThreadSanitizer.
+            // Solution: Brief delay allows in-flight cleanup to finish before the native
+            // PGconn handle is destroyed via m_conn.reset().
             std::this_thread::sleep_for(std::chrono::milliseconds(25));
 
             // shared_ptr will automatically call PQfinish via PGconnDeleter

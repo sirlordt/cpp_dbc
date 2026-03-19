@@ -41,6 +41,7 @@ namespace cpp_dbc::PostgreSQL
         friend class PostgreSQLDBPreparedStatement;
         friend class PostgreSQLDBResultSet;
         friend class PostgreSQLBlob;
+        friend class PostgreSQLConnectionLock;
 
         /**
          * @brief Private tag for the passkey idiom — enables std::make_shared
@@ -145,6 +146,21 @@ namespace cpp_dbc::PostgreSQL
             TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
         cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
 
+#if DB_DRIVER_THREAD_SAFE
+        /**
+         * @brief Get the connection mutex for PreparedStatement/ResultSet access
+         *
+         * Implementation detail — accessed by PostgreSQLConnectionLock via friend class.
+         * Not part of the public API.
+         *
+         * @return Reference to the connection's recursive_mutex
+         */
+        std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
+        {
+            return *m_connMutex;
+        }
+#endif
+
     public:
         PostgreSQLDBConnection(PrivateCtorTag,
                                std::nothrow_t,
@@ -204,20 +220,6 @@ namespace cpp_dbc::PostgreSQL
             return obj;
         }
 
-#if DB_DRIVER_THREAD_SAFE
-        /**
-         * @brief Get a reference to the connection's recursive_mutex
-         *
-         * Used by PreparedStatement and ResultSet via PostgreSQLConnectionLock to acquire
-         * the connection's mutex through the weak_ptr<Connection> pattern.
-         *
-         * @return Reference to the connection's recursive_mutex
-         */
-        std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
-        {
-            return *m_connMutex;
-        }
-#endif
 
 // DBConnection interface
 #ifdef __cpp_exceptions

@@ -2202,6 +2202,46 @@ The nothrow constructor wraps all initialization in try/catch and stores errors 
 
 This applies **inexorably and strictly** to every class in every driver.
 
+#### Public Section Layout — Two Blocks Rule
+
+The `public:` section of every class with a dual throw/nothrow API **must** be organized as exactly two blocks for the public methods:
+
+1. **Constructor, destructor, deleted ops** — always compiled (before any `#ifdef`)
+2. **Throwing block** — a **single** `#ifdef __cpp_exceptions` / `#endif` guard containing **ALL** throwing public methods (factory, getters, setters, lifecycle). No throwing method outside this block. No nothrow method inside it.
+3. **Nothrow block** — immediately after `#endif`, containing **ALL** nothrow public methods. Always compiled.
+
+```cpp
+public:
+    // Constructor, destructor, deleted ops (always compiled)
+    MyClass(PrivateCtorTag, std::nothrow_t, ...) noexcept;
+    ~MyClass() override;
+    MyClass(const MyClass &) = delete;
+    MyClass &operator=(const MyClass &) = delete;
+
+    // ══════════════════════════════════════════════════════════════
+    // BLOCK 1: ALL throwing methods — single #ifdef, nothing else
+    // ══════════════════════════════════════════════════════════════
+#ifdef __cpp_exceptions
+    static std::shared_ptr<MyClass> create(...);
+    void connect();
+    void close();
+    Result query(const std::string &sql);
+#endif
+
+    // ══════════════════════════════════════════════════════════════
+    // BLOCK 2: ALL nothrow methods — always compiled
+    // ══════════════════════════════════════════════════════════════
+    static cpp_dbc::expected<std::shared_ptr<MyClass>, DBException>
+    create(std::nothrow_t, ...) noexcept;
+    cpp_dbc::expected<void, DBException> connect(std::nothrow_t) noexcept;
+    cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept;
+    cpp_dbc::expected<Result, DBException> query(std::nothrow_t, ...) noexcept;
+```
+
+**Forbidden**: interleaving throwing and nothrow declarations, multiple `#ifdef __cpp_exceptions` blocks in the same `public:` section, throwing methods outside the guard, nothrow methods inside the guard.
+
+The order of methods **within** each block must match across throwing and nothrow — if the throwing block declares `close()` then `query()`, the nothrow block must declare `close(std::nothrow_t)` then `query(std::nothrow_t)` in the same order.
+
 #### Pattern: PrivateCtorTag (Connection)
 
 **Header** — tag definition + construction state + public constructor + factories:
@@ -2625,9 +2665,18 @@ Special case: `:memory:` databases get a local per-connection mutex instead of a
 
 ##### Lax (MySQL, PostgreSQL)
 
-MySQL and PostgreSQL use a **"store result"** model. `mysql_store_result()` / `PQexec()` fetches ALL data into client memory (`MYSQL_RES*` / `PGresult*`). After that, ResultSet operations (`next()`, `getString()`, etc.) only read in-memory structures — they do NOT communicate with the connection handle. Therefore, ResultSet can use its own independent mutex.
+MySQL and PostgreSQL use a **"store result"** model. `mysql_store_result()` / `PQexec()` fetches ALL data into client memory (`MYSQL_RES*` / `PGresult*`). After that, ResultSet operations (`next()`, `getString()`, etc.) only read in-memory structures — they do NOT communicate with the connection handle. Therefore, ResultSet can use its own independent `std::recursive_mutex` (`m_mutex`) instead of sharing the connection's mutex.
 
 However, PreparedStatement operations (`mysql_stmt_prepare()`, `mysql_stmt_execute()`, `mysql_stmt_close()`) DO communicate with the connection handle. They must share the connection's mutex.
+
+> **If your new driver's C API fetches all result rows into client memory at construction** (like MySQL's `mysql_store_result()` or PostgreSQL's `PQexec()`), your ResultSet should follow this Lax model:
+> - Use its own independent `std::recursive_mutex m_mutex` for thread-safe serialization of in-memory reads
+> - Do **NOT** use `*ConnectionLock` or `*_STMT_LOCK_OR_RETURN` (those acquire the connection mutex)
+> - Still hold `std::weak_ptr<*DBConnection> m_connection` for lifecycle checks
+> - Still check `m_closed` + `m_connection.expired()` before every operation (lifecycle contract)
+> - Update `.claude/rules/cpp_dbc_conventions.md` rule #3 exception list and `.claude/rules/cpp_dbc_conventions_violations_how_report_them.md` checklist to include your driver alongside MySQL and PostgreSQL
+>
+> If your driver's `next()` communicates with the server for each row (like Firebird's `isc_dsql_fetch()` or SQLite's `sqlite3_step()`), you **must** use the Strict or Extra-Strict model instead.
 
 ```text
 Connection ─── m_connMutex (shared_ptr<recursive_mutex>)
@@ -2798,13 +2847,14 @@ public:
 };
 ```
 
-The `getConnectionMutex(std::nothrow_t)` method must be declared in the Connection class as:
+The `getConnectionMutex(std::nothrow_t)` method must be declared in the **`protected`** section of the Connection class — it is an implementation detail, not part of the public API. The `*ConnectionLock` RAII helper accesses it through `friend class *ConnectionLock` declared in the Connection class:
 
 ```cpp
-std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
-{
-    return *m_connMutex;
-}
+protected:
+    std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
+    {
+        return *m_connMutex;
+    }
 ```
 
 This helper is typically used via **six macros** organized in two levels. Each driver defines its own set with the driver prefix (e.g. `MYSQL_`, `FIREBIRD_`, `SQLITE_`). See `src/drivers/relational/mysql/mysql_internal.hpp` and `src/drivers/relational/firebird/firebird_internal.hpp` for complete reference implementations:

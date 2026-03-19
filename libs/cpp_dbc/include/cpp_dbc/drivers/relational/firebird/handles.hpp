@@ -61,7 +61,9 @@ namespace cpp_dbc::Firebird
         while (fb_interpret(buffer, sizeof(buffer), &pvector))
         {
             if (!details.empty())
+            {
                 details += " - ";
+            }
             details += buffer;
         }
 
@@ -69,7 +71,9 @@ namespace cpp_dbc::Firebird
         if (!details.empty())
         {
             if (!result.empty())
+            {
                 result += " | ";
+            }
             result += details;
             // fb_interpret gave us a good message, return it
             return result;

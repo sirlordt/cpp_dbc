@@ -82,7 +82,7 @@ namespace cpp_dbc::Firebird
         {
             return cpp_dbc::unexpected(DBException("A3B0D4F6C8E2", std::string("Exception in getBlob: ") + ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("B4C1E5A7D9F3", "Unknown exception in getBlob", system_utils::captureCallStack()));
         }
@@ -100,34 +100,17 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> FirebirdDBResultSet::getBinaryStream(std::nothrow_t, size_t columnIndex) noexcept
     {
-        // try/catch is required: blob->getBinaryStream() is a virtual Blob interface method
-        // that can throw on underlying I/O or Firebird API failures.
-        try
+        auto blobResult = getBlob(std::nothrow, columnIndex);
+        if (!blobResult.has_value())
         {
-            auto blobResult = getBlob(std::nothrow, columnIndex);
-            if (!blobResult.has_value())
-            {
-                return cpp_dbc::unexpected(blobResult.error());
-            }
-            auto blob = blobResult.value();
-            if (!blob)
-            {
-                return cpp_dbc::expected<std::shared_ptr<InputStream>, DBException>(nullptr);
-            }
-            return blob->getBinaryStream();
+            return cpp_dbc::unexpected(blobResult.error());
         }
-        catch (const DBException &ex)
+        auto blob = blobResult.value();
+        if (!blob)
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::expected<std::shared_ptr<InputStream>, DBException>(nullptr);
         }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("E7F4B8D0A2C6", std::string("Exception in getBinaryStream: ") + ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("F8A5C9E1B3D7", "Unknown exception in getBinaryStream", system_utils::captureCallStack()));
-        }
+        return blob->getBinaryStream(std::nothrow);
     }
 
     cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> FirebirdDBResultSet::getBinaryStream(std::nothrow_t, const std::string &columnName) noexcept
@@ -142,34 +125,22 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<std::vector<uint8_t>, DBException> FirebirdDBResultSet::getBytes(std::nothrow_t, size_t columnIndex) noexcept
     {
-        // try/catch is required: blob->getBytes() and blob->length() are virtual Blob interface
-        // methods that can throw on underlying I/O or Firebird API failures.
-        try
+        auto blobResult = getBlob(std::nothrow, columnIndex);
+        if (!blobResult.has_value())
         {
-            auto blobResult = getBlob(std::nothrow, columnIndex);
-            if (!blobResult.has_value())
-            {
-                return cpp_dbc::unexpected(blobResult.error());
-            }
-            auto blob = blobResult.value();
-            if (!blob)
-            {
-                return std::vector<uint8_t>();
-            }
-            return blob->getBytes(0, blob->length());
+            return cpp_dbc::unexpected(blobResult.error());
         }
-        catch (const DBException &ex)
+        auto blob = blobResult.value();
+        if (!blob)
         {
-            return cpp_dbc::unexpected(ex);
+            return std::vector<uint8_t>();
         }
-        catch (const std::exception &ex)
+        auto lenResult = blob->length(std::nothrow);
+        if (!lenResult.has_value())
         {
-            return cpp_dbc::unexpected(DBException("C1D8F2B4E6A0", std::string("Exception in getBytes: ") + ex.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(lenResult.error());
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("D2E9A3C5F7B1", "Unknown exception in getBytes", system_utils::captureCallStack()));
-        }
+        return blob->getBytes(std::nothrow, 0, lenResult.value());
     }
 
     cpp_dbc::expected<std::vector<uint8_t>, DBException> FirebirdDBResultSet::getBytes(std::nothrow_t, const std::string &columnName) noexcept

@@ -73,7 +73,7 @@ namespace cpp_dbc::PostgreSQL
 
         // Coalesced cleanup: only post when the registry has grown past the
         // cleanup threshold and no cleanup task is already queued.
-        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_acq_rel))
+        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_seq_cst))
         {
             SerialQueue::global().post([]()
             {
@@ -95,7 +95,7 @@ namespace cpp_dbc::PostgreSQL
 
     // See initialize() comment above for why cleanup() does not use
     // s_initialized guard.
-    void PostgreSQLDBDriver::cleanup()
+    void PostgreSQLDBDriver::cleanup(std::nothrow_t) noexcept
     {
         // PostgreSQL (libpq) does not require explicit global library cleanup.
         // Sleep a bit to ensure all resources are properly released.
@@ -149,7 +149,7 @@ namespace cpp_dbc::PostgreSQL
 
         closeAllOpenConnections(std::nothrow);
 
-        cleanup();
+        cleanup(std::nothrow);
     }
 
     // ============================================================================

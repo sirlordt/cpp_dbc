@@ -72,7 +72,7 @@ namespace cpp_dbc::Firebird
 
         // Coalesced cleanup: only post when the registry has grown past the
         // cleanup threshold and no cleanup task is already queued.
-        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_acq_rel))
+        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_seq_cst))
         {
             SerialQueue::global().post([]()
             {
@@ -228,8 +228,8 @@ namespace cpp_dbc::Firebird
     size_t FirebirdDBDriver::getConnectionAlive() noexcept
     {
         std::scoped_lock lock(s_registryMutex);
-        return static_cast<size_t>(std::count_if(
-            s_connectionRegistry.begin(), s_connectionRegistry.end(),
+        return static_cast<size_t>(std::ranges::count_if(
+            s_connectionRegistry,
             [](const auto &w) { return !w.expired(); }));
     }
 
@@ -424,7 +424,7 @@ namespace cpp_dbc::Firebird
                                                    std::string("Exception reading 'command' parameter: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             // Intentionally silenced — unknown exception from std::any_cast
             return cpp_dbc::unexpected(DBException("OI8BZXUON0YS", "Unknown exception reading 'command' parameter",
@@ -465,7 +465,7 @@ namespace cpp_dbc::Firebird
                                                        std::string("Exception reading 'uri'/'url' parameter: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
-            catch (...)
+            catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
             {
                 // Intentionally silenced — unknown exception from std::any_cast
                 return cpp_dbc::unexpected(DBException("TT39UST5GNQV", "Unknown exception reading 'uri'/'url' parameter",
@@ -494,7 +494,7 @@ namespace cpp_dbc::Firebird
                                                        std::string("Exception reading 'user' parameter: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
-            catch (...)
+            catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
             {
                 // Intentionally silenced — unknown exception from std::any_cast
                 return cpp_dbc::unexpected(DBException("XXGUSOPM99EK", "Unknown exception reading 'user' parameter",
@@ -523,7 +523,7 @@ namespace cpp_dbc::Firebird
                                                        std::string("Exception reading 'password' parameter: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
-            catch (...)
+            catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
             {
                 // Intentionally silenced — unknown exception from std::any_cast
                 return cpp_dbc::unexpected(DBException("7IJURPQLPQ9R", "Unknown exception reading 'password' parameter",
@@ -546,7 +546,7 @@ namespace cpp_dbc::Firebird
                 {
                     // Intentionally silenced — ignore invalid optional type
                 }
-                catch (...)
+                catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
                 {
                     // Intentionally silenced — ignore invalid optional type
                 }
@@ -567,7 +567,7 @@ namespace cpp_dbc::Firebird
                 {
                     // Intentionally silenced — ignore invalid optional type
                 }
-                catch (...)
+                catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
                 {
                     // Intentionally silenced — ignore invalid optional type
                 }

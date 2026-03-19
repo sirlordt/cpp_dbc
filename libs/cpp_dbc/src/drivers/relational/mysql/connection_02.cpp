@@ -185,7 +185,7 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<bool, DBException> MySQLDBConnection::getAutoCommit(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        MYSQL_CONNECTION_LOCK_OR_RETURN("KPZZGSPSLJPH", "Cannot get autocommit");
 
         return m_autoCommit;
     }
@@ -214,7 +214,7 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<bool, DBException> MySQLDBConnection::transactionActive(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        MYSQL_CONNECTION_LOCK_OR_RETURN("S8O6SSTSMX4U", "Cannot check transaction state");
 
         return m_transactionActive;
     }

@@ -60,6 +60,8 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<int64_t, DBException> SQLiteDBResultSet::getLong(std::nothrow_t, const std::string &columnName) noexcept
     {
+        SQLITE_STMT_LOCK_OR_RETURN("AM4P7ZHK75OV", "Result set is closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -93,6 +95,8 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<double, DBException> SQLiteDBResultSet::getDouble(std::nothrow_t, const std::string &columnName) noexcept
     {
+        SQLITE_STMT_LOCK_OR_RETURN("DRUOKTYJZ4JZ", "Result set is closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -127,6 +131,8 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<std::string, DBException> SQLiteDBResultSet::getString(std::nothrow_t, const std::string &columnName) noexcept
     {
+        SQLITE_STMT_LOCK_OR_RETURN("T91LGH9ARSQS", "Result set is closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -160,6 +166,8 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<bool, DBException> SQLiteDBResultSet::getBoolean(std::nothrow_t, const std::string &columnName) noexcept
     {
+        SQLITE_STMT_LOCK_OR_RETURN("1QPC5VL2PGMW", "Result set is closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -186,6 +194,8 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<bool, DBException> SQLiteDBResultSet::isNull(std::nothrow_t, const std::string &columnName) noexcept
     {
+        SQLITE_STMT_LOCK_OR_RETURN("52ZR1R46XSC4", "Result set is closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
