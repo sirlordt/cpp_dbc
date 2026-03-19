@@ -91,7 +91,7 @@ namespace cpp_dbc::MySQL
                 "Connection expired before result set could be registered",
                 system_utils::captureCallStack()));
         }
-        auto regResult = conn->registerResultSet(std::nothrow, std::weak_ptr<MySQLDBResultSet>(shared_from_this()));
+        auto regResult = conn->registerResultSet(std::nothrow, weak_from_this());
         if (!regResult.has_value())
         {
             return cpp_dbc::unexpected(regResult.error());

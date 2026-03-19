@@ -151,6 +151,37 @@ namespace cpp_dbc::SQLite
         s_connectionRegistry.erase(conn);
     }
 
+    void SQLiteDBDriver::cleanup() noexcept
+    {
+        std::scoped_lock lock(s_initMutex);
+        if (!s_initialized.load(std::memory_order_seq_cst))
+        {
+            return;
+        }
+
+        // No try/catch: all inner calls are noexcept (C APIs sqlite3_release_memory,
+        // sqlite3_shutdown, and std::this_thread::sleep_for). Only death-sentence
+        // exceptions possible (none from these calls).
+
+        // Release as much memory as possible
+        [[maybe_unused]]
+        int releasedMemory = sqlite3_release_memory(INT_MAX);
+        SQLITE_DEBUG("Released %d bytes of SQLite memory during driver shutdown", releasedMemory);
+
+        // Call sqlite3_shutdown to release all resources
+        int shutdownResult = sqlite3_shutdown();
+        if (shutdownResult != SQLITE_OK)
+        {
+            SQLITE_DEBUG("1Q2R3S4T5U6V: Error shutting down SQLite: %s",
+                         sqlite3_errstr(shutdownResult));
+        }
+
+        // Sleep a bit to ensure all resources are properly released
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        s_initialized.store(false, std::memory_order_seq_cst);
+    }
+
     void SQLiteDBDriver::closeAllOpenConnections(std::nothrow_t) noexcept
     {
         // Mark driver as closed — reject any new connection attempts
@@ -176,14 +207,6 @@ namespace cpp_dbc::SQLite
         {
             [[maybe_unused]] auto closeResult = conn->close(std::nothrow);
         }
-    }
-
-    size_t SQLiteDBDriver::getConnectionAlive() noexcept
-    {
-        std::scoped_lock lock(s_registryMutex);
-        return static_cast<size_t>(std::ranges::count_if(
-            s_connectionRegistry,
-            [](const auto &w) { return !w.expired(); }));
     }
 
 #ifdef __cpp_exceptions
@@ -215,37 +238,6 @@ namespace cpp_dbc::SQLite
         }
         s_instance = inst;
         return s_instance;
-    }
-
-    void SQLiteDBDriver::cleanup() noexcept
-    {
-        std::scoped_lock lock(s_initMutex);
-        if (!s_initialized.load(std::memory_order_seq_cst))
-        {
-            return;
-        }
-
-        // No try/catch: all inner calls are noexcept (C APIs sqlite3_release_memory,
-        // sqlite3_shutdown, and std::this_thread::sleep_for). Only death-sentence
-        // exceptions possible (none from these calls).
-
-        // Release as much memory as possible
-        [[maybe_unused]]
-        int releasedMemory = sqlite3_release_memory(INT_MAX);
-        SQLITE_DEBUG("Released %d bytes of SQLite memory during driver shutdown", releasedMemory);
-
-        // Call sqlite3_shutdown to release all resources
-        int shutdownResult = sqlite3_shutdown();
-        if (shutdownResult != SQLITE_OK)
-        {
-            SQLITE_DEBUG("1Q2R3S4T5U6V: Error shutting down SQLite: %s",
-                         sqlite3_errstr(shutdownResult));
-        }
-
-        // Sleep a bit to ensure all resources are properly released
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-
-        s_initialized.store(false, std::memory_order_seq_cst);
     }
 
 #ifdef __cpp_exceptions
@@ -364,6 +356,14 @@ namespace cpp_dbc::SQLite
     std::string SQLiteDBDriver::getDriverVersion() const noexcept
     {
         return sqlite3_libversion();
+    }
+
+    size_t SQLiteDBDriver::getConnectionAlive() noexcept
+    {
+        std::scoped_lock lock(s_registryMutex);
+        return static_cast<size_t>(std::ranges::count_if(
+            s_connectionRegistry,
+            [](const auto &w) { return !w.expired(); }));
     }
 
 } // namespace cpp_dbc::SQLite

@@ -113,15 +113,7 @@ namespace cpp_dbc::SQLite
         static std::shared_ptr<SQLiteDBPreparedStatement>
         create(std::weak_ptr<sqlite3> db,
                std::weak_ptr<SQLiteDBConnection> conn,
-               const std::string &sql)
-        {
-            auto r = create(std::nothrow, std::move(db), std::move(conn), sql);
-            if (!r.has_value())
-            {
-                throw r.error();
-            }
-            return r.value();
-        }
+               const std::string &sql);
 
         void setInt(int parameterIndex, int value) override;
         void setLong(int parameterIndex, int64_t value) override;

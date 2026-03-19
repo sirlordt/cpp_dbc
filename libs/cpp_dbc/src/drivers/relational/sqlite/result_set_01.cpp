@@ -116,6 +116,21 @@ namespace cpp_dbc::SQLite
     }
 
 #ifdef __cpp_exceptions
+
+    std::shared_ptr<SQLiteDBResultSet>
+    SQLiteDBResultSet::create(sqlite3_stmt *stmt,
+                              bool ownStatement,
+                              std::shared_ptr<SQLiteDBConnection> conn,
+                              std::shared_ptr<SQLiteDBPreparedStatement> prepStmt)
+    {
+        auto r = create(std::nothrow, stmt, ownStatement, std::move(conn), std::move(prepStmt));
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
     bool SQLiteDBResultSet::next()
     {
         auto result = next(std::nothrow);

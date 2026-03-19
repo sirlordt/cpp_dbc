@@ -189,6 +189,19 @@ namespace cpp_dbc::SQLite
     // ── Throwing API ──────────────────────────────────────────────────────────────
 #ifdef __cpp_exceptions
 
+    std::shared_ptr<SQLiteDBPreparedStatement>
+    SQLiteDBPreparedStatement::create(std::weak_ptr<sqlite3> db,
+                                      std::weak_ptr<SQLiteDBConnection> conn,
+                                      const std::string &sql)
+    {
+        auto r = create(std::nothrow, std::move(db), std::move(conn), sql);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
     void SQLiteDBPreparedStatement::setInt(int parameterIndex, int value)
     {
         auto result = setInt(std::nothrow, parameterIndex, value);

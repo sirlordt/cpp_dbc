@@ -344,6 +344,18 @@ namespace cpp_dbc::SQLite
     // ── Throwing API ──────────────────────────────────────────────────────────────
 #ifdef __cpp_exceptions
 
+    std::shared_ptr<SQLiteDBConnection> SQLiteDBConnection::create(
+        const std::string &database,
+        const std::map<std::string, std::string> &options)
+    {
+        auto r = create(std::nothrow, database, options);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
     void SQLiteDBConnection::close()
     {
         auto result = close(std::nothrow);

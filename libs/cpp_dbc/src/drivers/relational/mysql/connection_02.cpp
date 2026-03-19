@@ -49,14 +49,11 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> MySQLDBConnection::prepareStatement(std::nothrow_t, const std::string &sql) noexcept
     {
-        // try/catch is needed here: shared_from_this() can throw std::bad_weak_ptr
-        try
-        {
-            MYSQL_CONNECTION_LOCK_OR_RETURN("DK8K315FW3Y5", "Cannot prepare statement");
+        MYSQL_CONNECTION_LOCK_OR_RETURN("DK8K315FW3Y5", "Cannot prepare statement");
 
-            // Pass weak_ptr<MySQLDBConnection> to the PreparedStatement
-            // The statement accesses the MYSQL* and mutex through the connection reference
-            auto stmtResult = MySQLDBPreparedStatement::create(std::nothrow, std::weak_ptr<MySQLDBConnection>(shared_from_this()), sql);
+        // Pass weak_ptr<MySQLDBConnection> to the PreparedStatement
+        // weak_from_this() is noexcept — no try/catch needed
+        auto stmtResult = MySQLDBPreparedStatement::create(std::nothrow, weak_from_this(), sql);
             if (!stmtResult.has_value())
             {
                 return cpp_dbc::unexpected(stmtResult.error());
@@ -66,77 +63,52 @@ namespace cpp_dbc::MySQL
             // Register the statement as weak_ptr — allows natural destruction when user releases reference.
             // Statements will be explicitly closed in returnToPool() or close() before connection reuse.
             // If registration fails the statement is NOT returned — destructor closes it.
-            auto regResult = registerStatement(std::nothrow, std::weak_ptr<MySQLDBPreparedStatement>(stmt));
-            if (!regResult.has_value())
-            {
-                return cpp_dbc::unexpected(regResult.error());
-            }
+        auto regResult = registerStatement(std::nothrow, std::weak_ptr<MySQLDBPreparedStatement>(stmt));
+        if (!regResult.has_value())
+        {
+            return cpp_dbc::unexpected(regResult.error());
+        }
 
-            return std::shared_ptr<RelationalDBPreparedStatement>(stmt);
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("5PFOVDU347UD",
-                                                   std::string("prepareStatement failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
-        {
-            return cpp_dbc::unexpected(DBException("P4AGG0BAVQIP",
-                                                   "prepareStatement failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return std::shared_ptr<RelationalDBPreparedStatement>(stmt);
     }
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> MySQLDBConnection::executeQuery(std::nothrow_t, const std::string &sql) noexcept
     {
-        // try/catch is needed here: shared_from_this() can throw std::bad_weak_ptr
-        try
+        MYSQL_CONNECTION_LOCK_OR_RETURN("0KKYQGC8X7KF", "Cannot execute query");
+
+        if (mysql_query(m_conn.get(), sql.c_str()) != 0)
         {
-
-            MYSQL_CONNECTION_LOCK_OR_RETURN("0KKYQGC8X7KF", "Cannot execute query");
-
-            if (mysql_query(m_conn.get(), sql.c_str()) != 0)
-            {
-                return cpp_dbc::unexpected(DBException("LDUQOJQ0UO5C", std::string("Query failed: ") + mysql_error(m_conn.get()), system_utils::captureCallStack()));
-            }
-
-            MYSQL_RES *result = mysql_store_result(m_conn.get());
-            if (!result && mysql_field_count(m_conn.get()) > 0)
-            {
-                return cpp_dbc::unexpected(DBException("VJU5PI2HJ7DB", std::string("Failed to get result set: ") + mysql_error(m_conn.get()), system_utils::captureCallStack()));
-            }
-
-            auto rsResult = MySQLDBResultSet::create(std::nothrow, result, shared_from_this());
-            if (!rsResult.has_value())
-            {
-                return cpp_dbc::unexpected(rsResult.error());
-            }
-            auto rs = rsResult.value();
-
-            // Registration with the connection is done inside create() → initialize()
-            return std::shared_ptr<RelationalDBResultSet>(rs);
+            return cpp_dbc::unexpected(DBException("LDUQOJQ0UO5C", std::string("Query failed: ") + mysql_error(m_conn.get()), system_utils::captureCallStack()));
         }
-        catch (const DBException &ex)
+
+        MYSQL_RES *result = mysql_store_result(m_conn.get());
+        if (!result && mysql_field_count(m_conn.get()) > 0)
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(DBException("VJU5PI2HJ7DB", std::string("Failed to get result set: ") + mysql_error(m_conn.get()), system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
+
+        // weak_from_this().lock() is noexcept — no try/catch needed
+        auto self = weak_from_this().lock();
+        if (!self)
         {
+            if (result)
+            {
+                mysql_free_result(result);
+            }
             return cpp_dbc::unexpected(DBException("8RBHAJMYREPU",
-                                                   std::string("executeQuery failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
+                "Connection is not owned by shared_ptr",
+                system_utils::captureCallStack()));
         }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
+
+        auto rsResult = MySQLDBResultSet::create(std::nothrow, result, self);
+        if (!rsResult.has_value())
         {
-            return cpp_dbc::unexpected(DBException("8T29618FJ2VI",
-                                                   "executeQuery failed: unknown error",
-                                                   system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(rsResult.error());
         }
+        auto rs = rsResult.value();
+
+        // Registration with the connection is done inside create() → initialize()
+        return std::shared_ptr<RelationalDBResultSet>(rs);
     }
 
     cpp_dbc::expected<uint64_t, DBException> MySQLDBConnection::executeUpdate(std::nothrow_t, const std::string &sql) noexcept

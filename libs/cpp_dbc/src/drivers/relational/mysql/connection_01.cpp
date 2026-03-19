@@ -57,8 +57,11 @@ namespace cpp_dbc::MySQL
         std::scoped_lock stmtLock(m_statementsMutex);
         if (m_activeStatements.size() > 50)
         {
-            std::erase_if(m_activeStatements, [](const auto &w)
-                          { return w.expired(); });
+            std::erase_if(m_activeStatements,
+                          [](const auto &w)
+                          {
+                              return w.expired();
+                          });
         }
         m_activeStatements.insert(stmt);
         return {};
@@ -143,8 +146,11 @@ namespace cpp_dbc::MySQL
         std::scoped_lock stmtLock(m_statementsMutex);
         if (m_activeResultSets.size() > 50)
         {
-            std::erase_if(m_activeResultSets, [](const auto &w)
-                          { return w.expired(); });
+            std::erase_if(m_activeResultSets,
+                          [](const auto &w)
+                          {
+                              return w.expired();
+                          });
         }
         m_activeResultSets.insert(rs);
         return {};

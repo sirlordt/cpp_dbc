@@ -154,15 +154,7 @@ namespace cpp_dbc::SQLite
 #ifdef __cpp_exceptions
         static std::shared_ptr<SQLiteDBConnection>
         create(const std::string &database,
-               const std::map<std::string, std::string> &options = std::map<std::string, std::string>())
-        {
-            auto r = create(std::nothrow, database, options);
-            if (!r.has_value())
-            {
-                throw r.error();
-            }
-            return r.value();
-        }
+               const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
 
         void close() override;
         void reset() override;

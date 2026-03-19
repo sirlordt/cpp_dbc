@@ -144,15 +144,7 @@ namespace cpp_dbc::SQLite
         create(sqlite3_stmt *stmt,
                bool ownStatement,
                std::shared_ptr<SQLiteDBConnection> conn,
-               std::shared_ptr<SQLiteDBPreparedStatement> prepStmt)
-        {
-            auto r = create(std::nothrow, stmt, ownStatement, std::move(conn), std::move(prepStmt));
-            if (!r.has_value())
-            {
-                throw r.error();
-            }
-            return r.value();
-        }
+               std::shared_ptr<SQLiteDBPreparedStatement> prepStmt);
 
         bool next() override;
         bool isBeforeFirst() override;

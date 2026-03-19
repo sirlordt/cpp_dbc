@@ -90,7 +90,10 @@ namespace cpp_dbc::MySQL
                 {
                     std::scoped_lock lock(s_registryMutex);
                     std::erase_if(s_connectionRegistry,
-                        [](const auto &w) { return w.expired(); });
+                        [](const auto &w)
+                        {
+                            return w.expired();
+                        });
                 }
                 s_cleanupPending.store(false, std::memory_order_seq_cst); });
         }
@@ -217,7 +220,9 @@ namespace cpp_dbc::MySQL
         return static_cast<size_t>(std::ranges::count_if(
             s_connectionRegistry,
             [](const auto &w)
-            { return !w.expired(); }));
+            {
+                return !w.expired();
+            }));
     }
 
     cpp_dbc::expected<std::map<std::string, std::string>, DBException> MySQLDBDriver::parseURI(
