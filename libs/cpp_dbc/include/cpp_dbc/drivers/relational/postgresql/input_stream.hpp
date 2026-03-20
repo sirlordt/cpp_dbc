@@ -96,26 +96,6 @@ namespace cpp_dbc::PostgreSQL
             }
             return r.value();
         }
-#endif // __cpp_exceptions
-
-        static cpp_dbc::expected<std::shared_ptr<PostgreSQLInputStream>, DBException> create(std::nothrow_t, const char *buffer, size_t length) noexcept
-        {
-            // No try/catch: std::make_shared can only throw std::bad_alloc, which is a
-            // death-sentence exception — the heap is exhausted and no meaningful recovery
-            // is possible. The constructor is noexcept and captures errors in m_initFailed.
-            auto obj = std::make_shared<PostgreSQLInputStream>(PrivateCtorTag{}, std::nothrow, buffer, length);
-            if (obj->m_initFailed)
-            {
-                return cpp_dbc::unexpected(std::move(*obj->m_initError));
-            }
-            return obj;
-        }
-
-        // ====================================================================
-        // THROWING API - Exception-based (requires __cpp_exceptions)
-        // ====================================================================
-
-#ifdef __cpp_exceptions
 
         void copyFrom(const PostgreSQLInputStream &other)
         {
@@ -153,8 +133,20 @@ namespace cpp_dbc::PostgreSQL
                 throw r.error();
             }
         }
-
 #endif // __cpp_exceptions
+
+        static cpp_dbc::expected<std::shared_ptr<PostgreSQLInputStream>, DBException> create(std::nothrow_t, const char *buffer, size_t length) noexcept
+        {
+            // No try/catch: std::make_shared can only throw std::bad_alloc, which is a
+            // death-sentence exception — the heap is exhausted and no meaningful recovery
+            // is possible. The constructor is noexcept and captures errors in m_initFailed.
+            auto obj = std::make_shared<PostgreSQLInputStream>(PrivateCtorTag{}, std::nothrow, buffer, length);
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            return obj;
+        }
 
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API

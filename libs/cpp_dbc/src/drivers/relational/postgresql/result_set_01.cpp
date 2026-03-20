@@ -39,7 +39,42 @@
 namespace cpp_dbc::PostgreSQL
 {
 
-    // PostgreSQLDBResultSet implementation
+    // PostgreSQLDBResultSet implementation — private helpers in header declaration order
+
+    void PostgreSQLDBResultSet::notifyConnClosing(std::nothrow_t) noexcept
+    {
+        // Called by connection when closing — mark as closed and release PGresult
+        m_closed.store(true, std::memory_order_seq_cst);
+        if (m_result)
+        {
+            m_result.reset();
+            m_rowPosition = 0;
+            m_rowCount = 0;
+            m_fieldCount = 0;
+        }
+    }
+
+    cpp_dbc::expected<void, DBException> PostgreSQLDBResultSet::initialize(std::nothrow_t) noexcept
+    {
+        // Register with Connection — mandatory; every ResultSet must be tracked
+        // so closeAllResultSets()/notifyConnClosing() can reach it.
+        auto conn = m_connection.lock();
+        if (!conn)
+        {
+            return cpp_dbc::unexpected(DBException("5K1LVNZIRU67",
+                "Connection expired before result set could be registered",
+                system_utils::captureCallStack()));
+        }
+        auto regResult = conn->registerResultSet(std::nothrow, weak_from_this());
+        if (!regResult.has_value())
+        {
+            return cpp_dbc::unexpected(regResult.error());
+        }
+        return {};
+    }
+
+    // ── PrivateCtorTag Constructor ──────────────────────────────────────────
+
     PostgreSQLDBResultSet::PostgreSQLDBResultSet(PrivateCtorTag, std::nothrow_t,
                                                   std::weak_ptr<PostgreSQLDBConnection> conn,
                                                   PGresult *res) noexcept
@@ -68,38 +103,6 @@ namespace cpp_dbc::PostgreSQL
             m_initError = std::make_unique<DBException>("F32TX52NEFOR",
                 "ResultSet created with null PGresult",
                 system_utils::captureCallStack());
-        }
-    }
-
-    cpp_dbc::expected<void, DBException> PostgreSQLDBResultSet::initialize(std::nothrow_t) noexcept
-    {
-        // Register with Connection — mandatory; every ResultSet must be tracked
-        // so closeAllResultSets()/notifyConnClosing() can reach it.
-        auto conn = m_connection.lock();
-        if (!conn)
-        {
-            return cpp_dbc::unexpected(DBException("5K1LVNZIRU67",
-                "Connection expired before result set could be registered",
-                system_utils::captureCallStack()));
-        }
-        auto regResult = conn->registerResultSet(std::nothrow, std::weak_ptr<PostgreSQLDBResultSet>(shared_from_this()));
-        if (!regResult.has_value())
-        {
-            return cpp_dbc::unexpected(regResult.error());
-        }
-        return {};
-    }
-
-    void PostgreSQLDBResultSet::notifyConnClosing(std::nothrow_t) noexcept
-    {
-        // Called by connection when closing — mark as closed and release PGresult
-        m_closed.store(true, std::memory_order_seq_cst);
-        if (m_result)
-        {
-            m_result.reset();
-            m_rowPosition = 0;
-            m_rowCount = 0;
-            m_fieldCount = 0;
         }
     }
 

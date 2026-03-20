@@ -93,27 +93,7 @@ namespace cpp_dbc::PostgreSQL
             }
             return r.value();
         }
-#endif
 
-        static cpp_dbc::expected<std::shared_ptr<PostgreSQLDBPreparedStatement>, DBException>
-        create(std::nothrow_t,
-               std::weak_ptr<PostgreSQLDBConnection> conn,
-               const std::string &sql,
-               const std::string &stmt_name) noexcept
-        {
-            // No try/catch: std::make_shared can only throw std::bad_alloc, which is a
-            // death-sentence exception — the heap is exhausted and no meaningful recovery
-            // is possible. The constructor is noexcept and captures errors in m_initFailed.
-            auto obj = std::make_shared<PostgreSQLDBPreparedStatement>(
-                PrivateCtorTag{}, std::nothrow, std::move(conn), sql, stmt_name);
-            if (obj->m_initFailed)
-            {
-                return cpp_dbc::unexpected(std::move(*obj->m_initError));
-            }
-            return obj;
-        }
-
-#ifdef __cpp_exceptions
         void setInt(int parameterIndex, int value) override;
         void setLong(int parameterIndex, int64_t value) override;
         void setDouble(int parameterIndex, double value) override;
@@ -136,6 +116,24 @@ namespace cpp_dbc::PostgreSQL
         bool execute() override;
         void close() override;
 #endif // __cpp_exceptions
+
+        static cpp_dbc::expected<std::shared_ptr<PostgreSQLDBPreparedStatement>, DBException>
+        create(std::nothrow_t,
+               std::weak_ptr<PostgreSQLDBConnection> conn,
+               const std::string &sql,
+               const std::string &stmt_name) noexcept
+        {
+            // No try/catch: std::make_shared can only throw std::bad_alloc, which is a
+            // death-sentence exception — the heap is exhausted and no meaningful recovery
+            // is possible. The constructor is noexcept and captures errors in m_initFailed.
+            auto obj = std::make_shared<PostgreSQLDBPreparedStatement>(
+                PrivateCtorTag{}, std::nothrow, std::move(conn), sql, stmt_name);
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            return obj;
+        }
 
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API

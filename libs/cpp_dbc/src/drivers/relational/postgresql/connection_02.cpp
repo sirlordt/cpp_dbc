@@ -51,8 +51,12 @@ namespace cpp_dbc::PostgreSQL
         // Generate a unique statement name and pass weak_ptr to the connection
         // so the statement can safely detect when connection is closed
         std::string stmtName = generateStatementName(std::nothrow);
-        auto stmtResult = PostgreSQLDBPreparedStatement::create(std::nothrow,
-            std::weak_ptr<PostgreSQLDBConnection>(shared_from_this()), sql, stmtName);
+        auto self = weak_from_this();
+        if (self.expired())
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("7W8X9Y0Z1A2C", "Connection is not owned by shared_ptr", system_utils::captureCallStack()));
+        }
+        auto stmtResult = PostgreSQLDBPreparedStatement::create(std::nothrow, self, sql, stmtName);
         if (!stmtResult.has_value())
         {
             return cpp_dbc::unexpected<DBException>(stmtResult.error());
@@ -92,8 +96,12 @@ namespace cpp_dbc::PostgreSQL
             return cpp_dbc::unexpected<DBException>(DBException("9I0J1K2L3M4N", "Query failed: " + error, system_utils::captureCallStack()));
         }
 
-        auto rsResult = PostgreSQLDBResultSet::create(std::nothrow,
-            std::weak_ptr<PostgreSQLDBConnection>(shared_from_this()), result.release());
+        auto selfWeak = weak_from_this();
+        if (selfWeak.expired())
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("9I0J1K2L3M4O", "Connection is not owned by shared_ptr", system_utils::captureCallStack()));
+        }
+        auto rsResult = PostgreSQLDBResultSet::create(std::nothrow, selfWeak, result.release());
         if (!rsResult.has_value())
         {
             return cpp_dbc::unexpected(rsResult.error());

@@ -35,7 +35,32 @@
 namespace cpp_dbc::MySQL
 {
 
-    // MySQLDBResultSet implementation
+    // MySQLDBResultSet implementation — private helpers in header declaration order
+
+    cpp_dbc::expected<void, DBException> MySQLDBResultSet::notifyConnClosing(std::nothrow_t) noexcept
+    {
+        m_closed.store(true, std::memory_order_seq_cst);
+        return {};
+    }
+
+    cpp_dbc::expected<void, DBException> MySQLDBResultSet::initialize(std::nothrow_t) noexcept
+    {
+        // Register with Connection — mandatory; every ResultSet must be tracked
+        // so closeAllResultSets()/notifyConnClosing() can reach it.
+        auto conn = m_connection.lock();
+        if (!conn)
+        {
+            return cpp_dbc::unexpected(DBException("CSTY1MYIFZ4E",
+                "Connection expired before result set could be registered",
+                system_utils::captureCallStack()));
+        }
+        auto regResult = conn->registerResultSet(std::nothrow, weak_from_this());
+        if (!regResult.has_value())
+        {
+            return cpp_dbc::unexpected(regResult.error());
+        }
+        return {};
+    }
 
     cpp_dbc::expected<void, DBException> MySQLDBResultSet::validateResultState(std::nothrow_t) const noexcept
     {
@@ -70,31 +95,6 @@ namespace cpp_dbc::MySQL
         if (!m_currentRow)
         {
             return cpp_dbc::unexpected(DBException("F200B1E69DA7", "No current row - call next() first", system_utils::captureCallStack()));
-        }
-        return {};
-    }
-
-    cpp_dbc::expected<void, DBException> MySQLDBResultSet::notifyConnClosing(std::nothrow_t) noexcept
-    {
-        m_closed.store(true, std::memory_order_seq_cst);
-        return {};
-    }
-
-    cpp_dbc::expected<void, DBException> MySQLDBResultSet::initialize(std::nothrow_t) noexcept
-    {
-        // Register with Connection — mandatory; every ResultSet must be tracked
-        // so closeAllResultSets()/notifyConnClosing() can reach it.
-        auto conn = m_connection.lock();
-        if (!conn)
-        {
-            return cpp_dbc::unexpected(DBException("CSTY1MYIFZ4E",
-                "Connection expired before result set could be registered",
-                system_utils::captureCallStack()));
-        }
-        auto regResult = conn->registerResultSet(std::nothrow, weak_from_this());
-        if (!regResult.has_value())
-        {
-            return cpp_dbc::unexpected(regResult.error());
         }
         return {};
     }

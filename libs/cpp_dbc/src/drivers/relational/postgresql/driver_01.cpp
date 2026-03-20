@@ -80,7 +80,10 @@ namespace cpp_dbc::PostgreSQL
                 {
                     std::scoped_lock lock(s_registryMutex);
                     std::erase_if(s_connectionRegistry,
-                        [](const auto &w) { return w.expired(); });
+                                  [](const auto &w)
+                                  {
+                                      return w.expired();
+                                  });
                 }
                 s_cleanupPending.store(false, std::memory_order_seq_cst);
             });
@@ -181,6 +184,29 @@ namespace cpp_dbc::PostgreSQL
     }
 #endif // __cpp_exceptions
 
+    // ============================================================================
+    // PostgreSQLDBDriver Implementation - Singleton (nothrow) + Connection Registry
+    // ============================================================================
+
+    cpp_dbc::expected<std::shared_ptr<PostgreSQLDBDriver>, DBException>
+    PostgreSQLDBDriver::getInstance(std::nothrow_t) noexcept
+    {
+        std::scoped_lock lock(s_instanceMutex);
+        if (s_instance)
+        {
+            return s_instance;
+        }
+        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+        // Constructor errors are captured in m_initFailed / m_initError.
+        auto inst = std::make_shared<PostgreSQLDBDriver>(PostgreSQLDBDriver::PrivateCtorTag{}, std::nothrow);
+        if (inst->m_initFailed)
+        {
+            return cpp_dbc::unexpected(std::move(*inst->m_initError));
+        }
+        s_instance = inst;
+        return s_instance;
+    }
+
     cpp_dbc::expected<std::map<std::string, std::string>, DBException> PostgreSQLDBDriver::parseURI(
         std::nothrow_t, const std::string &uri) noexcept
     {
@@ -234,30 +260,14 @@ namespace cpp_dbc::PostgreSQL
                                                    system_utils::captureCallStack()));
         }
 
+        if (!system_utils::isValidDatabaseIdentifier(database))
+        {
+            return cpp_dbc::unexpected(DBException("C6REYD99WTSJ",
+                                                   "Invalid PostgreSQL database name: only alphanumeric and underscore allowed",
+                                                   system_utils::captureCallStack()));
+        }
+
         return system_utils::buildDBURI("cpp_dbc:postgresql://", host, port, database);
-    }
-
-    // ============================================================================
-    // PostgreSQLDBDriver Implementation - Singleton (nothrow) + Connection Registry
-    // ============================================================================
-
-    cpp_dbc::expected<std::shared_ptr<PostgreSQLDBDriver>, DBException>
-    PostgreSQLDBDriver::getInstance(std::nothrow_t) noexcept
-    {
-        std::scoped_lock lock(s_instanceMutex);
-        if (s_instance)
-        {
-            return s_instance;
-        }
-        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
-        // Constructor errors are captured in m_initFailed / m_initError.
-        auto inst = std::make_shared<PostgreSQLDBDriver>(PostgreSQLDBDriver::PrivateCtorTag{}, std::nothrow);
-        if (inst->m_initFailed)
-        {
-            return cpp_dbc::unexpected(std::move(*inst->m_initError));
-        }
-        s_instance = inst;
-        return s_instance;
     }
 
     size_t PostgreSQLDBDriver::getConnectionAlive() noexcept
@@ -265,7 +275,10 @@ namespace cpp_dbc::PostgreSQL
         std::scoped_lock lock(s_registryMutex);
         return static_cast<size_t>(std::ranges::count_if(
             s_connectionRegistry,
-            [](const auto &w) { return !w.expired(); }));
+            [](const auto &w)
+            {
+                return !w.expired();
+            }));
     }
 
     // Nothrow API implementation

@@ -339,6 +339,37 @@ static std::string sanitize(const std::string &s) { ... }  // WRONG: belongs in 
 if (url.starts_with("cpp_dbc:"))  // WRONG: use system_constants::URI_PREFIX
 ```
 
+**"Trivial" does not mean "exempt"**: Even a validation that appears trivial — such as checking whether a string contains only alphanumeric characters and underscores — **must** be centralized if it is used in more than one place. The threshold is not complexity; it is **reuse**. If two driver files need the same check, that check belongs in `system_utils`, not duplicated inline in each file.
+
+```cpp
+// Incorrect — same 3-line validation duplicated in connection_01.cpp AND driver_01.cpp
+if (!database.empty() && !std::ranges::all_of(database, [](unsigned char ch)
+    { return std::isalnum(ch) || ch == '_'; }))
+{
+    return error;  // WRONG: duplicated validation logic across files
+}
+
+// Correct — single inline function in system_utils.hpp, called from both files
+// In system_utils.hpp:
+inline bool isValidDatabaseIdentifier(std::string_view name) noexcept
+{
+    for (unsigned char ch : name)
+    {
+        if (!std::isalnum(ch) && ch != '_')
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// In any driver file:
+if (!database.empty() && !system_utils::isValidDatabaseIdentifier(database))
+{
+    return error;  // Correct: single source of truth
+}
+```
+
 **Correct usage**:
 
 ```cpp

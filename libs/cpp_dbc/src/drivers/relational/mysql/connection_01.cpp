@@ -394,6 +394,16 @@ namespace cpp_dbc::MySQL
         return result.value();
     }
 
+    bool MySQLDBConnection::ping()
+    {
+        auto result = ping(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
     std::shared_ptr<RelationalDBPreparedStatement> MySQLDBConnection::prepareStatement(const std::string &sql)
     {
         auto result = prepareStatement(std::nothrow, sql);
@@ -493,16 +503,6 @@ namespace cpp_dbc::MySQL
     TransactionIsolationLevel MySQLDBConnection::getTransactionIsolation()
     {
         auto result = getTransactionIsolation(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return *result;
-    }
-
-    bool MySQLDBConnection::ping()
-    {
-        auto result = ping(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();

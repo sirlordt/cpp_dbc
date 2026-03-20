@@ -251,6 +251,31 @@ namespace cpp_dbc::system_utils
                            std::string_view database = "") noexcept;
 
     /**
+     * @brief Check whether a string is a valid database identifier.
+     *
+     * Returns true when every character is alphanumeric (A-Z, a-z, 0-9) or
+     * an underscore ('_'). An empty string is considered valid (the caller
+     * decides whether emptiness is an error in its own context).
+     *
+     * Used by drivers to validate database/keyspace names against injection
+     * before embedding them in connection strings or URIs.
+     *
+     * @param name The identifier to validate
+     * @return true if the name contains only [A-Za-z0-9_] or is empty
+     */
+    inline bool isValidDatabaseIdentifier(std::string_view name) noexcept
+    {
+        for (unsigned char ch : name)
+        {
+            if (!std::isalnum(ch) && ch != '_')
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * @brief Percent-encode a URI component per RFC 3986
      *
      * Encodes every character that is NOT an unreserved character

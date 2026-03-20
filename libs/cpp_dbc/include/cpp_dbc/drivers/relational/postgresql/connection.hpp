@@ -194,8 +194,38 @@ namespace cpp_dbc::PostgreSQL
             }
             return r.value();
         }
-#endif
 
+        void close() override;
+        void reset() override;
+        bool isClosed() const override;
+        void returnToPool() override;
+        bool isPooled() const override;
+        std::string getURI() const override;
+        bool ping() override;
+
+        std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) override;
+        std::shared_ptr<RelationalDBResultSet> executeQuery(const std::string &sql) override;
+        uint64_t executeUpdate(const std::string &sql) override;
+
+        void setAutoCommit(bool autoCommit) override;
+        bool getAutoCommit() override;
+
+        bool beginTransaction() override;
+        bool transactionActive() override;
+
+        void commit() override;
+        void rollback() override;
+
+        void setTransactionIsolation(TransactionIsolationLevel level) override;
+        TransactionIsolationLevel getTransactionIsolation() override;
+
+        std::string getServerVersion() override;
+        std::map<std::string, std::string> getServerInfo() override;
+#endif // __cpp_exceptions
+
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
         static cpp_dbc::expected<std::shared_ptr<PostgreSQLDBConnection>, DBException>
         create(std::nothrow_t,
                const std::string &host,
@@ -220,55 +250,6 @@ namespace cpp_dbc::PostgreSQL
             return obj;
         }
 
-
-// DBConnection interface
-#ifdef __cpp_exceptions
-        void close() override;
-        void reset() override;
-        bool isClosed() const override;
-        void returnToPool() override;
-        bool isPooled() const override;
-        std::string getURI() const override;
-        bool ping() override;
-
-        // RelationalDBConnection interface
-        std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) override;
-        std::shared_ptr<RelationalDBResultSet> executeQuery(const std::string &sql) override;
-        uint64_t executeUpdate(const std::string &sql) override;
-
-        void setAutoCommit(bool autoCommit) override;
-        bool getAutoCommit() override;
-
-        bool beginTransaction() override;
-        bool transactionActive() override;
-
-        void commit() override;
-        void rollback() override;
-
-        // Transaction isolation level methods
-        void setTransactionIsolation(TransactionIsolationLevel level) override;
-        TransactionIsolationLevel getTransactionIsolation() override;
-
-        std::string getServerVersion() override;
-        std::map<std::string, std::string> getServerInfo() override;
-
-#endif // __cpp_exceptions
-
-        // ====================================================================
-        // NOTHROW VERSIONS - Exception-free API
-        // ====================================================================
-        cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;
-        cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> executeQuery(std::nothrow_t, const std::string &sql) noexcept override;
-        cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t, const std::string &sql) noexcept override;
-        cpp_dbc::expected<void, DBException> setAutoCommit(std::nothrow_t, bool autoCommit) noexcept override;
-        cpp_dbc::expected<bool, DBException> getAutoCommit(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<bool, DBException> beginTransaction(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<bool, DBException> transactionActive(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<void, DBException> commit(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<void, DBException> setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
-        cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
-
         cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> reset(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
@@ -276,6 +257,23 @@ namespace cpp_dbc::PostgreSQL
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<std::string, DBException> getURI(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
+
+        cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;
+        cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> executeQuery(std::nothrow_t, const std::string &sql) noexcept override;
+        cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t, const std::string &sql) noexcept override;
+
+        cpp_dbc::expected<void, DBException> setAutoCommit(std::nothrow_t, bool autoCommit) noexcept override;
+        cpp_dbc::expected<bool, DBException> getAutoCommit(std::nothrow_t) noexcept override;
+
+        cpp_dbc::expected<bool, DBException> beginTransaction(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> transactionActive(std::nothrow_t) noexcept override;
+
+        cpp_dbc::expected<void, DBException> commit(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
+
+        cpp_dbc::expected<void, DBException> setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
+        cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
+
         cpp_dbc::expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override;
         cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(std::nothrow_t) noexcept override;
     };

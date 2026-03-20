@@ -214,17 +214,6 @@ namespace cpp_dbc::MySQL
         return s_instance;
     }
 
-    size_t MySQLDBDriver::getConnectionAlive() noexcept
-    {
-        std::scoped_lock lock(s_registryMutex);
-        return static_cast<size_t>(std::ranges::count_if(
-            s_connectionRegistry,
-            [](const auto &w)
-            {
-                return !w.expired();
-            }));
-    }
-
     cpp_dbc::expected<std::map<std::string, std::string>, DBException> MySQLDBDriver::parseURI(
         std::nothrow_t, const std::string &uri) noexcept
     {
@@ -334,6 +323,17 @@ namespace cpp_dbc::MySQL
     std::string MySQLDBDriver::getDriverVersion() const noexcept
     {
         return mysql_get_client_info();
+    }
+
+    size_t MySQLDBDriver::getConnectionAlive() noexcept
+    {
+        std::scoped_lock lock(s_registryMutex);
+        return static_cast<size_t>(std::ranges::count_if(
+            s_connectionRegistry,
+            [](const auto &w)
+            {
+                return !w.expired();
+            }));
     }
 
 } // namespace cpp_dbc::MySQL
