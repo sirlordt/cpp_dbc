@@ -37,22 +37,22 @@ namespace cpp_dbc::Firebird
         return conn;
     }
 
-    isc_db_handle *FirebirdBlob::getDbHandle(std::nothrow_t) const noexcept
+    cpp_dbc::expected<isc_db_handle *, DBException> FirebirdBlob::getDbHandle(std::nothrow_t) const noexcept
     {
         auto conn = m_connection.lock();
         if (!conn)
         {
-            return nullptr;
+            return cpp_dbc::unexpected(DBException("3K4ERTK6XMFR", "Connection has been destroyed (getDbHandle)", system_utils::captureCallStack()));
         }
         return conn->m_conn.get();
     }
 
-    isc_tr_handle *FirebirdBlob::getTrHandle(std::nothrow_t) const noexcept
+    cpp_dbc::expected<isc_tr_handle *, DBException> FirebirdBlob::getTrHandle(std::nothrow_t) const noexcept
     {
         auto conn = m_connection.lock();
         if (!conn)
         {
-            return nullptr;
+            return cpp_dbc::unexpected(DBException("X3OE58Y3Z22Z", "Connection has been destroyed (getTrHandle)", system_utils::captureCallStack()));
         }
         return &conn->m_tr;
     }

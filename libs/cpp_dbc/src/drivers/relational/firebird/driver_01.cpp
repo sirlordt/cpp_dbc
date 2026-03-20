@@ -79,7 +79,10 @@ namespace cpp_dbc::Firebird
                 {
                     std::scoped_lock lock(s_registryMutex);
                     std::erase_if(s_connectionRegistry,
-                        [](const auto &w) { return w.expired(); });
+                                  [](const auto &w)
+                                  {
+                                      return w.expired();
+                                  });
                 }
                 s_cleanupPending.store(false, std::memory_order_seq_cst);
             });
@@ -602,18 +605,8 @@ namespace cpp_dbc::Firebird
         int port = comps.port;
         const auto &database = comps.database;
 
-        // Build the Firebird connection string for CREATE DATABASE
-        std::string fbConnStr;
-        if (!host.empty() && host != "localhost" && host != "127.0.0.1")
-        {
-            fbConnStr = host;
-            if (port != 3050 && port != 0)
-            {
-                fbConnStr += "/" + std::to_string(port);
-            }
-            fbConnStr += ":";
-        }
-        fbConnStr += database;
+        // Build the Firebird connection string for CREATE DATABASE using centralized helper
+        std::string fbConnStr = system_utils::buildFirebirdConnStr(host, port, database);
 
         // Get page size from options
         std::string pageSize = "4096";

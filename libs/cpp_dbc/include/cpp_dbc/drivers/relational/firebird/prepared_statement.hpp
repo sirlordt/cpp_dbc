@@ -54,18 +54,7 @@ namespace cpp_dbc::Firebird
         // m_trPtr became dangling → USE-AFTER-FREE / SEGFAULT in isc_dsql_execute().
         // Solution: Store weak_ptr<FirebirdDBConnection> instead. Access conn->m_tr
         // only after locking the parent connection via FIREBIRD_STMT_LOCK_OR_RETURN.
-        //
-        // Benefits:
-        //   1. Lifecycle-safe: weak_ptr detects when connection is destroyed
-        //   2. Access pattern: lock() → check → use conn->m_tr → safe
-        //   3. Prevents dangling pointer bugs entirely
-        //   4. Matches SQLite's pattern with FileMutexRegistry
-        //
-        // Usage in methods (executeUpdate, executeQuery, etc.):
-        //   auto conn = m_connection.lock();
-        //   if (!conn) return unexpected("Connection destroyed");
-        //   isc_dsql_execute(status, &(conn->m_tr), ...);  // Safe access
-        // ============================================================================
+        // weak_ptr detects destruction; lock() → check → use conn->m_tr → safe.
         std::weak_ptr<FirebirdDBConnection> m_connection;
         isc_stmt_handle m_stmt{};
         std::string m_sql;

@@ -100,13 +100,18 @@ namespace cpp_dbc::Firebird
         {
             return cpp_dbc::unexpected(connResult.error());
         }
-        isc_db_handle *db = getDbHandle(std::nothrow);
-        isc_tr_handle *tr = getTrHandle(std::nothrow);
-
-        if (!db || !tr)
+        auto dbResult = getDbHandle(std::nothrow);
+        if (!dbResult.has_value())
         {
-            return cpp_dbc::unexpected(DBException("LYMIBUVLDD64", "Invalid database or transaction handle", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(dbResult.error());
         }
+        auto trResult = getTrHandle(std::nothrow);
+        if (!trResult.has_value())
+        {
+            return cpp_dbc::unexpected(trResult.error());
+        }
+        isc_db_handle *db = dbResult.value();
+        isc_tr_handle *tr = trResult.value();
 
         ISC_STATUS_ARRAY status;
         isc_blob_handle blobHandle = 0;
@@ -172,13 +177,18 @@ namespace cpp_dbc::Firebird
         {
             return cpp_dbc::unexpected(connResult.error());
         }
-        isc_db_handle *db = getDbHandle(std::nothrow);
-        isc_tr_handle *tr = getTrHandle(std::nothrow);
-
-        if (!db || !tr)
+        auto dbResult = getDbHandle(std::nothrow);
+        if (!dbResult.has_value())
         {
-            return cpp_dbc::unexpected(DBException("RE6SSPWHKX23", "Invalid database or transaction handle", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(dbResult.error());
         }
+        auto trResult = getTrHandle(std::nothrow);
+        if (!trResult.has_value())
+        {
+            return cpp_dbc::unexpected(trResult.error());
+        }
+        isc_db_handle *db = dbResult.value();
+        isc_tr_handle *tr = trResult.value();
 
         ISC_STATUS_ARRAY status;
         isc_blob_handle blobHandle = 0;

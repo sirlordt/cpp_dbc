@@ -130,10 +130,12 @@ namespace cpp_dbc::Firebird
                     ISC_STATUS_ARRAY status = {0};
                     isc_dsql_free_statement(status, stmtPtr, DSQL_drop);
 
-                    // CRITICAL: Add delay after freeing
-                    // isc_dsql_free_statement is asynchronous in Firebird
-                    // Without this delay, the transaction may end before Firebird completes
-                    // the statement freeing internally, causing crashes
+                    // 2026-03-20T00:00:00Z
+                    // Bug: isc_dsql_free_statement() completes asynchronously in Firebird,
+                    // so ending the lifecycle immediately can race the engine's internal
+                    // cleanup and crash.
+                    // Solution: Sleep for 25 ms after DSQL_drop so the internal free path
+                    // completes before the statement/result-set teardown continues.
                     std::this_thread::sleep_for(std::chrono::milliseconds(25));
 
                     FIREBIRD_DEBUG("ResultSet::close - Statement freed with 25ms delay");

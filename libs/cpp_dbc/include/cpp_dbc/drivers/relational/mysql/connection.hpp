@@ -228,10 +228,17 @@ namespace cpp_dbc::MySQL
          * Allows PreparedStatement to access the underlying MYSQL* connection handle
          * via their weak_ptr<MySQLDBConnection>, without storing the handle directly.
          *
-         * @return Raw MYSQL* pointer (may be nullptr if connection was closed)
+         * @return MYSQL* pointer or error if connection is closed
          */
-        MYSQL *getMySQLNativeHandle(std::nothrow_t) const noexcept
+        cpp_dbc::expected<MYSQL *, DBException> getMySQLNativeHandle(std::nothrow_t) const noexcept
         {
+            if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
+            {
+                return cpp_dbc::unexpected(DBException(
+                    "SVXBWLMJJXH6",
+                    "Connection closed (getMySQLNativeHandle)",
+                    system_utils::captureCallStack()));
+            }
             return m_conn.get();
         }
 

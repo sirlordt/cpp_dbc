@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file connection_04.cpp
- @brief Firebird database driver implementation - FirebirdDBConnection nothrow methods (group 3: setTransactionIsolation, getTransactionIsolation, prepareForPoolReturn, prepareForBorrow)
+ @brief Firebird database driver implementation - FirebirdDBConnection protected overrides and nothrow methods (group 3)
 
 */
 
@@ -36,8 +36,82 @@ namespace cpp_dbc::Firebird
 {
 
     // ============================================================================
+    // Protected overrides — pool lifecycle
+    // ============================================================================
+
+    cpp_dbc::expected<void, DBException>
+    FirebirdDBConnection::prepareForPoolReturn(
+        std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept
+    {
+        // Reset connection state: close all statements/resultsets and rollback
+        auto resetResult = reset(std::nothrow);
+        if (!resetResult.has_value())
+        {
+            FIREBIRD_DEBUG("prepareForPoolReturn(nothrow): Failed to reset: %s",
+                           resetResult.error().what_s().data());
+            // Continue anyway - try to at least reset autoCommit
+        }
+
+        // Reset auto-commit to true (default state for pooled connections)
+        [[maybe_unused]] auto setResult = setAutoCommit(std::nothrow, true);
+
+        // Restore transaction isolation level if requested by the pool
+        if (isolationLevel != TransactionIsolationLevel::TRANSACTION_NONE)
+        {
+            auto isoResult = getTransactionIsolation(std::nothrow);
+            if (!isoResult.has_value())
+            {
+                FIREBIRD_DEBUG("prepareForPoolReturn(nothrow): Failed to get isolation: %s",
+                               isoResult.error().what_s().data());
+                return cpp_dbc::unexpected(isoResult.error());
+            }
+            if (isoResult.value() != isolationLevel)
+            {
+                auto setIsoResult = setTransactionIsolation(std::nothrow, isolationLevel);
+                if (!setIsoResult.has_value())
+                {
+                    FIREBIRD_DEBUG("prepareForPoolReturn(nothrow): Failed to restore isolation: %s",
+                                   setIsoResult.error().what_s().data());
+                    return setIsoResult;
+                }
+            }
+        }
+
+        return {};
+    }
+
+    // 2026-03-07T00:00:00Z
+    // Bug: Firebird MVCC snapshots are taken when a transaction starts. Pooled
+    // connections keep stale snapshots from pool-creation time, so DDL changes
+    // committed later (RECREATE TABLE, etc.) are invisible → "table id not defined".
+    // Solution: In prepareForBorrow(), rollback the current transaction and start
+    // a fresh one to acquire an up-to-date MVCC snapshot. The error is caused by
+    // stale snapshots, not by closeAllStatements() in prepareForPoolReturn().
+    cpp_dbc::expected<void, DBException>
+    FirebirdDBConnection::prepareForBorrow(std::nothrow_t) noexcept
+    {
+        FIREBIRD_CONNECTION_LOCK_OR_RETURN("HR0QTJ2GVXFT", "Connection closed");
+
+        if (m_closed.load(std::memory_order_seq_cst))
+        {
+            return {};
+        }
+
+        // Refresh the MVCC snapshot by rolling back and starting a new transaction.
+        // This ensures the borrowed connection can see all DDL changes committed
+        // after the previous transaction started.
+        if (m_tr && m_autoCommit)
+        {
+            FIREBIRD_DEBUG("FirebirdConnection::prepareForBorrow(nothrow) - Refreshing MVCC snapshot");
+            [[maybe_unused]] auto rollbackResult = rollback(std::nothrow);
+        }
+
+        return {};
+    }
+
+    // ============================================================================
     // NOTHROW API — group 3: setTransactionIsolation, getTransactionIsolation,
-    //               prepareForPoolReturn, prepareForBorrow
+    //               getServerVersion, getServerInfo
     // ============================================================================
 
     cpp_dbc::expected<void, DBException>
@@ -109,79 +183,6 @@ namespace cpp_dbc::Firebird
 
         FIREBIRD_DEBUG("FirebirdConnection::getTransactionIsolation(nothrow) - Returning %d", static_cast<int>(m_isolationLevel));
         return m_isolationLevel;
-    }
-
-    cpp_dbc::expected<void, DBException>
-    FirebirdDBConnection::prepareForPoolReturn(
-        std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept
-    {
-        // Reset connection state: close all statements/resultsets and rollback
-        auto resetResult = reset(std::nothrow);
-        if (!resetResult.has_value())
-        {
-            FIREBIRD_DEBUG("prepareForPoolReturn(nothrow): Failed to reset: %s",
-                           resetResult.error().what_s().data());
-            // Continue anyway - try to at least reset autoCommit
-        }
-
-        // Reset auto-commit to true (default state for pooled connections)
-        [[maybe_unused]] auto setResult = setAutoCommit(std::nothrow, true);
-
-        // Restore transaction isolation level if requested by the pool
-        if (isolationLevel != TransactionIsolationLevel::TRANSACTION_NONE)
-        {
-            auto isoResult = getTransactionIsolation(std::nothrow);
-            if (!isoResult.has_value())
-            {
-                FIREBIRD_DEBUG("prepareForPoolReturn(nothrow): Failed to get isolation: %s",
-                               isoResult.error().what_s().data());
-                return cpp_dbc::unexpected(isoResult.error());
-            }
-            if (isoResult.value() != isolationLevel)
-            {
-                auto setIsoResult = setTransactionIsolation(std::nothrow, isolationLevel);
-                if (!setIsoResult.has_value())
-                {
-                    FIREBIRD_DEBUG("prepareForPoolReturn(nothrow): Failed to restore isolation: %s",
-                                   setIsoResult.error().what_s().data());
-                    return setIsoResult;
-                }
-            }
-        }
-
-        return {};
-    }
-
-    // 2026-03-07T00:00:00Z
-    // Bug: Firebird MVCC snapshots are taken when a transaction starts. Pooled
-    // connections keep stale snapshots from pool-creation time, so DDL changes
-    // committed later (RECREATE TABLE, etc.) are invisible → "table id not defined".
-    // Solution: In prepareForBorrow(), rollback the current transaction and start
-    // a fresh one to acquire an up-to-date MVCC snapshot.
-    //
-    // NOTE: "table id not defined" errors in pool tests are caused by stale MVCC
-    // snapshots (fixed here), NOT by closeAllStatements() in prepareForPoolReturn().
-    // Statement closing and MVCC refresh are completely unrelated concerns.
-    cpp_dbc::expected<void, DBException>
-    FirebirdDBConnection::prepareForBorrow(std::nothrow_t) noexcept
-    {
-        FIREBIRD_CONNECTION_LOCK_OR_RETURN("HR0QTJ2GVXFT", "Connection closed");
-
-        if (m_closed.load(std::memory_order_seq_cst))
-        {
-            return {};
-        }
-
-        // Refresh the MVCC snapshot by rolling back and starting a new transaction.
-        // This ensures the borrowed connection can see all DDL changes committed
-        // after the previous transaction started.
-        if (m_tr && m_autoCommit)
-        {
-            FIREBIRD_DEBUG("FirebirdConnection::prepareForBorrow(nothrow) - Refreshing MVCC snapshot");
-            [[maybe_unused]] auto rollbackResult = rollback(std::nothrow);
-        }
-
-        return {};
     }
 
     cpp_dbc::expected<std::string, DBException> FirebirdDBConnection::getServerVersion(std::nothrow_t) noexcept

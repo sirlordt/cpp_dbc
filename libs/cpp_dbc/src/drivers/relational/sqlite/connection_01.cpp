@@ -37,6 +37,200 @@
 namespace cpp_dbc::SQLite
 {
 
+    // ── Private helpers ───────────────────────────────────────────────────────────
+
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::registerStatement(std::nothrow_t, std::weak_ptr<SQLiteDBPreparedStatement> stmt) noexcept
+    {
+        // 2026-02-15T00:00:00Z
+        // Bug: closeAllStatements() used m_globalFileMutex while registerStatement()/
+        // unregisterStatement() used m_statementsMutex, creating a data race (same
+        // data protected by different mutexes in different contexts).
+        // Solution: Changed from m_statementsMutex to m_globalFileMutex so ALL access
+        // to m_activeStatements is consistently protected by the file-level lock.
+        SQLITE_CONNECTION_LOCK_OR_RETURN("3N95KEM5ON6S", "Cannot register statement");
+        if (m_activeStatements.size() > 50)
+        {
+            std::erase_if(m_activeStatements,
+                          [](const auto &w)
+                          {
+                              return w.expired();
+                          });
+        }
+        m_activeStatements.insert(stmt);
+        return {};
+    }
+
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::unregisterStatement(std::nothrow_t, std::weak_ptr<SQLiteDBPreparedStatement> stmt) noexcept
+    {
+        // 2026-02-15T00:00:00Z
+        // Bug: unregisterStatement() used m_statementsMutex while closeAllStatements()
+        // used m_globalFileMutex, creating a data race on m_activeStatements.
+        // Solution: Changed to m_globalFileMutex for consistency with all other
+        // m_activeStatements access paths.
+        SQLITE_CONNECTION_LOCK_OR_RETURN("610ERYQ21GDY", "Cannot unregister statement");
+        // Remove expired weak_ptrs and the specified one
+        for (auto it = m_activeStatements.begin(); it != m_activeStatements.end();)
+        {
+            auto locked = it->lock();
+            auto stmtLocked = stmt.lock();
+            if (!locked || (stmtLocked && locked.get() == stmtLocked.get()))
+            {
+                it = m_activeStatements.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+        return {};
+    }
+
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::closeAllStatements(std::nothrow_t) noexcept
+    {
+        // 2026-02-15T00:00:00Z
+        // Bug: This method acquired both m_globalFileMutex and then m_statementsMutex
+        // (nested lock), causing Helgrind LockOrder violations. Other code paths
+        // (e.g., pool::returnConnection) acquire locks in a different order:
+        //   pool mutex -> m_globalFileMutex -> m_statementsMutex
+        // creating potential deadlock if threads acquire locks in different orders.
+        // Solution: Removed m_statementsMutex entirely. m_globalFileMutex already
+        // protects ALL access to the sqlite3* connection state, including
+        // m_activeStatements, making the second mutex redundant.
+        SQLITE_CONNECTION_LOCK_OR_RETURN("SC4B8YEQV0UV", "Cannot close statements");
+
+        // 2026-02-15T00:00:00Z
+        // Bug: Iterating m_activeStatements directly while stmt->close() calls
+        // unregisterStatement() invalidates the active iterator, causing skipped
+        // entries or undefined behavior during cleanup.
+        // Solution: Copy weak_ptr entries to a temporary vector, clear the registry,
+        // and close statements from the temporary list.
+        std::vector<std::weak_ptr<SQLiteDBPreparedStatement>> statementsToClose;
+        statementsToClose.reserve(m_activeStatements.size());
+        for (const auto &weak_stmt : m_activeStatements)
+        {
+            statementsToClose.push_back(weak_stmt);
+        }
+        m_activeStatements.clear();
+
+        // Now close all statements without holding the registry lock
+        for (auto &weak_stmt : statementsToClose)
+        {
+            auto stmt = weak_stmt.lock();
+            if (stmt)
+            {
+                // Close the statement (sqlite3_finalize) while we have exclusive access
+                auto result = stmt->close(std::nothrow);
+                if (!result.has_value())
+                {
+                    // Log the error but don't throw - connection is already closing
+                    SQLITE_DEBUG("Failed to close prepared statement: %s", result.error().what_s().data());
+                }
+            }
+        }
+
+        // Safety net: Explicitly finalize any remaining SQLite statements
+        // This catches leaked statements or those not tracked in m_activeStatements
+        // NOTE: We already hold m_globalFileMutex from the beginning of this function
+        sqlite3_stmt *stmt;
+        while ((stmt = sqlite3_next_stmt(m_conn.get(), nullptr)) != nullptr)
+        {
+            int result = sqlite3_finalize(stmt);
+            if (result != SQLITE_OK)
+            {
+                SQLITE_DEBUG("1M2N3O4P5Q6R: Error finalizing leaked SQLite statement: %s",
+                             sqlite3_errstr(result));
+            }
+        }
+        return {};
+    }
+
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::registerResultSet(std::nothrow_t, std::weak_ptr<SQLiteDBResultSet> rs) noexcept
+    {
+        // 2026-02-15T00:00:00Z
+        // Bug: closeAllResultSets() used m_globalFileMutex while registerResultSet()/
+        // unregisterResultSet() used m_resultSetsMutex, creating a data race (same
+        // data protected by different mutexes in different contexts).
+        // Solution: Changed from m_resultSetsMutex to m_globalFileMutex so ALL access
+        // to m_activeResultSets is consistently protected by the file-level lock.
+        SQLITE_CONNECTION_LOCK_OR_RETURN("4YYPPGK3MX58", "Cannot register result set");
+        if (m_activeResultSets.size() > 50)
+        {
+            std::erase_if(m_activeResultSets,
+                          [](const auto &w)
+                          {
+                              return w.expired();
+                          });
+        }
+        m_activeResultSets.insert(rs);
+        return {};
+    }
+
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::unregisterResultSet(std::nothrow_t, std::weak_ptr<SQLiteDBResultSet> rs) noexcept
+    {
+        // 2026-02-15T00:00:00Z
+        // Bug: unregisterResultSet() used m_resultSetsMutex while closeAllResultSets()
+        // used m_globalFileMutex, creating a data race on m_activeResultSets.
+        // Solution: Changed to m_globalFileMutex for consistency with all other
+        // m_activeResultSets access paths.
+        SQLITE_CONNECTION_LOCK_OR_RETURN("238KFPCDSBRF", "Cannot unregister result set");
+        // Remove expired weak_ptrs and the specified one
+        for (auto it = m_activeResultSets.begin(); it != m_activeResultSets.end();)
+        {
+            auto locked = it->lock();
+            auto rsLocked = rs.lock();
+            if (!locked || (rsLocked && locked.get() == rsLocked.get()))
+            {
+                it = m_activeResultSets.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+        return {};
+    }
+
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::closeAllResultSets(std::nothrow_t) noexcept
+    {
+        // 2026-02-15T00:00:00Z
+        // Bug: This method acquired both m_globalFileMutex and then m_resultSetsMutex
+        // (nested lock), causing Helgrind LockOrder violations. Other code paths
+        // (e.g., pool::returnConnection) acquire locks in a different order:
+        //   pool mutex -> m_globalFileMutex -> m_resultSetsMutex
+        // PreparedStatement destructors also call closeAllResultSets() in a different
+        // lock context, creating potential deadlock scenarios.
+        // Solution: Removed m_resultSetsMutex entirely. m_globalFileMutex already
+        // protects ALL access to the sqlite3* connection state, including
+        // m_activeResultSets, making the second mutex redundant.
+        SQLITE_CONNECTION_LOCK_OR_RETURN("227RAX807NHS", "Cannot close result sets");
+
+        // 2026-02-15T00:00:00Z
+        // Bug: Iterating m_activeResultSets directly while rs->close() calls
+        // unregisterResultSet() invalidates the active iterator, causing skipped
+        // entries or undefined behavior during cleanup.
+        // Solution: Copy weak_ptr entries to a temporary vector, clear the registry,
+        // and close result sets from the temporary list.
+        std::vector<std::weak_ptr<SQLiteDBResultSet>> resultSetsToClose;
+        resultSetsToClose.reserve(m_activeResultSets.size());
+        for (const auto &weak_rs : m_activeResultSets)
+        {
+            resultSetsToClose.push_back(weak_rs);
+        }
+        m_activeResultSets.clear();
+
+        // Now close all result sets without holding the registry lock
+        for (auto &weak_rs : resultSetsToClose)
+        {
+            auto rs = weak_rs.lock();
+            if (rs)
+            {
+                // Use nothrow close — we are in a noexcept method
+                [[maybe_unused]] auto closeResult = rs->close(std::nothrow);
+            }
+        }
+        return {};
+    }
+
     // ── Public nothrow constructor (PrivateCtorTag) ───────────────────────────────
     // sqlite3_open_v2, sqlite3_exec (for PRAGMAs) are C APIs that never throw C++
     // exceptions. The only possible C++ throws come from std::string/std::ifstream
@@ -152,186 +346,6 @@ namespace cpp_dbc::SQLite
         }
 
         SQLITE_DEBUG("Connection created successfully");
-    }
-
-    // ── Private helpers ───────────────────────────────────────────────────────────
-
-    cpp_dbc::expected<void, DBException> SQLiteDBConnection::registerStatement(std::nothrow_t, std::weak_ptr<SQLiteDBPreparedStatement> stmt) noexcept
-    {
-        // 2026-02-15T00:00:00Z
-        // Bug: closeAllStatements() used m_globalFileMutex while registerStatement()/
-        // unregisterStatement() used m_statementsMutex, creating a data race (same
-        // data protected by different mutexes in different contexts).
-        // Solution: Changed from m_statementsMutex to m_globalFileMutex so ALL access
-        // to m_activeStatements is consistently protected by the file-level lock.
-        SQLITE_CONNECTION_LOCK_OR_RETURN("3N95KEM5ON6S", "Cannot register statement");
-        if (m_activeStatements.size() > 50)
-        {
-            std::erase_if(m_activeStatements, [](const auto &w) { return w.expired(); });
-        }
-        m_activeStatements.insert(stmt);
-        return {};
-    }
-
-    cpp_dbc::expected<void, DBException> SQLiteDBConnection::unregisterStatement(std::nothrow_t, std::weak_ptr<SQLiteDBPreparedStatement> stmt) noexcept
-    {
-        // 2026-02-15T00:00:00Z
-        // Bug: unregisterStatement() used m_statementsMutex while closeAllStatements()
-        // used m_globalFileMutex, creating a data race on m_activeStatements.
-        // Solution: Changed to m_globalFileMutex for consistency with all other
-        // m_activeStatements access paths.
-        SQLITE_CONNECTION_LOCK_OR_RETURN("610ERYQ21GDY", "Cannot unregister statement");
-        // Remove expired weak_ptrs and the specified one
-        for (auto it = m_activeStatements.begin(); it != m_activeStatements.end();)
-        {
-            auto locked = it->lock();
-            auto stmtLocked = stmt.lock();
-            if (!locked || (stmtLocked && locked.get() == stmtLocked.get()))
-            {
-                it = m_activeStatements.erase(it);
-            }
-            else
-            {
-                ++it;
-            }
-        }
-        return {};
-    }
-
-    cpp_dbc::expected<void, DBException> SQLiteDBConnection::closeAllStatements(std::nothrow_t) noexcept
-    {
-        // 2026-02-15T00:00:00Z
-        // Bug: This method acquired both m_globalFileMutex and then m_statementsMutex
-        // (nested lock), causing Helgrind LockOrder violations. Other code paths
-        // (e.g., pool::returnConnection) acquire locks in a different order:
-        //   pool mutex -> m_globalFileMutex -> m_statementsMutex
-        // creating potential deadlock if threads acquire locks in different orders.
-        // Solution: Removed m_statementsMutex entirely. m_globalFileMutex already
-        // protects ALL access to the sqlite3* connection state, including
-        // m_activeStatements, making the second mutex redundant.
-        SQLITE_CONNECTION_LOCK_OR_RETURN("SC4B8YEQV0UV", "Cannot close statements");
-
-        // CRITICAL: Copy weak_ptrs to temporary vector to avoid iterator invalidation.
-        // When we call stmt->close(), it may call unregisterStatement() which modifies
-        // m_activeStatements, invalidating iterators if we iterate directly.
-        std::vector<std::weak_ptr<SQLiteDBPreparedStatement>> statementsToClose;
-        statementsToClose.reserve(m_activeStatements.size());
-        for (const auto &weak_stmt : m_activeStatements)
-        {
-            statementsToClose.push_back(weak_stmt);
-        }
-        m_activeStatements.clear();
-
-        // Now close all statements without holding the registry lock
-        for (auto &weak_stmt : statementsToClose)
-        {
-            auto stmt = weak_stmt.lock();
-            if (stmt)
-            {
-                // Close the statement (sqlite3_finalize) while we have exclusive access
-                auto result = stmt->close(std::nothrow);
-                if (!result.has_value())
-                {
-                    // Log the error but don't throw - connection is already closing
-                    SQLITE_DEBUG("Failed to close prepared statement: %s", result.error().what_s().data());
-                }
-            }
-        }
-
-        // Safety net: Explicitly finalize any remaining SQLite statements
-        // This catches leaked statements or those not tracked in m_activeStatements
-        // NOTE: We already hold m_globalFileMutex from the beginning of this function
-        sqlite3_stmt *stmt;
-        while ((stmt = sqlite3_next_stmt(m_conn.get(), nullptr)) != nullptr)
-        {
-            int result = sqlite3_finalize(stmt);
-            if (result != SQLITE_OK)
-            {
-                SQLITE_DEBUG("1M2N3O4P5Q6R: Error finalizing leaked SQLite statement: %s",
-                             sqlite3_errstr(result));
-            }
-        }
-        return {};
-    }
-
-    cpp_dbc::expected<void, DBException> SQLiteDBConnection::registerResultSet(std::nothrow_t, std::weak_ptr<SQLiteDBResultSet> rs) noexcept
-    {
-        // 2026-02-15T00:00:00Z
-        // Bug: closeAllResultSets() used m_globalFileMutex while registerResultSet()/
-        // unregisterResultSet() used m_resultSetsMutex, creating a data race (same
-        // data protected by different mutexes in different contexts).
-        // Solution: Changed from m_resultSetsMutex to m_globalFileMutex so ALL access
-        // to m_activeResultSets is consistently protected by the file-level lock.
-        SQLITE_CONNECTION_LOCK_OR_RETURN("4YYPPGK3MX58", "Cannot register result set");
-        if (m_activeResultSets.size() > 50)
-        {
-            std::erase_if(m_activeResultSets, [](const auto &w) { return w.expired(); });
-        }
-        m_activeResultSets.insert(rs);
-        return {};
-    }
-
-    cpp_dbc::expected<void, DBException> SQLiteDBConnection::unregisterResultSet(std::nothrow_t, std::weak_ptr<SQLiteDBResultSet> rs) noexcept
-    {
-        // 2026-02-15T00:00:00Z
-        // Bug: unregisterResultSet() used m_resultSetsMutex while closeAllResultSets()
-        // used m_globalFileMutex, creating a data race on m_activeResultSets.
-        // Solution: Changed to m_globalFileMutex for consistency with all other
-        // m_activeResultSets access paths.
-        SQLITE_CONNECTION_LOCK_OR_RETURN("238KFPCDSBRF", "Cannot unregister result set");
-        // Remove expired weak_ptrs and the specified one
-        for (auto it = m_activeResultSets.begin(); it != m_activeResultSets.end();)
-        {
-            auto locked = it->lock();
-            auto rsLocked = rs.lock();
-            if (!locked || (rsLocked && locked.get() == rsLocked.get()))
-            {
-                it = m_activeResultSets.erase(it);
-            }
-            else
-            {
-                ++it;
-            }
-        }
-        return {};
-    }
-
-    cpp_dbc::expected<void, DBException> SQLiteDBConnection::closeAllResultSets(std::nothrow_t) noexcept
-    {
-        // 2026-02-15T00:00:00Z
-        // Bug: This method acquired both m_globalFileMutex and then m_resultSetsMutex
-        // (nested lock), causing Helgrind LockOrder violations. Other code paths
-        // (e.g., pool::returnConnection) acquire locks in a different order:
-        //   pool mutex -> m_globalFileMutex -> m_resultSetsMutex
-        // PreparedStatement destructors also call closeAllResultSets() in a different
-        // lock context, creating potential deadlock scenarios.
-        // Solution: Removed m_resultSetsMutex entirely. m_globalFileMutex already
-        // protects ALL access to the sqlite3* connection state, including
-        // m_activeResultSets, making the second mutex redundant.
-        SQLITE_CONNECTION_LOCK_OR_RETURN("227RAX807NHS", "Cannot close result sets");
-
-        // CRITICAL: Copy weak_ptrs to temporary vector to avoid iterator invalidation.
-        // When we call rs->close(), it calls unregisterResultSet() which modifies
-        // m_activeResultSets, invalidating iterators if we iterate directly.
-        std::vector<std::weak_ptr<SQLiteDBResultSet>> resultSetsToClose;
-        resultSetsToClose.reserve(m_activeResultSets.size());
-        for (const auto &weak_rs : m_activeResultSets)
-        {
-            resultSetsToClose.push_back(weak_rs);
-        }
-        m_activeResultSets.clear();
-
-        // Now close all result sets without holding the registry lock
-        for (auto &weak_rs : resultSetsToClose)
-        {
-            auto rs = weak_rs.lock();
-            if (rs)
-            {
-                // Use nothrow close — we are in a noexcept method
-                [[maybe_unused]] auto closeResult = rs->close(std::nothrow);
-            }
-        }
-        return {};
     }
 
     // ── Destructor ────────────────────────────────────────────────────────────────

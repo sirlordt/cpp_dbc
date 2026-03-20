@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file connection_03.cpp
- @brief MySQL database driver implementation - MySQLDBConnection nothrow methods (part 2 - transactions)
+ @brief MySQL database driver implementation - MySQLDBConnection protected overrides and nothrow methods (part 2 - transactions and server info)
 
 */
 
@@ -33,6 +33,10 @@
 
 namespace cpp_dbc::MySQL
 {
+
+    // ============================================================================
+    // Protected overrides — pool lifecycle
+    // ============================================================================
 
     cpp_dbc::expected<void, DBException> MySQLDBConnection::prepareForPoolReturn(
         std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept
@@ -71,122 +75,9 @@ namespace cpp_dbc::MySQL
         return {};
     }
 
-    cpp_dbc::expected<void, DBException> MySQLDBConnection::close(std::nothrow_t) noexcept
-    {
-        MYSQL_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
-
-        // Close all active result sets and statements before closing the connection
-        // This ensures mysql_stmt_close() is called while we have exclusive access
-        [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
-        [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
-
-        // 2026-03-07T00:00:00Z
-        // Bug: Destroying the MYSQL handle immediately after closing all statements and result
-        // sets can race with in-flight MySQL C API calls on other threads that still reference
-        // the handle, causing use-after-free crashes.
-        // Solution: A 25ms delay gives in-flight operations time to complete before the handle
-        // is destroyed. This is a pragmatic workaround pending a refcount-based solution.
-        std::this_thread::sleep_for(std::chrono::milliseconds(25));
-
-        m_conn.reset();
-        m_closed.store(true, std::memory_order_seq_cst);
-
-        // Remove this connection from the driver's registry.
-        // m_self holds a weak_ptr with the same control block as the original shared_ptr,
-        // so owner_less comparison works correctly even if the shared_ptr refcount is 0.
-        // Safe against double-unregister: MYSQL_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED
-        // above returns early if already closed, so this executes exactly once.
-        MySQLDBDriver::unregisterConnection(std::nothrow, m_self);
-
-        return {};
-    }
-
-    cpp_dbc::expected<void, DBException> MySQLDBConnection::reset(std::nothrow_t) noexcept
-    {
-        MYSQL_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
-
-        // RAII guard to set m_resetting flag during reset operation
-        // This prevents ResultSet/PreparedStatement from calling unregister during closeAll*()
-        cpp_dbc::system_utils::AtomicGuard resettingGuard(m_resetting, true, false);
-
-        // Close all active result sets and statements
-        auto closeRsResult = closeAllResultSets(std::nothrow);
-        if (!closeRsResult.has_value())
-        {
-            MYSQL_DEBUG("  reset: closeAllResultSets failed: %s", closeRsResult.error().what_s().data());
-        }
-        auto closeStmtsResult = closeAllStatements(std::nothrow);
-        if (!closeStmtsResult.has_value())
-        {
-            MYSQL_DEBUG("  reset: closeAllStatements failed: %s", closeStmtsResult.error().what_s().data());
-        }
-
-        // Rollback any active transaction
-        auto txActive = transactionActive(std::nothrow);
-        if (txActive.has_value() && txActive.value())
-        {
-            auto rbResult = rollback(std::nothrow);
-            if (!rbResult.has_value())
-            {
-                MYSQL_DEBUG("  reset: rollback failed: %s", rbResult.error().what_s().data());
-            }
-        }
-
-        // Reset auto-commit to true
-        auto acResult = setAutoCommit(std::nothrow, true);
-        if (!acResult.has_value())
-        {
-            MYSQL_DEBUG("  reset: setAutoCommit failed: %s", acResult.error().what_s().data());
-        }
-
-        return {};
-    }
-
-    cpp_dbc::expected<bool, DBException> MySQLDBConnection::isClosed(std::nothrow_t) const noexcept
-    {
-        return m_closed.load(std::memory_order_seq_cst);
-    }
-
-    cpp_dbc::expected<void, DBException> MySQLDBConnection::returnToPool(std::nothrow_t) noexcept
-    {
-        // CRITICAL: Close all active result sets and statements BEFORE making connection available
-        // closeAllStatements() acquires m_connMutex internally
-        auto closeRsResult = closeAllResultSets(std::nothrow);
-        if (!closeRsResult.has_value())
-        {
-            MYSQL_DEBUG("  returnToPool: closeAllResultSets failed: %s", closeRsResult.error().what_s().data());
-        }
-        auto closeStmtsResult = closeAllStatements(std::nothrow);
-        if (!closeStmtsResult.has_value())
-        {
-            MYSQL_DEBUG("  returnToPool: closeAllStatements failed: %s", closeStmtsResult.error().what_s().data());
-        }
-
-        // Restore autocommit for the next user of this connection
-        if (!m_autoCommit)
-        {
-            auto acResult = setAutoCommit(std::nothrow, true);
-            if (!acResult.has_value())
-            {
-                MYSQL_DEBUG("  returnToPool: setAutoCommit failed: %s", acResult.error().what_s().data());
-            }
-        }
-
-        return {};
-    }
-
-    cpp_dbc::expected<bool, DBException> MySQLDBConnection::isPooled(std::nothrow_t) const noexcept
-    {
-        return false;
-    }
-
-    // No try/catch: the only possible throw is std::bad_alloc from the
-    // std::string copy, which is a death-sentence exception — no meaningful
-    // recovery is possible, so std::terminate is the correct response.
-    cpp_dbc::expected<std::string, DBException> MySQLDBConnection::getURI(std::nothrow_t) const noexcept
-    {
-        return m_uri;
-    }
+    // ============================================================================
+    // Nothrow API — part 2: transaction isolation and server info
+    // ============================================================================
 
     cpp_dbc::expected<void, DBException> MySQLDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
     {

@@ -112,6 +112,8 @@ namespace cpp_dbc::MySQL
 
         MySQLBlob(const MySQLBlob &) = delete;
         MySQLBlob &operator=(const MySQLBlob &) = delete;
+        MySQLBlob(MySQLBlob &&) = delete;
+        MySQLBlob &operator=(MySQLBlob &&) = delete;
 
         // ====================================================================
         // THROWING API - Exception-based (requires __cpp_exceptions)

@@ -160,6 +160,16 @@ namespace cpp_dbc::SQLite
                 return;
             }
 
+            // THIRD CHECK: Verify parent connection is still open
+            // The connection object may still exist (weak_ptr succeeded) but be explicitly
+            // closed (m_closed == true or m_conn == null). Reject operations in this case.
+            if (m_conn->m_closed.load(std::memory_order_seq_cst) || !m_conn->m_conn)
+            {
+                closed.store(true, std::memory_order_seq_cst);
+                m_acquired = false;
+                return;
+            }
+
             m_acquired = true;
         }
 

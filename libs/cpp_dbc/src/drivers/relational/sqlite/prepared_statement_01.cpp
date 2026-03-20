@@ -37,48 +37,6 @@
 namespace cpp_dbc::SQLite
 {
 
-    // ── Public nothrow constructor (PrivateCtorTag) ───────────────────────────────
-    // sqlite3_prepare_v2 is a C API that never throws C++ exceptions.
-    // No recoverable exceptions → no try/catch needed.
-    SQLiteDBPreparedStatement::SQLiteDBPreparedStatement(
-        SQLiteDBPreparedStatement::PrivateCtorTag,
-        std::nothrow_t,
-        std::weak_ptr<sqlite3> db,
-        std::weak_ptr<SQLiteDBConnection> conn,
-        const std::string &sql) noexcept
-        : m_conn(std::move(db)), m_connection(std::move(conn)), m_sql(sql)
-    {
-        auto dbResult = getSQLiteConnection(std::nothrow);
-        if (!dbResult.has_value())
-        {
-            m_initFailed = true;
-            m_initError = std::make_unique<DBException>(std::move(dbResult.error()));
-            return;
-        }
-        sqlite3 *dbPtr = dbResult.value();
-
-        sqlite3_stmt *rawStmt = nullptr;
-        int result = sqlite3_prepare_v2(dbPtr, m_sql.c_str(), -1, &rawStmt, nullptr);
-        if (result != SQLITE_OK)
-        {
-            m_initFailed = true;
-            m_initError = std::make_unique<DBException>("U0A1B2C3D4E5",
-                "Failed to prepare SQLite statement: " + std::string(sqlite3_errmsg(dbPtr)),
-                system_utils::captureCallStack());
-            return;
-        }
-
-        // Transfer ownership to smart pointer
-        m_stmt.reset(rawStmt);
-        m_closed.store(false, std::memory_order_seq_cst);
-
-        // Initialize BLOB-related vectors
-        int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
-        m_blobValues.resize(paramCount);
-        m_blobObjects.resize(paramCount);
-        m_streamObjects.resize(paramCount);
-    }
-
     // ── Private helpers ───────────────────────────────────────────────────────────
 
     void SQLiteDBPreparedStatement::notifyConnClosing(std::nothrow_t) noexcept
@@ -110,7 +68,11 @@ namespace cpp_dbc::SQLite
         SQLITE_STMT_LOCK_OR_RETURN("AWVN6T7OBL1H", "Cannot register result set");
         if (m_activeResultSets.size() > 20)  // Smaller threshold than Connection
         {
-            std::erase_if(m_activeResultSets, [](const auto &w) { return w.expired(); });
+            std::erase_if(m_activeResultSets,
+                          [](const auto &w)
+                          {
+                              return w.expired();
+                          });
         }
         m_activeResultSets.insert(rs);
         return {};
@@ -156,9 +118,12 @@ namespace cpp_dbc::SQLite
         // redundant. Broader lock scope but eliminates potential deadlocks.
         SQLITE_STMT_LOCK_OR_RETURN("19GTGW7K56I0", "Cannot close result sets");
 
-        // CRITICAL: Copy weak_ptrs to temporary vector to avoid iterator invalidation.
-        // When we call rs->close(), it calls unregisterResultSet() which modifies
-        // m_activeResultSets, invalidating iterators if we iterate directly.
+        // 2026-02-15T00:00:00Z
+        // Bug: Iterating m_activeResultSets directly while rs->close() calls
+        // unregisterResultSet() invalidates the active iterator, causing skipped
+        // entries or undefined behavior during cleanup.
+        // Solution: Copy weak_ptr entries to a temporary vector, clear the registry,
+        // and close result sets from the temporary list.
         std::vector<std::weak_ptr<SQLiteDBResultSet>> resultSetsToClose;
         resultSetsToClose.reserve(m_activeResultSets.size());
         for (const auto &weak_rs : m_activeResultSets)
@@ -178,6 +143,48 @@ namespace cpp_dbc::SQLite
             }
         }
         return {};
+    }
+
+    // ── Public nothrow constructor (PrivateCtorTag) ───────────────────────────────
+    // sqlite3_prepare_v2 is a C API that never throws C++ exceptions.
+    // No recoverable exceptions → no try/catch needed.
+    SQLiteDBPreparedStatement::SQLiteDBPreparedStatement(
+        SQLiteDBPreparedStatement::PrivateCtorTag,
+        std::nothrow_t,
+        std::weak_ptr<sqlite3> db,
+        std::weak_ptr<SQLiteDBConnection> conn,
+        const std::string &sql) noexcept
+        : m_conn(std::move(db)), m_connection(std::move(conn)), m_sql(sql)
+    {
+        auto dbResult = getSQLiteConnection(std::nothrow);
+        if (!dbResult.has_value())
+        {
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>(std::move(dbResult.error()));
+            return;
+        }
+        sqlite3 *dbPtr = dbResult.value();
+
+        sqlite3_stmt *rawStmt = nullptr;
+        int result = sqlite3_prepare_v2(dbPtr, m_sql.c_str(), -1, &rawStmt, nullptr);
+        if (result != SQLITE_OK)
+        {
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>("U0A1B2C3D4E5",
+                "Failed to prepare SQLite statement: " + std::string(sqlite3_errmsg(dbPtr)),
+                system_utils::captureCallStack());
+            return;
+        }
+
+        // Transfer ownership to smart pointer
+        m_stmt.reset(rawStmt);
+        m_closed.store(false, std::memory_order_seq_cst);
+
+        // Initialize BLOB-related vectors
+        int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
+        m_blobValues.resize(paramCount);
+        m_blobObjects.resize(paramCount);
+        m_streamObjects.resize(paramCount);
     }
 
     // ── Destructor ────────────────────────────────────────────────────────────────

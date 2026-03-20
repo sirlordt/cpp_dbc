@@ -109,7 +109,10 @@ namespace cpp_dbc::Firebird
         /**
          * @brief Get raw statement handle pointer for Firebird API calls
          */
-        [[nodiscard]] isc_stmt_handle *getStmtPtr(std::nothrow_t) const noexcept { return m_stmt.get(); }
+        [[nodiscard]] isc_stmt_handle *getStmtPtr(std::nothrow_t) const noexcept
+        {
+            return m_stmt.get();
+        }
 
         /**
          * @brief Notify this ResultSet that the connection is closing

@@ -276,6 +276,46 @@ namespace cpp_dbc::system_utils
     }
 
     /**
+     * @brief Build a Firebird native connection string for isc_attach_database / isc_create_database.
+     *
+     * The Firebird C API uses the format `host[/port]:database` for remote connections
+     * and just `database` for local/embedded connections.
+     *
+     * ```cpp
+     * auto s = buildFirebirdConnStr("server1", 3050, "/opt/db.fdb");
+     * // s = "server1:/opt/db.fdb"  (default port omitted)
+     *
+     * auto s2 = buildFirebirdConnStr("server1", 3051, "/opt/db.fdb");
+     * // s2 = "server1/3051:/opt/db.fdb"
+     *
+     * auto s3 = buildFirebirdConnStr("", 0, "/opt/db.fdb");
+     * // s3 = "/opt/db.fdb"  (local/embedded)
+     * ```
+     *
+     * @param host Host name or IP; empty or "localhost"/"127.0.0.1" for local connection
+     * @param port Port number; 3050 and 0 are treated as default (omitted)
+     * @param database Database file path
+     * @return The native connection string
+     */
+    inline std::string buildFirebirdConnStr(std::string_view host,
+                                            int port,
+                                            std::string_view database) noexcept
+    {
+        std::string result;
+        if (!host.empty() && host != "localhost" && host != "127.0.0.1")
+        {
+            result += host;
+            if (port != 3050 && port != 0)
+            {
+                result += "/" + std::to_string(port);
+            }
+            result += ":";
+        }
+        result += database;
+        return result;
+    }
+
+    /**
      * @brief Percent-encode a URI component per RFC 3986
      *
      * Encodes every character that is NOT an unreserved character

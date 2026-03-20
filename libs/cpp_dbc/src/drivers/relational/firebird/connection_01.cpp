@@ -55,130 +55,101 @@ namespace cpp_dbc::Firebird
           m_connMutex(std::make_shared<std::recursive_mutex>())
 #endif
     {
-        try
+        FIREBIRD_DEBUG("FirebirdConnection::constructor - Starting");
+        FIREBIRD_DEBUG("  host: %s", host.c_str());
+        FIREBIRD_DEBUG("  port: %d", port);
+        FIREBIRD_DEBUG("  database: %s", database.c_str());
+        FIREBIRD_DEBUG("  user: %s", user.c_str());
+
+        ISC_STATUS_ARRAY status;
+
+        // Build connection string using centralized helper
+        std::string connStr = system_utils::buildFirebirdConnStr(host, port, database);
+        FIREBIRD_DEBUG("  Connection string: %s", connStr.c_str());
+
+        // Build DPB (Database Parameter Block)
+        std::vector<char> dpb;
+        dpb.push_back(isc_dpb_version1);
+
+        // Add user name
+        dpb.push_back(isc_dpb_user_name);
+        dpb.push_back(static_cast<char>(user.length()));
+        dpb.insert(dpb.end(), user.begin(), user.end());
+
+        // Add password
+        dpb.push_back(isc_dpb_password);
+        dpb.push_back(static_cast<char>(password.length()));
+        dpb.insert(dpb.end(), password.begin(), password.end());
+
+        // Add character set (default to UTF8)
+        std::string charset = "UTF8";
+        auto it = options.find("charset");
+        if (it != options.end())
         {
-            FIREBIRD_DEBUG("FirebirdConnection::constructor - Starting");
-            FIREBIRD_DEBUG("  host: %s", host.c_str());
-            FIREBIRD_DEBUG("  port: %d", port);
-            FIREBIRD_DEBUG("  database: %s", database.c_str());
-            FIREBIRD_DEBUG("  user: %s", user.c_str());
+            charset = it->second;
+        }
+        dpb.push_back(isc_dpb_lc_ctype);
+        dpb.push_back(static_cast<char>(charset.length()));
+        dpb.insert(dpb.end(), charset.begin(), charset.end());
 
-            ISC_STATUS_ARRAY status;
+        // Add role (optional, e.g. RDB$ADMIN)
+        auto roleIt = options.find("role");
+        if (roleIt != options.end() && !roleIt->second.empty())
+        {
+            const std::string &role = roleIt->second;
+            dpb.push_back(isc_dpb_sql_role_name);
+            dpb.push_back(static_cast<char>(role.length()));
+            dpb.insert(dpb.end(), role.begin(), role.end());
+        }
 
-            // Build connection string
-            std::string connStr;
-            if (!host.empty() && host != "localhost" && host != "127.0.0.1")
+        // Allocate database handle
+        isc_db_handle *dbHandle = new isc_db_handle(0);
+        FIREBIRD_DEBUG("  Attaching to database...");
+
+        // Attach to database
+        if (isc_attach_database(status, 0, connStr.c_str(), dbHandle,
+                                static_cast<short>(dpb.size()), dpb.data()))
+        {
+            std::string errorMsg = interpretStatusVector(status);
+            FIREBIRD_DEBUG("  Failed to attach: %s", errorMsg.c_str());
+            delete dbHandle;
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>("FB7A8B9C0D1E", "Failed to connect to database: " + errorMsg,
+                                                        system_utils::captureCallStack());
+            return;
+        }
+        FIREBIRD_DEBUG("  Attached successfully, dbHandle=%p, *dbHandle=%p", (void *)dbHandle, (void *)(uintptr_t)*dbHandle);
+
+        // Create shared_ptr with custom deleter
+        m_conn = std::shared_ptr<isc_db_handle>(dbHandle, FirebirdDbDeleter{});
+
+        // Cache URI — database may start with '/' (prepended by parseURI for remote connections).
+        // Strip leading '/' from database before passing to buildDBURI, which adds its own separator.
+        std::string_view dbView = database;
+        if (!dbView.empty() && dbView.front() == '/')
+        {
+            dbView.remove_prefix(1);
+        }
+        m_uri = system_utils::buildDBURI("cpp_dbc:firebird://", host, port, dbView);
+
+        m_closed.store(false, std::memory_order_seq_cst);
+
+        // Start initial transaction if autocommit is enabled
+        FIREBIRD_DEBUG("  m_autoCommit: %s", (m_autoCommit ? "true" : "false"));
+        if (m_autoCommit)
+        {
+            FIREBIRD_DEBUG("  Starting initial transaction...");
+            auto txResult = startTransaction(std::nothrow);
+            if (!txResult.has_value())
             {
-                connStr = host;
-                if (port != 3050 && port != 0)
-                {
-                    connStr += "/" + std::to_string(port);
-                }
-                connStr += ":";
-            }
-            connStr += database;
-            FIREBIRD_DEBUG("  Connection string: %s", connStr.c_str());
-
-            // Build DPB (Database Parameter Block)
-            std::vector<char> dpb;
-            dpb.push_back(isc_dpb_version1);
-
-            // Add user name
-            dpb.push_back(isc_dpb_user_name);
-            dpb.push_back(static_cast<char>(user.length()));
-            dpb.insert(dpb.end(), user.begin(), user.end());
-
-            // Add password
-            dpb.push_back(isc_dpb_password);
-            dpb.push_back(static_cast<char>(password.length()));
-            dpb.insert(dpb.end(), password.begin(), password.end());
-
-            // Add character set (default to UTF8)
-            std::string charset = "UTF8";
-            auto it = options.find("charset");
-            if (it != options.end())
-            {
-                charset = it->second;
-            }
-            dpb.push_back(isc_dpb_lc_ctype);
-            dpb.push_back(static_cast<char>(charset.length()));
-            dpb.insert(dpb.end(), charset.begin(), charset.end());
-
-            // Add role (optional, e.g. RDB$ADMIN)
-            auto roleIt = options.find("role");
-            if (roleIt != options.end() && !roleIt->second.empty())
-            {
-                const std::string &role = roleIt->second;
-                dpb.push_back(isc_dpb_sql_role_name);
-                dpb.push_back(static_cast<char>(role.length()));
-                dpb.insert(dpb.end(), role.begin(), role.end());
-            }
-
-            // Allocate database handle
-            isc_db_handle *dbHandle = new isc_db_handle(0);
-            FIREBIRD_DEBUG("  Attaching to database...");
-
-            // Attach to database
-            if (isc_attach_database(status, 0, connStr.c_str(), dbHandle,
-                                    static_cast<short>(dpb.size()), dpb.data()))
-            {
-                std::string errorMsg = interpretStatusVector(status);
-                FIREBIRD_DEBUG("  Failed to attach: %s", errorMsg.c_str());
-                delete dbHandle;
+                // Clean up the database handle before reporting failure
+                m_conn.reset();
                 m_initFailed = true;
-                m_initError = std::make_unique<DBException>("FB7A8B9C0D1E", "Failed to connect to database: " + errorMsg,
-                                                            system_utils::captureCallStack());
+                m_initError = std::make_unique<DBException>(txResult.error());
                 return;
             }
-            FIREBIRD_DEBUG("  Attached successfully, dbHandle=%p, *dbHandle=%p", (void *)dbHandle, (void *)(uintptr_t)*dbHandle);
-
-            // Create shared_ptr with custom deleter
-            m_conn = std::shared_ptr<isc_db_handle>(dbHandle, FirebirdDbDeleter{});
-
-            // Cache URI — database may start with '/' (prepended by parseURI for remote connections).
-            // Strip leading '/' from database before passing to buildDBURI, which adds its own separator.
-            std::string_view dbView = database;
-            if (!dbView.empty() && dbView.front() == '/')
-            {
-                dbView.remove_prefix(1);
-            }
-            m_uri = system_utils::buildDBURI("cpp_dbc:firebird://", host, port, dbView);
-
-            m_closed.store(false, std::memory_order_seq_cst);
-
-            // Start initial transaction if autocommit is enabled
-            FIREBIRD_DEBUG("  m_autoCommit: %s", (m_autoCommit ? "true" : "false"));
-            if (m_autoCommit)
-            {
-                FIREBIRD_DEBUG("  Starting initial transaction...");
-                auto txResult = startTransaction(std::nothrow);
-                if (!txResult.has_value())
-                {
-                    // Clean up the database handle before reporting failure
-                    m_conn.reset();
-                    m_initFailed = true;
-                    m_initError = std::make_unique<DBException>(txResult.error());
-                    return;
-                }
-            }
-            FIREBIRD_DEBUG("FirebirdConnection::constructor - Done");
         }
-        catch (const DBException &ex)
-        {
-            m_initFailed = true;
-            m_initError = std::make_unique<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            m_initFailed = true;
-            m_initError = std::make_unique<DBException>("NXZ242YS9FRK", ex.what(), system_utils::captureCallStack());
-        }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
-        {
-            m_initFailed = true;
-            m_initError = std::make_unique<DBException>("J24BZGLBC24P", "Unknown error in FirebirdDBConnection constructor",
-                                                        system_utils::captureCallStack());
-        }
+        FIREBIRD_DEBUG("FirebirdConnection::constructor - Done");
     }
 
     // ============================================================================
@@ -191,8 +162,11 @@ namespace cpp_dbc::Firebird
         FIREBIRD_CONNECTION_LOCK_OR_RETURN("8M8M7HGIZ54V", "Connection closed");
         if (m_activeStatements.size() > 50)
         {
-            std::erase_if(m_activeStatements, [](const auto &w)
-                          { return w.expired(); });
+            std::erase_if(m_activeStatements,
+                          [](const auto &w)
+                          {
+                              return w.expired();
+                          });
         }
         m_activeStatements.insert(stmt);
         return {};
@@ -212,8 +186,11 @@ namespace cpp_dbc::Firebird
         FIREBIRD_CONNECTION_LOCK_OR_RETURN("Y5XZR2IJY743", "Connection closed");
         if (m_activeResultSets.size() > 50)
         {
-            std::erase_if(m_activeResultSets, [](const auto &w)
-                          { return w.expired(); });
+            std::erase_if(m_activeResultSets,
+                          [](const auto &w)
+                          {
+                              return w.expired();
+                          });
         }
         m_activeResultSets.insert(rs);
         return {};

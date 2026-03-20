@@ -126,6 +126,8 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<bool, DBException> MySQLDBResultSet::isNull(std::nothrow_t, const std::string &columnName) noexcept
     {
+        MYSQL_RS_LOCK_OR_RETURN("TG2HBNTJ7EF4", "Result set closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {

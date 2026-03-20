@@ -36,6 +36,32 @@
 namespace cpp_dbc::Firebird
 {
 
+    // ── Nothrow static factory ────────────────────────────────────────────────
+    cpp_dbc::expected<std::shared_ptr<FirebirdDBResultSet>, DBException>
+    FirebirdDBResultSet::create(std::nothrow_t,
+                                FirebirdStmtHandle stmt,
+                                XSQLDAHandle sqlda,
+                                bool ownStatement,
+                                std::shared_ptr<FirebirdDBConnection> conn) noexcept
+    {
+        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+        // Constructor errors are captured in m_initFailed / m_initError.
+        auto ptr = std::make_shared<FirebirdDBResultSet>(
+            PrivateCtorTag{}, std::nothrow, std::move(stmt), std::move(sqlda), ownStatement, conn);
+        if (ptr->m_initFailed)
+        {
+            return cpp_dbc::unexpected(std::move(*ptr->m_initError));
+        }
+        // Must be called after construction (requires shared_ptr to exist for shared_from_this())
+        auto initResult = ptr->initialize(std::nothrow);
+        if (!initResult.has_value())
+        {
+            return cpp_dbc::unexpected(initResult.error());
+        }
+        return ptr;
+    }
+
+    // ── Nothrow public methods ────────────────────────────────────────────────
     cpp_dbc::expected<bool, DBException> FirebirdDBResultSet::next(std::nothrow_t) noexcept
     {
         FIREBIRD_STMT_LOCK_OR_RETURN("ZALQADMF0DBS", "Connection lost");

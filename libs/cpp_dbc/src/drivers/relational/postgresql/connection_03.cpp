@@ -77,43 +77,36 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::close(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
 
-        if (!m_closed.load(std::memory_order_seq_cst) && m_conn)
-        {
-            // Close all active result sets and statements before closing the connection
-            // This ensures deallocation while we have exclusive access
-            [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
-            [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
+        // Close all active result sets and statements before closing the connection
+        // This ensures deallocation while we have exclusive access
+        [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
+        [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
 
-            // 2026-03-19T00:00:00Z
-            // Bug: Immediate teardown after closing statements/result sets races with
-            // concurrent PostgreSQL connection cleanup paths (e.g., pool validation pings),
-            // causing intermittent close-time failures under Helgrind/ThreadSanitizer.
-            // Solution: Brief delay allows in-flight cleanup to finish before the native
-            // PGconn handle is destroyed via m_conn.reset().
-            std::this_thread::sleep_for(std::chrono::milliseconds(25));
+        // 2026-03-19T00:00:00Z
+        // Bug: Immediate teardown after closing statements/result sets races with
+        // concurrent PostgreSQL connection cleanup paths (e.g., pool validation pings),
+        // causing intermittent close-time failures under Helgrind/ThreadSanitizer.
+        // Solution: Brief delay allows in-flight cleanup to finish before the native
+        // PGconn handle is destroyed via m_conn.reset().
+        std::this_thread::sleep_for(std::chrono::milliseconds(25));
 
-            // shared_ptr will automatically call PQfinish via PGconnDeleter
-            m_conn.reset();
-            m_closed.store(true, std::memory_order_seq_cst);
+        // shared_ptr will automatically call PQfinish via PGconnDeleter
+        m_conn.reset();
+        m_closed.store(true, std::memory_order_seq_cst);
 
-            // Unregister from the driver registry so getConnectionAlive() reflects
-            // actual live connections. The owner_less m_self weak_ptr is used for
-            // set lookup — raw 'this' would not match the set's comparator.
-            PostgreSQLDBDriver::unregisterConnection(std::nothrow, m_self);
-        }
+        // Unregister from the driver registry so getConnectionAlive() reflects
+        // actual live connections. The owner_less m_self weak_ptr is used for
+        // set lookup — raw 'this' would not match the set's comparator.
+        PostgreSQLDBDriver::unregisterConnection(std::nothrow, m_self);
+
         return {};
     }
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::reset(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
-        {
-            return {}; // Nothing to reset if already closed
-        }
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
 
         // Close all active result sets and statements
         auto closeRsResult = closeAllResultSets(std::nothrow);

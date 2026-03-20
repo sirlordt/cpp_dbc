@@ -302,7 +302,7 @@ namespace cpp_dbc::Firebird
             auto [p1, ec1] = std::from_chars(ptr, end, year);
             if (ec1 != std::errc{} || p1 == end || *p1 != '-')
             {
-                return cpp_dbc::unexpected(DBException("A1B7C3D9E6F2", "Invalid date format: " + value, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("JVAE5H13UMXP", "Invalid date format: " + value, system_utils::captureCallStack()));
             }
             ptr = p1 + 1;
 
@@ -310,7 +310,7 @@ namespace cpp_dbc::Firebird
             auto [p2, ec2] = std::from_chars(ptr, end, month);
             if (ec2 != std::errc{} || p2 == end || *p2 != '-')
             {
-                return cpp_dbc::unexpected(DBException("A1B7C3D9E6F2", "Invalid date format: " + value, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("IKBPJOA9TWID", "Invalid date format: " + value, system_utils::captureCallStack()));
             }
             ptr = p2 + 1;
 
@@ -318,7 +318,7 @@ namespace cpp_dbc::Firebird
             auto [p3, ec3] = std::from_chars(ptr, end, day);
             if (ec3 != std::errc{} || p3 != end)
             {
-                return cpp_dbc::unexpected(DBException("A1B7C3D9E6F2", "Invalid date format: " + value, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("1CX1PRJZGY8K", "Invalid date format: " + value, system_utils::captureCallStack()));
             }
 
             time.tm_year = year - 1900;
@@ -351,7 +351,7 @@ namespace cpp_dbc::Firebird
             auto [p1, ec1] = std::from_chars(ptr, end, year);
             if (ec1 != std::errc{} || p1 == end || *p1 != '-')
             {
-                return cpp_dbc::unexpected(DBException("B2C8D4E0F7A3", "Invalid timestamp format: " + value, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("JPVP2Q2KAI02", "Invalid timestamp format: " + value, system_utils::captureCallStack()));
             }
             ptr = p1 + 1;
 
@@ -359,7 +359,7 @@ namespace cpp_dbc::Firebird
             auto [p2, ec2] = std::from_chars(ptr, end, month);
             if (ec2 != std::errc{} || p2 == end || *p2 != '-')
             {
-                return cpp_dbc::unexpected(DBException("B2C8D4E0F7A3", "Invalid timestamp format: " + value, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("5AI9OPNP6IUD", "Invalid timestamp format: " + value, system_utils::captureCallStack()));
             }
             ptr = p2 + 1;
 
@@ -367,7 +367,7 @@ namespace cpp_dbc::Firebird
             auto [p3, ec3] = std::from_chars(ptr, end, day);
             if (ec3 != std::errc{} || p3 == end || *p3 != ' ')
             {
-                return cpp_dbc::unexpected(DBException("B2C8D4E0F7A3", "Invalid timestamp format: " + value, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("ORL9Q2EY8USV", "Invalid timestamp format: " + value, system_utils::captureCallStack()));
             }
             ptr = p3 + 1;
 
@@ -375,7 +375,7 @@ namespace cpp_dbc::Firebird
             auto [p4, ec4] = std::from_chars(ptr, end, hour);
             if (ec4 != std::errc{} || p4 == end || *p4 != ':')
             {
-                return cpp_dbc::unexpected(DBException("B2C8D4E0F7A3", "Invalid timestamp format: " + value, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("9CO1JXGJ4ENR", "Invalid timestamp format: " + value, system_utils::captureCallStack()));
             }
             ptr = p4 + 1;
 
@@ -383,7 +383,7 @@ namespace cpp_dbc::Firebird
             auto [p5, ec5] = std::from_chars(ptr, end, min);
             if (ec5 != std::errc{} || p5 == end || *p5 != ':')
             {
-                return cpp_dbc::unexpected(DBException("B2C8D4E0F7A3", "Invalid timestamp format: " + value, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("FTEHZWUOZSCE", "Invalid timestamp format: " + value, system_utils::captureCallStack()));
             }
             ptr = p5 + 1;
 
@@ -391,7 +391,7 @@ namespace cpp_dbc::Firebird
             auto [p6, ec6] = std::from_chars(ptr, end, sec);
             if (ec6 != std::errc{} || p6 != end)
             {
-                return cpp_dbc::unexpected(DBException("B2C8D4E0F7A3", "Invalid timestamp format: " + value, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("5VYPVCNVNBZT", "Invalid timestamp format: " + value, system_utils::captureCallStack()));
             }
 
             time.tm_year = year - 1900;
@@ -427,7 +427,7 @@ namespace cpp_dbc::Firebird
             auto [p1, ec1] = std::from_chars(ptr, end, hour);
             if (ec1 != std::errc{} || p1 == end || *p1 != ':')
             {
-                return cpp_dbc::unexpected(DBException("68TNRM1CR27K", "Invalid time format: " + value, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("25IJ1MSTVH6R", "Invalid time format: " + value, system_utils::captureCallStack()));
             }
             ptr = p1 + 1;
 
@@ -435,7 +435,7 @@ namespace cpp_dbc::Firebird
             auto [p2, ec2] = std::from_chars(ptr, end, min);
             if (ec2 != std::errc{} || p2 == end || *p2 != ':')
             {
-                return cpp_dbc::unexpected(DBException("68TNRM1CR27K", "Invalid time format: " + value, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("W2HWLAL08PNN", "Invalid time format: " + value, system_utils::captureCallStack()));
             }
             ptr = p2 + 1;
 
@@ -443,7 +443,7 @@ namespace cpp_dbc::Firebird
             auto [p3, ec3] = std::from_chars(ptr, end, sec);
             if (ec3 != std::errc{} || p3 != end)
             {
-                return cpp_dbc::unexpected(DBException("68TNRM1CR27K", "Invalid time format: " + value, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("PQJEV4BT84AN", "Invalid time format: " + value, system_utils::captureCallStack()));
             }
 
             time.tm_hour = hour;

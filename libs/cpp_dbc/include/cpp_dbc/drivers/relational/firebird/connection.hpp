@@ -255,7 +255,10 @@ namespace cpp_dbc::Firebird
          *
          * Used by ResultSet/PreparedStatement to avoid unregister deadlock during closeAll*()
          */
-        bool isResetting() const noexcept { return m_resetting.load(std::memory_order_seq_cst); }
+        bool isResetting() const noexcept
+        {
+            return m_resetting.load(std::memory_order_seq_cst);
+        }
 
         cpp_dbc::expected<void, cpp_dbc::DBException> close(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, cpp_dbc::DBException> reset(std::nothrow_t) noexcept override;

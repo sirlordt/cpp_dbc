@@ -65,18 +65,18 @@ namespace cpp_dbc::SQLite
 
         void closeAllOpenConnections(std::nothrow_t) noexcept;
 
-        static void cleanup() noexcept;
+        static void cleanup(std::nothrow_t) noexcept;
 
         friend class SQLiteDBConnection;
-
-        // ── Construction state ────────────────────────────────────────────────
-        bool m_initFailed{false};
-        std::unique_ptr<DBException> m_initError{nullptr};
 
         // ── Driver state ──────────────────────────────────────────────────────
         // Set to true by the destructor before releasing resources.
         // Prevents new connection attempts during and after driver teardown.
         std::atomic<bool> m_closed{false};
+
+        // ── Construction state ────────────────────────────────────────────────
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
 
     public:
         SQLiteDBDriver(PrivateCtorTag, std::nothrow_t) noexcept;

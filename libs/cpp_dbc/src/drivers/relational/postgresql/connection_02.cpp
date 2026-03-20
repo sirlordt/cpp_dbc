@@ -41,12 +41,7 @@ namespace cpp_dbc::PostgreSQL
     // Nothrow API implementation for PostgreSQLDBConnection
     cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> PostgreSQLDBConnection::prepareStatement(std::nothrow_t, const std::string &sql) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("7W8X9Y0Z1A2B", "Connection is closed", system_utils::captureCallStack()));
-        }
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN("7W8X9Y0Z1A2B", "Connection is closed");
 
         // Generate a unique statement name and pass weak_ptr to the connection
         // so the statement can safely detect when connection is closed
@@ -77,12 +72,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> PostgreSQLDBConnection::executeQuery(std::nothrow_t, const std::string &sql) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("3C4D5E6F7G8H", "Connection is closed", system_utils::captureCallStack()));
-        }
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN("3C4D5E6F7G8H", "Connection is closed");
 
         PGresultHandle result(PQexec(m_conn.get(), sql.c_str()));
         if (!result.get())
@@ -114,12 +104,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<uint64_t, DBException> PostgreSQLDBConnection::executeUpdate(std::nothrow_t, const std::string &sql) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("5O6P7Q8R9S0T", "Connection is closed", system_utils::captureCallStack()));
-        }
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN("5O6P7Q8R9S0T", "Connection is closed");
 
         PGresultHandle result(PQexec(m_conn.get(), sql.c_str()));
         if (!result.get())
@@ -151,12 +136,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::setAutoCommit(std::nothrow_t, bool autoCommitFlag) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("R4S5T6U7V8W9", "Connection is closed", system_utils::captureCallStack()));
-        }
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN("R4S5T6U7V8W9", "Connection is closed");
 
         // Only take action if the flag is actually changing
         if (this->m_autoCommit != autoCommitFlag)
@@ -195,24 +175,14 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::getAutoCommit(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("9D3F5A7C2E8B", "Connection is closed", system_utils::captureCallStack()));
-        }
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN("9D3F5A7C2E8B", "Connection is closed");
 
         return m_autoCommit;
     }
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::beginTransaction(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("S5T6U7V8W9X0", "Connection is closed", system_utils::captureCallStack()));
-        }
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN("S5T6U7V8W9X0", "Connection is closed");
 
         // If transaction is already active, just return true
         if (m_transactionActive)
@@ -282,24 +252,14 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::transactionActive(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("5F8B2E9A7D3C", "Connection is closed", system_utils::captureCallStack()));
-        }
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN("5F8B2E9A7D3C", "Connection is closed");
 
         return m_transactionActive;
     }
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::commit(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("7E8F9G0H1I2J", "Connection is closed", system_utils::captureCallStack()));
-        }
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN("7E8F9G0H1I2J", "Connection is closed");
 
         // If no transaction is active, nothing to commit
         if (!m_transactionActive)
@@ -349,12 +309,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::rollback(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("5W6X7Y8Z9A0B", "Connection is closed", system_utils::captureCallStack()));
-        }
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN("5W6X7Y8Z9A0B", "Connection is closed");
 
         // If no transaction is active, nothing to rollback
         if (!m_transactionActive)
@@ -404,12 +359,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("3O4P5Q6R7S8T", "Connection is closed", system_utils::captureCallStack()));
-        }
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN("3O4P5Q6R7S8T", "Connection is closed");
 
         using enum TransactionIsolationLevel;
         std::string query;
@@ -530,12 +480,7 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<TransactionIsolationLevel, DBException> PostgreSQLDBConnection::getTransactionIsolation(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("5E6F7G8H9I0J", "Connection is closed", system_utils::captureCallStack()));
-        }
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN("5E6F7G8H9I0J", "Connection is closed");
 
         // Query the current isolation level
         PGresultHandle result(PQexec(m_conn.get(), "SHOW transaction_isolation"));
@@ -590,30 +535,14 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<std::string, DBException> PostgreSQLDBConnection::getServerVersion(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
-        {
-            return cpp_dbc::unexpected(DBException(
-                "36M3T260UN4J",
-                "Connection is closed",
-                system_utils::captureCallStack()));
-        }
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN("36M3T260UN4J", "Connection is closed");
 
         return formatServerVersion(std::nothrow, PQserverVersion(m_conn.get()));
     }
 
     cpp_dbc::expected<std::map<std::string, std::string>, DBException> PostgreSQLDBConnection::getServerInfo(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
-        {
-            return cpp_dbc::unexpected(DBException(
-                "IB9HNOSWLXD7",
-                "Connection is closed",
-                system_utils::captureCallStack()));
-        }
+        POSTGRESQL_CONNECTION_LOCK_OR_RETURN("IB9HNOSWLXD7", "Connection is closed");
 
         std::map<std::string, std::string> info;
 

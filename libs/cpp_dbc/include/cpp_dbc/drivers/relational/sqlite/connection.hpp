@@ -76,10 +76,6 @@ namespace cpp_dbc::SQLite
         // Normalized database file path
         std::string m_connPath;
 
-        // ── Construction state ────────────────────────────────────────────────
-        bool m_initFailed{false};
-        std::unique_ptr<DBException> m_initError{nullptr};
-
         /**
          * @brief Global file-level mutex shared by all connections to the same database file
          *
@@ -95,16 +91,26 @@ namespace cpp_dbc::SQLite
         std::shared_ptr<std::recursive_mutex> m_globalFileMutex;
 
         // Registry of active prepared statements (weak pointers to avoid preventing destruction)
-        // NOTE (2026-02-15): m_activeStatements is now protected by m_globalFileMutex in all methods
-        // (registerStatement, unregisterStatement, closeAllStatements) to avoid lock order violations.
+        // 2026-02-15T00:00:00Z
+        // Bug: m_activeStatements was protected by a separate m_statementsMutex in some methods
+        // but by m_globalFileMutex in others, creating a data race.
+        // Solution: m_activeStatements is now protected by m_globalFileMutex in all methods
+        // (registerStatement, unregisterStatement, closeAllStatements).
         std::set<std::weak_ptr<SQLiteDBPreparedStatement>, std::owner_less<std::weak_ptr<SQLiteDBPreparedStatement>>> m_activeStatements;
         // std::recursive_mutex m_statementsMutex;  // REMOVED (2026-02-15). Replaced by m_globalFileMutex to eliminate lock order violations.
 
         // Registry of active result sets (weak pointers to avoid preventing destruction)
-        // NOTE (2026-02-15): m_activeResultSets is now protected by m_globalFileMutex in all methods
-        // (registerResultSet, unregisterResultSet, closeAllResultSets) to avoid lock order violations.
+        // 2026-02-15T00:00:00Z
+        // Bug: m_activeResultSets was protected by a separate m_resultSetsMutex in some methods
+        // but by m_globalFileMutex in others, creating a data race.
+        // Solution: m_activeResultSets is now protected by m_globalFileMutex in all methods
+        // (registerResultSet, unregisterResultSet, closeAllResultSets).
         std::set<std::weak_ptr<SQLiteDBResultSet>, std::owner_less<std::weak_ptr<SQLiteDBResultSet>>> m_activeResultSets;
         // std::recursive_mutex m_resultSetsMutex;  // REMOVED (2026-02-15). Replaced by m_globalFileMutex to eliminate lock order violations.
+
+        // ── Construction state ────────────────────────────────────────────────
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
 
         // Internal methods for statement registry
         cpp_dbc::expected<void, DBException> registerStatement(std::nothrow_t, std::weak_ptr<SQLiteDBPreparedStatement> stmt) noexcept;

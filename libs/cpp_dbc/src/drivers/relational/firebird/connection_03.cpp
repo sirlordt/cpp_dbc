@@ -161,9 +161,11 @@ namespace cpp_dbc::Firebird
             return executeCreateDatabase(std::nothrow, sql);
         }
 
-        // Check if this is a DDL statement that requires metadata lock cleanup
-        // DDL operations like DROP, ALTER, CREATE, RECREATE need exclusive metadata locks
-        // If there are active prepared statements holding metadata locks, we get deadlock
+        // 2026-03-20T00:00:00Z
+        // Bug: DDL operations (DROP, ALTER, CREATE, RECREATE) require exclusive metadata
+        // locks, but active prepared statements hold shared metadata locks, causing deadlock.
+        // Solution: Close all active prepared statements and commit the current transaction
+        // before executing DDL, releasing all metadata locks first.
         bool isDDL = (upperSql.starts_with("DROP ") ||
                       upperSql.starts_with("ALTER ") ||
                       upperSql.starts_with("CREATE ") ||
