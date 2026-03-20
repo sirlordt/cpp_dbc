@@ -270,17 +270,6 @@ namespace cpp_dbc::PostgreSQL
         return system_utils::buildDBURI("cpp_dbc:postgresql://", host, port, database);
     }
 
-    size_t PostgreSQLDBDriver::getConnectionAlive() noexcept
-    {
-        std::scoped_lock lock(s_registryMutex);
-        return static_cast<size_t>(std::ranges::count_if(
-            s_connectionRegistry,
-            [](const auto &w)
-            {
-                return !w.expired();
-            }));
-    }
-
     // Nothrow API implementation
     cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> PostgreSQLDBDriver::connectRelational(
         std::nothrow_t,
@@ -359,6 +348,17 @@ namespace cpp_dbc::PostgreSQL
         return std::to_string(major) + "." +
                std::to_string(minor) + "." +
                std::to_string(patch);
+    }
+
+    size_t PostgreSQLDBDriver::getConnectionAlive() noexcept
+    {
+        std::scoped_lock lock(s_registryMutex);
+        return static_cast<size_t>(std::ranges::count_if(
+            s_connectionRegistry,
+            [](const auto &w)
+            {
+                return !w.expired();
+            }));
     }
 
 } // namespace cpp_dbc::PostgreSQL

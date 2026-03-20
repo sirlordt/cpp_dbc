@@ -148,6 +148,8 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<int, DBException> FirebirdDBResultSet::getInt(std::nothrow_t, const std::string &columnName) noexcept
     {
+        FIREBIRD_STMT_LOCK_OR_RETURN("S0NG0T7XB7GW", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -181,6 +183,8 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<int64_t, DBException> FirebirdDBResultSet::getLong(std::nothrow_t, const std::string &columnName) noexcept
     {
+        FIREBIRD_STMT_LOCK_OR_RETURN("YGFM9JJ23KFE", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -216,6 +220,8 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<double, DBException> FirebirdDBResultSet::getDouble(std::nothrow_t, const std::string &columnName) noexcept
     {
+        FIREBIRD_STMT_LOCK_OR_RETURN("1ZVFEV4BAYJF", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -232,6 +238,8 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<std::string, DBException> FirebirdDBResultSet::getString(std::nothrow_t, const std::string &columnName) noexcept
     {
+        FIREBIRD_STMT_LOCK_OR_RETURN("DF8DJ6K5DFER", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -263,6 +271,8 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<bool, DBException> FirebirdDBResultSet::getBoolean(std::nothrow_t, const std::string &columnName) noexcept
     {
+        FIREBIRD_STMT_LOCK_OR_RETURN("QIBZJU75WJHJ", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -284,6 +294,8 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<bool, DBException> FirebirdDBResultSet::isNull(std::nothrow_t, const std::string &columnName) noexcept
     {
+        FIREBIRD_STMT_LOCK_OR_RETURN("A6XJIO4PJCNF", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {

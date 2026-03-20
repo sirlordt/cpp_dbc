@@ -130,7 +130,7 @@ namespace cpp_dbc::Firebird
         // Prepare the statement
         FIREBIRD_DEBUG("  Preparing statement with SQL: %s", m_sql.c_str());
 
-        // FIX #1: Access transaction handle safely via m_connection
+        // Access transaction handle safely via m_connection (see prepared_statement.hpp bug-fix comment)
         auto conn = m_connection.lock();
         if (!conn)
         {

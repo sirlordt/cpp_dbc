@@ -292,6 +292,371 @@ namespace cpp_dbc::PostgreSQL
         return m_transactionActive;
     }
 
+    cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::commit(std::nothrow_t) noexcept
+    {
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("7E8F9G0H1I2J", "Connection is closed", system_utils::captureCallStack()));
+        }
+
+        // If no transaction is active, nothing to commit
+        if (!m_transactionActive)
+        {
+            return {};
+        }
+
+        PGresultHandle result(PQexec(m_conn.get(), "COMMIT"));
+        if (!result.get())
+        {
+            std::string error = PQerrorMessage(m_conn.get());
+            return cpp_dbc::unexpected<DBException>(DBException("KRBTT2PHNR0Z", "Commit failed (OOM): " + error, system_utils::captureCallStack()));
+        }
+        if (PQresultStatus(result.get()) != PGRES_COMMAND_OK)
+        {
+            std::string error = PQresultErrorMessage(result.get());
+            return cpp_dbc::unexpected<DBException>(DBException("3K4L5M6N7O8P", "Commit failed: " + error, system_utils::captureCallStack()));
+        }
+
+        m_transactionActive = false;
+
+        // If autoCommit is still false, start a new transaction automatically.
+        // PostgreSQL (unlike MySQL) does not implicitly start a new transaction
+        // after COMMIT — an explicit BEGIN is required.
+        if (!m_autoCommit)
+        {
+            PGresultHandle beginRes(PQexec(m_conn.get(), "BEGIN"));
+            if (!beginRes.get())
+            {
+                std::string error = PQerrorMessage(m_conn.get());
+                return cpp_dbc::unexpected<DBException>(DBException("X50CV1WLJCV3",
+                    "Failed to restart transaction after commit (OOM): " + error,
+                    system_utils::captureCallStack()));
+            }
+            if (PQresultStatus(beginRes.get()) != PGRES_COMMAND_OK)
+            {
+                std::string error = PQresultErrorMessage(beginRes.get());
+                return cpp_dbc::unexpected<DBException>(DBException("PQ6YETSTZ1VH",
+                    "Failed to restart transaction after commit: " + error,
+                    system_utils::captureCallStack()));
+            }
+            m_transactionActive = true;
+        }
+
+        return {};
+    }
+
+    cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::rollback(std::nothrow_t) noexcept
+    {
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("5W6X7Y8Z9A0B", "Connection is closed", system_utils::captureCallStack()));
+        }
+
+        // If no transaction is active, nothing to rollback
+        if (!m_transactionActive)
+        {
+            return {};
+        }
+
+        PGresultHandle result(PQexec(m_conn.get(), "ROLLBACK"));
+        if (!result.get())
+        {
+            std::string error = PQerrorMessage(m_conn.get());
+            return cpp_dbc::unexpected<DBException>(DBException("5B5Q7WTALLL6", "Rollback failed (OOM): " + error, system_utils::captureCallStack()));
+        }
+        if (PQresultStatus(result.get()) != PGRES_COMMAND_OK)
+        {
+            std::string error = PQresultErrorMessage(result.get());
+            return cpp_dbc::unexpected<DBException>(DBException("1C2D3E4F5G6H", "Rollback failed: " + error, system_utils::captureCallStack()));
+        }
+
+        m_transactionActive = false;
+
+        // If autoCommit is still false, start a new transaction automatically.
+        // PostgreSQL (unlike MySQL) does not implicitly start a new transaction
+        // after ROLLBACK — an explicit BEGIN is required.
+        if (!m_autoCommit)
+        {
+            PGresultHandle beginRes(PQexec(m_conn.get(), "BEGIN"));
+            if (!beginRes.get())
+            {
+                std::string error = PQerrorMessage(m_conn.get());
+                return cpp_dbc::unexpected<DBException>(DBException("7X6KAFKVI9VC",
+                    "Failed to restart transaction after rollback (OOM): " + error,
+                    system_utils::captureCallStack()));
+            }
+            if (PQresultStatus(beginRes.get()) != PGRES_COMMAND_OK)
+            {
+                std::string error = PQresultErrorMessage(beginRes.get());
+                return cpp_dbc::unexpected<DBException>(DBException("C0JFJM05WL73",
+                    "Failed to restart transaction after rollback: " + error,
+                    system_utils::captureCallStack()));
+            }
+            m_transactionActive = true;
+        }
+
+        return {};
+    }
+
+    cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
+    {
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("3O4P5Q6R7S8T", "Connection is closed", system_utils::captureCallStack()));
+        }
+
+        using enum TransactionIsolationLevel;
+        std::string query;
+        switch (level)
+        {
+        case TRANSACTION_READ_UNCOMMITTED:
+        {
+            // PostgreSQL treats READ UNCOMMITTED the same as READ COMMITTED
+            query = "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ UNCOMMITTED";
+            break;
+        }
+        case TRANSACTION_READ_COMMITTED:
+        {
+            query = "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED";
+            break;
+        }
+        case TRANSACTION_REPEATABLE_READ:
+        {
+            query = "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL REPEATABLE READ";
+            break;
+        }
+        case TRANSACTION_SERIALIZABLE:
+        {
+            query = "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL SERIALIZABLE";
+            break;
+        }
+        default:
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("9U0V1W2X3Y4Z", "Unsupported transaction isolation level", system_utils::captureCallStack()));
+        }
+        }
+
+        // Cannot change isolation level while a transaction is active — the caller
+        // must commit or rollback first. Silently committing would destroy in-flight work.
+        if (m_transactionActive)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("USA7EDKRMV5D",
+                "Cannot change transaction isolation level while a transaction is active",
+                system_utils::captureCallStack()));
+        }
+
+        // SET SESSION CHARACTERISTICS applies to future transactions, not the current one.
+        // Safe to execute outside a transaction.
+        {
+            PGresultHandle result(PQexec(m_conn.get(), query.c_str()));
+            if (!result.get())
+            {
+                std::string error = PQerrorMessage(m_conn.get());
+                return cpp_dbc::unexpected<DBException>(DBException("NDRIRZ2EHLVU", "Failed to set transaction isolation level (OOM): " + error, system_utils::captureCallStack()));
+            }
+            if (PQresultStatus(result.get()) != PGRES_COMMAND_OK)
+            {
+                std::string error = PQresultErrorMessage(result.get());
+                return cpp_dbc::unexpected<DBException>(DBException("3Q37JJHOWQJE", "Failed to set transaction isolation level: " + error, system_utils::captureCallStack()));
+            }
+        }
+
+        // If autoCommit is false, start a new transaction with the new isolation level.
+        // m_transactionActive is false here (checked above), so we need a fresh BEGIN.
+        if (!m_autoCommit)
+        {
+            if (level == TRANSACTION_SERIALIZABLE)
+            {
+                std::string beginCmd = "BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE";
+                PGresultHandle beginResult(PQexec(m_conn.get(), beginCmd.c_str()));
+                if (!beginResult.get())
+                {
+                    std::string error = PQerrorMessage(m_conn.get());
+                    return cpp_dbc::unexpected<DBException>(DBException("M5A3J5W4WDCS", "Failed to start SERIALIZABLE transaction (OOM): " + error, system_utils::captureCallStack()));
+                }
+                if (PQresultStatus(beginResult.get()) != PGRES_COMMAND_OK)
+                {
+                    std::string error = PQresultErrorMessage(beginResult.get());
+                    return cpp_dbc::unexpected<DBException>(DBException("V8W9X0Y1Z2A3", "Failed to start SERIALIZABLE transaction: " + error, system_utils::captureCallStack()));
+                }
+
+                // Force snapshot acquisition with a dummy query
+                PGresultHandle snapshotResult(PQexec(m_conn.get(), "SELECT 1"));
+                if (!snapshotResult.get())
+                {
+                    std::string error = PQerrorMessage(m_conn.get());
+                    [[maybe_unused]] PGresultHandle rollbackResult(PQexec(m_conn.get(), "ROLLBACK"));
+                    return cpp_dbc::unexpected<DBException>(DBException("7TC8S1ZMFYZ3", "Failed to acquire snapshot (OOM): " + error, system_utils::captureCallStack()));
+                }
+                if (PQresultStatus(snapshotResult.get()) != PGRES_TUPLES_OK)
+                {
+                    std::string error = PQresultErrorMessage(snapshotResult.get());
+                    // BEGIN succeeded above, so the server is inside an open transaction.
+                    // Roll it back before returning to keep the server state consistent
+                    // with the client object (m_transactionActive is still false here).
+                    [[maybe_unused]] PGresultHandle rollbackResult(PQexec(m_conn.get(), "ROLLBACK"));
+                    return cpp_dbc::unexpected<DBException>(DBException("3S4T5U6V7W8X", "Failed to acquire snapshot: " + error, system_utils::captureCallStack()));
+                }
+            }
+            else
+            {
+                PGresultHandle beginResult(PQexec(m_conn.get(), "BEGIN"));
+                if (!beginResult.get())
+                {
+                    std::string error = PQerrorMessage(m_conn.get());
+                    return cpp_dbc::unexpected<DBException>(DBException("5HLZWRY3M33J", "Failed to start transaction (OOM): " + error, system_utils::captureCallStack()));
+                }
+                if (PQresultStatus(beginResult.get()) != PGRES_COMMAND_OK)
+                {
+                    std::string error = PQresultErrorMessage(beginResult.get());
+                    return cpp_dbc::unexpected<DBException>(DBException("9Y0Z1A2B3C4D", "Failed to start transaction: " + error, system_utils::captureCallStack()));
+                }
+            }
+
+            m_transactionActive = true;
+        }
+
+        // Only update m_isolationLevel after the full sequence succeeds
+        this->m_isolationLevel = level;
+
+        return {};
+    }
+
+    cpp_dbc::expected<TransactionIsolationLevel, DBException> PostgreSQLDBConnection::getTransactionIsolation(std::nothrow_t) noexcept
+    {
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("5E6F7G8H9I0J", "Connection is closed", system_utils::captureCallStack()));
+        }
+
+        // Query the current isolation level
+        PGresultHandle result(PQexec(m_conn.get(), "SHOW transaction_isolation"));
+        if (!result.get())
+        {
+            std::string error = PQerrorMessage(m_conn.get());
+            return cpp_dbc::unexpected<DBException>(DBException("389O3M7IEVO1", "Failed to get transaction isolation level (OOM): " + error, system_utils::captureCallStack()));
+        }
+        if (PQresultStatus(result.get()) != PGRES_TUPLES_OK)
+        {
+            std::string error = PQresultErrorMessage(result.get());
+            return cpp_dbc::unexpected<DBException>(DBException("3W4X5Y6Z7A8B", "Failed to get transaction isolation level: " + error, system_utils::captureCallStack()));
+        }
+
+        if (PQntuples(result.get()) == 0)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("9C0D1E2F3G4H", "Failed to fetch transaction isolation level", system_utils::captureCallStack()));
+        }
+
+        std::string level = PQgetvalue(result.get(), 0, 0);
+
+        // Convert the string value to the enum - handle both formats
+        std::string levelLower = level;
+        // Convert to lowercase for case-insensitive comparison
+        std::ranges::transform(levelLower, levelLower.begin(),
+                               [](unsigned char c)
+                               {
+                                   return std::tolower(c);
+                               });
+
+        if (levelLower == "read uncommitted" || levelLower == "read_uncommitted")
+        {
+            return TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED;
+        }
+        else if (levelLower == "read committed" || levelLower == "read_committed")
+        {
+            return TransactionIsolationLevel::TRANSACTION_READ_COMMITTED;
+        }
+        else if (levelLower == "repeatable read" || levelLower == "repeatable_read")
+        {
+            return TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ;
+        }
+        else if (levelLower == "serializable")
+        {
+            return TransactionIsolationLevel::TRANSACTION_SERIALIZABLE;
+        }
+        else
+        {
+            return TransactionIsolationLevel::TRANSACTION_NONE;
+        }
+    }
+
+    cpp_dbc::expected<std::string, DBException> PostgreSQLDBConnection::getServerVersion(std::nothrow_t) noexcept
+    {
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
+        {
+            return cpp_dbc::unexpected(DBException(
+                "36M3T260UN4J",
+                "Connection is closed",
+                system_utils::captureCallStack()));
+        }
+
+        return formatServerVersion(std::nothrow, PQserverVersion(m_conn.get()));
+    }
+
+    cpp_dbc::expected<std::map<std::string, std::string>, DBException> PostgreSQLDBConnection::getServerInfo(std::nothrow_t) noexcept
+    {
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
+        {
+            return cpp_dbc::unexpected(DBException(
+                "IB9HNOSWLXD7",
+                "Connection is closed",
+                system_utils::captureCallStack()));
+        }
+
+        std::map<std::string, std::string> info;
+
+        int version = PQserverVersion(m_conn.get());
+        info["ServerVersion"] = formatServerVersion(std::nothrow, version);
+        info["ServerVersionNumeric"] = std::to_string(version);
+
+        int protocolVersion = PQprotocolVersion(m_conn.get());
+        info["ProtocolVersion"] = std::to_string(protocolVersion);
+
+        const char *serverEncoding = PQparameterStatus(m_conn.get(), "server_encoding");
+        if (serverEncoding)
+        {
+            info["ServerEncoding"] = serverEncoding;
+        }
+
+        const char *clientEncoding = PQparameterStatus(m_conn.get(), "client_encoding");
+        if (clientEncoding)
+        {
+            info["ClientEncoding"] = clientEncoding;
+        }
+
+        const char *timeZone = PQparameterStatus(m_conn.get(), "TimeZone");
+        if (timeZone)
+        {
+            info["TimeZone"] = timeZone;
+        }
+
+        const char *intDateTimes = PQparameterStatus(m_conn.get(), "integer_datetimes");
+        if (intDateTimes)
+        {
+            info["IntegerDatetimes"] = intDateTimes;
+        }
+
+        const char *stdConformingStrings = PQparameterStatus(m_conn.get(), "standard_conforming_strings");
+        if (stdConformingStrings)
+        {
+            info["StandardConformingStrings"] = stdConformingStrings;
+        }
+
+        return info;
+    }
+
 } // namespace cpp_dbc::PostgreSQL
 
 #endif // USE_POSTGRESQL

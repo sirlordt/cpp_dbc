@@ -43,6 +43,8 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<std::string, DBException> FirebirdDBResultSet::getDate(std::nothrow_t, const std::string &columnName) noexcept
     {
+        FIREBIRD_STMT_LOCK_OR_RETURN("ME0J1YM4ZGI3", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -59,6 +61,8 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<std::string, DBException> FirebirdDBResultSet::getTimestamp(std::nothrow_t, const std::string &columnName) noexcept
     {
+        FIREBIRD_STMT_LOCK_OR_RETURN("BE0VEK8CR1C9", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -75,6 +79,8 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<std::string, DBException> FirebirdDBResultSet::getTime(std::nothrow_t, const std::string &columnName) noexcept
     {
+        FIREBIRD_STMT_LOCK_OR_RETURN("3OJYW1MT7X1M", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {

@@ -399,6 +399,16 @@ namespace cpp_dbc::PostgreSQL
         return result.value();
     }
 
+    bool PostgreSQLDBConnection::ping()
+    {
+        auto result = ping(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
     // RelationalDBConnection interface
     std::shared_ptr<RelationalDBPreparedStatement> PostgreSQLDBConnection::prepareStatement(const std::string &sql)
     {
@@ -506,16 +516,6 @@ namespace cpp_dbc::PostgreSQL
         return result.value();
     }
 
-    bool PostgreSQLDBConnection::ping()
-    {
-        auto result = ping(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return *result;
-    }
-
     std::string PostgreSQLDBConnection::getServerVersion()
     {
         auto result = getServerVersion(std::nothrow);
@@ -537,21 +537,6 @@ namespace cpp_dbc::PostgreSQL
     }
 
 #endif // __cpp_exceptions
-
-    cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::ping(std::nothrow_t) noexcept
-    {
-        auto result = executeQuery(std::nothrow, "SELECT 1");
-        if (!result.has_value())
-        {
-            return cpp_dbc::unexpected(result.error());
-        }
-        auto closeResult = result.value()->close(std::nothrow);
-        if (!closeResult.has_value())
-        {
-            return cpp_dbc::unexpected(closeResult.error());
-        }
-        return true;
-    }
 
 } // namespace cpp_dbc::PostgreSQL
 

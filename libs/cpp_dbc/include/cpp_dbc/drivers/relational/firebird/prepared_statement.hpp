@@ -48,20 +48,12 @@ namespace cpp_dbc::Firebird
         // ── Member variables ──────────────────────────────────────────────────
         std::weak_ptr<isc_db_handle> m_dbHandle;
 
-        // ============================================================================
-        // FIX #1: Eliminate m_trPtr Dangling Pointer (USE-AFTER-FREE Bug)
-        // ============================================================================
-        // PROBLEM (BEFORE):
-        //   isc_tr_handle *m_trPtr{nullptr};  // Raw pointer to connection's m_tr
-        //
-        // This raw pointer caused USE-AFTER-FREE bugs:
-        //   - If the connection was destroyed while PreparedStatement existed,
-        //     m_trPtr pointed to FREED MEMORY (m_tr is a stack member of Connection)
-        //   - When executeUpdate() dereferenced it: isc_dsql_execute(..., m_trPtr, ...)
-        //     → SEGMENTATION FAULT or memory corruption
-        //
-        // SOLUTION (NOW):
-        //   std::weak_ptr<FirebirdDBConnection> m_connection;
+        // 2026-03-07T00:00:00Z
+        // Bug: PreparedStatement stored a raw pointer (isc_tr_handle *m_trPtr) to the
+        // connection's m_tr stack member. If the connection was destroyed first,
+        // m_trPtr became dangling → USE-AFTER-FREE / SEGFAULT in isc_dsql_execute().
+        // Solution: Store weak_ptr<FirebirdDBConnection> instead. Access conn->m_tr
+        // only after locking the parent connection via FIREBIRD_STMT_LOCK_OR_RETURN.
         //
         // Benefits:
         //   1. Lifecycle-safe: weak_ptr detects when connection is destroyed

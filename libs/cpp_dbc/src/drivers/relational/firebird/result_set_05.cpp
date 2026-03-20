@@ -37,59 +37,44 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<std::shared_ptr<Blob>, DBException> FirebirdDBResultSet::getBlob(std::nothrow_t, size_t columnIndex) noexcept
     {
-        // try/catch is required: FirebirdBlob constructor accesses the Firebird C API
-        // and may throw DBException or std::exception on open/read failures.
-        try
+        FIREBIRD_STMT_LOCK_OR_RETURN("OJ9DMC2WW02G", "Connection lost");
+
+        if (columnIndex >= m_fieldCount)
         {
-            FIREBIRD_STMT_LOCK_OR_RETURN("OJ9DMC2WW02G", "Connection lost");
-
-            if (columnIndex >= m_fieldCount)
-            {
-                return cpp_dbc::unexpected(DBException("FB1M3N4O5P6Q", "Column index out of range: " + std::to_string(columnIndex),
-                                                       system_utils::captureCallStack()));
-            }
-
-            if (m_nullIndicators[columnIndex] < 0)
-            {
-                return cpp_dbc::expected<std::shared_ptr<Blob>, DBException>(nullptr);
-            }
-
-            XSQLVAR *var = &m_sqlda->sqlvar[columnIndex];
-            if ((var->sqltype & ~1) != SQL_BLOB)
-            {
-                return cpp_dbc::unexpected(DBException("FB2N4O5P6Q7R", "Column is not a BLOB type", system_utils::captureCallStack()));
-            }
-
-            auto conn = m_connection.lock();
-            if (!conn)
-            {
-                return cpp_dbc::unexpected(DBException("FB3O5P6Q7R8S", "Connection has been closed", system_utils::captureCallStack()));
-            }
-
-            ISC_QUAD *blobId = reinterpret_cast<ISC_QUAD *>(var->sqldata);
-            auto blobResult = FirebirdBlob::create(std::nothrow, m_connection, *blobId);
-            if (!blobResult.has_value())
-            {
-                return cpp_dbc::unexpected(blobResult.error());
-            }
-            return std::shared_ptr<Blob>(blobResult.value());
+            return cpp_dbc::unexpected(DBException("FB1M3N4O5P6Q", "Column index out of range: " + std::to_string(columnIndex),
+                                                   system_utils::captureCallStack()));
         }
-        catch (const DBException &ex)
+
+        if (m_nullIndicators[columnIndex] < 0)
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::expected<std::shared_ptr<Blob>, DBException>(nullptr);
         }
-        catch (const std::exception &ex)
+
+        XSQLVAR *var = &m_sqlda->sqlvar[columnIndex];
+        if ((var->sqltype & ~1) != SQL_BLOB)
         {
-            return cpp_dbc::unexpected(DBException("A3B0D4F6C8E2", std::string("Exception in getBlob: ") + ex.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("FB2N4O5P6Q7R", "Column is not a BLOB type", system_utils::captureCallStack()));
         }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
+
+        auto conn = m_connection.lock();
+        if (!conn)
         {
-            return cpp_dbc::unexpected(DBException("B4C1E5A7D9F3", "Unknown exception in getBlob", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("FB3O5P6Q7R8S", "Connection has been closed", system_utils::captureCallStack()));
         }
+
+        ISC_QUAD *blobId = reinterpret_cast<ISC_QUAD *>(var->sqldata);
+        auto blobResult = FirebirdBlob::create(std::nothrow, m_connection, *blobId);
+        if (!blobResult.has_value())
+        {
+            return cpp_dbc::unexpected(blobResult.error());
+        }
+        return std::shared_ptr<Blob>(blobResult.value());
     }
 
     cpp_dbc::expected<std::shared_ptr<Blob>, DBException> FirebirdDBResultSet::getBlob(std::nothrow_t, const std::string &columnName) noexcept
     {
+        FIREBIRD_STMT_LOCK_OR_RETURN("4UBKWXAL1538", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -115,6 +100,8 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> FirebirdDBResultSet::getBinaryStream(std::nothrow_t, const std::string &columnName) noexcept
     {
+        FIREBIRD_STMT_LOCK_OR_RETURN("G8RHAZ8GH89X", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -145,6 +132,8 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<std::vector<uint8_t>, DBException> FirebirdDBResultSet::getBytes(std::nothrow_t, const std::string &columnName) noexcept
     {
+        FIREBIRD_STMT_LOCK_OR_RETURN("PAQA9BFBHYCS", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {

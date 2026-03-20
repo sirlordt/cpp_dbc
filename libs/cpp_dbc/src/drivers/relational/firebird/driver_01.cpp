@@ -126,6 +126,39 @@ namespace cpp_dbc::Firebird
         }
     }
 
+    cpp_dbc::expected<FirebirdDBDriver::ParsedFirebirdComponents, DBException>
+    FirebirdDBDriver::extractComponents(std::nothrow_t, const std::map<std::string, std::string> &parsed) noexcept
+    {
+        ParsedFirebirdComponents comps;
+
+        auto hostIt = parsed.find("host");
+        auto portIt = parsed.find("port");
+        auto dbIt = parsed.find("database");
+
+        comps.host = (hostIt != parsed.end()) ? hostIt->second : "";
+        if (portIt != parsed.end())
+        {
+            const auto &portStr = portIt->second;
+            auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), comps.port);
+            if (ec != std::errc{} || ptr != portStr.data() + portStr.size())
+            {
+                return cpp_dbc::unexpected(DBException("9NVVV6AC2H8A",
+                                                       "Invalid port number in Firebird URI: " + portStr,
+                                                       system_utils::captureCallStack()));
+            }
+        }
+        comps.database = (dbIt != parsed.end()) ? dbIt->second : "";
+
+        if (comps.database.empty())
+        {
+            return cpp_dbc::unexpected(DBException("YU88W61QFVD0",
+                                                   "Invalid Firebird URI: database path is empty",
+                                                   system_utils::captureCallStack()));
+        }
+
+        return comps;
+    }
+
     // ============================================================================
     // FirebirdDBDriver Implementation - Constructor + Destructor
     // ============================================================================
@@ -225,14 +258,6 @@ namespace cpp_dbc::Firebird
         return s_instance;
     }
 
-    size_t FirebirdDBDriver::getConnectionAlive() noexcept
-    {
-        std::scoped_lock lock(s_registryMutex);
-        return static_cast<size_t>(std::ranges::count_if(
-            s_connectionRegistry,
-            [](const auto &w) { return !w.expired(); }));
-    }
-
     // ============================================================================
     // FirebirdDBDriver Implementation - Nothrow API
     // ============================================================================
@@ -322,39 +347,6 @@ namespace cpp_dbc::Firebird
         }
         uri += database;
         return uri;
-    }
-
-    cpp_dbc::expected<FirebirdDBDriver::ParsedFirebirdComponents, DBException>
-    FirebirdDBDriver::extractComponents(std::nothrow_t, const std::map<std::string, std::string> &parsed) noexcept
-    {
-        ParsedFirebirdComponents comps;
-
-        auto hostIt = parsed.find("host");
-        auto portIt = parsed.find("port");
-        auto dbIt = parsed.find("database");
-
-        comps.host = (hostIt != parsed.end()) ? hostIt->second : "";
-        if (portIt != parsed.end())
-        {
-            const auto &portStr = portIt->second;
-            auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), comps.port);
-            if (ec != std::errc{} || ptr != portStr.data() + portStr.size())
-            {
-                return cpp_dbc::unexpected(DBException("9NVVV6AC2H8A",
-                                                       "Invalid port number in Firebird URI: " + portStr,
-                                                       system_utils::captureCallStack()));
-            }
-        }
-        comps.database = (dbIt != parsed.end()) ? dbIt->second : "";
-
-        if (comps.database.empty())
-        {
-            return cpp_dbc::unexpected(DBException("YU88W61QFVD0",
-                                                   "Invalid Firebird URI: database path is empty",
-                                                   system_utils::captureCallStack()));
-        }
-
-        return comps;
     }
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>
@@ -693,6 +685,17 @@ namespace cpp_dbc::Firebird
 #else
         return "unknown";
 #endif
+    }
+
+    size_t FirebirdDBDriver::getConnectionAlive() noexcept
+    {
+        std::scoped_lock lock(s_registryMutex);
+        return static_cast<size_t>(std::ranges::count_if(
+            s_connectionRegistry,
+            [](const auto &w)
+            {
+                return !w.expired();
+            }));
     }
 
 } // namespace cpp_dbc::Firebird

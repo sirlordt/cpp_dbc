@@ -65,11 +65,12 @@ namespace cpp_dbc::Firebird
             if (!m_tr)
             {
                 FIREBIRD_DEBUG("  No active transaction, starting one...");
-                // Use startTransaction() directly to avoid corrupting m_autoCommit.
-                // beginTransaction() sets m_autoCommit=false as a side effect, which
-                // prevents isc_commit_retaining() from being called in executeUpdate(),
-                // causing all pool-managed connections (re-borrowed after reset()) to
-                // silently roll back their INSERTs instead of committing them.
+                // 2026-03-07T00:00:00Z
+                // Bug: beginTransaction() sets m_autoCommit=false as a side effect,
+                // which prevents isc_commit_retaining() in executeUpdate(), causing
+                // pool-managed connections to silently roll back INSERTs.
+                // Solution: Call startTransaction() directly to avoid corrupting
+                // m_autoCommit state.
                 auto txResult = startTransaction(std::nothrow);
                 if (!txResult.has_value())
                 {
@@ -101,7 +102,7 @@ namespace cpp_dbc::Firebird
         {
             return cpp_dbc::unexpected(DBException("2791E5F8FC3C", std::string("Exception in prepareStatement: ") + ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("D87AA3FA1250", "Unknown exception in prepareStatement", system_utils::captureCallStack()));
         }

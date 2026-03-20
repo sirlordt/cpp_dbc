@@ -24,6 +24,7 @@
 
 #include <sstream>
 #include <algorithm>
+#include <charconv>
 #include <chrono>
 #include <thread>
 #include <cstring>
@@ -293,12 +294,37 @@ namespace cpp_dbc::Firebird
 
         // Parse date string (expected format: YYYY-MM-DD)
         struct tm time = {};
-        if (sscanf(value.c_str(), "%d-%d-%d", &time.tm_year, &time.tm_mon, &time.tm_mday) != 3)
         {
-            return cpp_dbc::unexpected(DBException("A1B7C3D9E6F2", "Invalid date format: " + value, system_utils::captureCallStack()));
+            const char *ptr = value.data();
+            const char *end = ptr + value.size();
+
+            int year = 0;
+            auto [p1, ec1] = std::from_chars(ptr, end, year);
+            if (ec1 != std::errc{} || p1 == end || *p1 != '-')
+            {
+                return cpp_dbc::unexpected(DBException("A1B7C3D9E6F2", "Invalid date format: " + value, system_utils::captureCallStack()));
+            }
+            ptr = p1 + 1;
+
+            int month = 0;
+            auto [p2, ec2] = std::from_chars(ptr, end, month);
+            if (ec2 != std::errc{} || p2 == end || *p2 != '-')
+            {
+                return cpp_dbc::unexpected(DBException("A1B7C3D9E6F2", "Invalid date format: " + value, system_utils::captureCallStack()));
+            }
+            ptr = p2 + 1;
+
+            int day = 0;
+            auto [p3, ec3] = std::from_chars(ptr, end, day);
+            if (ec3 != std::errc{} || p3 != end)
+            {
+                return cpp_dbc::unexpected(DBException("A1B7C3D9E6F2", "Invalid date format: " + value, system_utils::captureCallStack()));
+            }
+
+            time.tm_year = year - 1900;
+            time.tm_mon = month - 1;
+            time.tm_mday = day;
         }
-        time.tm_year -= 1900;
-        time.tm_mon -= 1;
 
         ISC_DATE date;
         isc_encode_sql_date(&time, &date);
@@ -317,14 +343,64 @@ namespace cpp_dbc::Firebird
 
         // Parse timestamp string (expected format: YYYY-MM-DD HH:MM:SS)
         struct tm time = {};
-        if (sscanf(value.c_str(), "%d-%d-%d %d:%d:%d",
-                   &time.tm_year, &time.tm_mon, &time.tm_mday,
-                   &time.tm_hour, &time.tm_min, &time.tm_sec) != 6)
         {
-            return cpp_dbc::unexpected(DBException("B2C8D4E0F7A3", "Invalid timestamp format: " + value, system_utils::captureCallStack()));
+            const char *ptr = value.data();
+            const char *end = ptr + value.size();
+
+            int year = 0;
+            auto [p1, ec1] = std::from_chars(ptr, end, year);
+            if (ec1 != std::errc{} || p1 == end || *p1 != '-')
+            {
+                return cpp_dbc::unexpected(DBException("B2C8D4E0F7A3", "Invalid timestamp format: " + value, system_utils::captureCallStack()));
+            }
+            ptr = p1 + 1;
+
+            int month = 0;
+            auto [p2, ec2] = std::from_chars(ptr, end, month);
+            if (ec2 != std::errc{} || p2 == end || *p2 != '-')
+            {
+                return cpp_dbc::unexpected(DBException("B2C8D4E0F7A3", "Invalid timestamp format: " + value, system_utils::captureCallStack()));
+            }
+            ptr = p2 + 1;
+
+            int day = 0;
+            auto [p3, ec3] = std::from_chars(ptr, end, day);
+            if (ec3 != std::errc{} || p3 == end || *p3 != ' ')
+            {
+                return cpp_dbc::unexpected(DBException("B2C8D4E0F7A3", "Invalid timestamp format: " + value, system_utils::captureCallStack()));
+            }
+            ptr = p3 + 1;
+
+            int hour = 0;
+            auto [p4, ec4] = std::from_chars(ptr, end, hour);
+            if (ec4 != std::errc{} || p4 == end || *p4 != ':')
+            {
+                return cpp_dbc::unexpected(DBException("B2C8D4E0F7A3", "Invalid timestamp format: " + value, system_utils::captureCallStack()));
+            }
+            ptr = p4 + 1;
+
+            int min = 0;
+            auto [p5, ec5] = std::from_chars(ptr, end, min);
+            if (ec5 != std::errc{} || p5 == end || *p5 != ':')
+            {
+                return cpp_dbc::unexpected(DBException("B2C8D4E0F7A3", "Invalid timestamp format: " + value, system_utils::captureCallStack()));
+            }
+            ptr = p5 + 1;
+
+            int sec = 0;
+            auto [p6, ec6] = std::from_chars(ptr, end, sec);
+            if (ec6 != std::errc{} || p6 != end)
+            {
+                return cpp_dbc::unexpected(DBException("B2C8D4E0F7A3", "Invalid timestamp format: " + value, system_utils::captureCallStack()));
+            }
+
+            time.tm_year = year - 1900;
+            time.tm_mon = month - 1;
+            time.tm_mday = day;
+            time.tm_hour = hour;
+            time.tm_min = min;
+            time.tm_sec = sec;
         }
-        time.tm_year -= 1900;
-        time.tm_mon -= 1;
 
         ISC_TIMESTAMP ts;
         isc_encode_timestamp(&time, &ts);
@@ -343,10 +419,36 @@ namespace cpp_dbc::Firebird
 
         // Parse time string (expected format: HH:MM:SS)
         struct tm time = {};
-        if (sscanf(value.c_str(), "%d:%d:%d",
-                   &time.tm_hour, &time.tm_min, &time.tm_sec) != 3)
         {
-            return cpp_dbc::unexpected(DBException("68TNRM1CR27K", "Invalid time format: " + value, system_utils::captureCallStack()));
+            const char *ptr = value.data();
+            const char *end = ptr + value.size();
+
+            int hour = 0;
+            auto [p1, ec1] = std::from_chars(ptr, end, hour);
+            if (ec1 != std::errc{} || p1 == end || *p1 != ':')
+            {
+                return cpp_dbc::unexpected(DBException("68TNRM1CR27K", "Invalid time format: " + value, system_utils::captureCallStack()));
+            }
+            ptr = p1 + 1;
+
+            int min = 0;
+            auto [p2, ec2] = std::from_chars(ptr, end, min);
+            if (ec2 != std::errc{} || p2 == end || *p2 != ':')
+            {
+                return cpp_dbc::unexpected(DBException("68TNRM1CR27K", "Invalid time format: " + value, system_utils::captureCallStack()));
+            }
+            ptr = p2 + 1;
+
+            int sec = 0;
+            auto [p3, ec3] = std::from_chars(ptr, end, sec);
+            if (ec3 != std::errc{} || p3 != end)
+            {
+                return cpp_dbc::unexpected(DBException("68TNRM1CR27K", "Invalid time format: " + value, system_utils::captureCallStack()));
+            }
+
+            time.tm_hour = hour;
+            time.tm_min = min;
+            time.tm_sec = sec;
         }
 
         ISC_TIME t;

@@ -279,7 +279,7 @@ namespace cpp_dbc::Firebird
             return cpp_dbc::unexpected(DBException("TGXPWHHQXNUJ", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
         }
 
-        // FIX #1: Access transaction handle safely via m_connection
+        // Access transaction handle safely via m_connection (see prepared_statement.hpp bug-fix comment)
         auto conn = m_connection.lock();
         if (!conn)
         {
