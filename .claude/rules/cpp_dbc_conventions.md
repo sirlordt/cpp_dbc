@@ -354,14 +354,14 @@ if (!database.empty() && !std::ranges::all_of(database, [](unsigned char ch)
 // In system_utils.hpp:
 inline bool isValidDatabaseIdentifier(std::string_view name) noexcept
 {
-    for (unsigned char ch : name)
-    {
-        if (!std::isalnum(ch) && ch != '_')
-        {
-            return false;
-        }
-    }
-    return true;
+    return std::ranges::all_of(name,
+                               [](unsigned char ch)
+                               {
+                                   return (ch >= '0' && ch <= '9') ||
+                                          (ch >= 'A' && ch <= 'Z') ||
+                                          (ch >= 'a' && ch <= 'z') ||
+                                          ch == '_';
+                               });
 }
 
 // In any driver file:
