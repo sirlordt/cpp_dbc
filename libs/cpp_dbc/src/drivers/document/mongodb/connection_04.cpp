@@ -55,7 +55,7 @@ namespace cpp_dbc::MongoDB
                                                    std::string("Exception in getDatabaseName: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("ZD984T94Z3QJ",
                                                    "Unknown exception in getDatabaseName",
@@ -69,7 +69,7 @@ namespace cpp_dbc::MongoDB
         {
             MONGODB_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed.load(std::memory_order_acquire))
+            if (m_closed.load(std::memory_order_seq_cst))
             {
                 return unexpected<DBException>(DBException(
                     "C54C7EECE4D6",
@@ -77,7 +77,7 @@ namespace cpp_dbc::MongoDB
             }
 
             bson_error_t error;
-            char **names = mongoc_client_get_database_names_with_opts(m_client.get(), nullptr, &error);
+            BsonStrArray names(mongoc_client_get_database_names_with_opts(m_client.get(), nullptr, &error));
 
             if (!names)
             {
@@ -87,12 +87,11 @@ namespace cpp_dbc::MongoDB
             }
 
             std::vector<std::string> databases;
-            for (size_t i = 0; names[i] != nullptr; ++i)
+            for (size_t i = 0; names.get()[i] != nullptr; ++i)
             {
-                databases.emplace_back(names[i]);
+                databases.emplace_back(names.get()[i]);
             }
 
-            bson_strfreev(names);
             return databases;
         }
         catch (const DBException &ex)
@@ -111,7 +110,7 @@ namespace cpp_dbc::MongoDB
                 "3D10AE1E27C2",
                 std::string("Unexpected error in listDatabases: ") + ex.what()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "EGOK917DH41Q",
@@ -142,7 +141,7 @@ namespace cpp_dbc::MongoDB
                                                    std::string("Exception in databaseExists: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("M38AKVVOH6MQ",
                                                    "Unknown exception in databaseExists",
@@ -176,7 +175,7 @@ namespace cpp_dbc::MongoDB
                                                    std::string("Exception in useDatabase: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("AK6049UQC43W",
                                                    "Unknown exception in useDatabase",
@@ -191,7 +190,7 @@ namespace cpp_dbc::MongoDB
         {
             MONGODB_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed.load(std::memory_order_acquire))
+            if (m_closed.load(std::memory_order_seq_cst))
             {
                 return unexpected<DBException>(DBException(
                     "U06DKBMOC39W",
@@ -228,7 +227,7 @@ namespace cpp_dbc::MongoDB
                 "8F9A0B1C2D3E",
                 std::string("Unexpected error in dropDatabase: ") + ex.what()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "9A0B1C2D3E4F",
@@ -247,7 +246,7 @@ namespace cpp_dbc::MongoDB
         {
             MONGODB_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed.load(std::memory_order_acquire))
+            if (m_closed.load(std::memory_order_seq_cst))
             {
                 return unexpected<DBException>(DBException(
                     "34BF1ABBB585",
@@ -274,16 +273,10 @@ namespace cpp_dbc::MongoDB
             }
 
             auto collResult = MongoDBCollection::create(std::nothrow,
-                                                        m_client,
                                                         collection,
                                                         collectionName,
                                                         m_databaseName,
-                                                        weak_from_this()
-#if DB_DRIVER_THREAD_SAFE
-                                                            ,
-                                                        m_connMutex
-#endif
-            );
+                                                        weak_from_this());
             if (!collResult.has_value())
             {
                 return unexpected<DBException>(collResult.error());
@@ -310,7 +303,7 @@ namespace cpp_dbc::MongoDB
                 "T05R4LCMCDEW",
                 std::string("Unexpected error in getCollection: ") + ex.what()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "FDE1D469FA3C",
@@ -324,7 +317,7 @@ namespace cpp_dbc::MongoDB
         {
             MONGODB_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed.load(std::memory_order_acquire))
+            if (m_closed.load(std::memory_order_seq_cst))
             {
                 return unexpected<DBException>(DBException(
                     "5A6B7C8D9E0F",
@@ -341,7 +334,7 @@ namespace cpp_dbc::MongoDB
             MongoDatabaseHandle db(mongoc_client_get_database(m_client.get(), m_databaseName.c_str()));
 
             bson_error_t error;
-            char **names = mongoc_database_get_collection_names_with_opts(db.get(), nullptr, &error);
+            BsonStrArray names(mongoc_database_get_collection_names_with_opts(db.get(), nullptr, &error));
 
             if (!names)
             {
@@ -351,12 +344,10 @@ namespace cpp_dbc::MongoDB
             }
 
             std::vector<std::string> collections;
-            for (size_t i = 0; names[i] != nullptr; ++i)
+            for (size_t i = 0; names.get()[i] != nullptr; ++i)
             {
-                collections.emplace_back(names[i]);
+                collections.emplace_back(names.get()[i]);
             }
-
-            bson_strfreev(names);
             return collections;
         }
         catch (const DBException &ex)
@@ -375,7 +366,7 @@ namespace cpp_dbc::MongoDB
                 "9E0F1A2B3C4D",
                 std::string("Unexpected error in listCollections: ") + ex.what()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "0F1A2B3C4D5E",
@@ -406,7 +397,7 @@ namespace cpp_dbc::MongoDB
                                                    std::string("Exception in collectionExists: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("R3LWE02BEA9G",
                                                    "Unknown exception in collectionExists",
@@ -423,7 +414,7 @@ namespace cpp_dbc::MongoDB
         {
             MONGODB_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed.load(std::memory_order_acquire))
+            if (m_closed.load(std::memory_order_seq_cst))
             {
                 return unexpected<DBException>(DBException(
                     "1A2B3C4D5E6F",
@@ -472,16 +463,10 @@ namespace cpp_dbc::MongoDB
             }
 
             auto collResult = MongoDBCollection::create(std::nothrow,
-                                                        m_client,
                                                         coll,
                                                         collectionName,
                                                         m_databaseName,
-                                                        weak_from_this()
-#if DB_DRIVER_THREAD_SAFE
-                                                            ,
-                                                        m_connMutex
-#endif
-            );
+                                                        weak_from_this());
             if (!collResult.has_value())
             {
                 return unexpected<DBException>(collResult.error());
@@ -508,7 +493,7 @@ namespace cpp_dbc::MongoDB
                 "6F7A8B9C0D1E",
                 std::string("Unexpected error in createCollection: ") + ex.what()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "Q3R4S5T6U7V8",
@@ -523,7 +508,7 @@ namespace cpp_dbc::MongoDB
         {
             MONGODB_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed.load(std::memory_order_acquire))
+            if (m_closed.load(std::memory_order_seq_cst))
             {
                 return unexpected<DBException>(DBException(
                     "LCTMVU4COTWE",
@@ -577,7 +562,7 @@ namespace cpp_dbc::MongoDB
                 "ORKDZSTMMSM0",
                 std::string("Unexpected error in dropCollection: ") + ex.what()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "CKJ52W4NXG22",

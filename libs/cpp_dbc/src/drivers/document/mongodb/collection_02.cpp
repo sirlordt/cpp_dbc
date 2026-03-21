@@ -44,17 +44,8 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            MONGODB_DEBUG("MongoDBCollection::insertOne(nothrow) - Inserting document into: " << m_name);
-            MONGODB_LOCK_GUARD(*m_connMutex);
-
-            // Validate connection (inline check - no throwing helper)
-            if (m_client.expired())
-            {
-                return unexpected<DBException>(DBException(
-                    "A1B2C3D4E5F6",
-                    "Connection has been closed",
-                    system_utils::captureCallStack()));
-            }
+            MONGODB_DEBUG("MongoDBCollection::insertOne(nothrow) - Inserting document into: %s", m_name.c_str());
+            MONGODB_STMT_LOCK_OR_RETURN("A1B2C3D4E5F6", "Connection closed");
 
             auto mongoDoc = std::dynamic_pointer_cast<MongoDBDocument>(document);
             if (!mongoDoc)
@@ -132,7 +123,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Unexpected error in insertOne: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "A8C0D480F03C",
@@ -161,16 +152,8 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            MONGODB_DEBUG("MongoDBCollection::insertMany(nothrow) - Inserting " << documents.size() << " documents");
-            MONGODB_LOCK_GUARD(*m_connMutex);
-
-            if (m_client.expired())
-            {
-                return unexpected<DBException>(DBException(
-                    "D9E0F1A2B3C4",
-                    "Connection has been closed",
-                    system_utils::captureCallStack()));
-            }
+            MONGODB_DEBUG("MongoDBCollection::insertMany(nothrow) - Inserting %zu documents", documents.size());
+            MONGODB_STMT_LOCK_OR_RETURN("D9E0F1A2B3C4", "Connection closed");
 
             if (documents.empty())
             {
@@ -280,7 +263,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Unexpected error in insertMany: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "B3C4D5E6F7A8",
@@ -296,16 +279,8 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            MONGODB_DEBUG("MongoDBCollection::findOne(nothrow) - Finding in: " << m_name);
-            MONGODB_LOCK_GUARD(*m_connMutex);
-
-            if (m_client.expired())
-            {
-                return unexpected<DBException>(DBException(
-                    "C4D5E6F7A8B9",
-                    "Connection has been closed",
-                    system_utils::captureCallStack()));
-            }
+            MONGODB_DEBUG("MongoDBCollection::findOne(nothrow) - Finding in: %s", m_name.c_str());
+            MONGODB_STMT_LOCK_OR_RETURN("C4D5E6F7A8B9", "Connection closed");
 
             auto filterResult = parseFilter(std::nothrow, filter);
             if (!filterResult.has_value())
@@ -383,7 +358,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Unexpected error in findOne: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "F7A8B9C0D1E2",
@@ -447,7 +422,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Error in findById: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "B9C0D1E2F3A4",

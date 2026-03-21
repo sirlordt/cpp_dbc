@@ -75,7 +75,7 @@ namespace cpp_dbc
          * @brief Get the name of the current database
          * @return The database name
          */
-        #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
         virtual std::string getDatabaseName() const = 0;
 
         /**
@@ -257,7 +257,7 @@ namespace cpp_dbc
          */
         virtual TransactionIsolationLevel getTransactionIsolation() = 0;
 
-        #endif // __cpp_exceptions
+#endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

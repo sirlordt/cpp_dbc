@@ -65,7 +65,7 @@ namespace cpp_dbc
          * @brief Move to the next document in the cursor
          * @return true if there is a next document, false if at end
          */
-        #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
         virtual bool next() = 0;
 
         /**
@@ -157,7 +157,7 @@ namespace cpp_dbc
          */
         virtual void rewind() = 0;
 
-        #endif // __cpp_exceptions
+#endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

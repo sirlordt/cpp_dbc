@@ -43,15 +43,7 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_DEBUG("MongoDBCollection::drop(nothrow)");
-            MONGODB_LOCK_GUARD(*m_connMutex);
-
-            if (m_client.expired())
-            {
-                return unexpected<DBException>(DBException(
-                    "60KC02UP28TD",
-                    "Connection has been closed",
-                    system_utils::captureCallStack()));
-            }
+            MONGODB_STMT_LOCK_OR_RETURN("60KC02UP28TD", "Connection closed");
 
             bson_error_t error;
             bool success = mongoc_collection_drop(m_collection.get(), &error);
@@ -77,7 +69,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Unexpected error in drop: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "F45RS3XRODY4",
@@ -93,16 +85,8 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            MONGODB_DEBUG("MongoDBCollection::rename(nothrow) to: " << newName);
-            MONGODB_LOCK_GUARD(*m_connMutex);
-
-            if (m_client.expired())
-            {
-                return unexpected<DBException>(DBException(
-                    "YAZPQV1NVX5Q",
-                    "Connection has been closed",
-                    system_utils::captureCallStack()));
-            }
+            MONGODB_DEBUG("MongoDBCollection::rename(nothrow) to: %s", newName.c_str());
+            MONGODB_STMT_LOCK_OR_RETURN("YAZPQV1NVX5Q", "Connection closed");
 
             bson_error_t error;
             bool success = mongoc_collection_rename(
@@ -130,7 +114,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Unexpected error in rename: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "T8EFXZCJ4KS7",
@@ -146,15 +130,7 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_DEBUG("MongoDBCollection::aggregate(nothrow)");
-            MONGODB_LOCK_GUARD(*m_connMutex);
-
-            if (m_client.expired())
-            {
-                return unexpected<DBException>(DBException(
-                    "CMF7381Q36OF",
-                    "Connection has been closed",
-                    system_utils::captureCallStack()));
-            }
+            MONGODB_STMT_LOCK_OR_RETURN("CMF7381Q36OF", "Connection closed");
 
             auto pipelineBsonResult = makeBsonHandleFromJson(std::nothrow, pipeline);
             if (!pipelineBsonResult.has_value())
@@ -163,10 +139,10 @@ namespace cpp_dbc::MongoDB
             }
             BsonHandle pipelineBson = std::move(pipelineBsonResult.value());
 
-            mongoc_cursor_t *cursor = mongoc_collection_aggregate(
-                m_collection.get(), MONGOC_QUERY_NONE, pipelineBson.get(), nullptr, nullptr);
+            MongoCursorHandle cursorGuard(mongoc_collection_aggregate(
+                m_collection.get(), MONGOC_QUERY_NONE, pipelineBson.get(), nullptr, nullptr));
 
-            if (!cursor)
+            if (!cursorGuard)
             {
                 return unexpected<DBException>(DBException(
                     "I3J4K5L6M7N8",
@@ -174,12 +150,7 @@ namespace cpp_dbc::MongoDB
                     system_utils::captureCallStack()));
             }
 
-            auto cursorResult = MongoDBCursor::create(std::nothrow, m_client, cursor, m_connection
-#if DB_DRIVER_THREAD_SAFE
-                                                      ,
-                                                      m_connMutex
-#endif
-            );
+            auto cursorResult = MongoDBCursor::create(std::nothrow, cursorGuard.release(), m_connection);
             if (!cursorResult.has_value())
             {
                 return unexpected<DBException>(cursorResult.error());
@@ -212,7 +183,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Unexpected error in aggregate: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "B3FOC2B8N515",
@@ -229,52 +200,34 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_DEBUG("MongoDBCollection::distinct(nothrow)");
-            MONGODB_LOCK_GUARD(*m_connMutex);
-
-            if (m_client.expired())
-            {
-                return unexpected<DBException>(DBException(
-                    "VNI5DI2C3HHP",
-                    "Connection has been closed",
-                    system_utils::captureCallStack()));
-            }
+            MONGODB_STMT_LOCK_OR_RETURN("VNI5DI2C3HHP", "Connection closed");
 
             std::vector<std::string> result;
 
-            bson_t cmd = BSON_INITIALIZER;
-            BSON_APPEND_UTF8(&cmd, "distinct", m_name.c_str());
-            BSON_APPEND_UTF8(&cmd, "key", fieldPath.c_str());
+            BsonHandle cmd(bson_new());
+            BSON_APPEND_UTF8(cmd.get(), "distinct", m_name.c_str());
+            BSON_APPEND_UTF8(cmd.get(), "key", fieldPath.c_str());
 
             if (!filter.empty())
             {
                 auto filterResult = parseFilter(std::nothrow, filter);
                 if (!filterResult.has_value())
                 {
-                    bson_destroy(&cmd);
                     return unexpected<DBException>(filterResult.error());
                 }
                 BsonHandle filterBson = std::move(filterResult.value());
-                BSON_APPEND_DOCUMENT(&cmd, "query", filterBson.get());
+                BSON_APPEND_DOCUMENT(cmd.get(), "query", filterBson.get());
             }
 
             bson_error_t error;
-            bson_t reply;
-            bson_init(&reply);
+            BsonHandle reply(bson_new());
 
-            auto clientResult = getClient(std::nothrow);
-            if (!clientResult.has_value())
-            {
-                return unexpected<DBException>(clientResult.error());
-            }
-            MongoDatabaseHandle db(mongoc_client_get_database(clientResult.value(), m_databaseName.c_str()));
+            MongoDatabaseHandle db(mongoc_client_get_database(mongodb_conn_lock_.nativeClient(), m_databaseName.c_str()));
 
-            bool success = mongoc_database_command_simple(db.get(), &cmd, nullptr, &reply, &error);
-
-            bson_destroy(&cmd);
+            bool success = mongoc_database_command_simple(db.get(), cmd.get(), nullptr, reply.get(), &error);
 
             if (!success)
             {
-                bson_destroy(&reply);
                 return unexpected<DBException>(DBException(
                     "2U5HMTIIHN30",
                     std::string("distinct failed: ") + error.message,
@@ -283,7 +236,7 @@ namespace cpp_dbc::MongoDB
 
             // Extract values from reply
             bson_iter_t iter;
-            if (bson_iter_init_find(&iter, &reply, "values") && BSON_ITER_HOLDS_ARRAY(&iter))
+            if (bson_iter_init_find(&iter, reply.get(), "values") && BSON_ITER_HOLDS_ARRAY(&iter))
             {
                 bson_iter_t arrayIter;
                 const uint8_t *data = nullptr;
@@ -319,7 +272,6 @@ namespace cpp_dbc::MongoDB
                 }
             }
 
-            bson_destroy(&reply);
             return result;
         }
         catch (const DBException &ex)
@@ -340,7 +292,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Unexpected error in distinct: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "ADQCRG3164KE",
@@ -351,7 +303,7 @@ namespace cpp_dbc::MongoDB
 
     bool MongoDBCollection::isConnectionValid(std::nothrow_t) const noexcept
     {
-        return !m_client.expired();
+        return !m_connection.expired();
     }
 
 } // namespace cpp_dbc::MongoDB

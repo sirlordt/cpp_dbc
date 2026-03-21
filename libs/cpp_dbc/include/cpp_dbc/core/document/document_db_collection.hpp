@@ -117,7 +117,7 @@ namespace cpp_dbc
         // THROWING API - Exception-based (requires __cpp_exceptions)
         // ====================================================================
 
-        #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
 
         // Collection information
         /**
@@ -381,7 +381,7 @@ namespace cpp_dbc
             const std::string &fieldPath,
             const std::string &filter = "") = 0;
 
-        #endif // __cpp_exceptions
+#endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

@@ -56,6 +56,10 @@ namespace cpp_dbc::MongoDB
             explicit PrivateCtorTag() = default;
         };
 
+        friend class MongoDBConnectionLock;
+        friend class MongoDBCollection;
+        friend class MongoDBCursor;
+
         /**
          * @brief The MongoDB client (shared_ptr for weak_ptr support)
          */
@@ -146,6 +150,14 @@ namespace cpp_dbc::MongoDB
          */
         std::unique_ptr<DBException> m_initError{nullptr};
         TransactionIsolationLevel m_transactionIsolation{TransactionIsolationLevel::TRANSACTION_NONE};
+
+    protected:
+#if DB_DRIVER_THREAD_SAFE
+        std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
+        {
+            return *m_connMutex;
+        }
+#endif
 
     public:
         /**

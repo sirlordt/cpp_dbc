@@ -52,7 +52,7 @@ namespace cpp_dbc::MongoDB
     {
         MONGODB_DEBUG("MongoDBDriver::initialize - Initializing MongoDB C driver");
         mongoc_init();
-        s_initialized.store(true, std::memory_order_release);
+        s_initialized.store(true, std::memory_order_seq_cst);
         MONGODB_DEBUG("MongoDBDriver::initialize - Done");
         return true;
     }
@@ -64,15 +64,15 @@ namespace cpp_dbc::MongoDB
         // but we need cleanup() to allow re-initialization across multiple driver lifetimes
         // (e.g. between test cases). std::atomic<bool> + mutex achieves the same once-semantics
         // while remaining resettable.
-        if (!s_initialized.load(std::memory_order_acquire))
+        if (!s_initialized.load(std::memory_order_seq_cst))
         {
             std::scoped_lock lock(s_initMutex);
-            if (!s_initialized.load(std::memory_order_relaxed))
+            if (!s_initialized.load(std::memory_order_seq_cst))
             {
                 auto initResult = initialize(std::nothrow);
                 if (!initResult.has_value())
                 {
-                    MONGODB_DEBUG("MongoDBDriver::constructor - Initialization failed: " << initResult.error().what());
+                    MONGODB_DEBUG("MongoDBDriver::constructor - Initialization failed: %s", initResult.error().what());
                 }
             }
         }
@@ -112,7 +112,7 @@ namespace cpp_dbc::MongoDB
 
         // Coalesced cleanup: only post when the registry has grown past the
         // cleanup threshold and no cleanup task is already queued.
-        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_acq_rel))
+        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_seq_cst))
         {
             SerialQueue::global().post([]()
             {
@@ -121,7 +121,7 @@ namespace cpp_dbc::MongoDB
                     std::erase_if(s_connectionRegistry,
                         [](const auto &w) { return w.expired(); });
                 }
-                s_cleanupPending.store(false, std::memory_order_release);
+                s_cleanupPending.store(false, std::memory_order_seq_cst);
             });
         }
     }
@@ -135,7 +135,7 @@ namespace cpp_dbc::MongoDB
     void MongoDBDriver::closeAllOpenConnections(std::nothrow_t) noexcept
     {
         // Mark driver as closed — reject any new connection attempts
-        m_closed.store(true, std::memory_order_release);
+        m_closed.store(true, std::memory_order_seq_cst);
 
         // Close all open connections before the driver goes away.
         // Collect under lock first, then close outside the lock to avoid
@@ -217,17 +217,17 @@ namespace cpp_dbc::MongoDB
     void MongoDBDriver::cleanup()
     {
         MONGODB_DEBUG("MongoDBDriver::cleanup - Cleaning up MongoDB C driver");
-        if (s_initialized.load(std::memory_order_acquire))
+        if (s_initialized.load(std::memory_order_seq_cst))
         {
             mongoc_cleanup();
-            s_initialized.store(false, std::memory_order_release);
+            s_initialized.store(false, std::memory_order_seq_cst);
             MONGODB_DEBUG("MongoDBDriver::cleanup - Done");
         }
     }
 
     bool MongoDBDriver::isInitialized()
     {
-        return s_initialized.load(std::memory_order_acquire);
+        return s_initialized.load(std::memory_order_seq_cst);
     }
 
     bool MongoDBDriver::validateURI(const std::string &uri)
@@ -289,14 +289,14 @@ namespace cpp_dbc::MongoDB
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (m_closed.load(std::memory_order_seq_cst))
         {
             return cpp_dbc::unexpected(DBException("T5KXPF2BWN9H",
                                                    "Driver is closed, no more connections allowed",
                                                    system_utils::captureCallStack()));
         }
 
-        MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connecting to: " << uri);
+        MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connecting to: %s", uri.c_str());
 
         auto uriCheck = acceptURI(std::nothrow, uri);
         if (!uriCheck.has_value())
@@ -310,7 +310,7 @@ namespace cpp_dbc::MongoDB
         auto connResult = MongoDBConnection::create(std::nothrow, uri, user, password, options);
         if (!connResult.has_value())
         {
-            MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connection failed: " << connResult.error().what());
+            MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connection failed: %s", connResult.error().what());
             return unexpected<DBException>(connResult.error());
         }
 

@@ -6,8 +6,9 @@
 
 namespace cpp_dbc::MongoDB
 {
-    class MongoDBConnection; // Forward declaration
-    class MongoDBDocument;   // Forward declaration
+    class MongoDBConnection;     // Forward declaration
+    class MongoDBConnectionLock; // Forward declaration
+    class MongoDBDocument;       // Forward declaration
 
     // ============================================================================
     // MongoDBCursor - Implements DocumentDBCursor
@@ -43,21 +44,24 @@ namespace cpp_dbc::MongoDB
             explicit PrivateCtorTag() = default;
         };
 
-        /**
-         * @brief Weak reference to the MongoDB client
-         *
-         * This allows us to detect when the connection has been closed
-         * and prevent use-after-free errors.
-         */
-        std::weak_ptr<mongoc_client_t> m_client;
+        friend class MongoDBConnectionLock;
 
         /**
-         * @brief Weak pointer to the connection for registration/unregistration
+         * @brief Weak pointer to the connection for RAII lock helper
          *
          * Using weak_ptr prevents circular references and allows safe
-         * detection of connection closure.
+         * detection of connection closure. The MongoDBConnectionLock
+         * RAII helper acquires the connection mutex through this pointer.
          */
         std::weak_ptr<MongoDBConnection> m_connection;
+
+        /**
+         * @brief Closed flag for double-checked locking in RAII helper
+         *
+         * Checked by MongoDBConnectionLock before and after acquiring the
+         * connection mutex to detect concurrent close() calls.
+         */
+        mutable std::atomic<bool> m_closed{false};
 
         /**
          * @brief The underlying MongoDB cursor
@@ -113,26 +117,8 @@ namespace cpp_dbc::MongoDB
          */
         bool m_modifiersApplied{false};
 
-#if DB_DRIVER_THREAD_SAFE
-        /**
-         * @brief Shared mutex from the parent connection
-         *
-         * This mutex is shared with MongoDBConnection and other objects
-         * (MongoDBCollection) that access the same mongoc_client_t.
-         * All operations that access the client are synchronized through
-         * this shared mutex to prevent race conditions.
-         */
-        SharedConnMutex m_connMutex;
-#endif
-
         bool m_initFailed{false};
         DBException m_initError{"0J9B2L099DS7", "", {}};
-
-        /**
-         * @brief Validates that the connection is still valid
-         * @return unexpected(DBException) if the connection has been closed
-         */
-        expected<void, DBException> validateConnection(std::nothrow_t) const noexcept;
 
         /**
          * @brief Validates that the cursor is valid
@@ -140,30 +126,14 @@ namespace cpp_dbc::MongoDB
          */
         expected<void, DBException> validateCursor(std::nothrow_t) const noexcept;
 
-        /**
-         * @brief Helper to get the client pointer safely
-         * @return The client pointer, or unexpected(DBException) if the connection has been closed
-         */
-        expected<mongoc_client_t *, DBException> getClient(std::nothrow_t) const noexcept;
-
     public:
-        // Nothrow constructors: contain all initialization logic.
+        // Nothrow constructor: contains all initialization logic.
         // Public for std::make_shared access, but effectively private via PrivateCtorTag.
         // Errors are stored in m_initFailed/m_initError for the factory to inspect.
-#if DB_DRIVER_THREAD_SAFE
         MongoDBCursor(PrivateCtorTag,
                       std::nothrow_t,
-                      std::weak_ptr<mongoc_client_t> client,
-                      mongoc_cursor_t *cursor,
-                      std::weak_ptr<MongoDBConnection> connection,
-                      SharedConnMutex connMutex) noexcept;
-#else
-        MongoDBCursor(PrivateCtorTag,
-                      std::nothrow_t,
-                      std::weak_ptr<mongoc_client_t> client,
                       mongoc_cursor_t *cursor,
                       std::weak_ptr<MongoDBConnection> connection) noexcept;
-#endif
 
         ~MongoDBCursor() override;
 
@@ -181,34 +151,17 @@ namespace cpp_dbc::MongoDB
         // ====================================================================
 
 #ifdef __cpp_exceptions
-#if DB_DRIVER_THREAD_SAFE
         static std::shared_ptr<MongoDBCursor>
-        create(std::weak_ptr<mongoc_client_t> client,
-               mongoc_cursor_t *cursor,
-               std::weak_ptr<MongoDBConnection> connection,
-               SharedConnMutex connMutex)
+        create(mongoc_cursor_t *cursor,
+               std::weak_ptr<MongoDBConnection> connection)
         {
-            auto r = create(std::nothrow, std::move(client), cursor, std::move(connection), std::move(connMutex));
+            auto r = create(std::nothrow, cursor, std::move(connection));
             if (!r.has_value())
             {
                 throw r.error();
             }
             return r.value();
         }
-#else
-        static std::shared_ptr<MongoDBCursor>
-        create(std::weak_ptr<mongoc_client_t> client,
-               mongoc_cursor_t *cursor,
-               std::weak_ptr<MongoDBConnection> connection = std::weak_ptr<MongoDBConnection>())
-        {
-            auto r = create(std::nothrow, std::move(client), cursor, std::move(connection));
-            if (!r.has_value())
-            {
-                throw r.error();
-            }
-            return r.value();
-        }
-#endif
 
         void close() override;
         bool isEmpty() override;
@@ -251,42 +204,21 @@ namespace cpp_dbc::MongoDB
         // NOTHROW API — exception-free, always available
         // ====================================================================
 
-#if DB_DRIVER_THREAD_SAFE
         static cpp_dbc::expected<std::shared_ptr<MongoDBCursor>, DBException>
         create(std::nothrow_t,
-               std::weak_ptr<mongoc_client_t> client,
                mongoc_cursor_t *cursor,
-               std::weak_ptr<MongoDBConnection> connection,
-               SharedConnMutex connMutex) noexcept
+               std::weak_ptr<MongoDBConnection> connection) noexcept
         {
             // The nothrow constructor stores init errors in m_initFailed/m_initError
             // rather than throwing, so no try/catch is needed here.
             auto obj = std::make_shared<MongoDBCursor>(
-                PrivateCtorTag{}, std::nothrow, std::move(client), cursor, std::move(connection), std::move(connMutex));
+                PrivateCtorTag{}, std::nothrow, cursor, std::move(connection));
             if (obj->m_initFailed)
             {
                 return cpp_dbc::unexpected(obj->m_initError);
             }
             return obj;
         }
-#else
-        static cpp_dbc::expected<std::shared_ptr<MongoDBCursor>, DBException>
-        create(std::nothrow_t,
-               std::weak_ptr<mongoc_client_t> client,
-               mongoc_cursor_t *cursor,
-               std::weak_ptr<MongoDBConnection> connection = std::weak_ptr<MongoDBConnection>()) noexcept
-        {
-            // The nothrow constructor stores init errors in m_initFailed/m_initError
-            // rather than throwing, so no try/catch is needed here.
-            auto obj = std::make_shared<MongoDBCursor>(
-                PrivateCtorTag{}, std::nothrow, std::move(client), cursor, std::move(connection));
-            if (obj->m_initFailed)
-            {
-                return cpp_dbc::unexpected(obj->m_initError);
-            }
-            return obj;
-        }
-#endif
 
         expected<void, DBException> close(std::nothrow_t) noexcept override;
         expected<bool, DBException> isEmpty(std::nothrow_t) noexcept override;

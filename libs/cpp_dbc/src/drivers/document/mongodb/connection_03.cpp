@@ -43,7 +43,7 @@ namespace cpp_dbc::MongoDB
         {
             MONGODB_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed.load(std::memory_order_acquire))
+            if (m_closed.load(std::memory_order_seq_cst))
             {
                 return {};
             }
@@ -51,7 +51,7 @@ namespace cpp_dbc::MongoDB
             MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Closing connection");
 
             // Close all active cursors BEFORE destroying the client
-            MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Closing " << m_activeCursors.size() << " active cursors");
+            MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Closing %zu active cursors", m_activeCursors.size());
             for (const auto &weakCursor : m_activeCursors)
             {
                 if (auto cursor = weakCursor.lock())
@@ -59,7 +59,7 @@ namespace cpp_dbc::MongoDB
                     auto r = cursor->close(std::nothrow);
                     if (!r.has_value())
                     {
-                        MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Error ignored during cursor cleanup: " << r.error().what());
+                        MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Error ignored during cursor cleanup: %s", r.error().what());
                     }
                 }
             }
@@ -72,7 +72,7 @@ namespace cpp_dbc::MongoDB
             m_activeCollections.clear();
 
             m_client.reset();
-            m_closed.store(true, std::memory_order_release);
+            m_closed.store(true, std::memory_order_seq_cst);
 
             // Unregister from the driver registry so getConnectionAlive() reflects
             // actual live connections. The owner_less m_self weak_ptr is used for
@@ -92,7 +92,7 @@ namespace cpp_dbc::MongoDB
                                                    std::string("Exception in close: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("VS3RNHCXXBMC",
                                                    "Unknown exception in close",
@@ -107,7 +107,7 @@ namespace cpp_dbc::MongoDB
 
     expected<bool, DBException> MongoDBConnection::isClosed(std::nothrow_t) const noexcept
     {
-        return m_closed.load(std::memory_order_acquire);
+        return m_closed.load(std::memory_order_seq_cst);
     }
 
     expected<void, DBException> MongoDBConnection::returnToPool(std::nothrow_t) noexcept

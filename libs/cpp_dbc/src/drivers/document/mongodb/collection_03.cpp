@@ -43,16 +43,8 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            MONGODB_DEBUG("MongoDBCollection::find(nothrow) - Finding in: " << m_name);
-            MONGODB_LOCK_GUARD(*m_connMutex);
-
-            if (m_client.expired())
-            {
-                return unexpected<DBException>(DBException(
-                    "C0D1E2F3A4B5",
-                    "Connection has been closed",
-                    system_utils::captureCallStack()));
-            }
+            MONGODB_DEBUG("MongoDBCollection::find(nothrow) - Finding in: %s", m_name.c_str());
+            MONGODB_STMT_LOCK_OR_RETURN("C0D1E2F3A4B5", "Connection closed");
 
             auto filterResult = parseFilter(std::nothrow, filter);
             if (!filterResult.has_value())
@@ -75,11 +67,7 @@ namespace cpp_dbc::MongoDB
             MongoCursorHandle cursorHandle(rawCursor);
 
             // Create the MongoDBCursor - it will take ownership via release()
-            auto cursorResult = MongoDBCursor::create(std::nothrow, m_client, cursorHandle.release(), m_connection
-#if DB_DRIVER_THREAD_SAFE
-                , m_connMutex
-#endif
-            );
+            auto cursorResult = MongoDBCursor::create(std::nothrow, cursorHandle.release(), m_connection);
             if (!cursorResult.has_value())
             {
                 return unexpected<DBException>(cursorResult.error());
@@ -112,7 +100,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Unexpected error in find: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "F3A4B5C6D7E8",
@@ -128,16 +116,8 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            MONGODB_DEBUG("MongoDBCollection::find(nothrow) with projection - Finding in: " << m_name);
-            MONGODB_LOCK_GUARD(*m_connMutex);
-
-            if (m_client.expired())
-            {
-                return unexpected<DBException>(DBException(
-                    "G5WTH2GFNGLV",
-                    "Connection has been closed",
-                    system_utils::captureCallStack()));
-            }
+            MONGODB_DEBUG("MongoDBCollection::find(nothrow) with projection - Finding in: %s", m_name.c_str());
+            MONGODB_STMT_LOCK_OR_RETURN("G5WTH2GFNGLV", "Connection closed");
 
             auto filterResult = parseFilter(std::nothrow, filter);
             if (!filterResult.has_value())
@@ -172,11 +152,7 @@ namespace cpp_dbc::MongoDB
             MongoCursorHandle cursorHandle(rawCursor);
 
             // Create the MongoDBCursor - it will take ownership via release()
-            auto cursorResult = MongoDBCursor::create(std::nothrow, m_client, cursorHandle.release(), m_connection
-#if DB_DRIVER_THREAD_SAFE
-                , m_connMutex
-#endif
-            );
+            auto cursorResult = MongoDBCursor::create(std::nothrow, cursorHandle.release(), m_connection);
             if (!cursorResult.has_value())
             {
                 return unexpected<DBException>(cursorResult.error());
@@ -209,7 +185,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Unexpected error in find: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "D7E8F9A0B1C2",

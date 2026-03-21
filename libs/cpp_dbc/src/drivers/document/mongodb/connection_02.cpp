@@ -33,7 +33,7 @@
 namespace cpp_dbc::MongoDB
 {
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     std::shared_ptr<DocumentDBCollection> MongoDBConnection::getCollection(const std::string &collectionName)
     {
         auto result = getCollection(std::nothrow, collectionName);
@@ -261,7 +261,7 @@ namespace cpp_dbc::MongoDB
         MONGODB_LOCK_GUARD(*m_connMutex);
         m_pooled = pooled;
     }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::MongoDB
 

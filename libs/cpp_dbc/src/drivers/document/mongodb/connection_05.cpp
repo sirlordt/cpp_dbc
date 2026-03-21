@@ -66,7 +66,7 @@ namespace cpp_dbc::MongoDB
     {
         MONGODB_LOCK_GUARD(*m_connMutex);
 
-        if (m_closed.load(std::memory_order_acquire))
+        if (m_closed.load(std::memory_order_seq_cst))
         {
             return unexpected<DBException>(DBException(
                 "44TYH8VEG840",
@@ -296,7 +296,7 @@ namespace cpp_dbc::MongoDB
         {
             MONGODB_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed.load(std::memory_order_acquire))
+            if (m_closed.load(std::memory_order_seq_cst))
             {
                 return false;
             }
@@ -327,7 +327,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Exception in ping: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("8J8QQ3PWPMI7",
                 "Unknown exception in ping",
@@ -377,7 +377,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Exception in startSession: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("VYHRUJIES2UT",
                 "Unknown exception in startSession",
@@ -408,7 +408,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Exception in endSession: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("P5T6IBVVY4LY",
                 "Unknown exception in endSession",
@@ -453,7 +453,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Exception in startTransaction: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("27BAFS8P63VP",
                 "Unknown exception in startTransaction",
@@ -503,7 +503,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Exception in commitTransaction: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("YUHT2EY5YZ9L",
                 "Unknown exception in commitTransaction",
@@ -548,7 +548,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Exception in abortTransaction: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("VXMIHE0LNXWG",
                 "Unknown exception in abortTransaction",
@@ -574,7 +574,7 @@ namespace cpp_dbc::MongoDB
 
             if (!serverDesc)
             {
-                MONGODB_DEBUG("supportsTransactions: Failed to select server - " << error.message);
+                MONGODB_DEBUG("supportsTransactions: Failed to select server - %s", error.message);
                 return false;
             }
 
@@ -597,7 +597,7 @@ namespace cpp_dbc::MongoDB
 
             if (!isReplicaSet && !isMongos)
             {
-                MONGODB_DEBUG("supportsTransactions: Server type '" << serverType << "' does not support transactions");
+                MONGODB_DEBUG("supportsTransactions: Server type '%s' does not support transactions", serverType);
                 mongoc_server_description_destroy(serverDesc);
                 return false;
             }
@@ -650,7 +650,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Exception in supportsTransactions: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("LBIGF6VZJ2R7",
                 "Unknown exception in supportsTransactions",
@@ -690,7 +690,7 @@ namespace cpp_dbc::MongoDB
                     auto r = cursor->close(std::nothrow);
                     if (!r.has_value())
                     {
-                        MONGODB_DEBUG("prepareForPoolReturn(nothrow) - Error ignored during cursor cleanup: " << r.error().what());
+                        MONGODB_DEBUG("prepareForPoolReturn(nothrow) - Error ignored during cursor cleanup: %s", r.error().what());
                     }
                 }
             }
@@ -721,7 +721,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Exception in prepareForPoolReturn: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("MZTNXIRUAJZZ",
                 "Unknown exception in prepareForPoolReturn",

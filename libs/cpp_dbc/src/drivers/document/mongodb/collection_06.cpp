@@ -44,16 +44,8 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            MONGODB_DEBUG("MongoDBCollection::createIndex(nothrow) - Creating index in: " << m_name);
-            MONGODB_LOCK_GUARD(*m_connMutex);
-
-            if (m_client.expired())
-            {
-                return unexpected<DBException>(DBException(
-                    "0YQZ6L3A2KIT",
-                    "Connection has been closed",
-                    system_utils::captureCallStack()));
-            }
+            MONGODB_DEBUG("MongoDBCollection::createIndex(nothrow) - Creating index in: %s", m_name.c_str());
+            MONGODB_STMT_LOCK_OR_RETURN("0YQZ6L3A2KIT", "Connection closed");
 
             auto keysBsonResult = makeBsonHandleFromJson(std::nothrow, keys);
             if (!keysBsonResult.has_value())
@@ -162,7 +154,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Unexpected error in createIndex: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "2X6F38U6BCGB",
@@ -177,16 +169,8 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            MONGODB_DEBUG("MongoDBCollection::dropIndex(nothrow) - Dropping index: " << indexName);
-            MONGODB_LOCK_GUARD(*m_connMutex);
-
-            if (m_client.expired())
-            {
-                return unexpected<DBException>(DBException(
-                    "VEL150XDHYR0",
-                    "Connection has been closed",
-                    system_utils::captureCallStack()));
-            }
+            MONGODB_DEBUG("MongoDBCollection::dropIndex(nothrow) - Dropping index: %s", indexName.c_str());
+            MONGODB_STMT_LOCK_OR_RETURN("VEL150XDHYR0", "Connection closed");
 
             bson_error_t error;
             bool success = mongoc_collection_drop_index(m_collection.get(), indexName.c_str(), &error);
@@ -212,7 +196,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Unexpected error in dropIndex: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "530EXDK9GE03",
@@ -227,15 +211,7 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_DEBUG("MongoDBCollection::dropAllIndexes(nothrow)");
-            MONGODB_LOCK_GUARD(*m_connMutex);
-
-            if (m_client.expired())
-            {
-                return unexpected<DBException>(DBException(
-                    "N0T9W636KMQL",
-                    "Connection has been closed",
-                    system_utils::captureCallStack()));
-            }
+            MONGODB_STMT_LOCK_OR_RETURN("N0T9W636KMQL", "Connection closed");
 
             bson_t cmd = BSON_INITIALIZER;
             BSON_APPEND_UTF8(&cmd, "dropIndexes", m_name.c_str());
@@ -245,12 +221,7 @@ namespace cpp_dbc::MongoDB
             bson_t reply;
             bson_init(&reply);
 
-            auto clientResult = getClient(std::nothrow);
-            if (!clientResult.has_value())
-            {
-                return unexpected<DBException>(clientResult.error());
-            }
-            MongoDatabaseHandle db(mongoc_client_get_database(clientResult.value(), m_databaseName.c_str()));
+            MongoDatabaseHandle db(mongoc_client_get_database(mongodb_conn_lock_.nativeClient(), m_databaseName.c_str()));
 
             bool success = mongoc_database_command_simple(db.get(), &cmd, nullptr, &reply, &error);
 
@@ -278,7 +249,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Unexpected error in dropAllIndexes: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "HJSHBTM33109",
@@ -293,20 +264,12 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_DEBUG("MongoDBCollection::listIndexes(nothrow)");
-            MONGODB_LOCK_GUARD(*m_connMutex);
-
-            if (m_client.expired())
-            {
-                return unexpected<DBException>(DBException(
-                    "UUX8YNHN90X5",
-                    "Connection has been closed",
-                    system_utils::captureCallStack()));
-            }
+            MONGODB_STMT_LOCK_OR_RETURN("UUX8YNHN90X5", "Connection closed");
 
             std::vector<std::string> result;
 
-            mongoc_cursor_t *cursor = mongoc_collection_find_indexes_with_opts(
-                m_collection.get(), nullptr);
+            MongoCursorHandle cursor(mongoc_collection_find_indexes_with_opts(
+                m_collection.get(), nullptr));
 
             if (!cursor)
             {
@@ -317,7 +280,7 @@ namespace cpp_dbc::MongoDB
             }
 
             const bson_t *doc = nullptr;
-            while (mongoc_cursor_next(cursor, &doc))
+            while (mongoc_cursor_next(cursor.get(), &doc))
             {
                 size_t length = 0;
                 char *json = bson_as_relaxed_extended_json(doc, &length);
@@ -329,16 +292,14 @@ namespace cpp_dbc::MongoDB
             }
 
             bson_error_t error;
-            if (mongoc_cursor_error(cursor, &error))
+            if (mongoc_cursor_error(cursor.get(), &error))
             {
-                mongoc_cursor_destroy(cursor);
                 return unexpected<DBException>(DBException(
                     "H2I3J4K5L6M7",
                     std::string("listIndexes error: ") + error.message,
                     system_utils::captureCallStack()));
             }
 
-            mongoc_cursor_destroy(cursor);
             return result;
         }
         catch (const DBException &ex)
@@ -359,7 +320,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Unexpected error in listIndexes: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "J6QVBK077HHA",

@@ -35,12 +35,23 @@ namespace cpp_dbc::MongoDB
 {
 
     // ============================================================================
+    // MongoDBConnectionLock — nativeClient() implementation
+    // ============================================================================
+
+#if DB_DRIVER_THREAD_SAFE
+    mongoc_client_t *MongoDBConnectionLock::nativeClient() const noexcept
+    {
+        return m_conn ? m_conn->m_client.get() : nullptr;
+    }
+#endif
+
+    // ============================================================================
     // MongoDBConnection Implementation - Private Helpers
     // ============================================================================
 
     expected<void, DBException> MongoDBConnection::validateConnection(std::nothrow_t) const noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (m_closed.load(std::memory_order_seq_cst))
         {
             return unexpected(DBException("M7N8O9P0Q1R2", "MongoDB connection is closed", system_utils::captureCallStack()));
         }
@@ -70,7 +81,7 @@ namespace cpp_dbc::MongoDB
                                          const std::map<std::string, std::string> &options)
         : m_uri(uri)
     {
-        MONGODB_DEBUG("MongoDBConnection::constructor(nothrow) - Connecting to: " << uri);
+        MONGODB_DEBUG("MongoDBConnection::constructor(nothrow) - Connecting to: %s", uri.c_str());
         // Strip cpp_dbc: prefix — mongoc expects native mongodb:// URIs
         std::string connectionUri = uri;
         if (connectionUri.starts_with(system_constants::URI_PREFIX))
@@ -169,7 +180,7 @@ namespace cpp_dbc::MongoDB
             return;
         }
 
-        m_closed.store(false, std::memory_order_release);
+        m_closed.store(false, std::memory_order_seq_cst);
 
         MONGODB_DEBUG("MongoDBConnection::constructor(nothrow) - Connected successfully");
     }
@@ -177,7 +188,7 @@ namespace cpp_dbc::MongoDB
     MongoDBConnection::~MongoDBConnection()
     {
         MONGODB_DEBUG("MongoDBConnection::destructor - Destroying connection");
-        if (!m_closed.load(std::memory_order_acquire))
+        if (!m_closed.load(std::memory_order_seq_cst))
         {
             // Explicitly call our own close(nothrow) since virtual dispatch doesn't work in destructors
             MongoDBConnection::close(std::nothrow);
@@ -201,7 +212,7 @@ namespace cpp_dbc::MongoDB
 
     bool MongoDBConnection::isClosed() const
     {
-        return m_closed.load(std::memory_order_acquire);
+        return m_closed.load(std::memory_order_seq_cst);
     }
 
     void MongoDBConnection::returnToPool()
@@ -298,14 +309,14 @@ namespace cpp_dbc::MongoDB
                           { return w.expired(); });
         }
         m_activeCollections.insert(std::move(collection));
-        MONGODB_DEBUG("MongoDBConnection::registerCollection - Registered collection, total: " << m_activeCollections.size());
+        MONGODB_DEBUG("MongoDBConnection::registerCollection - Registered collection, total: %zu", m_activeCollections.size());
     }
 
     void MongoDBConnection::unregisterCollection(std::nothrow_t, std::weak_ptr<MongoDBCollection> collection) noexcept
     {
         MONGODB_LOCK_GUARD(*m_connMutex);
         m_activeCollections.erase(collection);
-        MONGODB_DEBUG("MongoDBConnection::unregisterCollection - Unregistered collection, remaining: " << m_activeCollections.size());
+        MONGODB_DEBUG("MongoDBConnection::unregisterCollection - Unregistered collection, remaining: %zu", m_activeCollections.size());
     }
 
     // ============================================================================
@@ -321,14 +332,14 @@ namespace cpp_dbc::MongoDB
                           { return w.expired(); });
         }
         m_activeCursors.insert(std::move(cursor));
-        MONGODB_DEBUG("MongoDBConnection::registerCursor - Registered cursor, total: " << m_activeCursors.size());
+        MONGODB_DEBUG("MongoDBConnection::registerCursor - Registered cursor, total: %zu", m_activeCursors.size());
     }
 
     void MongoDBConnection::unregisterCursor(std::nothrow_t, std::weak_ptr<MongoDBCursor> cursor) noexcept
     {
         MONGODB_LOCK_GUARD(*m_connMutex);
         m_activeCursors.erase(cursor);
-        MONGODB_DEBUG("MongoDBConnection::unregisterCursor - Unregistered cursor, remaining: " << m_activeCursors.size());
+        MONGODB_DEBUG("MongoDBConnection::unregisterCursor - Unregistered cursor, remaining: %zu", m_activeCursors.size());
     }
 
 } // namespace cpp_dbc::MongoDB

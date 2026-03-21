@@ -43,16 +43,8 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            MONGODB_DEBUG("MongoDBCollection::deleteOne(nothrow) - Deleting from: " << m_name);
-            MONGODB_LOCK_GUARD(*m_connMutex);
-
-            if (m_client.expired())
-            {
-                return unexpected<DBException>(DBException(
-                    "B6A0V7R1M3X3",
-                    "Connection has been closed",
-                    system_utils::captureCallStack()));
-            }
+            MONGODB_DEBUG("MongoDBCollection::deleteOne(nothrow) - Deleting from: %s", m_name.c_str());
+            MONGODB_STMT_LOCK_OR_RETURN("B6A0V7R1M3X3", "Connection closed");
 
             auto filterResult = parseFilter(std::nothrow, filter);
             if (!filterResult.has_value())
@@ -109,7 +101,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Unexpected error in deleteOne: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "SDNODBZB844G",
@@ -124,16 +116,8 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            MONGODB_DEBUG("MongoDBCollection::deleteMany(nothrow) - Deleting from: " << m_name);
-            MONGODB_LOCK_GUARD(*m_connMutex);
-
-            if (m_client.expired())
-            {
-                return unexpected<DBException>(DBException(
-                    "3J4J8KKRTRN9",
-                    "Connection has been closed",
-                    system_utils::captureCallStack()));
-            }
+            MONGODB_DEBUG("MongoDBCollection::deleteMany(nothrow) - Deleting from: %s", m_name.c_str());
+            MONGODB_STMT_LOCK_OR_RETURN("3J4J8KKRTRN9", "Connection closed");
 
             auto filterResult = parseFilter(std::nothrow, filter);
             if (!filterResult.has_value())
@@ -190,7 +174,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Unexpected error in deleteMany: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "XF8L10AQIPW4",
@@ -254,7 +238,7 @@ namespace cpp_dbc::MongoDB
                 std::string("Error in deleteById: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return unexpected<DBException>(DBException(
                 "8B9QZBSSDA63",
