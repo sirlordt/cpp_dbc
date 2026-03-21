@@ -41,7 +41,7 @@ namespace cpp_dbc::MongoDB
 #if DB_DRIVER_THREAD_SAFE
     mongoc_client_t *MongoDBConnectionLock::nativeClient() const noexcept
     {
-        return m_conn ? m_conn->m_client.get() : nullptr;
+        return m_conn ? m_conn->m_conn.get() : nullptr;
     }
 #endif
 
@@ -58,12 +58,11 @@ namespace cpp_dbc::MongoDB
         return {};
     }
 
-    std::string MongoDBConnection::generateSessionId()
+    std::string MongoDBConnection::generateSessionId(std::nothrow_t) noexcept
     {
-        uint64_t id = m_sessionCounter.fetch_add(1);
-        std::ostringstream oss;
-        oss << "session_" << id << "_" << std::chrono::steady_clock::now().time_since_epoch().count();
-        return oss.str();
+        uint64_t id = m_sessionCounter.fetch_add(1, std::memory_order_seq_cst);
+        return "session_" + std::to_string(id) + "_" +
+               std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
     }
 
     // ============================================================================
@@ -139,7 +138,16 @@ namespace cpp_dbc::MongoDB
         const char *dbName = mongoc_uri_get_database(mongoUri.get());
         if (dbName)
         {
-            m_databaseName = dbName;
+            std::string dbNameStr(dbName);
+            if (!dbNameStr.empty() && !system_utils::isValidDatabaseIdentifier(dbNameStr))
+            {
+                m_initFailed = true;
+                m_initError = std::make_unique<DBException>("CCOL9KDEOGM7",
+                    "Invalid database name in URI: " + dbNameStr,
+                    system_utils::captureCallStack());
+                return;
+            }
+            m_databaseName = std::move(dbNameStr);
         }
 
         // Create client
@@ -155,7 +163,7 @@ namespace cpp_dbc::MongoDB
         mongoc_client_set_appname(rawClient, "cpp_dbc");
 
         // Wrap in shared_ptr with custom deleter
-        m_client = MongoClientHandle(rawClient, MongoClientDeleter());
+        m_conn = MongoClientHandle(rawClient, MongoClientDeleter());
 
         // Test connection with ping
         bson_t pingCmd = BSON_INITIALIZER;
@@ -164,7 +172,7 @@ namespace cpp_dbc::MongoDB
         bson_t reply;
         bson_init(&reply);
 
-        MongoDatabaseHandle adminDb(mongoc_client_get_database(m_client.get(), "admin"));
+        MongoDatabaseHandle adminDb(mongoc_client_get_database(m_conn.get(), "admin"));
 
         bool pingSuccess = mongoc_database_command_simple(
             adminDb.get(), &pingCmd, nullptr, &reply, &error);
@@ -174,7 +182,7 @@ namespace cpp_dbc::MongoDB
 
         if (!pingSuccess)
         {
-            m_client.reset();
+            m_conn.reset();
             m_initFailed = true;
             m_initError = std::make_unique<DBException>("L6M7N8O9P0Q1", std::string("Failed to connect to MongoDB: ") + error.message, system_utils::captureCallStack());
             return;
@@ -302,7 +310,7 @@ namespace cpp_dbc::MongoDB
 
     void MongoDBConnection::registerCollection(std::nothrow_t, std::weak_ptr<MongoDBCollection> collection) noexcept
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
         if (m_activeCollections.size() > 50)
         {
             std::erase_if(m_activeCollections, [](const auto &w)
@@ -314,7 +322,7 @@ namespace cpp_dbc::MongoDB
 
     void MongoDBConnection::unregisterCollection(std::nothrow_t, std::weak_ptr<MongoDBCollection> collection) noexcept
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
         m_activeCollections.erase(collection);
         MONGODB_DEBUG("MongoDBConnection::unregisterCollection - Unregistered collection, remaining: %zu", m_activeCollections.size());
     }
@@ -325,7 +333,7 @@ namespace cpp_dbc::MongoDB
 
     void MongoDBConnection::registerCursor(std::nothrow_t, std::weak_ptr<MongoDBCursor> cursor) noexcept
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
         if (m_activeCursors.size() > 50)
         {
             std::erase_if(m_activeCursors, [](const auto &w)
@@ -337,7 +345,7 @@ namespace cpp_dbc::MongoDB
 
     void MongoDBConnection::unregisterCursor(std::nothrow_t, std::weak_ptr<MongoDBCursor> cursor) noexcept
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
         m_activeCursors.erase(cursor);
         MONGODB_DEBUG("MongoDBConnection::unregisterCursor - Unregistered cursor, remaining: %zu", m_activeCursors.size());
     }

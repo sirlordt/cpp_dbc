@@ -61,9 +61,9 @@ namespace cpp_dbc::MongoDB
         friend class MongoDBCursor;
 
         /**
-         * @brief The MongoDB client (shared_ptr for weak_ptr support)
+         * @brief The MongoDB client (native connection handle)
          */
-        MongoClientHandle m_client;
+        MongoClientHandle m_conn;
 
         /**
          * @brief The current database name
@@ -132,7 +132,7 @@ namespace cpp_dbc::MongoDB
          * @brief Generate a unique session ID
          * @return A unique session ID string
          */
-        std::string generateSessionId();
+        std::string generateSessionId(std::nothrow_t) noexcept;
 
         /**
          * @brief Flag indicating constructor initialization failed

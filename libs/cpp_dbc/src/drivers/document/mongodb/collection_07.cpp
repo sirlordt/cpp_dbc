@@ -40,42 +40,21 @@ namespace cpp_dbc::MongoDB
     expected<void, DBException> MongoDBCollection::drop(
         std::nothrow_t) noexcept
     {
-        try
-        {
-            MONGODB_DEBUG("MongoDBCollection::drop(nothrow)");
-            MONGODB_STMT_LOCK_OR_RETURN("60KC02UP28TD", "Connection closed");
+        MONGODB_DEBUG("MongoDBCollection::drop(nothrow)");
+        MONGODB_STMT_LOCK_OR_RETURN("60KC02UP28TD", "Connection closed");
 
-            bson_error_t error;
-            bool success = mongoc_collection_drop(m_collection.get(), &error);
+        bson_error_t error;
+        bool success = mongoc_collection_drop(m_collection.get(), &error);
 
-            if (!success)
-            {
-                return unexpected<DBException>(DBException(
-                    "WKWQ8Y8GK4MB",
-                    std::string("drop failed: ") + error.message,
-                    system_utils::captureCallStack()));
-            }
-
-            return {};
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
+        if (!success)
         {
             return unexpected<DBException>(DBException(
-                "MI3O5E6WP79H",
-                std::string("Unexpected error in drop: ") + ex.what(),
+                "WKWQ8Y8GK4MB",
+                std::string("drop failed: ") + error.message,
                 system_utils::captureCallStack()));
         }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
-        {
-            return unexpected<DBException>(DBException(
-                "F45RS3XRODY4",
-                "Unknown error in drop",
-                system_utils::captureCallStack()));
-        }
+
+        return {};
     }
 
     expected<void, DBException> MongoDBCollection::rename(
@@ -83,113 +62,64 @@ namespace cpp_dbc::MongoDB
         const std::string &newName,
         bool dropTarget) noexcept
     {
-        try
-        {
-            MONGODB_DEBUG("MongoDBCollection::rename(nothrow) to: %s", newName.c_str());
-            MONGODB_STMT_LOCK_OR_RETURN("YAZPQV1NVX5Q", "Connection closed");
+        MONGODB_DEBUG("MongoDBCollection::rename(nothrow) to: %s", newName.c_str());
+        MONGODB_STMT_LOCK_OR_RETURN("YAZPQV1NVX5Q", "Connection closed");
 
-            bson_error_t error;
-            bool success = mongoc_collection_rename(
-                m_collection.get(), m_databaseName.c_str(), newName.c_str(), dropTarget, &error);
+        bson_error_t error;
+        bool success = mongoc_collection_rename(
+            m_collection.get(), m_databaseName.c_str(), newName.c_str(), dropTarget, &error);
 
-            if (!success)
-            {
-                return unexpected<DBException>(DBException(
-                    "X0DFPPGZHISW",
-                    std::string("rename failed: ") + error.message,
-                    system_utils::captureCallStack()));
-            }
-
-            m_name = newName;
-            return {};
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
+        if (!success)
         {
             return unexpected<DBException>(DBException(
-                "3DR5FQNRS468",
-                std::string("Unexpected error in rename: ") + ex.what(),
+                "X0DFPPGZHISW",
+                std::string("rename failed: ") + error.message,
                 system_utils::captureCallStack()));
         }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
-        {
-            return unexpected<DBException>(DBException(
-                "T8EFXZCJ4KS7",
-                "Unknown error in rename",
-                system_utils::captureCallStack()));
-        }
+
+        m_name = newName;
+        return {};
     }
 
     expected<std::shared_ptr<DocumentDBCursor>, DBException> MongoDBCollection::aggregate(
         std::nothrow_t,
         const std::string &pipeline) noexcept
     {
-        try
+        MONGODB_DEBUG("MongoDBCollection::aggregate(nothrow)");
+        MONGODB_STMT_LOCK_OR_RETURN("CMF7381Q36OF", "Connection closed");
+
+        auto pipelineBsonResult = makeBsonHandleFromJson(std::nothrow, pipeline);
+        if (!pipelineBsonResult.has_value())
         {
-            MONGODB_DEBUG("MongoDBCollection::aggregate(nothrow)");
-            MONGODB_STMT_LOCK_OR_RETURN("CMF7381Q36OF", "Connection closed");
-
-            auto pipelineBsonResult = makeBsonHandleFromJson(std::nothrow, pipeline);
-            if (!pipelineBsonResult.has_value())
-            {
-                return unexpected<DBException>(pipelineBsonResult.error());
-            }
-            BsonHandle pipelineBson = std::move(pipelineBsonResult.value());
-
-            MongoCursorHandle cursorGuard(mongoc_collection_aggregate(
-                m_collection.get(), MONGOC_QUERY_NONE, pipelineBson.get(), nullptr, nullptr));
-
-            if (!cursorGuard)
-            {
-                return unexpected<DBException>(DBException(
-                    "I3J4K5L6M7N8",
-                    "Failed to create cursor for aggregate",
-                    system_utils::captureCallStack()));
-            }
-
-            auto cursorResult = MongoDBCursor::create(std::nothrow, cursorGuard.release(), m_connection);
-            if (!cursorResult.has_value())
-            {
-                return unexpected<DBException>(cursorResult.error());
-            }
-            auto mongoCursor = cursorResult.value();
-
-            // Register cursor with connection for cleanup tracking
-            if (auto conn = m_connection.lock())
-            {
-                conn->registerCursor(std::nothrow, mongoCursor);
-            }
-
-            return std::shared_ptr<DocumentDBCursor>(mongoCursor);
+            return unexpected<DBException>(pipelineBsonResult.error());
         }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch ([[maybe_unused]] const std::bad_alloc &ex)
+        BsonHandle pipelineBson = std::move(pipelineBsonResult.value());
+
+        MongoCursorHandle cursorGuard(mongoc_collection_aggregate(
+            m_collection.get(), MONGOC_QUERY_NONE, pipelineBson.get(), nullptr, nullptr));
+
+        if (!cursorGuard)
         {
             return unexpected<DBException>(DBException(
-                "T0HPSCP9XKY4",
-                "Memory allocation failed in aggregate",
+                "I3J4K5L6M7N8",
+                "Failed to create cursor for aggregate",
                 system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
+
+        auto cursorResult = MongoDBCursor::create(std::nothrow, cursorGuard.release(), m_connection);
+        if (!cursorResult.has_value())
         {
-            return unexpected<DBException>(DBException(
-                "JM97F8UZ4U9Z",
-                std::string("Unexpected error in aggregate: ") + ex.what(),
-                system_utils::captureCallStack()));
+            return unexpected<DBException>(cursorResult.error());
         }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
+        auto mongoCursor = cursorResult.value();
+
+        // Register cursor with connection for cleanup tracking
+        if (auto conn = m_connection.lock())
         {
-            return unexpected<DBException>(DBException(
-                "B3FOC2B8N515",
-                "Unknown error in aggregate",
-                system_utils::captureCallStack()));
+            conn->registerCursor(std::nothrow, mongoCursor);
         }
+
+        return std::shared_ptr<DocumentDBCursor>(mongoCursor);
     }
 
     expected<std::vector<std::string>, DBException> MongoDBCollection::distinct(
@@ -197,108 +127,80 @@ namespace cpp_dbc::MongoDB
         const std::string &fieldPath,
         const std::string &filter) noexcept
     {
-        try
+        MONGODB_DEBUG("MongoDBCollection::distinct(nothrow)");
+        MONGODB_STMT_LOCK_OR_RETURN("VNI5DI2C3HHP", "Connection closed");
+
+        std::vector<std::string> result;
+
+        BsonHandle cmd(bson_new());
+        BSON_APPEND_UTF8(cmd.get(), "distinct", m_name.c_str());
+        BSON_APPEND_UTF8(cmd.get(), "key", fieldPath.c_str());
+
+        if (!filter.empty())
         {
-            MONGODB_DEBUG("MongoDBCollection::distinct(nothrow)");
-            MONGODB_STMT_LOCK_OR_RETURN("VNI5DI2C3HHP", "Connection closed");
-
-            std::vector<std::string> result;
-
-            BsonHandle cmd(bson_new());
-            BSON_APPEND_UTF8(cmd.get(), "distinct", m_name.c_str());
-            BSON_APPEND_UTF8(cmd.get(), "key", fieldPath.c_str());
-
-            if (!filter.empty())
+            auto filterResult = parseFilter(std::nothrow, filter);
+            if (!filterResult.has_value())
             {
-                auto filterResult = parseFilter(std::nothrow, filter);
-                if (!filterResult.has_value())
-                {
-                    return unexpected<DBException>(filterResult.error());
-                }
-                BsonHandle filterBson = std::move(filterResult.value());
-                BSON_APPEND_DOCUMENT(cmd.get(), "query", filterBson.get());
+                return unexpected<DBException>(filterResult.error());
             }
+            BsonHandle filterBson = std::move(filterResult.value());
+            BSON_APPEND_DOCUMENT(cmd.get(), "query", filterBson.get());
+        }
 
-            bson_error_t error;
-            BsonHandle reply(bson_new());
+        bson_error_t error;
+        BsonHandle reply(bson_new());
 
-            MongoDatabaseHandle db(mongoc_client_get_database(mongodb_conn_lock_.nativeClient(), m_databaseName.c_str()));
+        MongoDatabaseHandle db(mongoc_client_get_database(mongodb_conn_lock_.nativeClient(), m_databaseName.c_str()));
 
-            bool success = mongoc_database_command_simple(db.get(), cmd.get(), nullptr, reply.get(), &error);
+        bool success = mongoc_database_command_simple(db.get(), cmd.get(), nullptr, reply.get(), &error);
 
-            if (!success)
+        if (!success)
+        {
+            return unexpected<DBException>(DBException(
+                "2U5HMTIIHN30",
+                std::string("distinct failed: ") + error.message,
+                system_utils::captureCallStack()));
+        }
+
+        // Extract values from reply
+        bson_iter_t iter;
+        if (bson_iter_init_find(&iter, reply.get(), "values") && BSON_ITER_HOLDS_ARRAY(&iter))
+        {
+            bson_iter_t arrayIter;
+            const uint8_t *data = nullptr;
+            uint32_t length = 0;
+            bson_iter_array(&iter, &length, &data);
+
+            bson_t arrayBson;
+            if (bson_init_static(&arrayBson, data, length) && bson_iter_init(&arrayIter, &arrayBson))
             {
-                return unexpected<DBException>(DBException(
-                    "2U5HMTIIHN30",
-                    std::string("distinct failed: ") + error.message,
-                    system_utils::captureCallStack()));
-            }
-
-            // Extract values from reply
-            bson_iter_t iter;
-            if (bson_iter_init_find(&iter, reply.get(), "values") && BSON_ITER_HOLDS_ARRAY(&iter))
-            {
-                bson_iter_t arrayIter;
-                const uint8_t *data = nullptr;
-                uint32_t length = 0;
-                bson_iter_array(&iter, &length, &data);
-
-                bson_t arrayBson;
-                if (bson_init_static(&arrayBson, data, length) && bson_iter_init(&arrayIter, &arrayBson))
+                while (bson_iter_next(&arrayIter))
                 {
-                    while (bson_iter_next(&arrayIter))
+                    if (BSON_ITER_HOLDS_UTF8(&arrayIter))
                     {
-                        if (BSON_ITER_HOLDS_UTF8(&arrayIter))
+                        uint32_t strLen = 0;
+                        const char *str = bson_iter_utf8(&arrayIter, &strLen);
+                        result.emplace_back(str, strLen);
+                    }
+                    else
+                    {
+                        // Convert other types to JSON string
+                        bson_t tempDoc = BSON_INITIALIZER;
+                        bson_append_iter(&tempDoc, "v", 1, &arrayIter);
+                        size_t jsonLen = 0;
+                        char *json = bson_as_relaxed_extended_json(&tempDoc, &jsonLen);
+                        if (json)
                         {
-                            uint32_t strLen = 0;
-                            const char *str = bson_iter_utf8(&arrayIter, &strLen);
-                            result.emplace_back(str, strLen);
+                            result.emplace_back(json, jsonLen);
+                            bson_free(json);
                         }
-                        else
-                        {
-                            // Convert other types to JSON string
-                            bson_t tempDoc = BSON_INITIALIZER;
-                            bson_append_iter(&tempDoc, "v", 1, &arrayIter);
-                            size_t jsonLen = 0;
-                            char *json = bson_as_relaxed_extended_json(&tempDoc, &jsonLen);
-                            if (json)
-                            {
-                                result.emplace_back(json, jsonLen);
-                                bson_free(json);
-                            }
-                            bson_destroy(&tempDoc);
-                        }
+                        bson_destroy(&tempDoc);
                     }
                 }
             }
+        }
 
-            return result;
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch ([[maybe_unused]] const std::bad_alloc &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "W1IFMEQ6E49I",
-                "Memory allocation failed in distinct",
-                system_utils::captureCallStack()));
-        }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "34IHRDACI2QZ",
-                std::string("Unexpected error in distinct: ") + ex.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
-        {
-            return unexpected<DBException>(DBException(
-                "ADQCRG3164KE",
-                "Unknown error in distinct",
-                system_utils::captureCallStack()));
-        }
+        return result;
     }
 
     bool MongoDBCollection::isConnectionValid(std::nothrow_t) const noexcept

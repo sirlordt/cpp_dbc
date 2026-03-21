@@ -30,25 +30,9 @@
 // Thread-safety macros for conditional mutex locking
 // Using recursive_mutex to allow the same thread to acquire the lock multiple times
 #if DB_DRIVER_THREAD_SAFE
-#define MONGODB_MUTEX mutable std::recursive_mutex
-#define MONGODB_LOCK_GUARD(mutex) std::lock_guard<std::recursive_mutex> lock(mutex)
-#define MONGODB_UNIQUE_LOCK(mutex) std::unique_lock<std::recursive_mutex> lock(mutex)
+#define DB_DRIVER_LOCK_GUARD(mutex) std::scoped_lock<std::recursive_mutex> lock(mutex)
 #else
-// Dummy mutex type for when thread safety is disabled
-// Allows MONGODB_MUTEX member declarations to remain well-formed
-namespace cpp_dbc::MongoDB
-{
-    struct DummyRecursiveMutex
-    {
-        // No-op methods: thread safety disabled
-        void lock() const noexcept { /* No-op */ }
-        void unlock() const noexcept { /* No-op */ }
-        bool try_lock() const noexcept { return true; }
-    };
-} // namespace cpp_dbc::MongoDB
-#define MONGODB_MUTEX mutable cpp_dbc::MongoDB::DummyRecursiveMutex
-#define MONGODB_LOCK_GUARD(mutex) std::lock_guard<cpp_dbc::MongoDB::DummyRecursiveMutex> lock(mutex)
-#define MONGODB_UNIQUE_LOCK(mutex) std::unique_lock<cpp_dbc::MongoDB::DummyRecursiveMutex> lock(mutex)
+#define DB_DRIVER_LOCK_GUARD(mutex) (void)0
 #endif
 
 // Debug output is controlled by -DDEBUG_MONGODB=1 or -DDEBUG_ALL=1 CMake option
@@ -78,7 +62,7 @@ namespace cpp_dbc::MongoDB
 
 #define MONGODB_CONNECTION_LOCK_OR_RETURN(mark, msg)                                        \
     DB_DRIVER_LOCK_GUARD(*m_connMutex);                                                     \
-    if (m_closed.load(std::memory_order_seq_cst) || !m_client)                              \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)                                \
     {                                                                                       \
         return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",            \
                                                cpp_dbc::system_utils::captureCallStack())); \
@@ -86,7 +70,7 @@ namespace cpp_dbc::MongoDB
 
 #define MONGODB_CONNECTION_LOCK_OR_THROW(mark, msg)                   \
     DB_DRIVER_LOCK_GUARD(*m_connMutex);                               \
-    if (m_closed.load(std::memory_order_seq_cst) || !m_client)        \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)          \
     {                                                                 \
         throw DBException(mark, msg " (connection closed)",           \
                           cpp_dbc::system_utils::captureCallStack()); \
@@ -94,7 +78,7 @@ namespace cpp_dbc::MongoDB
 
 #define MONGODB_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()  \
     DB_DRIVER_LOCK_GUARD(*m_connMutex);                        \
-    if (m_closed.load(std::memory_order_seq_cst) || !m_client) \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)   \
     {                                                          \
         return {}; /* Already closed = success */              \
     }
@@ -102,21 +86,21 @@ namespace cpp_dbc::MongoDB
 #else // !DB_DRIVER_THREAD_SAFE
 
 #define MONGODB_CONNECTION_LOCK_OR_RETURN(mark, msg)                                        \
-    if (m_closed.load(std::memory_order_seq_cst) || !m_client)                              \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)                                \
     {                                                                                       \
         return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",            \
                                                cpp_dbc::system_utils::captureCallStack())); \
     }
 
 #define MONGODB_CONNECTION_LOCK_OR_THROW(mark, msg)                   \
-    if (m_closed.load(std::memory_order_seq_cst) || !m_client)        \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)          \
     {                                                                 \
         throw DBException(mark, msg " (connection closed)",           \
                           cpp_dbc::system_utils::captureCallStack()); \
     }
 
 #define MONGODB_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()  \
-    if (m_closed.load(std::memory_order_seq_cst) || !m_client) \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)   \
     {                                                          \
         return {}; /* Already closed = success */              \
     }

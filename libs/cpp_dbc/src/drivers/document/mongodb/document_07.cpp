@@ -49,7 +49,7 @@ namespace cpp_dbc::MongoDB
     expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> MongoDBDocument::getDocumentArray(
         std::nothrow_t, const std::string &fieldPath, bool strict) const noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         bson_iter_t iter;
         auto nav = navigateToField(std::nothrow, fieldPath, iter);
@@ -136,7 +136,7 @@ namespace cpp_dbc::MongoDB
     expected<std::vector<std::string>, DBException> MongoDBDocument::getStringArray(
         std::nothrow_t, const std::string &fieldPath, bool strict) const noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         bson_iter_t iter;
         auto nav = navigateToField(std::nothrow, fieldPath, iter);
@@ -209,7 +209,7 @@ namespace cpp_dbc::MongoDB
     expected<void, DBException> MongoDBDocument::setString(
         std::nothrow_t, const std::string &fieldPath, const std::string &value) noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         auto v = validateDocument(std::nothrow);
         if (!v.has_value())
@@ -259,7 +259,7 @@ namespace cpp_dbc::MongoDB
     expected<void, DBException> MongoDBDocument::setInt(
         std::nothrow_t, const std::string &fieldPath, int64_t value) noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         auto v = validateDocument(std::nothrow);
         if (!v.has_value())
@@ -309,7 +309,7 @@ namespace cpp_dbc::MongoDB
     expected<void, DBException> MongoDBDocument::setDouble(
         std::nothrow_t, const std::string &fieldPath, double value) noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         auto v = validateDocument(std::nothrow);
         if (!v.has_value())
@@ -359,7 +359,7 @@ namespace cpp_dbc::MongoDB
     expected<void, DBException> MongoDBDocument::setBool(
         std::nothrow_t, const std::string &fieldPath, bool value) noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         auto v = validateDocument(std::nothrow);
         if (!v.has_value())
@@ -409,7 +409,7 @@ namespace cpp_dbc::MongoDB
     expected<void, DBException> MongoDBDocument::setBinary(
         std::nothrow_t, const std::string &fieldPath, const std::vector<uint8_t> &value) noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         auto v = validateDocument(std::nothrow);
         if (!v.has_value())
@@ -460,7 +460,7 @@ namespace cpp_dbc::MongoDB
     expected<void, DBException> MongoDBDocument::setDocument(
         std::nothrow_t, const std::string &fieldPath, std::shared_ptr<DocumentDBData> doc) noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         auto v = validateDocument(std::nothrow);
         if (!v.has_value())
@@ -519,7 +519,7 @@ namespace cpp_dbc::MongoDB
     expected<void, DBException> MongoDBDocument::setNull(
         std::nothrow_t, const std::string &fieldPath) noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         auto v = validateDocument(std::nothrow);
         if (!v.has_value())
@@ -573,7 +573,7 @@ namespace cpp_dbc::MongoDB
     expected<bool, DBException> MongoDBDocument::hasField(
         std::nothrow_t, const std::string &fieldPath) const noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         if (!m_bson)
         {
@@ -592,7 +592,7 @@ namespace cpp_dbc::MongoDB
     expected<bool, DBException> MongoDBDocument::isNull(
         std::nothrow_t, const std::string &fieldPath) const noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         bson_iter_t iter;
         auto nav = navigateToField(std::nothrow, fieldPath, iter);
@@ -611,7 +611,7 @@ namespace cpp_dbc::MongoDB
     expected<bool, DBException> MongoDBDocument::removeField(
         std::nothrow_t, const std::string &fieldPath) noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         auto v = validateDocument(std::nothrow);
         if (!v.has_value())
@@ -667,7 +667,7 @@ namespace cpp_dbc::MongoDB
     expected<std::vector<std::string>, DBException> MongoDBDocument::getFieldNames(
         std::nothrow_t) const noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         auto v = validateDocument(std::nothrow);
         if (!v.has_value())
@@ -695,7 +695,7 @@ namespace cpp_dbc::MongoDB
 
     expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBDocument::clone(std::nothrow_t) const noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         auto v = validateDocument(std::nothrow);
         if (!v.has_value())
@@ -725,7 +725,7 @@ namespace cpp_dbc::MongoDB
 
     expected<void, DBException> MongoDBDocument::clear(std::nothrow_t) noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         bson_t *empty = bson_new();
         if (!empty)
@@ -744,7 +744,7 @@ namespace cpp_dbc::MongoDB
 
     expected<bool, DBException> MongoDBDocument::isEmpty(std::nothrow_t) const noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         if (!m_bson)
         {
@@ -760,13 +760,13 @@ namespace cpp_dbc::MongoDB
 
     const bson_t *MongoDBDocument::getBson() const
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
         return m_bson.get();
     }
 
     bson_t *MongoDBDocument::getBsonMutable()
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
         m_idCached = false;
         return m_bson.get();
     }

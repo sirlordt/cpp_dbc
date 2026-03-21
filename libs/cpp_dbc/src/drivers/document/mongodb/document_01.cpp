@@ -38,10 +38,10 @@ namespace cpp_dbc::MongoDB
     // Public for std::make_shared access, but effectively private via PrivateCtorTag.
     // ============================================================================
 
+    // Default constructor — creates an empty document (m_bson == nullptr until factory assigns a handle)
     MongoDBDocument::MongoDBDocument(MongoDBDocument::PrivateCtorTag, std::nothrow_t) noexcept
     {
-        // Intentionally empty — m_bson is default-initialized to nullptr via BsonHandle.
-        // Used by create(std::nothrow_t) as a base to assign a handle after construction.
+        // Intentionally empty — all members use in-class initializers
     }
 
     MongoDBDocument::MongoDBDocument(MongoDBDocument::PrivateCtorTag, std::nothrow_t, bson_t *bson) noexcept
@@ -56,7 +56,7 @@ namespace cpp_dbc::MongoDB
 
     MongoDBDocument::MongoDBDocument(MongoDBDocument::PrivateCtorTag, std::nothrow_t, const std::string &json) noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         bson_error_t error;
         bson_t *bson = bson_new_from_json(
@@ -80,7 +80,7 @@ namespace cpp_dbc::MongoDB
 
     expected<bool, DBException> MongoDBDocument::navigateToField(std::nothrow_t, const std::string &fieldPath, bson_iter_t &outIter) const noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         auto v = validateDocument(std::nothrow);
         if (!v.has_value())

@@ -41,210 +41,133 @@ namespace cpp_dbc::MongoDB
         std::nothrow_t,
         const std::string &filter) noexcept
     {
-        try
+        MONGODB_DEBUG("MongoDBCollection::deleteOne(nothrow) - Deleting from: %s", m_name.c_str());
+        MONGODB_STMT_LOCK_OR_RETURN("B6A0V7R1M3X3", "Connection closed");
+
+        auto filterResult = parseFilter(std::nothrow, filter);
+        if (!filterResult.has_value())
         {
-            MONGODB_DEBUG("MongoDBCollection::deleteOne(nothrow) - Deleting from: %s", m_name.c_str());
-            MONGODB_STMT_LOCK_OR_RETURN("B6A0V7R1M3X3", "Connection closed");
+            return unexpected<DBException>(filterResult.error());
+        }
+        BsonHandle filterBson = std::move(filterResult.value());
 
-            auto filterResult = parseFilter(std::nothrow, filter);
-            if (!filterResult.has_value())
+        bson_error_t error;
+        bson_t reply;
+        bson_init(&reply);
+
+        bool success = mongoc_collection_delete_one(
+            m_collection.get(), filterBson.get(), nullptr, &reply, &error);
+
+        DocumentDeleteResult result;
+        result.acknowledged = success;
+
+        if (success)
+        {
+            bson_iter_t iter;
+            if (bson_iter_init_find(&iter, &reply, "deletedCount"))
             {
-                return unexpected<DBException>(filterResult.error());
+                result.deletedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
             }
-            BsonHandle filterBson = std::move(filterResult.value());
-
-            bson_error_t error;
-            bson_t reply;
-            bson_init(&reply);
-
-            bool success = mongoc_collection_delete_one(
-                m_collection.get(), filterBson.get(), nullptr, &reply, &error);
-
-            DocumentDeleteResult result;
-            result.acknowledged = success;
-
-            if (success)
-            {
-                bson_iter_t iter;
-                if (bson_iter_init_find(&iter, &reply, "deletedCount"))
-                {
-                    result.deletedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
-                }
-            }
-            else
-            {
-                bson_destroy(&reply);
-                return unexpected<DBException>(DBException(
-                    "4DDW3BUKHACF",
-                    std::string("deleteOne failed: ") + error.message,
-                    system_utils::captureCallStack()));
-            }
-
+        }
+        else
+        {
             bson_destroy(&reply);
-            return result;
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch ([[maybe_unused]] const std::bad_alloc &ex)
-        {
             return unexpected<DBException>(DBException(
-                "CMHT2N4EYWGP",
-                "Memory allocation failed in deleteOne",
+                "4DDW3BUKHACF",
+                std::string("deleteOne failed: ") + error.message,
                 system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "UXJ17ON2OKOO",
-                std::string("Unexpected error in deleteOne: ") + ex.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
-        {
-            return unexpected<DBException>(DBException(
-                "SDNODBZB844G",
-                "Unknown error in deleteOne",
-                system_utils::captureCallStack()));
-        }
+
+        bson_destroy(&reply);
+        return result;
     }
 
     expected<DocumentDeleteResult, DBException> MongoDBCollection::deleteMany(
         std::nothrow_t,
         const std::string &filter) noexcept
     {
-        try
+        MONGODB_DEBUG("MongoDBCollection::deleteMany(nothrow) - Deleting from: %s", m_name.c_str());
+        MONGODB_STMT_LOCK_OR_RETURN("3J4J8KKRTRN9", "Connection closed");
+
+        auto filterResult = parseFilter(std::nothrow, filter);
+        if (!filterResult.has_value())
         {
-            MONGODB_DEBUG("MongoDBCollection::deleteMany(nothrow) - Deleting from: %s", m_name.c_str());
-            MONGODB_STMT_LOCK_OR_RETURN("3J4J8KKRTRN9", "Connection closed");
+            return unexpected<DBException>(filterResult.error());
+        }
+        BsonHandle filterBson = std::move(filterResult.value());
 
-            auto filterResult = parseFilter(std::nothrow, filter);
-            if (!filterResult.has_value())
+        bson_error_t error;
+        bson_t reply;
+        bson_init(&reply);
+
+        bool success = mongoc_collection_delete_many(
+            m_collection.get(), filterBson.get(), nullptr, &reply, &error);
+
+        DocumentDeleteResult result;
+        result.acknowledged = success;
+
+        if (success)
+        {
+            bson_iter_t iter;
+            if (bson_iter_init_find(&iter, &reply, "deletedCount"))
             {
-                return unexpected<DBException>(filterResult.error());
+                result.deletedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
             }
-            BsonHandle filterBson = std::move(filterResult.value());
-
-            bson_error_t error;
-            bson_t reply;
-            bson_init(&reply);
-
-            bool success = mongoc_collection_delete_many(
-                m_collection.get(), filterBson.get(), nullptr, &reply, &error);
-
-            DocumentDeleteResult result;
-            result.acknowledged = success;
-
-            if (success)
-            {
-                bson_iter_t iter;
-                if (bson_iter_init_find(&iter, &reply, "deletedCount"))
-                {
-                    result.deletedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
-                }
-            }
-            else
-            {
-                bson_destroy(&reply);
-                return unexpected<DBException>(DBException(
-                    "GZER4DMZR6NA",
-                    std::string("deleteMany failed: ") + error.message,
-                    system_utils::captureCallStack()));
-            }
-
+        }
+        else
+        {
             bson_destroy(&reply);
-            return result;
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch ([[maybe_unused]] const std::bad_alloc &ex)
-        {
             return unexpected<DBException>(DBException(
-                "N40US9CGP2UF",
-                "Memory allocation failed in deleteMany",
+                "GZER4DMZR6NA",
+                std::string("deleteMany failed: ") + error.message,
                 system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "3I490LSGKGYN",
-                std::string("Unexpected error in deleteMany: ") + ex.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
-        {
-            return unexpected<DBException>(DBException(
-                "XF8L10AQIPW4",
-                "Unknown error in deleteMany",
-                system_utils::captureCallStack()));
-        }
+
+        bson_destroy(&reply);
+        return result;
     }
 
     expected<DocumentDeleteResult, DBException> MongoDBCollection::deleteById(
         std::nothrow_t,
         const std::string &id) noexcept
     {
-        try
-        {
-            // Use BSON construction to prevent JSON injection
-            bson_t *filterBson = bson_new();
-            if (!filterBson)
-            {
-                return unexpected<DBException>(DBException(
-                    "F3A4B5C6D7E7",
-                    "Failed to allocate BSON for filter",
-                    system_utils::captureCallStack()));
-            }
-
-            if (bson_oid_is_valid(id.c_str(), id.length()))
-            {
-                bson_oid_t oid;
-                bson_oid_init_from_string(&oid, id.c_str());
-                BSON_APPEND_OID(filterBson, "_id", &oid);
-            }
-            else
-            {
-                BSON_APPEND_UTF8(filterBson, "_id", id.c_str());
-            }
-
-            size_t length = 0;
-            char *json = bson_as_json(filterBson, &length);
-            bson_destroy(filterBson);
-
-            if (!json)
-            {
-                return unexpected<DBException>(DBException(
-                    "F3A4B5C6D7E9",
-                    "Failed to convert BSON filter to JSON",
-                    system_utils::captureCallStack()));
-            }
-
-            std::string filter(json, length);
-            bson_free(json);
-
-            return deleteOne(std::nothrow, filter);
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
+        // Use BSON construction to prevent JSON injection
+        bson_t *filterBson = bson_new();
+        if (!filterBson)
         {
             return unexpected<DBException>(DBException(
-                "UA2IN4W3P9WC",
-                std::string("Error in deleteById: ") + ex.what(),
+                "F3A4B5C6D7E7",
+                "Failed to allocate BSON for filter",
                 system_utils::captureCallStack()));
         }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
+
+        if (bson_oid_is_valid(id.c_str(), id.length()))
+        {
+            bson_oid_t oid;
+            bson_oid_init_from_string(&oid, id.c_str());
+            BSON_APPEND_OID(filterBson, "_id", &oid);
+        }
+        else
+        {
+            BSON_APPEND_UTF8(filterBson, "_id", id.c_str());
+        }
+
+        size_t length = 0;
+        char *json = bson_as_json(filterBson, &length);
+        bson_destroy(filterBson);
+
+        if (!json)
         {
             return unexpected<DBException>(DBException(
-                "8B9QZBSSDA63",
-                "Unknown error in deleteById",
+                "F3A4B5C6D7E9",
+                "Failed to convert BSON filter to JSON",
                 system_utils::captureCallStack()));
         }
+
+        std::string filter(json, length);
+        bson_free(json);
+
+        return deleteOne(std::nothrow, filter);
     }
 
 } // namespace cpp_dbc::MongoDB

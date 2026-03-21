@@ -32,7 +32,7 @@ namespace cpp_dbc::MongoDB
 
     expected<std::string, DBException> MongoDBDocument::getString(std::nothrow_t, const std::string &fieldPath) const noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         bson_iter_t iter;
         auto nav = navigateToField(std::nothrow, fieldPath, iter);
@@ -63,7 +63,7 @@ namespace cpp_dbc::MongoDB
 
     expected<int64_t, DBException> MongoDBDocument::getInt(std::nothrow_t, const std::string &fieldPath) const noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         bson_iter_t iter;
         auto nav = navigateToField(std::nothrow, fieldPath, iter);
@@ -98,7 +98,7 @@ namespace cpp_dbc::MongoDB
 
     expected<double, DBException> MongoDBDocument::getDouble(std::nothrow_t, const std::string &fieldPath) const noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         bson_iter_t iter;
         auto nav = navigateToField(std::nothrow, fieldPath, iter);
@@ -137,7 +137,7 @@ namespace cpp_dbc::MongoDB
 
     expected<bool, DBException> MongoDBDocument::getBool(std::nothrow_t, const std::string &fieldPath) const noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         bson_iter_t iter;
         auto nav = navigateToField(std::nothrow, fieldPath, iter);
@@ -166,7 +166,7 @@ namespace cpp_dbc::MongoDB
 
     expected<std::vector<uint8_t>, DBException> MongoDBDocument::getBinary(std::nothrow_t, const std::string &fieldPath) const noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         bson_iter_t iter;
         auto nav = navigateToField(std::nothrow, fieldPath, iter);
@@ -200,7 +200,7 @@ namespace cpp_dbc::MongoDB
 
     expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBDocument::getDocument(std::nothrow_t, const std::string &fieldPath) const noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         bson_iter_t iter;
         auto nav = navigateToField(std::nothrow, fieldPath, iter);

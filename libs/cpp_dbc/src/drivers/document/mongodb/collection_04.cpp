@@ -43,98 +43,70 @@ namespace cpp_dbc::MongoDB
         const std::string &update,
         const DocumentUpdateOptions &options) noexcept
     {
-        try
+        MONGODB_DEBUG("MongoDBCollection::updateOne(nothrow) - Updating in: %s", m_name.c_str());
+        MONGODB_STMT_LOCK_OR_RETURN("E8F9A0B1C2D3", "Connection closed");
+
+        auto filterResult = parseFilter(std::nothrow, filter);
+        if (!filterResult.has_value())
         {
-            MONGODB_DEBUG("MongoDBCollection::updateOne(nothrow) - Updating in: %s", m_name.c_str());
-            MONGODB_STMT_LOCK_OR_RETURN("E8F9A0B1C2D3", "Connection closed");
+            return unexpected<DBException>(filterResult.error());
+        }
+        BsonHandle filterBson = std::move(filterResult.value());
 
-            auto filterResult = parseFilter(std::nothrow, filter);
-            if (!filterResult.has_value())
+        auto updateBsonResult = makeBsonHandleFromJson(std::nothrow, update);
+        if (!updateBsonResult.has_value())
+        {
+            return unexpected<DBException>(updateBsonResult.error());
+        }
+        BsonHandle updateBson = std::move(updateBsonResult.value());
+
+        bson_t opts = BSON_INITIALIZER;
+        if (options.upsert)
+        {
+            BSON_APPEND_BOOL(&opts, "upsert", true);
+        }
+
+        bson_error_t error;
+        bson_t reply;
+        bson_init(&reply);
+
+        bool success = mongoc_collection_update_one(
+            m_collection.get(), filterBson.get(), updateBson.get(), &opts, &reply, &error);
+        bson_destroy(&opts);
+
+        DocumentUpdateResult result;
+        result.acknowledged = success;
+
+        if (success)
+        {
+            bson_iter_t iter;
+            if (bson_iter_init_find(&iter, &reply, "matchedCount"))
             {
-                return unexpected<DBException>(filterResult.error());
+                result.matchedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
             }
-            BsonHandle filterBson = std::move(filterResult.value());
-
-            auto updateBsonResult = makeBsonHandleFromJson(std::nothrow, update);
-            if (!updateBsonResult.has_value())
+            if (bson_iter_init_find(&iter, &reply, "modifiedCount"))
             {
-                return unexpected<DBException>(updateBsonResult.error());
+                result.modifiedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
             }
-            BsonHandle updateBson = std::move(updateBsonResult.value());
-
-            bson_t opts = BSON_INITIALIZER;
-            if (options.upsert)
+            if (bson_iter_init_find(&iter, &reply, "upsertedId") && BSON_ITER_HOLDS_OID(&iter))
             {
-                BSON_APPEND_BOOL(&opts, "upsert", true);
+                const bson_oid_t *oid = bson_iter_oid(&iter);
+                std::array<char, 25> oidStr{};
+                bson_oid_to_string(oid, oidStr.data());
+                result.upsertedId = oidStr.data();
             }
-
-            bson_error_t error;
-            bson_t reply;
-            bson_init(&reply);
-
-            bool success = mongoc_collection_update_one(
-                m_collection.get(), filterBson.get(), updateBson.get(), &opts, &reply, &error);
-            bson_destroy(&opts);
-
-            DocumentUpdateResult result;
-            result.acknowledged = success;
-
-            if (success)
-            {
-                bson_iter_t iter;
-                if (bson_iter_init_find(&iter, &reply, "matchedCount"))
-                {
-                    result.matchedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
-                }
-                if (bson_iter_init_find(&iter, &reply, "modifiedCount"))
-                {
-                    result.modifiedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
-                }
-                if (bson_iter_init_find(&iter, &reply, "upsertedId") && BSON_ITER_HOLDS_OID(&iter))
-                {
-                    const bson_oid_t *oid = bson_iter_oid(&iter);
-                    std::array<char, 25> oidStr{};
-                    bson_oid_to_string(oid, oidStr.data());
-                    result.upsertedId = oidStr.data();
-                }
-            }
-            else
-            {
-                bson_destroy(&reply);
-                return unexpected<DBException>(DBException(
-                    "F9A0B1C2D3E4",
-                    std::string("updateOne failed: ") + error.message,
-                    system_utils::captureCallStack()));
-            }
-
+        }
+        else
+        {
             bson_destroy(&reply);
-            return result;
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch ([[maybe_unused]] const std::bad_alloc &ex)
-        {
             return unexpected<DBException>(DBException(
-                "A0B1C2D3E4F5",
-                "Memory allocation failed in updateOne",
+                "F9A0B1C2D3E4",
+                std::string("updateOne failed: ") + error.message,
                 system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "B1C2D3E4F5A6",
-                std::string("Unexpected error in updateOne: ") + ex.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
-        {
-            return unexpected<DBException>(DBException(
-                "C2D3E4F5A6B7",
-                "Unknown error in updateOne",
-                system_utils::captureCallStack()));
-        }
+
+        bson_destroy(&reply);
+        return result;
     }
 
     expected<DocumentUpdateResult, DBException> MongoDBCollection::updateMany(
@@ -143,91 +115,63 @@ namespace cpp_dbc::MongoDB
         const std::string &update,
         const DocumentUpdateOptions &options) noexcept
     {
-        try
+        MONGODB_DEBUG("MongoDBCollection::updateMany(nothrow) - Updating in: %s", m_name.c_str());
+        MONGODB_STMT_LOCK_OR_RETURN("D3E4F5A6B7C8", "Connection closed");
+
+        auto filterResult = parseFilter(std::nothrow, filter);
+        if (!filterResult.has_value())
         {
-            MONGODB_DEBUG("MongoDBCollection::updateMany(nothrow) - Updating in: %s", m_name.c_str());
-            MONGODB_STMT_LOCK_OR_RETURN("D3E4F5A6B7C8", "Connection closed");
+            return unexpected<DBException>(filterResult.error());
+        }
+        BsonHandle filterBson = std::move(filterResult.value());
 
-            auto filterResult = parseFilter(std::nothrow, filter);
-            if (!filterResult.has_value())
+        auto updateBsonResult = makeBsonHandleFromJson(std::nothrow, update);
+        if (!updateBsonResult.has_value())
+        {
+            return unexpected<DBException>(updateBsonResult.error());
+        }
+        BsonHandle updateBson = std::move(updateBsonResult.value());
+
+        bson_t opts = BSON_INITIALIZER;
+        if (options.upsert)
+        {
+            BSON_APPEND_BOOL(&opts, "upsert", true);
+        }
+
+        bson_error_t error;
+        bson_t reply;
+        bson_init(&reply);
+
+        bool success = mongoc_collection_update_many(
+            m_collection.get(), filterBson.get(), updateBson.get(), &opts, &reply, &error);
+        bson_destroy(&opts);
+
+        DocumentUpdateResult result;
+        result.acknowledged = success;
+
+        if (success)
+        {
+            bson_iter_t iter;
+            if (bson_iter_init_find(&iter, &reply, "matchedCount"))
             {
-                return unexpected<DBException>(filterResult.error());
+                result.matchedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
             }
-            BsonHandle filterBson = std::move(filterResult.value());
-
-            auto updateBsonResult = makeBsonHandleFromJson(std::nothrow, update);
-            if (!updateBsonResult.has_value())
+            if (bson_iter_init_find(&iter, &reply, "modifiedCount"))
             {
-                return unexpected<DBException>(updateBsonResult.error());
+                result.modifiedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
             }
-            BsonHandle updateBson = std::move(updateBsonResult.value());
-
-            bson_t opts = BSON_INITIALIZER;
-            if (options.upsert)
-            {
-                BSON_APPEND_BOOL(&opts, "upsert", true);
-            }
-
-            bson_error_t error;
-            bson_t reply;
-            bson_init(&reply);
-
-            bool success = mongoc_collection_update_many(
-                m_collection.get(), filterBson.get(), updateBson.get(), &opts, &reply, &error);
-            bson_destroy(&opts);
-
-            DocumentUpdateResult result;
-            result.acknowledged = success;
-
-            if (success)
-            {
-                bson_iter_t iter;
-                if (bson_iter_init_find(&iter, &reply, "matchedCount"))
-                {
-                    result.matchedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
-                }
-                if (bson_iter_init_find(&iter, &reply, "modifiedCount"))
-                {
-                    result.modifiedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
-                }
-            }
-            else
-            {
-                bson_destroy(&reply);
-                return unexpected<DBException>(DBException(
-                    "E4F5A6B7C8D9",
-                    std::string("updateMany failed: ") + error.message,
-                    system_utils::captureCallStack()));
-            }
-
+        }
+        else
+        {
             bson_destroy(&reply);
-            return result;
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch ([[maybe_unused]] const std::bad_alloc &ex)
-        {
             return unexpected<DBException>(DBException(
-                "F5A6B7C8D9E0",
-                "Memory allocation failed in updateMany",
+                "E4F5A6B7C8D9",
+                std::string("updateMany failed: ") + error.message,
                 system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "A6B7C8D9E0F1",
-                std::string("Unexpected error in updateMany: ") + ex.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
-        {
-            return unexpected<DBException>(DBException(
-                "B7C8D9E0F1A2",
-                "Unknown error in updateMany",
-                system_utils::captureCallStack()));
-        }
+
+        bson_destroy(&reply);
+        return result;
     }
 
     expected<DocumentUpdateResult, DBException> MongoDBCollection::replaceOne(
@@ -236,93 +180,65 @@ namespace cpp_dbc::MongoDB
         std::shared_ptr<DocumentDBData> replacement,
         const DocumentUpdateOptions &options) noexcept
     {
-        try
+        MONGODB_DEBUG("MongoDBCollection::replaceOne(nothrow) - Replacing in: %s", m_name.c_str());
+        MONGODB_STMT_LOCK_OR_RETURN("C8D9E0F1A2B3", "Connection closed");
+
+        auto mongoDoc = std::dynamic_pointer_cast<MongoDBDocument>(replacement);
+        if (!mongoDoc)
         {
-            MONGODB_DEBUG("MongoDBCollection::replaceOne(nothrow) - Replacing in: %s", m_name.c_str());
-            MONGODB_STMT_LOCK_OR_RETURN("C8D9E0F1A2B3", "Connection closed");
+            return unexpected<DBException>(DBException(
+                "C3D9E8F7A2B1",
+                "Replacement must be a MongoDBDocument",
+                system_utils::captureCallStack()));
+        }
 
-            auto mongoDoc = std::dynamic_pointer_cast<MongoDBDocument>(replacement);
-            if (!mongoDoc)
+        auto filterResult = parseFilter(std::nothrow, filter);
+        if (!filterResult.has_value())
+        {
+            return unexpected<DBException>(filterResult.error());
+        }
+        BsonHandle filterBson = std::move(filterResult.value());
+
+        bson_t opts = BSON_INITIALIZER;
+        if (options.upsert)
+        {
+            BSON_APPEND_BOOL(&opts, "upsert", true);
+        }
+
+        bson_error_t error;
+        bson_t reply;
+        bson_init(&reply);
+
+        bool success = mongoc_collection_replace_one(
+            m_collection.get(), filterBson.get(), mongoDoc->getBson(), &opts, &reply, &error);
+        bson_destroy(&opts);
+
+        DocumentUpdateResult result;
+        result.acknowledged = success;
+
+        if (success)
+        {
+            bson_iter_t iter;
+            if (bson_iter_init_find(&iter, &reply, "matchedCount"))
             {
-                return unexpected<DBException>(DBException(
-                    "C3D9E8F7A2B1",
-                    "Replacement must be a MongoDBDocument",
-                    system_utils::captureCallStack()));
+                result.matchedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
             }
-
-            auto filterResult = parseFilter(std::nothrow, filter);
-            if (!filterResult.has_value())
+            if (bson_iter_init_find(&iter, &reply, "modifiedCount"))
             {
-                return unexpected<DBException>(filterResult.error());
+                result.modifiedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
             }
-            BsonHandle filterBson = std::move(filterResult.value());
-
-            bson_t opts = BSON_INITIALIZER;
-            if (options.upsert)
-            {
-                BSON_APPEND_BOOL(&opts, "upsert", true);
-            }
-
-            bson_error_t error;
-            bson_t reply;
-            bson_init(&reply);
-
-            bool success = mongoc_collection_replace_one(
-                m_collection.get(), filterBson.get(), mongoDoc->getBson(), &opts, &reply, &error);
-            bson_destroy(&opts);
-
-            DocumentUpdateResult result;
-            result.acknowledged = success;
-
-            if (success)
-            {
-                bson_iter_t iter;
-                if (bson_iter_init_find(&iter, &reply, "matchedCount"))
-                {
-                    result.matchedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
-                }
-                if (bson_iter_init_find(&iter, &reply, "modifiedCount"))
-                {
-                    result.modifiedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
-                }
-            }
-            else
-            {
-                bson_destroy(&reply);
-                return unexpected<DBException>(DBException(
-                    "CQPAGOVXJN0Z",
-                    std::string("replaceOne failed: ") + error.message,
-                    system_utils::captureCallStack()));
-            }
-
+        }
+        else
+        {
             bson_destroy(&reply);
-            return result;
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch ([[maybe_unused]] const std::bad_alloc &ex)
-        {
             return unexpected<DBException>(DBException(
-                "SAOB1UJ2HYAN",
-                "Memory allocation failed in replaceOne",
+                "CQPAGOVXJN0Z",
+                std::string("replaceOne failed: ") + error.message,
                 system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "EA1OE9V91RLD",
-                std::string("Unexpected error in replaceOne: ") + ex.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
-        {
-            return unexpected<DBException>(DBException(
-                "NKRWKKNKU5MZ",
-                "Unknown error in replaceOne",
-                system_utils::captureCallStack()));
-        }
+
+        bson_destroy(&reply);
+        return result;
     }
 
 } // namespace cpp_dbc::MongoDB

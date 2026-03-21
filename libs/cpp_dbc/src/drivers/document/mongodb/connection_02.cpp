@@ -246,19 +246,19 @@ namespace cpp_dbc::MongoDB
 
     std::weak_ptr<mongoc_client_t> MongoDBConnection::getClientWeak() const
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        return std::weak_ptr<mongoc_client_t>(m_client);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        return std::weak_ptr<mongoc_client_t>(m_conn);
     }
 
     MongoClientHandle MongoDBConnection::getClient() const
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        return m_client;
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        return m_conn;
     }
 
     void MongoDBConnection::setPooled(bool pooled)
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
         m_pooled = pooled;
     }
 #endif // __cpp_exceptions
