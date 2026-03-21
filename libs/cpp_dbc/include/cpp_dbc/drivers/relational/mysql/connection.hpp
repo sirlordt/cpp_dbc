@@ -228,28 +228,19 @@ namespace cpp_dbc::MySQL
          * Allows PreparedStatement to access the underlying MYSQL* connection handle
          * via their weak_ptr<MySQLDBConnection>, without storing the handle directly.
          *
-         * @return Raw MYSQL* pointer (may be nullptr if connection was closed)
+         * @return MYSQL* pointer or error if connection is closed
          */
-        MYSQL *getMySQLNativeHandle(std::nothrow_t) const noexcept
+        cpp_dbc::expected<MYSQL *, DBException> getMySQLNativeHandle(std::nothrow_t) const noexcept
         {
+            if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
+            {
+                return cpp_dbc::unexpected(DBException(
+                    "SVXBWLMJJXH6",
+                    "Connection closed (getMySQLNativeHandle)",
+                    system_utils::captureCallStack()));
+            }
             return m_conn.get();
         }
-
-#if DB_DRIVER_THREAD_SAFE
-        /**
-         * @brief Get the connection mutex for PreparedStatement/ResultSet access
-         *
-         * Allows PreparedStatement and ResultSet to serialize their operations through
-         * the connection mutex via their weak_ptr<MySQLDBConnection>, without storing
-         * the mutex directly.
-         *
-         * @return Reference to the connection's recursive_mutex
-         */
-        std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
-        {
-            return *m_connMutex;
-        }
-#endif
 
         /**
          * @brief Check if connection is currently in reset() operation
@@ -262,11 +253,26 @@ namespace cpp_dbc::MySQL
             return m_resetting.load(std::memory_order_seq_cst);
         }
 
-    protected:
+    protected: // NOSONAR(cpp:S2156) — protected is intentional: these are override methods from the base class interface and getConnectionMutex follows the project's canonical mutex access pattern
         // Pool lifecycle overrides - only callable by pool infrastructure (via friend in RelationalDBConnection).
         cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
             TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
         cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
+
+#if DB_DRIVER_THREAD_SAFE
+        /**
+         * @brief Get the connection mutex for PreparedStatement/ResultSet access
+         *
+         * Implementation detail — accessed by MySQLConnectionLock via friend class.
+         * Not part of the public API.
+         *
+         * @return Reference to the connection's recursive_mutex
+         */
+        std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
+        {
+            return *m_connMutex;
+        }
+#endif
 
     public:
         /**
@@ -377,18 +383,7 @@ namespace cpp_dbc::MySQL
             return obj;
         }
 
-        cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;
-        cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> executeQuery(std::nothrow_t, const std::string &sql) noexcept override;
-        cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t, const std::string &sql) noexcept override;
-        cpp_dbc::expected<void, DBException> setAutoCommit(std::nothrow_t, bool autoCommit) noexcept override;
-        cpp_dbc::expected<bool, DBException> getAutoCommit(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<bool, DBException> beginTransaction(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<bool, DBException> transactionActive(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<void, DBException> commit(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<void, DBException> setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
-        cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
-
+        // Nothrow methods — same order as throwing block above
         cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> reset(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
@@ -396,6 +391,23 @@ namespace cpp_dbc::MySQL
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<std::string, DBException> getURI(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
+
+        cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;
+        cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> executeQuery(std::nothrow_t, const std::string &sql) noexcept override;
+        cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t, const std::string &sql) noexcept override;
+
+        cpp_dbc::expected<void, DBException> setAutoCommit(std::nothrow_t, bool autoCommit) noexcept override;
+        cpp_dbc::expected<bool, DBException> getAutoCommit(std::nothrow_t) noexcept override;
+
+        cpp_dbc::expected<bool, DBException> beginTransaction(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> transactionActive(std::nothrow_t) noexcept override;
+
+        cpp_dbc::expected<void, DBException> commit(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
+
+        cpp_dbc::expected<void, DBException> setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
+        cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
+
         cpp_dbc::expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override;
         cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(std::nothrow_t) noexcept override;
 

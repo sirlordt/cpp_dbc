@@ -39,36 +39,22 @@ namespace cpp_dbc::Firebird
         friend class FirebirdDBConnection;
         friend class FirebirdConnectionLock;
 
-    private:
+        // ── PrivateCtorTag — prevents direct construction; use create() ──
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
         // ── Member variables ──────────────────────────────────────────────────
         std::weak_ptr<isc_db_handle> m_dbHandle;
 
-        // ============================================================================
-        // FIX #1: Eliminate m_trPtr Dangling Pointer (USE-AFTER-FREE Bug)
-        // ============================================================================
-        // PROBLEM (BEFORE):
-        //   isc_tr_handle *m_trPtr{nullptr};  // Raw pointer to connection's m_tr
-        //
-        // This raw pointer caused USE-AFTER-FREE bugs:
-        //   - If the connection was destroyed while PreparedStatement existed,
-        //     m_trPtr pointed to FREED MEMORY (m_tr is a stack member of Connection)
-        //   - When executeUpdate() dereferenced it: isc_dsql_execute(..., m_trPtr, ...)
-        //     → SEGMENTATION FAULT or memory corruption
-        //
-        // SOLUTION (NOW):
-        //   std::weak_ptr<FirebirdDBConnection> m_connection;
-        //
-        // Benefits:
-        //   1. Lifecycle-safe: weak_ptr detects when connection is destroyed
-        //   2. Access pattern: lock() → check → use conn->m_tr → safe
-        //   3. Prevents dangling pointer bugs entirely
-        //   4. Matches SQLite's pattern with FileMutexRegistry
-        //
-        // Usage in methods (executeUpdate, executeQuery, etc.):
-        //   auto conn = m_connection.lock();
-        //   if (!conn) return unexpected("Connection destroyed");
-        //   isc_dsql_execute(status, &(conn->m_tr), ...);  // Safe access
-        // ============================================================================
+        // 2026-03-07T00:00:00Z
+        // Bug: PreparedStatement stored a raw pointer (isc_tr_handle *m_trPtr) to the
+        // connection's m_tr stack member. If the connection was destroyed first,
+        // m_trPtr became dangling → USE-AFTER-FREE / SEGFAULT in isc_dsql_execute().
+        // Solution: Store weak_ptr<FirebirdDBConnection> instead. Access conn->m_tr
+        // only after locking the parent connection via FIREBIRD_STMT_LOCK_OR_RETURN.
+        // weak_ptr detects destruction; lock() → check → use conn->m_tr → safe.
         std::weak_ptr<FirebirdDBConnection> m_connection;
         isc_stmt_handle m_stmt{};
         std::string m_sql;
@@ -97,23 +83,9 @@ namespace cpp_dbc::Firebird
          * @brief Error captured when constructor initialization fails
          *
          * Holds the DBException that would have been thrown, for deferred delivery.
+         * Only allocated on the failure path (~256 bytes saved per successful instance).
          */
-        DBException m_initError{"W5NGKYRJZB0X", "", {}};
-
-        // ── Private nothrow constructor ───────────────────────────────────────
-        /**
-         * @brief Private nothrow constructor — contains all initialization logic
-         *
-         * Calls prepareStatement(std::nothrow) internally. On failure, sets
-         * m_initFailed and m_initError instead of throwing. Only intended to be
-         * called from the static create() factory methods via `new`.
-         *
-         * @note create(nothrow_t) uses `new` (not std::make_shared) to access this private constructor.
-         */
-        FirebirdDBPreparedStatement(std::nothrow_t,
-                                    std::weak_ptr<isc_db_handle> db,
-                                    const std::string &sql,
-                                    std::weak_ptr<FirebirdDBConnection> conn) noexcept;
+        std::unique_ptr<DBException> m_initError{nullptr};
 
         // ── Private helper methods ────────────────────────────────────────────
         /**
@@ -128,6 +100,15 @@ namespace cpp_dbc::Firebird
         cpp_dbc::expected<void, DBException> setParameter(std::nothrow_t, int parameterIndex, const void *data, size_t length, short sqlType) noexcept;
 
     public:
+        // ── Public nothrow constructor (guarded by PrivateCtorTag) ─────────────
+        // No try/catch in body: prepareStatement(std::nothrow) is nothrow and errors
+        // are captured in m_initFailed/m_initError.
+        FirebirdDBPreparedStatement(PrivateCtorTag,
+                                    std::nothrow_t,
+                                    std::weak_ptr<isc_db_handle> db,
+                                    const std::string &sql,
+                                    std::weak_ptr<FirebirdDBConnection> conn) noexcept;
+
         // ── Destructor ────────────────────────────────────────────────────────
         ~FirebirdDBPreparedStatement() override;
 
@@ -189,14 +170,13 @@ namespace cpp_dbc::Firebird
                const std::string &sql,
                std::weak_ptr<FirebirdDBConnection> conn) noexcept
         {
-            // Use `new` instead of std::make_shared: std::make_shared cannot access private constructors,
-            // but a static class member function can. The private nothrow constructor stores init
-            // errors in m_initFailed/m_initError rather than throwing, so no try/catch is needed here.
-            auto obj = std::shared_ptr<FirebirdDBPreparedStatement>(
-                new FirebirdDBPreparedStatement(std::nothrow, db, sql, conn));
+            // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+            // Constructor errors are captured in m_initFailed / m_initError.
+            auto obj = std::make_shared<FirebirdDBPreparedStatement>(
+                PrivateCtorTag{}, std::nothrow, db, sql, conn);
             if (obj->m_initFailed)
             {
-                return cpp_dbc::unexpected(obj->m_initError);
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
             }
             return obj;
         }

@@ -21,6 +21,7 @@
 #ifndef SYSTEM_UTILS_HPP
 #define SYSTEM_UTILS_HPP
 
+#include <algorithm>
 #include <cctype>
 #include <charconv>
 #include <cstddef>
@@ -249,6 +250,78 @@ namespace cpp_dbc::system_utils
                            std::string_view host,
                            int port,
                            std::string_view database = "") noexcept;
+
+    /**
+     * @brief Check whether a string is a valid database identifier.
+     *
+     * Returns true when every character is alphanumeric (A-Z, a-z, 0-9) or
+     * an underscore ('_'). An empty string is considered valid (the caller
+     * decides whether emptiness is an error in its own context).
+     *
+     * Used by drivers to validate database/keyspace names against injection
+     * before embedding them in connection strings or URIs.
+     *
+     * @param name The identifier to validate
+     * @return true if the name contains only [A-Za-z0-9_] or is empty
+     */
+    inline bool isValidDatabaseIdentifier(std::string_view name) noexcept
+    {
+        return std::ranges::all_of(name,
+                                   [](unsigned char ch)
+                                   {
+                                       return (ch >= '0' && ch <= '9') ||
+                                              (ch >= 'A' && ch <= 'Z') ||
+                                              (ch >= 'a' && ch <= 'z') ||
+                                              ch == '_';
+                                   });
+    }
+
+    /**
+     * @brief Build a Firebird native connection string for isc_attach_database / isc_create_database.
+     *
+     * The Firebird C API uses the format `host[/port]:database` for TCP connections
+     * and just `database` for local/embedded connections (when host is empty).
+     *
+     * Note: "localhost" and "127.0.0.1" are preserved — they produce TCP loopback
+     * connections through the Firebird server, which is semantically different from
+     * an embedded connection (different auth, permissions, concurrency model).
+     *
+     * ```cpp
+     * auto s = buildFirebirdConnStr("server1", 3050, "/opt/db.fdb");
+     * // s = "server1:/opt/db.fdb"  (default port omitted)
+     *
+     * auto s2 = buildFirebirdConnStr("server1", 3051, "/opt/db.fdb");
+     * // s2 = "server1/3051:/opt/db.fdb"
+     *
+     * auto s3 = buildFirebirdConnStr("", 0, "/opt/db.fdb");
+     * // s3 = "/opt/db.fdb"  (local/embedded)
+     *
+     * auto s4 = buildFirebirdConnStr("localhost", 3050, "/opt/db.fdb");
+     * // s4 = "localhost:/opt/db.fdb"  (TCP loopback, NOT embedded)
+     * ```
+     *
+     * @param host Host name or IP; empty for local/embedded connection
+     * @param port Port number; 3050 and 0 are treated as default (omitted)
+     * @param database Database file path
+     * @return The native connection string
+     */
+    inline std::string buildFirebirdConnStr(std::string_view host,
+                                            int port,
+                                            std::string_view database) noexcept
+    {
+        std::string result;
+        if (!host.empty())
+        {
+            result += host;
+            if (port != 3050 && port != 0)
+            {
+                result += "/" + std::to_string(port);
+            }
+            result += ":";
+        }
+        result += database;
+        return result;
+    }
 
     /**
      * @brief Percent-encode a URI component per RFC 3986

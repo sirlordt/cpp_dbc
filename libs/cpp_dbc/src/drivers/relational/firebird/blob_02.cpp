@@ -100,13 +100,18 @@ namespace cpp_dbc::Firebird
         {
             return cpp_dbc::unexpected(connResult.error());
         }
-        isc_db_handle *db = getDbHandle(std::nothrow);
-        isc_tr_handle *tr = getTrHandle(std::nothrow);
-
-        if (!db || !tr)
+        auto dbResult = getDbHandle(std::nothrow);
+        if (!dbResult.has_value())
         {
-            return cpp_dbc::unexpected(DBException("K3M7N9P2Q5R8", "Invalid database or transaction handle", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(dbResult.error());
         }
+        auto trResult = getTrHandle(std::nothrow);
+        if (!trResult.has_value())
+        {
+            return cpp_dbc::unexpected(trResult.error());
+        }
+        isc_db_handle *db = dbResult.value();
+        isc_tr_handle *tr = trResult.value();
 
         ISC_STATUS_ARRAY status;
         isc_blob_handle blobHandle = 0;
@@ -114,7 +119,7 @@ namespace cpp_dbc::Firebird
         // Open the blob
         if (isc_open_blob2(status, db, tr, &blobHandle, &m_blobId, 0, nullptr))
         {
-            return cpp_dbc::unexpected(DBException("K3M7N9P2Q5R8", "Failed to open BLOB for reading", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("VAX7UHY9SXIW", "Failed to open BLOB for reading", system_utils::captureCallStack()));
         }
 
         // Read the blob data in chunks
@@ -172,13 +177,18 @@ namespace cpp_dbc::Firebird
         {
             return cpp_dbc::unexpected(connResult.error());
         }
-        isc_db_handle *db = getDbHandle(std::nothrow);
-        isc_tr_handle *tr = getTrHandle(std::nothrow);
-
-        if (!db || !tr)
+        auto dbResult = getDbHandle(std::nothrow);
+        if (!dbResult.has_value())
         {
-            return cpp_dbc::unexpected(DBException("N6Q0R2S8T4U1", "Invalid database or transaction handle", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(dbResult.error());
         }
+        auto trResult = getTrHandle(std::nothrow);
+        if (!trResult.has_value())
+        {
+            return cpp_dbc::unexpected(trResult.error());
+        }
+        isc_db_handle *db = dbResult.value();
+        isc_tr_handle *tr = trResult.value();
 
         ISC_STATUS_ARRAY status;
         isc_blob_handle blobHandle = 0;
@@ -186,7 +196,7 @@ namespace cpp_dbc::Firebird
         // Create a new blob
         if (isc_create_blob2(status, db, tr, &blobHandle, &m_blobId, 0, nullptr))
         {
-            return cpp_dbc::unexpected(DBException("N6Q0R2S8T4U1", "Failed to create BLOB for writing", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("ZSULMGK9FPVN", "Failed to create BLOB for writing", system_utils::captureCallStack()));
         }
 
         // Write the data in chunks

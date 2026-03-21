@@ -210,6 +210,41 @@ namespace cpp_dbc::MySQL
         return {}; /* Already closed or connection lost = success */ \
     }
 
+// ============================================================================
+// Store-result ResultSet macros — use own m_mutex, NOT the connection mutex.
+// MySQLDBResultSet loads all data into client memory; next()/getString()/etc.
+// do NOT contact the server. But the lifecycle contract still applies:
+// m_closed + m_connection.expired() must be checked before every operation.
+// ============================================================================
+
+// For nothrow ResultSet methods - locks own mutex, checks lifecycle
+#define MYSQL_RS_LOCK_OR_RETURN(mark, msg)                                                   \
+    DB_DRIVER_LOCK_GUARD(m_mutex);                                                           \
+    if (m_closed.load(std::memory_order_seq_cst))                                            \
+    {                                                                                        \
+        return cpp_dbc::unexpected(DBException(mark, msg " (result set closed)",             \
+                                               cpp_dbc::system_utils::captureCallStack()));  \
+    }                                                                                        \
+    if (m_connection.expired())                                                              \
+    {                                                                                        \
+        m_closed.store(true, std::memory_order_seq_cst);                                     \
+        return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",             \
+                                               cpp_dbc::system_utils::captureCallStack()));  \
+    }
+
+// For close() ResultSet method - returns success if already closed (idempotent)
+#define MYSQL_RS_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()                                          \
+    DB_DRIVER_LOCK_GUARD(m_mutex);                                                           \
+    if (m_closed.load(std::memory_order_seq_cst))                                            \
+    {                                                                                        \
+        return {}; /* Already closed = success */                                            \
+    }                                                                                        \
+    if (m_connection.expired())                                                              \
+    {                                                                                        \
+        m_closed.store(true, std::memory_order_seq_cst);                                     \
+        return {}; /* Connection lost = success */                                           \
+    }
+
 #else
 // Non-thread-safe: check closed flag AND connection weak_ptr expiry (no locking).
 // If the connection was destroyed without notifying children, m_closed may still be
@@ -248,6 +283,31 @@ namespace cpp_dbc::MySQL
     {                                                 \
         m_closed.store(true, std::memory_order_seq_cst); \
         return {}; /* Connection lost = success */    \
+    }
+
+// Non-thread-safe store-result ResultSet macros (no locking, same lifecycle checks)
+#define MYSQL_RS_LOCK_OR_RETURN(mark, msg)                                                   \
+    if (m_closed.load(std::memory_order_seq_cst))                                            \
+    {                                                                                        \
+        return cpp_dbc::unexpected(DBException(mark, msg " (result set closed)",             \
+                                               cpp_dbc::system_utils::captureCallStack()));  \
+    }                                                                                        \
+    if (m_connection.expired())                                                              \
+    {                                                                                        \
+        m_closed.store(true, std::memory_order_seq_cst);                                     \
+        return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",             \
+                                               cpp_dbc::system_utils::captureCallStack()));  \
+    }
+
+#define MYSQL_RS_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()                                          \
+    if (m_closed.load(std::memory_order_seq_cst))                                            \
+    {                                                                                        \
+        return {}; /* Already closed = success */                                            \
+    }                                                                                        \
+    if (m_connection.expired())                                                              \
+    {                                                                                        \
+        m_closed.store(true, std::memory_order_seq_cst);                                     \
+        return {}; /* Connection lost = success */                                           \
     }
 #endif // DB_DRIVER_THREAD_SAFE
 

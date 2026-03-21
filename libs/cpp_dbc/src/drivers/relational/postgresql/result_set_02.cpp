@@ -137,6 +137,8 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<int, DBException> PostgreSQLDBResultSet::getInt(std::nothrow_t, const std::string &columnName) noexcept
     {
+        POSTGRESQL_STMT_LOCK_OR_RETURN("BN5MBQPQRMB7", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -176,6 +178,8 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<int64_t, DBException> PostgreSQLDBResultSet::getLong(std::nothrow_t, const std::string &columnName) noexcept
     {
+        POSTGRESQL_STMT_LOCK_OR_RETURN("WGXSSF9L28GO", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -215,6 +219,8 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<double, DBException> PostgreSQLDBResultSet::getDouble(std::nothrow_t, const std::string &columnName) noexcept
     {
+        POSTGRESQL_STMT_LOCK_OR_RETURN("NKX5TKF5AFFT", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {

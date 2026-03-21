@@ -24,6 +24,7 @@
 
 #include <sstream>
 #include <algorithm>
+#include <charconv>
 #include <chrono>
 #include <thread>
 #include <cstring>
@@ -35,6 +36,32 @@
 namespace cpp_dbc::Firebird
 {
 
+    // ── Nothrow static factory ────────────────────────────────────────────────
+    cpp_dbc::expected<std::shared_ptr<FirebirdDBResultSet>, DBException>
+    FirebirdDBResultSet::create(std::nothrow_t,
+                                FirebirdStmtHandle stmt,
+                                XSQLDAHandle sqlda,
+                                bool ownStatement,
+                                std::shared_ptr<FirebirdDBConnection> conn) noexcept
+    {
+        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+        // Constructor errors are captured in m_initFailed / m_initError.
+        auto ptr = std::make_shared<FirebirdDBResultSet>(
+            PrivateCtorTag{}, std::nothrow, std::move(stmt), std::move(sqlda), ownStatement, conn);
+        if (ptr->m_initFailed)
+        {
+            return cpp_dbc::unexpected(std::move(*ptr->m_initError));
+        }
+        // Must be called after construction (requires shared_ptr to exist for shared_from_this())
+        auto initResult = ptr->initialize(std::nothrow);
+        if (!initResult.has_value())
+        {
+            return cpp_dbc::unexpected(initResult.error());
+        }
+        return ptr;
+    }
+
+    // ── Nothrow public methods ────────────────────────────────────────────────
     cpp_dbc::expected<bool, DBException> FirebirdDBResultSet::next(std::nothrow_t) noexcept
     {
         FIREBIRD_STMT_LOCK_OR_RETURN("ZALQADMF0DBS", "Connection lost");
@@ -124,35 +151,32 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<int, DBException> FirebirdDBResultSet::getInt(std::nothrow_t, size_t columnIndex) noexcept
     {
-        // try/catch is required: std::stoi can throw std::invalid_argument or std::out_of_range
-        // for malformed or overflow values retrieved from the database.
-        try
+        FIREBIRD_STMT_LOCK_OR_RETURN("KKJ6AU7N7GC0", "Connection lost");
+        auto valResult = getColumnValue(std::nothrow, columnIndex);
+        if (!valResult.has_value())
         {
-            FIREBIRD_STMT_LOCK_OR_RETURN("KKJ6AU7N7GC0", "Connection lost");
-            auto valResult = getColumnValue(std::nothrow, columnIndex);
-            if (!valResult.has_value())
-            {
-                return cpp_dbc::unexpected(valResult.error());
-            }
-            const std::string &value = valResult.value();
-            return value.empty() ? 0 : std::stoi(value);
+            return cpp_dbc::unexpected(valResult.error());
         }
-        catch (const DBException &ex)
+        const std::string &value = valResult.value();
+        if (value.empty())
         {
-            return cpp_dbc::unexpected(ex);
+            return 0;
         }
-        catch (const std::exception &ex)
+        int result = 0;
+        const char *end = value.data() + value.size();
+        auto [ptr, ec] = std::from_chars(value.data(), end, result);
+        if (ec != std::errc{} || ptr != end)
         {
-            return cpp_dbc::unexpected(DBException("E5ACFAD9B0C4", std::string("Exception in getInt: ") + ex.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("E5ACFAD9B0C4",
+                "Invalid integer value: " + value, system_utils::captureCallStack()));
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("F6BDE0EAC1D5", "Unknown exception in getInt", system_utils::captureCallStack()));
-        }
+        return result;
     }
 
     cpp_dbc::expected<int, DBException> FirebirdDBResultSet::getInt(std::nothrow_t, const std::string &columnName) noexcept
     {
+        FIREBIRD_STMT_LOCK_OR_RETURN("S0NG0T7XB7GW", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -163,35 +187,32 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<int64_t, DBException> FirebirdDBResultSet::getLong(std::nothrow_t, size_t columnIndex) noexcept
     {
-        // try/catch is required: std::stoll can throw std::invalid_argument or std::out_of_range
-        // for malformed or overflow values retrieved from the database.
-        try
+        FIREBIRD_STMT_LOCK_OR_RETURN("BKG4AMM82M79", "Connection lost");
+        auto valResult = getColumnValue(std::nothrow, columnIndex);
+        if (!valResult.has_value())
         {
-            FIREBIRD_STMT_LOCK_OR_RETURN("BKG4AMM82M79", "Connection lost");
-            auto valResult = getColumnValue(std::nothrow, columnIndex);
-            if (!valResult.has_value())
-            {
-                return cpp_dbc::unexpected(valResult.error());
-            }
-            const std::string &value = valResult.value();
-            return value.empty() ? static_cast<int64_t>(0) : std::stoll(value);
+            return cpp_dbc::unexpected(valResult.error());
         }
-        catch (const DBException &ex)
+        const std::string &value = valResult.value();
+        if (value.empty())
         {
-            return cpp_dbc::unexpected(ex);
+            return static_cast<int64_t>(0);
         }
-        catch (const std::exception &ex)
+        int64_t result = 0;
+        const char *end = value.data() + value.size();
+        auto [ptr, ec] = std::from_chars(value.data(), end, result);
+        if (ec != std::errc{} || ptr != end)
         {
-            return cpp_dbc::unexpected(DBException("G7CEFBE1D2A6", std::string("Exception in getLong: ") + ex.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("G7CEFBE1D2A6",
+                "Invalid long value: " + value, system_utils::captureCallStack()));
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("H8DFA0C2E3B7", "Unknown exception in getLong", system_utils::captureCallStack()));
-        }
+        return result;
     }
 
     cpp_dbc::expected<int64_t, DBException> FirebirdDBResultSet::getLong(std::nothrow_t, const std::string &columnName) noexcept
     {
+        FIREBIRD_STMT_LOCK_OR_RETURN("YGFM9JJ23KFE", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -202,37 +223,34 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<double, DBException> FirebirdDBResultSet::getDouble(std::nothrow_t, size_t columnIndex) noexcept
     {
-        // try/catch is required: std::stod can throw std::invalid_argument or std::out_of_range
-        // for malformed or overflow values retrieved from the database.
-        try
+        FIREBIRD_STMT_LOCK_OR_RETURN("WW48OXWIIVBF", "Connection lost");
+        FIREBIRD_DEBUG("getDouble(columnIndex=%zu)", columnIndex);
+        auto valResult = getColumnValue(std::nothrow, columnIndex);
+        if (!valResult.has_value())
         {
-            FIREBIRD_STMT_LOCK_OR_RETURN("WW48OXWIIVBF", "Connection lost");
-            FIREBIRD_DEBUG("getDouble(columnIndex=%zu)", columnIndex);
-            auto valResult = getColumnValue(std::nothrow, columnIndex);
-            if (!valResult.has_value())
-            {
-                return cpp_dbc::unexpected(valResult.error());
-            }
-            const std::string &value = valResult.value();
-            FIREBIRD_DEBUG("  getColumnValue returned: '%s'", value.c_str());
-            return value.empty() ? 0.0 : std::stod(value);
+            return cpp_dbc::unexpected(valResult.error());
         }
-        catch (const DBException &ex)
+        const std::string &value = valResult.value();
+        FIREBIRD_DEBUG("  getColumnValue returned: '%s'", value.c_str());
+        if (value.empty())
         {
-            return cpp_dbc::unexpected(ex);
+            return 0.0;
         }
-        catch (const std::exception &ex)
+        double result = 0.0;
+        const char *end = value.data() + value.size();
+        auto [ptr, ec] = std::from_chars(value.data(), end, result);
+        if (ec != std::errc{} || ptr != end)
         {
-            return cpp_dbc::unexpected(DBException("I9E0B1D3F4C8", std::string("Exception in getDouble: ") + ex.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("I9E0B1D3F4C8",
+                "Invalid double value: " + value, system_utils::captureCallStack()));
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("J0F1C2E4A5D9", "Unknown exception in getDouble", system_utils::captureCallStack()));
-        }
+        return result;
     }
 
     cpp_dbc::expected<double, DBException> FirebirdDBResultSet::getDouble(std::nothrow_t, const std::string &columnName) noexcept
     {
+        FIREBIRD_STMT_LOCK_OR_RETURN("1ZVFEV4BAYJF", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -249,6 +267,8 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<std::string, DBException> FirebirdDBResultSet::getString(std::nothrow_t, const std::string &columnName) noexcept
     {
+        FIREBIRD_STMT_LOCK_OR_RETURN("DF8DJ6K5DFER", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -280,6 +300,8 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<bool, DBException> FirebirdDBResultSet::getBoolean(std::nothrow_t, const std::string &columnName) noexcept
     {
+        FIREBIRD_STMT_LOCK_OR_RETURN("QIBZJU75WJHJ", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -301,6 +323,8 @@ namespace cpp_dbc::Firebird
 
     cpp_dbc::expected<bool, DBException> FirebirdDBResultSet::isNull(std::nothrow_t, const std::string &columnName) noexcept
     {
+        FIREBIRD_STMT_LOCK_OR_RETURN("A6XJIO4PJCNF", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {

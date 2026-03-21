@@ -64,7 +64,7 @@ namespace cpp_dbc::PostgreSQL
         static void registerConnection(std::nothrow_t, std::weak_ptr<PostgreSQLDBConnection> conn) noexcept;
         static void unregisterConnection(std::nothrow_t, const std::weak_ptr<PostgreSQLDBConnection> &conn) noexcept;
 
-        static void cleanup();
+        static void cleanup(std::nothrow_t) noexcept;
 
         void closeAllOpenConnections(std::nothrow_t) noexcept;
 

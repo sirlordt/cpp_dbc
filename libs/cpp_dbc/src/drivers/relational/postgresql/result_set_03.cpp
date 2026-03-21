@@ -60,6 +60,8 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<std::string, DBException> PostgreSQLDBResultSet::getString(std::nothrow_t, const std::string &columnName) noexcept
     {
+        POSTGRESQL_STMT_LOCK_OR_RETURN("9I941CLT901S", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -92,6 +94,8 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBResultSet::getBoolean(std::nothrow_t, const std::string &columnName) noexcept
     {
+        POSTGRESQL_STMT_LOCK_OR_RETURN("MN8DHVERHPXD", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -118,6 +122,8 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<bool, DBException> PostgreSQLDBResultSet::isNull(std::nothrow_t, const std::string &columnName) noexcept
     {
+        POSTGRESQL_STMT_LOCK_OR_RETURN("3G6ZC8O00KZ7", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -149,6 +155,8 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<std::string, DBException> PostgreSQLDBResultSet::getDate(std::nothrow_t, const std::string &columnName) noexcept
     {
+        POSTGRESQL_STMT_LOCK_OR_RETURN("IVHE8Y3DWO6E", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -180,6 +188,8 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<std::string, DBException> PostgreSQLDBResultSet::getTimestamp(std::nothrow_t, const std::string &columnName) noexcept
     {
+        POSTGRESQL_STMT_LOCK_OR_RETURN("NN3GSXG0MA4U", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -211,6 +221,8 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<std::string, DBException> PostgreSQLDBResultSet::getTime(std::nothrow_t, const std::string &columnName) noexcept
     {
+        POSTGRESQL_STMT_LOCK_OR_RETURN("2RKWRTOENQ49", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {

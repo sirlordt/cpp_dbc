@@ -37,7 +37,82 @@
 namespace cpp_dbc::SQLite
 {
 
-    // Nothrow API
+    // ============================================================================
+    // Protected overrides — pool lifecycle
+    // ============================================================================
+
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::prepareForPoolReturn(
+        std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept
+    {
+        // Delegate to reset() which closes result sets, statements, rolls back, and resets autocommit
+        auto resetResult = reset(std::nothrow);
+        if (!resetResult.has_value())
+        {
+            return resetResult;
+        }
+
+        // Restore transaction isolation level if requested by the pool
+        if (isolationLevel != TransactionIsolationLevel::TRANSACTION_NONE)
+        {
+            auto isoResult = getTransactionIsolation(std::nothrow);
+            if (!isoResult.has_value())
+            {
+                return cpp_dbc::unexpected(isoResult.error());
+            }
+            if (isoResult.value() != isolationLevel)
+            {
+                auto setResult = setTransactionIsolation(std::nothrow, isolationLevel);
+                if (!setResult.has_value())
+                {
+                    return setResult;
+                }
+            }
+        }
+
+        return {};
+    }
+
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::prepareForBorrow(std::nothrow_t) noexcept
+    {
+        // No-op for SQLite: no MVCC snapshot refresh needed
+        return {};
+    }
+
+    // ============================================================================
+    // Public nothrow API — same order as header declarations
+    // ============================================================================
+
+    // No try/catch: all inner calls are nothrow (std::nothrow_t methods, C API calls,
+    // atomic stores, shared_ptr::reset). The only possible throws are std::bad_alloc
+    // and mutex std::system_error — both are death-sentence exceptions with no
+    // meaningful recovery path. Catching them would hide a catastrophic failure.
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::close(std::nothrow_t) noexcept
+    {
+        SQLITE_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
+
+        // Close all result sets FIRST (before statements)
+        [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
+
+        // Close all prepared statements properly
+        // closeAllStatements() includes safety net for leaked statements
+        [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
+
+        // Call sqlite3_release_memory to free up caches and unused memory
+        [[maybe_unused]]
+        int releasedMemory = sqlite3_release_memory(1000000);
+        SQLITE_DEBUG("Released %d bytes of SQLite memory", releasedMemory);
+
+        // Smart pointer will automatically call sqlite3_close_v2 via SQLiteDbDeleter
+        m_conn.reset();
+        m_closed.store(true, std::memory_order_seq_cst);
+
+        // Unregister from the driver registry so getConnectionAlive() reflects
+        // actual live connections. The owner_less m_self weak_ptr is used for
+        // set lookup — raw 'this' would not match the set's comparator.
+        SQLiteDBDriver::unregisterConnection(std::nothrow, m_self);
+
+        return {};
+    }
 
     // No try/catch: all inner calls are nothrow (sqlite3_interrupt is a C function,
     // closeAllResultSets/closeAllStatements/rollback/setAutoCommit/transactionActive
@@ -89,19 +164,32 @@ namespace cpp_dbc::SQLite
         return {};
     }
 
-    cpp_dbc::expected<bool, DBException> SQLiteDBConnection::ping(std::nothrow_t) noexcept
+    cpp_dbc::expected<bool, DBException> SQLiteDBConnection::isClosed(std::nothrow_t) const noexcept
     {
-        auto result = executeQuery(std::nothrow, "SELECT 1");
-        if (!result.has_value())
+        return m_closed.load(std::memory_order_seq_cst);
+    }
+
+    // No try/catch: reset(std::nothrow) is noexcept and all inner operations are
+    // nothrow. The only possible throws are death-sentence exceptions (std::bad_alloc,
+    // mutex std::system_error) with no meaningful recovery path.
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::returnToPool(std::nothrow_t) noexcept
+    {
+        // Reset the connection state for the next borrower
+        // reset() closes result sets, statements, rolls back and resets autocommit
+        auto resetResult = reset(std::nothrow);
+        if (!resetResult.has_value())
         {
-            return cpp_dbc::unexpected(result.error());
+            SQLITE_DEBUG("returnToPool(nothrow): reset failed: %s",
+                         resetResult.error().what_s().data());
+            // Continue - try to at least restore autocommit
         }
-        auto closeResult = result.value()->close(std::nothrow);
-        if (!closeResult.has_value())
-        {
-            return cpp_dbc::unexpected(closeResult.error());
-        }
-        return true;
+
+        return {};
+    }
+
+    cpp_dbc::expected<bool, DBException> SQLiteDBConnection::isPooled(std::nothrow_t) const noexcept
+    {
+        return false;
     }
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> SQLiteDBConnection::prepareStatement(std::nothrow_t, const std::string &sql) noexcept
@@ -333,66 +421,6 @@ namespace cpp_dbc::SQLite
         return m_isolationLevel;
     }
 
-    // No try/catch: all inner calls are nothrow (std::nothrow_t methods, C API calls,
-    // atomic stores, shared_ptr::reset). The only possible throws are std::bad_alloc
-    // and mutex std::system_error — both are death-sentence exceptions with no
-    // meaningful recovery path. Catching them would hide a catastrophic failure.
-    cpp_dbc::expected<void, DBException> SQLiteDBConnection::close(std::nothrow_t) noexcept
-    {
-        SQLITE_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
-
-        // Close all result sets FIRST (before statements)
-        [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
-
-        // Close all prepared statements properly
-        // closeAllStatements() includes safety net for leaked statements
-        [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
-
-        // Call sqlite3_release_memory to free up caches and unused memory
-        [[maybe_unused]]
-        int releasedMemory = sqlite3_release_memory(1000000);
-        SQLITE_DEBUG("Released %d bytes of SQLite memory", releasedMemory);
-
-        // Smart pointer will automatically call sqlite3_close_v2 via SQLiteDbDeleter
-        m_conn.reset();
-        m_closed.store(true, std::memory_order_seq_cst);
-
-        // Unregister from the driver registry so getConnectionAlive() reflects
-        // actual live connections. The owner_less m_self weak_ptr is used for
-        // set lookup — raw 'this' would not match the set's comparator.
-        SQLiteDBDriver::unregisterConnection(std::nothrow, m_self);
-
-        return {};
-    }
-
-    cpp_dbc::expected<bool, DBException> SQLiteDBConnection::isClosed(std::nothrow_t) const noexcept
-    {
-        return m_closed.load(std::memory_order_seq_cst);
-    }
-
-    // No try/catch: reset(std::nothrow) is noexcept and all inner operations are
-    // nothrow. The only possible throws are death-sentence exceptions (std::bad_alloc,
-    // mutex std::system_error) with no meaningful recovery path.
-    cpp_dbc::expected<void, DBException> SQLiteDBConnection::returnToPool(std::nothrow_t) noexcept
-    {
-        // Reset the connection state for the next borrower
-        // reset() closes result sets, statements, rolls back and resets autocommit
-        auto resetResult = reset(std::nothrow);
-        if (!resetResult.has_value())
-        {
-            SQLITE_DEBUG("returnToPool(nothrow): reset failed: %s",
-                         resetResult.error().what_s().data());
-            // Continue - try to at least restore autocommit
-        }
-
-        return {};
-    }
-
-    cpp_dbc::expected<bool, DBException> SQLiteDBConnection::isPooled(std::nothrow_t) const noexcept
-    {
-        return false;
-    }
-
     // No try/catch: the only possible throw is std::bad_alloc from the
     // std::string copy, which is a death-sentence exception — no meaningful
     // recovery is possible, so std::terminate is the correct response.
@@ -401,41 +429,19 @@ namespace cpp_dbc::SQLite
         return m_uri;
     }
 
-    cpp_dbc::expected<void, DBException> SQLiteDBConnection::prepareForPoolReturn(
-        std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept
+    cpp_dbc::expected<bool, DBException> SQLiteDBConnection::ping(std::nothrow_t) noexcept
     {
-        // Delegate to reset() which closes result sets, statements, rolls back, and resets autocommit
-        auto resetResult = reset(std::nothrow);
-        if (!resetResult.has_value())
+        auto result = executeQuery(std::nothrow, "SELECT 1");
+        if (!result.has_value())
         {
-            return resetResult;
+            return cpp_dbc::unexpected(result.error());
         }
-
-        // Restore transaction isolation level if requested by the pool
-        if (isolationLevel != TransactionIsolationLevel::TRANSACTION_NONE)
+        auto closeResult = result.value()->close(std::nothrow);
+        if (!closeResult.has_value())
         {
-            auto isoResult = getTransactionIsolation(std::nothrow);
-            if (!isoResult.has_value())
-            {
-                return cpp_dbc::unexpected(isoResult.error());
-            }
-            if (isoResult.value() != isolationLevel)
-            {
-                auto setResult = setTransactionIsolation(std::nothrow, isolationLevel);
-                if (!setResult.has_value())
-                {
-                    return setResult;
-                }
-            }
+            return cpp_dbc::unexpected(closeResult.error());
         }
-
-        return {};
-    }
-
-    cpp_dbc::expected<void, DBException> SQLiteDBConnection::prepareForBorrow(std::nothrow_t) noexcept
-    {
-        // No-op for SQLite: no MVCC snapshot refresh needed
-        return {};
+        return true;
     }
 
     cpp_dbc::expected<std::string, DBException> SQLiteDBConnection::getServerVersion(std::nothrow_t) noexcept

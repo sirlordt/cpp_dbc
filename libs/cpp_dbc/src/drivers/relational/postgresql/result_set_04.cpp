@@ -88,6 +88,8 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<std::shared_ptr<Blob>, DBException> PostgreSQLDBResultSet::getBlob(std::nothrow_t, const std::string &columnName) noexcept
     {
+        POSTGRESQL_STMT_LOCK_OR_RETURN("83R5L5DJGH02", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -154,6 +156,8 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> PostgreSQLDBResultSet::getBinaryStream(std::nothrow_t, const std::string &columnName) noexcept
     {
+        POSTGRESQL_STMT_LOCK_OR_RETURN("J5467JDXI4ED", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -248,6 +252,8 @@ namespace cpp_dbc::PostgreSQL
 
     cpp_dbc::expected<std::vector<uint8_t>, DBException> PostgreSQLDBResultSet::getBytes(std::nothrow_t, const std::string &columnName) noexcept
     {
+        POSTGRESQL_STMT_LOCK_OR_RETURN("YDBKFEUETFDZ", "ResultSet closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {

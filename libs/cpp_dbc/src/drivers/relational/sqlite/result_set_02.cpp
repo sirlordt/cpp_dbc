@@ -185,6 +185,8 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<int, DBException> SQLiteDBResultSet::getInt(std::nothrow_t, const std::string &columnName) noexcept
     {
+        SQLITE_STMT_LOCK_OR_RETURN("MQARAR21Q5HS", "Result set is closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {

@@ -76,6 +76,16 @@ namespace cpp_dbc::Firebird
         // ── Coalesced cleanup flag ────────────────────────────────────────────
         static std::atomic<bool> s_cleanupPending;
 
+        // ── Driver state ──────────────────────────────────────────────────────
+        // Set to true by the destructor before releasing resources.
+        // Prevents new connection attempts during and after driver teardown.
+        std::atomic<bool> m_closed{false};
+
+        // ── Construction state ────────────────────────────────────────────────
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
+
+        // ── Private helpers ──────────────────────────────────────────────────
         static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
 
         static void registerConnection(std::nothrow_t, std::weak_ptr<FirebirdDBConnection> conn) noexcept;
@@ -104,15 +114,6 @@ namespace cpp_dbc::Firebird
         extractComponents(std::nothrow_t, const std::map<std::string, std::string> &parsed) noexcept;
 
         friend class FirebirdDBConnection;
-
-        // ── Construction state ────────────────────────────────────────────────
-        bool m_initFailed{false};
-        std::unique_ptr<DBException> m_initError{nullptr};
-
-        // ── Driver state ──────────────────────────────────────────────────────
-        // Set to true by the destructor before releasing resources.
-        // Prevents new connection attempts during and after driver teardown.
-        std::atomic<bool> m_closed{false};
 
     public:
         // ── Constructor ───────────────────────────────────────────────────────

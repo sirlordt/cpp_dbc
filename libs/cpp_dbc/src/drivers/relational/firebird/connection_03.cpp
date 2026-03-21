@@ -65,11 +65,12 @@ namespace cpp_dbc::Firebird
             if (!m_tr)
             {
                 FIREBIRD_DEBUG("  No active transaction, starting one...");
-                // Use startTransaction() directly to avoid corrupting m_autoCommit.
-                // beginTransaction() sets m_autoCommit=false as a side effect, which
-                // prevents isc_commit_retaining() from being called in executeUpdate(),
-                // causing all pool-managed connections (re-borrowed after reset()) to
-                // silently roll back their INSERTs instead of committing them.
+                // 2026-03-07T00:00:00Z
+                // Bug: beginTransaction() sets m_autoCommit=false as a side effect,
+                // which prevents isc_commit_retaining() in executeUpdate(), causing
+                // pool-managed connections to silently roll back INSERTs.
+                // Solution: Call startTransaction() directly to avoid corrupting
+                // m_autoCommit state.
                 auto txResult = startTransaction(std::nothrow);
                 if (!txResult.has_value())
                 {
@@ -101,7 +102,7 @@ namespace cpp_dbc::Firebird
         {
             return cpp_dbc::unexpected(DBException("2791E5F8FC3C", std::string("Exception in prepareStatement: ") + ex.what(), system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             return cpp_dbc::unexpected(DBException("D87AA3FA1250", "Unknown exception in prepareStatement", system_utils::captureCallStack()));
         }
@@ -154,19 +155,21 @@ namespace cpp_dbc::Firebird
             upperSql = upperSql.substr(start);
         }
 
-        if (upperSql.find("CREATE DATABASE") == 0 || upperSql.find("CREATE SCHEMA") == 0)
+        if (upperSql.starts_with("CREATE DATABASE") || upperSql.starts_with("CREATE SCHEMA"))
         {
             FIREBIRD_DEBUG("FirebirdConnection::executeUpdate(nothrow) - Detected CREATE DATABASE statement");
             return executeCreateDatabase(std::nothrow, sql);
         }
 
-        // Check if this is a DDL statement that requires metadata lock cleanup
-        // DDL operations like DROP, ALTER, CREATE, RECREATE need exclusive metadata locks
-        // If there are active prepared statements holding metadata locks, we get deadlock
-        bool isDDL = (upperSql.find("DROP ") == 0 ||
-                      upperSql.find("ALTER ") == 0 ||
-                      upperSql.find("CREATE ") == 0 ||
-                      upperSql.find("RECREATE ") == 0);
+        // 2026-03-20T00:00:00Z
+        // Bug: DDL operations (DROP, ALTER, CREATE, RECREATE) require exclusive metadata
+        // locks, but active prepared statements hold shared metadata locks, causing deadlock.
+        // Solution: Close all active prepared statements and commit the current transaction
+        // before executing DDL, releasing all metadata locks first.
+        bool isDDL = (upperSql.starts_with("DROP ") ||
+                      upperSql.starts_with("ALTER ") ||
+                      upperSql.starts_with("CREATE ") ||
+                      upperSql.starts_with("RECREATE "));
 
         if (isDDL)
         {

@@ -46,6 +46,7 @@ namespace cpp_dbc::SQLite
         friend class SQLiteDBPreparedStatement;
         friend class SQLiteDBResultSet;
         friend class SQLiteBlob;
+        friend class SQLiteConnectionLock;
 
         // ── PrivateCtorTag — prevents direct construction; use create() ──
         struct PrivateCtorTag
@@ -75,10 +76,6 @@ namespace cpp_dbc::SQLite
         // Normalized database file path
         std::string m_connPath;
 
-        // ── Construction state ────────────────────────────────────────────────
-        bool m_initFailed{false};
-        std::unique_ptr<DBException> m_initError{nullptr};
-
         /**
          * @brief Global file-level mutex shared by all connections to the same database file
          *
@@ -94,16 +91,26 @@ namespace cpp_dbc::SQLite
         std::shared_ptr<std::recursive_mutex> m_globalFileMutex;
 
         // Registry of active prepared statements (weak pointers to avoid preventing destruction)
-        // NOTE (2026-02-15): m_activeStatements is now protected by m_globalFileMutex in all methods
-        // (registerStatement, unregisterStatement, closeAllStatements) to avoid lock order violations.
+        // 2026-02-15T00:00:00Z
+        // Bug: m_activeStatements was protected by a separate m_statementsMutex in some methods
+        // but by m_globalFileMutex in others, creating a data race.
+        // Solution: m_activeStatements is now protected by m_globalFileMutex in all methods
+        // (registerStatement, unregisterStatement, closeAllStatements).
         std::set<std::weak_ptr<SQLiteDBPreparedStatement>, std::owner_less<std::weak_ptr<SQLiteDBPreparedStatement>>> m_activeStatements;
         // std::recursive_mutex m_statementsMutex;  // REMOVED (2026-02-15). Replaced by m_globalFileMutex to eliminate lock order violations.
 
         // Registry of active result sets (weak pointers to avoid preventing destruction)
-        // NOTE (2026-02-15): m_activeResultSets is now protected by m_globalFileMutex in all methods
-        // (registerResultSet, unregisterResultSet, closeAllResultSets) to avoid lock order violations.
+        // 2026-02-15T00:00:00Z
+        // Bug: m_activeResultSets was protected by a separate m_resultSetsMutex in some methods
+        // but by m_globalFileMutex in others, creating a data race.
+        // Solution: m_activeResultSets is now protected by m_globalFileMutex in all methods
+        // (registerResultSet, unregisterResultSet, closeAllResultSets).
         std::set<std::weak_ptr<SQLiteDBResultSet>, std::owner_less<std::weak_ptr<SQLiteDBResultSet>>> m_activeResultSets;
         // std::recursive_mutex m_resultSetsMutex;  // REMOVED (2026-02-15). Replaced by m_globalFileMutex to eliminate lock order violations.
+
+        // ── Construction state ────────────────────────────────────────────────
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
 
         // Internal methods for statement registry
         cpp_dbc::expected<void, DBException> registerStatement(std::nothrow_t, std::weak_ptr<SQLiteDBPreparedStatement> stmt) noexcept;
@@ -121,6 +128,23 @@ namespace cpp_dbc::SQLite
             TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
         cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
 
+        /**
+         * @brief Get the connection mutex for PreparedStatement/ResultSet access
+         *
+         * Implementation detail — accessed by SQLiteConnectionLock via friend class.
+         * Not part of the public API.
+         *
+         * Unlike MySQL/PG/Firebird, this is NOT guarded by #if DB_DRIVER_THREAD_SAFE
+         * because SQLite's file-level mutex is always required (sanitizer compatibility
+         * and cursor-based iteration model).
+         *
+         * @return Reference to the connection's recursive_mutex (file-level mutex)
+         */
+        std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
+        {
+            return *m_globalFileMutex;
+        }
+
     public:
         // ── Public nothrow constructor (guarded by PrivateCtorTag) ─────────────
         SQLiteDBConnection(PrivateCtorTag,
@@ -136,15 +160,7 @@ namespace cpp_dbc::SQLite
 #ifdef __cpp_exceptions
         static std::shared_ptr<SQLiteDBConnection>
         create(const std::string &database,
-               const std::map<std::string, std::string> &options = std::map<std::string, std::string>())
-        {
-            auto r = create(std::nothrow, database, options);
-            if (!r.has_value())
-            {
-                throw r.error();
-            }
-            return r.value();
-        }
+               const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
 
         void close() override;
         void reset() override;
@@ -199,45 +215,36 @@ namespace cpp_dbc::SQLite
             conn->m_self = conn;
             return conn;
         }
-        cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;
-        cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> executeQuery(std::nothrow_t, const std::string &sql) noexcept override;
-        cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t, const std::string &sql) noexcept override;
-        cpp_dbc::expected<void, DBException> setAutoCommit(std::nothrow_t, bool autoCommit) noexcept override;
-        cpp_dbc::expected<bool, DBException> getAutoCommit(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<bool, DBException> beginTransaction(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<bool, DBException> transactionActive(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<void, DBException> commit(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<void, DBException> setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
-        cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
 
+        // Nothrow methods — same order as throwing block above
         cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> reset(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
+
+        cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;
+        cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> executeQuery(std::nothrow_t, const std::string &sql) noexcept override;
+        cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t, const std::string &sql) noexcept override;
+
+        cpp_dbc::expected<void, DBException> setAutoCommit(std::nothrow_t, bool autoCommit) noexcept override;
+        cpp_dbc::expected<bool, DBException> getAutoCommit(std::nothrow_t) noexcept override;
+
+        cpp_dbc::expected<bool, DBException> beginTransaction(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> transactionActive(std::nothrow_t) noexcept override;
+
+        cpp_dbc::expected<void, DBException> commit(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
+
+        cpp_dbc::expected<void, DBException> setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
+        cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
+
         cpp_dbc::expected<std::string, DBException> getURI(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
+
         cpp_dbc::expected<std::string, DBException> getServerVersion(std::nothrow_t) noexcept override;
         cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(std::nothrow_t) noexcept override;
 
-        /**
-         * @brief Get the connection mutex for PreparedStatement/ResultSet access
-         *
-         * Allows PreparedStatement and ResultSet to serialize their operations through
-         * the connection mutex via their weak_ptr<SQLiteDBConnection>, without storing
-         * the mutex directly.
-         *
-         * Unlike MySQL/PG/Firebird, this is NOT guarded by #if DB_DRIVER_THREAD_SAFE
-         * because SQLite's file-level mutex is always required (sanitizer compatibility
-         * and cursor-based iteration model).
-         *
-         * @return Reference to the connection's recursive_mutex (file-level mutex)
-         */
-        std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
-        {
-            return *m_globalFileMutex;
-        }
     };
 
 } // namespace cpp_dbc::SQLite

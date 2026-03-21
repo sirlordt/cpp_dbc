@@ -83,14 +83,17 @@ namespace cpp_dbc::MySQL
 
         // Coalesced cleanup: only post when the registry has grown past the
         // cleanup threshold and no cleanup task is already queued.
-        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_acq_rel))
+        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_seq_cst))
         {
             SerialQueue::global().post([]()
                                        {
                 {
                     std::scoped_lock lock(s_registryMutex);
                     std::erase_if(s_connectionRegistry,
-                        [](const auto &w) { return w.expired(); });
+                        [](const auto &w)
+                        {
+                            return w.expired();
+                        });
                 }
                 s_cleanupPending.store(false, std::memory_order_seq_cst); });
         }
@@ -104,7 +107,7 @@ namespace cpp_dbc::MySQL
 
     // See initialize() comment above for why cleanup() calls mysql_library_end()
     // unconditionally without s_initialized guard.
-    void MySQLDBDriver::cleanup()
+    void MySQLDBDriver::cleanup(std::nothrow_t) noexcept
     {
         mysql_library_end();
     }
@@ -156,7 +159,7 @@ namespace cpp_dbc::MySQL
 
         closeAllOpenConnections(std::nothrow);
 
-        cleanup();
+        cleanup(std::nothrow);
     }
 
     // ============================================================================
@@ -209,15 +212,6 @@ namespace cpp_dbc::MySQL
         }
         s_instance = inst;
         return s_instance;
-    }
-
-    size_t MySQLDBDriver::getConnectionAlive() noexcept
-    {
-        std::scoped_lock lock(s_registryMutex);
-        return static_cast<size_t>(std::ranges::count_if(
-            s_connectionRegistry,
-            [](const auto &w)
-            { return !w.expired(); }));
     }
 
     cpp_dbc::expected<std::map<std::string, std::string>, DBException> MySQLDBDriver::parseURI(
@@ -329,6 +323,17 @@ namespace cpp_dbc::MySQL
     std::string MySQLDBDriver::getDriverVersion() const noexcept
     {
         return mysql_get_client_info();
+    }
+
+    size_t MySQLDBDriver::getConnectionAlive() noexcept
+    {
+        std::scoped_lock lock(s_registryMutex);
+        return static_cast<size_t>(std::ranges::count_if(
+            s_connectionRegistry,
+            [](const auto &w)
+            {
+                return !w.expired();
+            }));
     }
 
 } // namespace cpp_dbc::MySQL

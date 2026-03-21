@@ -49,7 +49,8 @@ namespace cpp_dbc::Firebird
 
     // ── Private nothrow constructor ───────────────────────────────────────────
 
-    FirebirdDBResultSet::FirebirdDBResultSet(std::nothrow_t,
+    FirebirdDBResultSet::FirebirdDBResultSet(PrivateCtorTag,
+                                             std::nothrow_t,
                                              FirebirdStmtHandle stmt,
                                              XSQLDAHandle sqlda,
                                              bool ownStatement,
@@ -73,8 +74,8 @@ namespace cpp_dbc::Firebird
             if (!initResult.has_value())
             {
                 m_initFailed = true;
-                m_initError = initResult.error();
-                FIREBIRD_DEBUG("  initializeColumns failed: %s", initResult.error().what_s().data());
+                m_initError = std::make_unique<DBException>(std::move(initResult.error()));
+                FIREBIRD_DEBUG("  initializeColumns failed: %s", m_initError->what_s().data());
                 return;
             }
         }
@@ -254,23 +255,26 @@ namespace cpp_dbc::Firebird
             }
 
             ISC_QUAD *blobId = reinterpret_cast<ISC_QUAD *>(var->sqldata);
-            try
+            auto blobResult = FirebirdBlob::create(std::nothrow, m_connection, *blobId);
+            if (!blobResult.has_value())
             {
-                auto blob = FirebirdBlob::create(conn, *blobId);
-                std::vector<uint8_t> data = blob->getBytes(0, blob->length());
-                return std::string(data.begin(), data.end());
-            }
-            catch (const std::exception &ex)
-            {
-                // FirebirdBlob constructor or getBytes threw — return placeholder
-                FIREBIRD_DEBUG("  getColumnValue BLOB read failed: %s", ex.what());
+                FIREBIRD_DEBUG("  getColumnValue BLOB create failed: %s", blobResult.error().what_s().data());
                 return std::string{"[BLOB]"};
             }
-            catch (...)
+            auto blob = blobResult.value();
+            auto lenResult = blob->length(std::nothrow);
+            if (!lenResult.has_value())
             {
-                // Intentionally silenced — return placeholder for unreadable BLOB
+                FIREBIRD_DEBUG("  getColumnValue BLOB length failed: %s", lenResult.error().what_s().data());
                 return std::string{"[BLOB]"};
             }
+            auto dataResult = blob->getBytes(std::nothrow, 0, lenResult.value());
+            if (!dataResult.has_value())
+            {
+                FIREBIRD_DEBUG("  getColumnValue BLOB read failed: %s", dataResult.error().what_s().data());
+                return std::string{"[BLOB]"};
+            }
+            return std::string(dataResult.value().begin(), dataResult.value().end());
         }
         default:
             return std::string{};
@@ -284,6 +288,25 @@ namespace cpp_dbc::Firebird
         // Just mark as closed to prevent further operations.
         // No lock needed — m_closed is atomic.
         m_closed.store(true, std::memory_order_seq_cst);
+        return {};
+    }
+
+    cpp_dbc::expected<void, DBException> FirebirdDBResultSet::initialize(std::nothrow_t) noexcept
+    {
+        // Register with Connection — mandatory; every ResultSet must be tracked
+        // so closeAllResultSets()/notifyConnClosing() can reach it.
+        auto conn = m_connection.lock();
+        if (!conn)
+        {
+            return cpp_dbc::unexpected(DBException("60PP1LI60QF3",
+                "Connection expired before result set could be registered",
+                system_utils::captureCallStack()));
+        }
+        auto regResult = conn->registerResultSet(std::nothrow, std::weak_ptr<FirebirdDBResultSet>(shared_from_this()));
+        if (!regResult.has_value())
+        {
+            return cpp_dbc::unexpected(regResult.error());
+        }
         return {};
     }
 
@@ -323,47 +346,6 @@ namespace cpp_dbc::Firebird
         return r.value();
     }
 #endif // __cpp_exceptions
-
-    cpp_dbc::expected<void, DBException> FirebirdDBResultSet::initialize(std::nothrow_t) noexcept
-    {
-        // Register with Connection — mandatory; every ResultSet must be tracked
-        // so closeAllResultSets()/notifyConnClosing() can reach it.
-        auto conn = m_connection.lock();
-        if (!conn)
-        {
-            return cpp_dbc::unexpected(DBException("60PP1LI60QF3",
-                "Connection expired before result set could be registered",
-                system_utils::captureCallStack()));
-        }
-        auto regResult = conn->registerResultSet(std::nothrow, std::weak_ptr<FirebirdDBResultSet>(shared_from_this()));
-        if (!regResult.has_value())
-        {
-            return cpp_dbc::unexpected(regResult.error());
-        }
-        return {};
-    }
-
-    cpp_dbc::expected<std::shared_ptr<FirebirdDBResultSet>, DBException>
-    FirebirdDBResultSet::create(std::nothrow_t,
-                                FirebirdStmtHandle stmt,
-                                XSQLDAHandle sqlda,
-                                bool ownStatement,
-                                std::shared_ptr<FirebirdDBConnection> conn) noexcept
-    {
-        auto ptr = std::shared_ptr<FirebirdDBResultSet>(
-            new FirebirdDBResultSet(std::nothrow, std::move(stmt), std::move(sqlda), ownStatement, conn));
-        if (ptr->m_initFailed)
-        {
-            return cpp_dbc::unexpected(ptr->m_initError);
-        }
-        // Must be called after construction (requires shared_ptr to exist for shared_from_this())
-        auto initResult = ptr->initialize(std::nothrow);
-        if (!initResult.has_value())
-        {
-            return cpp_dbc::unexpected(initResult.error());
-        }
-        return ptr;
-    }
 
 } // namespace cpp_dbc::Firebird
 

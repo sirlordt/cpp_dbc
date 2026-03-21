@@ -169,6 +169,15 @@ namespace cpp_dbc::Firebird
                 return;
             }
 
+            // THIRD CHECK: Parent connection exists but was explicitly closed
+            // (Connection object is alive but close() was called on it)
+            if (m_conn->m_closed.load(std::memory_order_seq_cst))
+            {
+                closed.store(true, std::memory_order_seq_cst);
+                m_acquired = false;
+                return;
+            }
+
             m_acquired = true;
         }
 
@@ -211,18 +220,22 @@ namespace cpp_dbc::Firebird
     }
 
 #else
-// Non-thread-safe: check closed flag AND connection weak_ptr expiry (no locking).
+// Non-thread-safe: check closed flag AND connection alive+open (no locking).
 #define FIREBIRD_STMT_LOCK_OR_RETURN(mark, msg)                                                  \
     if (m_closed.load(std::memory_order_seq_cst))                                           \
     {                                                                                       \
         return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",            \
                                                cpp_dbc::system_utils::captureCallStack())); \
     }                                                                                       \
-    if (m_connection.expired())                                                             \
     {                                                                                       \
-        m_closed.store(true, std::memory_order_seq_cst);                                   \
-        return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",            \
-                                               cpp_dbc::system_utils::captureCallStack())); \
+        auto firebird_conn_check_ = m_connection.lock();                                    \
+        if (!firebird_conn_check_ ||                                                        \
+            firebird_conn_check_->m_closed.load(std::memory_order_seq_cst))                 \
+        {                                                                                   \
+            m_closed.store(true, std::memory_order_seq_cst);                                \
+            return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",        \
+                                                   cpp_dbc::system_utils::captureCallStack())); \
+        }                                                                                   \
     }
 
 #define FIREBIRD_STMT_LOCK_OR_THROW(mark, msg)                                                               \
@@ -230,21 +243,31 @@ namespace cpp_dbc::Firebird
     {                                                                                                   \
         throw DBException(mark, msg " (connection closed)", cpp_dbc::system_utils::captureCallStack()); \
     }                                                                                                   \
-    if (m_connection.expired())                                                                         \
     {                                                                                                   \
-        m_closed.store(true, std::memory_order_seq_cst);                                               \
-        throw DBException(mark, msg " (connection closed)", cpp_dbc::system_utils::captureCallStack()); \
+        auto firebird_conn_check_ = m_connection.lock();                                                \
+        if (!firebird_conn_check_ ||                                                                    \
+            firebird_conn_check_->m_closed.load(std::memory_order_seq_cst))                             \
+        {                                                                                               \
+            m_closed.store(true, std::memory_order_seq_cst);                                            \
+            throw DBException(mark, msg " (connection closed)",                                         \
+                              cpp_dbc::system_utils::captureCallStack());                               \
+        }                                                                                               \
     }
 
-#define FIREBIRD_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED() \
-    if (m_closed.load(std::memory_order_seq_cst))   \
-    {                                               \
-        return {}; /* Already closed = success */   \
-    }                                               \
-    if (m_connection.expired())                     \
-    {                                               \
-        m_closed.store(true, std::memory_order_seq_cst); \
-        return {}; /* Connection lost = success */  \
+#define FIREBIRD_STMT_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()    \
+    if (m_closed.load(std::memory_order_seq_cst))           \
+    {                                                       \
+        return {}; /* Already closed = success */           \
+    }                                                       \
+    {                                                       \
+        auto firebird_conn_check_ = m_connection.lock();    \
+        if (!firebird_conn_check_ ||                        \
+            firebird_conn_check_->m_closed.load(            \
+                std::memory_order_seq_cst))                 \
+        {                                                   \
+            m_closed.store(true, std::memory_order_seq_cst); \
+            return {}; /* Connection closed = success */    \
+        }                                                   \
     }
 #endif // DB_DRIVER_THREAD_SAFE
 

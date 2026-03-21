@@ -94,37 +94,10 @@ namespace cpp_dbc::PostgreSQL
             }
             return r.value();
         }
-#endif
 
-        static cpp_dbc::expected<std::shared_ptr<PostgreSQLDBResultSet>, DBException>
-        create(std::nothrow_t,
-               std::weak_ptr<PostgreSQLDBConnection> conn,
-               PGresult *res) noexcept
-        {
-            // No try/catch: std::make_shared can only throw std::bad_alloc, which is a
-            // death-sentence exception — the heap is exhausted and no meaningful recovery
-            // is possible. The constructor is noexcept and captures errors in m_initFailed.
-            auto obj = std::make_shared<PostgreSQLDBResultSet>(
-                PrivateCtorTag{}, std::nothrow, std::move(conn), res);
-            if (obj->m_initFailed)
-            {
-                return cpp_dbc::unexpected(std::move(*obj->m_initError));
-            }
-            // Must be called after make_shared (requires shared_ptr to exist for shared_from_this())
-            auto initResult = obj->initialize(std::nothrow);
-            if (!initResult.has_value())
-            {
-                return cpp_dbc::unexpected(initResult.error());
-            }
-            return obj;
-        }
-
-// DBResultSet interface
-#ifdef __cpp_exceptions
         void close() override;
         bool isEmpty() override;
 
-        // RelationalDBResultSet interface
         bool next() override;
         bool isBeforeFirst() override;
         bool isAfterLast() override;
@@ -169,8 +142,30 @@ namespace cpp_dbc::PostgreSQL
 
         std::vector<uint8_t> getBytes(size_t columnIndex) override;
         std::vector<uint8_t> getBytes(const std::string &columnName) override;
-
 #endif // __cpp_exceptions
+
+        static cpp_dbc::expected<std::shared_ptr<PostgreSQLDBResultSet>, DBException>
+        create(std::nothrow_t,
+               std::weak_ptr<PostgreSQLDBConnection> conn,
+               PGresult *res) noexcept
+        {
+            // No try/catch: std::make_shared can only throw std::bad_alloc, which is a
+            // death-sentence exception — the heap is exhausted and no meaningful recovery
+            // is possible. The constructor is noexcept and captures errors in m_initFailed.
+            auto obj = std::make_shared<PostgreSQLDBResultSet>(
+                PrivateCtorTag{}, std::nothrow, std::move(conn), res);
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
+            }
+            // Must be called after make_shared (requires shared_ptr to exist for shared_from_this())
+            auto initResult = obj->initialize(std::nothrow);
+            if (!initResult.has_value())
+            {
+                return cpp_dbc::unexpected(initResult.error());
+            }
+            return obj;
+        }
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

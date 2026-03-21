@@ -58,7 +58,12 @@ namespace cpp_dbc::Firebird
         friend class FirebirdDBConnection;
         friend class FirebirdConnectionLock;
 
-    private:
+        // ── PrivateCtorTag — prevents direct construction; use create() ──
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
         FirebirdStmtHandle m_stmt;
         XSQLDAHandle m_sqlda;
         bool m_ownStatement{false};
@@ -87,23 +92,9 @@ namespace cpp_dbc::Firebird
          * @brief Error captured when constructor initialization fails
          *
          * Holds the DBException that would have been thrown, for deferred delivery.
+         * Only allocated on the failure path (~256 bytes saved per successful instance).
          */
-        DBException m_initError{"3P1IZSM4H52F", "", {}};
-
-        /**
-         * @brief Private nothrow constructor — all initialization logic lives here
-         *
-         * Initializes SQLDA metadata and column maps. On failure, sets m_initFailed
-         * and m_initError instead of throwing. Only callable from create() factories.
-         *
-         * @note create(nothrow_t) uses `new` (not std::make_shared) to access this
-         * private constructor since std::make_shared cannot call private constructors.
-         */
-        FirebirdDBResultSet(std::nothrow_t,
-                            FirebirdStmtHandle stmt,
-                            XSQLDAHandle sqlda,
-                            bool ownStatement,
-                            std::shared_ptr<FirebirdDBConnection> conn) noexcept;
+        std::unique_ptr<DBException> m_initError{nullptr};
 
         /**
          * @brief Initialize column metadata from SQLDA
@@ -118,7 +109,10 @@ namespace cpp_dbc::Firebird
         /**
          * @brief Get raw statement handle pointer for Firebird API calls
          */
-        [[nodiscard]] isc_stmt_handle *getStmtPtr(std::nothrow_t) const noexcept { return m_stmt.get(); }
+        [[nodiscard]] isc_stmt_handle *getStmtPtr(std::nothrow_t) const noexcept
+        {
+            return m_stmt.get();
+        }
 
         /**
          * @brief Notify this ResultSet that the connection is closing
@@ -134,6 +128,14 @@ namespace cpp_dbc::Firebird
         cpp_dbc::expected<void, DBException> initialize(std::nothrow_t) noexcept;
 
     public:
+        // ── Public nothrow constructor (guarded by PrivateCtorTag) ─────────────
+        FirebirdDBResultSet(PrivateCtorTag,
+                            std::nothrow_t,
+                            FirebirdStmtHandle stmt,
+                            XSQLDAHandle sqlda,
+                            bool ownStatement,
+                            std::shared_ptr<FirebirdDBConnection> conn) noexcept;
+
         ~FirebirdDBResultSet() override;
 
         FirebirdDBResultSet(const FirebirdDBResultSet &) = delete;

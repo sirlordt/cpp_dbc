@@ -71,15 +71,15 @@ namespace cpp_dbc::Firebird
 
         /**
          * @brief Get the database handle from the connection
-         * @return Pointer to the database handle
+         * @return Pointer to the database handle or error if connection is gone
          */
-        isc_db_handle *getDbHandle(std::nothrow_t) const noexcept;
+        cpp_dbc::expected<isc_db_handle *, DBException> getDbHandle(std::nothrow_t) const noexcept;
 
         /**
          * @brief Get the transaction handle from the connection
-         * @return Pointer to the transaction handle
+         * @return Pointer to the transaction handle or error if connection is gone
          */
-        isc_tr_handle *getTrHandle(std::nothrow_t) const noexcept;
+        cpp_dbc::expected<isc_tr_handle *, DBException> getTrHandle(std::nothrow_t) const noexcept;
 
     public:
         // ── Public nothrow constructors (guarded by PrivateCtorTag) ─────────────

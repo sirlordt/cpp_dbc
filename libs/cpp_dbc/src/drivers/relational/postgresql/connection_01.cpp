@@ -61,8 +61,11 @@ namespace cpp_dbc::PostgreSQL
         std::scoped_lock stmtLock(m_statementsMutex);
         if (m_activeStatements.size() > 50)
         {
-            std::erase_if(m_activeStatements, [](const auto &w)
-                          { return w.expired(); });
+            std::erase_if(m_activeStatements,
+                          [](const auto &w)
+                          {
+                              return w.expired();
+                          });
         }
         m_activeStatements.insert(stmt);
         return {};
@@ -87,10 +90,12 @@ namespace cpp_dbc::PostgreSQL
         std::scoped_lock stmtLock(m_statementsMutex);
         // Remove expired weak_ptrs and the specified one
         auto stmtLocked = stmt.lock();
-        std::erase_if(m_activeStatements, [&stmtLocked](const auto &w)
+        std::erase_if(m_activeStatements,
+                      [&stmtLocked](const auto &w)
                       {
-            auto locked = w.lock();
-            return !locked || (stmtLocked && locked.get() == stmtLocked.get()); });
+                          auto locked = w.lock();
+                          return !locked || (stmtLocked && locked.get() == stmtLocked.get());
+                      });
         return {};
     }
 
@@ -166,8 +171,11 @@ namespace cpp_dbc::PostgreSQL
         std::scoped_lock stmtLock(m_statementsMutex);
         if (m_activeResultSets.size() > 50)
         {
-            std::erase_if(m_activeResultSets, [](const auto &w)
-                          { return w.expired(); });
+            std::erase_if(m_activeResultSets,
+                          [](const auto &w)
+                          {
+                              return w.expired();
+                          });
         }
         m_activeResultSets.insert(rs);
         return {};
@@ -183,10 +191,12 @@ namespace cpp_dbc::PostgreSQL
         POSTGRESQL_CONNECTION_LOCK_OR_RETURN("0VSIXJXK2CSE", "Cannot unregister result set");
         std::scoped_lock stmtLock(m_statementsMutex);
         auto rsLocked = rs.lock();
-        std::erase_if(m_activeResultSets, [&rsLocked](const auto &w)
+        std::erase_if(m_activeResultSets,
+                      [&rsLocked](const auto &w)
                       {
-            auto locked = w.lock();
-            return !locked || (rsLocked && locked.get() == rsLocked.get()); });
+                          auto locked = w.lock();
+                          return !locked || (rsLocked && locked.get() == rsLocked.get());
+                      });
         return {};
     }
 
@@ -216,6 +226,28 @@ namespace cpp_dbc::PostgreSQL
         return {};
     }
 
+    std::string PostgreSQLDBConnection::formatServerVersion(std::nothrow_t, int version) const noexcept
+    {
+        if (version >= 100000)
+        {
+            int major = version / 10000;
+            int minor = version % 10000;
+            return std::to_string(major) + "." + std::to_string(minor);
+        }
+        // Pre-10: major*10000 + minor*100 + patch
+        int major = version / 10000;
+        int minor = (version / 100) % 100;
+        int patch = version % 100;
+        return std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(patch);
+    }
+
+    std::string PostgreSQLDBConnection::generateStatementName(std::nothrow_t) noexcept
+    {
+        int counter = m_statementCounter;
+        m_statementCounter += 1;
+        return "stmt_" + std::to_string(counter);
+    }
+
     // Constructor — nothrow, captures errors in m_initFailed / m_initError instead of throwing.
     // PQconnectdb() is a C API that does not throw, but setAutoCommit() calls PQexec() which
     // is also a C API. No recoverable C++ exceptions are possible here, so no try/catch needed.
@@ -228,6 +260,16 @@ namespace cpp_dbc::PostgreSQL
                                                    const std::string &password,
                                                    const std::map<std::string, std::string> &options) noexcept
     {
+        // Validate database name — only alphanumeric and underscores allowed
+        if (!database.empty() && !system_utils::isValidDatabaseIdentifier(database))
+        {
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>("UB41BT6RLFVM",
+                                                        "Invalid PostgreSQL database name: only alphanumeric and underscore allowed",
+                                                        system_utils::captureCallStack());
+            return;
+        }
+
         // Build connection string
         std::stringstream conninfo;
         conninfo << "host=" << host << " ";
@@ -251,6 +293,14 @@ namespace cpp_dbc::PostgreSQL
 
         // Connect to the database - create shared_ptr with custom deleter
         PGconn *rawConn = PQconnectdb(conninfo.str().c_str());
+        if (!rawConn)
+        {
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>("GLN3SP411SYW",
+                                                        "Failed to allocate PGconn (out of memory)",
+                                                        system_utils::captureCallStack());
+            return;
+        }
         if (PQstatus(rawConn) != CONNECTION_OK)
         {
             std::string error = PQerrorMessage(rawConn);
@@ -347,6 +397,16 @@ namespace cpp_dbc::PostgreSQL
             throw result.error();
         }
         return result.value();
+    }
+
+    bool PostgreSQLDBConnection::ping()
+    {
+        auto result = ping(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
     }
 
     // RelationalDBConnection interface
@@ -456,16 +516,6 @@ namespace cpp_dbc::PostgreSQL
         return result.value();
     }
 
-    bool PostgreSQLDBConnection::ping()
-    {
-        auto result = ping(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return *result;
-    }
-
     std::string PostgreSQLDBConnection::getServerVersion()
     {
         auto result = getServerVersion(std::nothrow);
@@ -487,28 +537,6 @@ namespace cpp_dbc::PostgreSQL
     }
 
 #endif // __cpp_exceptions
-
-    std::string PostgreSQLDBConnection::generateStatementName(std::nothrow_t) noexcept
-    {
-        int counter = m_statementCounter;
-        m_statementCounter += 1;
-        return "stmt_" + std::to_string(counter);
-    }
-
-    cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::ping(std::nothrow_t) noexcept
-    {
-        auto result = executeQuery(std::nothrow, "SELECT 1");
-        if (!result.has_value())
-        {
-            return cpp_dbc::unexpected(result.error());
-        }
-        auto closeResult = result.value()->close(std::nothrow);
-        if (!closeResult.has_value())
-        {
-            return cpp_dbc::unexpected(closeResult.error());
-        }
-        return true;
-    }
 
 } // namespace cpp_dbc::PostgreSQL
 

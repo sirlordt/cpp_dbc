@@ -72,14 +72,17 @@ namespace cpp_dbc::Firebird
 
         // Coalesced cleanup: only post when the registry has grown past the
         // cleanup threshold and no cleanup task is already queued.
-        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_acq_rel))
+        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_seq_cst))
         {
             SerialQueue::global().post([]()
             {
                 {
                     std::scoped_lock lock(s_registryMutex);
                     std::erase_if(s_connectionRegistry,
-                        [](const auto &w) { return w.expired(); });
+                                  [](const auto &w)
+                                  {
+                                      return w.expired();
+                                  });
                 }
                 s_cleanupPending.store(false, std::memory_order_seq_cst);
             });
@@ -124,6 +127,39 @@ namespace cpp_dbc::Firebird
         {
             [[maybe_unused]] auto closeResult = conn->close(std::nothrow);
         }
+    }
+
+    cpp_dbc::expected<FirebirdDBDriver::ParsedFirebirdComponents, DBException>
+    FirebirdDBDriver::extractComponents(std::nothrow_t, const std::map<std::string, std::string> &parsed) noexcept
+    {
+        ParsedFirebirdComponents comps;
+
+        auto hostIt = parsed.find("host");
+        auto portIt = parsed.find("port");
+        auto dbIt = parsed.find("database");
+
+        comps.host = (hostIt != parsed.end()) ? hostIt->second : "";
+        if (portIt != parsed.end())
+        {
+            const auto &portStr = portIt->second;
+            auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), comps.port);
+            if (ec != std::errc{} || ptr != portStr.data() + portStr.size())
+            {
+                return cpp_dbc::unexpected(DBException("9NVVV6AC2H8A",
+                                                       "Invalid port number in Firebird URI: " + portStr,
+                                                       system_utils::captureCallStack()));
+            }
+        }
+        comps.database = (dbIt != parsed.end()) ? dbIt->second : "";
+
+        if (comps.database.empty())
+        {
+            return cpp_dbc::unexpected(DBException("YU88W61QFVD0",
+                                                   "Invalid Firebird URI: database path is empty",
+                                                   system_utils::captureCallStack()));
+        }
+
+        return comps;
     }
 
     // ============================================================================
@@ -225,14 +261,6 @@ namespace cpp_dbc::Firebird
         return s_instance;
     }
 
-    size_t FirebirdDBDriver::getConnectionAlive() noexcept
-    {
-        std::scoped_lock lock(s_registryMutex);
-        return static_cast<size_t>(std::count_if(
-            s_connectionRegistry.begin(), s_connectionRegistry.end(),
-            [](const auto &w) { return !w.expired(); }));
-    }
-
     // ============================================================================
     // FirebirdDBDriver Implementation - Nothrow API
     // ============================================================================
@@ -324,39 +352,6 @@ namespace cpp_dbc::Firebird
         return uri;
     }
 
-    cpp_dbc::expected<FirebirdDBDriver::ParsedFirebirdComponents, DBException>
-    FirebirdDBDriver::extractComponents(std::nothrow_t, const std::map<std::string, std::string> &parsed) noexcept
-    {
-        ParsedFirebirdComponents comps;
-
-        auto hostIt = parsed.find("host");
-        auto portIt = parsed.find("port");
-        auto dbIt = parsed.find("database");
-
-        comps.host = (hostIt != parsed.end()) ? hostIt->second : "";
-        if (portIt != parsed.end())
-        {
-            const auto &portStr = portIt->second;
-            auto [ptr, ec] = std::from_chars(portStr.data(), portStr.data() + portStr.size(), comps.port);
-            if (ec != std::errc{} || ptr != portStr.data() + portStr.size())
-            {
-                return cpp_dbc::unexpected(DBException("9NVVV6AC2H8A",
-                                                       "Invalid port number in Firebird URI: " + portStr,
-                                                       system_utils::captureCallStack()));
-            }
-        }
-        comps.database = (dbIt != parsed.end()) ? dbIt->second : "";
-
-        if (comps.database.empty())
-        {
-            return cpp_dbc::unexpected(DBException("YU88W61QFVD0",
-                                                   "Invalid Firebird URI: database path is empty",
-                                                   system_utils::captureCallStack()));
-        }
-
-        return comps;
-    }
-
     cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>
     FirebirdDBDriver::connectRelational(
         std::nothrow_t,
@@ -424,7 +419,7 @@ namespace cpp_dbc::Firebird
                                                    std::string("Exception reading 'command' parameter: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
-        catch (...)
+        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
         {
             // Intentionally silenced — unknown exception from std::any_cast
             return cpp_dbc::unexpected(DBException("OI8BZXUON0YS", "Unknown exception reading 'command' parameter",
@@ -465,7 +460,7 @@ namespace cpp_dbc::Firebird
                                                        std::string("Exception reading 'uri'/'url' parameter: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
-            catch (...)
+            catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
             {
                 // Intentionally silenced — unknown exception from std::any_cast
                 return cpp_dbc::unexpected(DBException("TT39UST5GNQV", "Unknown exception reading 'uri'/'url' parameter",
@@ -494,7 +489,7 @@ namespace cpp_dbc::Firebird
                                                        std::string("Exception reading 'user' parameter: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
-            catch (...)
+            catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
             {
                 // Intentionally silenced — unknown exception from std::any_cast
                 return cpp_dbc::unexpected(DBException("XXGUSOPM99EK", "Unknown exception reading 'user' parameter",
@@ -523,7 +518,7 @@ namespace cpp_dbc::Firebird
                                                        std::string("Exception reading 'password' parameter: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
-            catch (...)
+            catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
             {
                 // Intentionally silenced — unknown exception from std::any_cast
                 return cpp_dbc::unexpected(DBException("7IJURPQLPQ9R", "Unknown exception reading 'password' parameter",
@@ -546,7 +541,7 @@ namespace cpp_dbc::Firebird
                 {
                     // Intentionally silenced — ignore invalid optional type
                 }
-                catch (...)
+                catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
                 {
                     // Intentionally silenced — ignore invalid optional type
                 }
@@ -567,7 +562,7 @@ namespace cpp_dbc::Firebird
                 {
                     // Intentionally silenced — ignore invalid optional type
                 }
-                catch (...)
+                catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
                 {
                     // Intentionally silenced — ignore invalid optional type
                 }
@@ -610,18 +605,8 @@ namespace cpp_dbc::Firebird
         int port = comps.port;
         const auto &database = comps.database;
 
-        // Build the Firebird connection string for CREATE DATABASE
-        std::string fbConnStr;
-        if (!host.empty() && host != "localhost" && host != "127.0.0.1")
-        {
-            fbConnStr = host;
-            if (port != 3050 && port != 0)
-            {
-                fbConnStr += "/" + std::to_string(port);
-            }
-            fbConnStr += ":";
-        }
-        fbConnStr += database;
+        // Build the Firebird connection string for CREATE DATABASE using centralized helper
+        std::string fbConnStr = system_utils::buildFirebirdConnStr(host, port, database);
 
         // Get page size from options
         std::string pageSize = "4096";
@@ -693,6 +678,17 @@ namespace cpp_dbc::Firebird
 #else
         return "unknown";
 #endif
+    }
+
+    size_t FirebirdDBDriver::getConnectionAlive() noexcept
+    {
+        std::scoped_lock lock(s_registryMutex);
+        return static_cast<size_t>(std::ranges::count_if(
+            s_connectionRegistry,
+            [](const auto &w)
+            {
+                return !w.expired();
+            }));
     }
 
 } // namespace cpp_dbc::Firebird

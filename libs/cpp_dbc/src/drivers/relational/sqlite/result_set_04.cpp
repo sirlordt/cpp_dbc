@@ -60,6 +60,8 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<std::string, DBException> SQLiteDBResultSet::getDate(std::nothrow_t, const std::string &columnName) noexcept
     {
+        SQLITE_STMT_LOCK_OR_RETURN("90ACPZ8BK7UJ", "Result set is closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -93,6 +95,8 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<std::string, DBException> SQLiteDBResultSet::getTimestamp(std::nothrow_t, const std::string &columnName) noexcept
     {
+        SQLITE_STMT_LOCK_OR_RETURN("I000RJRP2IPN", "Result set is closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -126,6 +130,8 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<std::string, DBException> SQLiteDBResultSet::getTime(std::nothrow_t, const std::string &columnName) noexcept
     {
+        SQLITE_STMT_LOCK_OR_RETURN("IYBOVK4CXGRI", "Result set is closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {

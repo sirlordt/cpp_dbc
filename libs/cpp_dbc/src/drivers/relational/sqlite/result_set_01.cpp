@@ -70,7 +70,17 @@ namespace cpp_dbc::SQLite
             // Store column names and create column name to index mapping
             for (size_t i = 0; i < m_fieldCount; i++)
             {
-                std::string name = sqlite3_column_name(m_stmt, static_cast<int>(i));
+                const char *namePtr = sqlite3_column_name(m_stmt, static_cast<int>(i));
+                if (namePtr == nullptr)
+                {
+                    m_initFailed = true;
+                    m_initError = std::make_unique<DBException>(
+                        "DE7R057TO19D",
+                        "sqlite3_column_name() returned null for column " + std::to_string(i),
+                        system_utils::captureCallStack());
+                    return;
+                }
+                std::string name{namePtr};
                 m_columnNames.push_back(name);
                 m_columnMap[name] = i;
             }
@@ -116,6 +126,21 @@ namespace cpp_dbc::SQLite
     }
 
 #ifdef __cpp_exceptions
+
+    std::shared_ptr<SQLiteDBResultSet>
+    SQLiteDBResultSet::create(sqlite3_stmt *stmt,
+                              bool ownStatement,
+                              std::shared_ptr<SQLiteDBConnection> conn,
+                              std::shared_ptr<SQLiteDBPreparedStatement> prepStmt)
+    {
+        auto r = create(std::nothrow, stmt, ownStatement, std::move(conn), std::move(prepStmt));
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
     bool SQLiteDBResultSet::next()
     {
         auto result = next(std::nothrow);

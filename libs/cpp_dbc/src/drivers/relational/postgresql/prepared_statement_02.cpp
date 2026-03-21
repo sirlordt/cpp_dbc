@@ -174,31 +174,49 @@ namespace cpp_dbc::PostgreSQL
         switch (type)
         {
         case INTEGER:
+        {
             pgType = oid::INT4;
             break;
+        }
         case FLOAT:
+        {
             pgType = oid::FLOAT4;
             break;
+        }
         case DOUBLE:
+        {
             pgType = oid::FLOAT8;
             break;
+        }
         case VARCHAR:
+        {
             pgType = oid::TEXT;
             break;
+        }
         case DATE:
+        {
             pgType = oid::DATE;
             break;
+        }
         case TIMESTAMP:
+        {
             pgType = oid::TIMESTAMP;
             break;
+        }
         case BOOLEAN:
+        {
             pgType = oid::BOOL;
             break;
+        }
         case BLOB:
+        {
             pgType = oid::BYTEA;
             break;
+        }
         default:
+        {
             pgType = 0; // Let the server guess
+        }
         }
 
         m_paramTypes[idx] = pgType;

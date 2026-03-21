@@ -23,6 +23,7 @@
 #if USE_MYSQL
 
 #include <array>
+#include <charconv>
 #include <cstring>
 #include <sstream>
 #include <iostream>
@@ -38,7 +39,7 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<void, DBException> MySQLDBResultSet::close(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(m_mutex);
+        MYSQL_RS_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
 
         if (m_materialized)
         {
@@ -65,13 +66,13 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<bool, DBException> MySQLDBResultSet::isEmpty(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(m_mutex);
+        MYSQL_RS_LOCK_OR_RETURN("OEDXI2KS06CP", "Result set closed");
         return m_rowCount == 0;
     }
 
     cpp_dbc::expected<bool, DBException> MySQLDBResultSet::next(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(m_mutex);
+        MYSQL_RS_LOCK_OR_RETURN("SZUOV60V2GD3", "Result set closed");
 
         if (m_materialized)
         {
@@ -87,7 +88,15 @@ namespace cpp_dbc::MySQL
             {
                 if (row[i].has_value())
                 {
-                    m_currentRowPtrs[i] = const_cast<char *>(row[i].value().c_str()); // NOSONAR(cpp:S859) — MYSQL_ROW is char**; materialized row data is read-only through m_currentRow
+                    // const_cast is required here: MYSQL_ROW is typedef char** (MySQL C API).
+                    // m_currentRow (MYSQL_ROW) must point to m_currentRowPtrs.data() so that
+                    // ALL existing getters (getInt, getString, etc.) work unchanged for both
+                    // native and materialized modes. The materialized data lives in
+                    // m_materializedRows (vector<optional<string>>) and c_str() returns
+                    // const char*. The cast bridges this const mismatch. All access through
+                    // m_currentRow is provably read-only — no getter writes through the pointer.
+                    // This is a MySQL C API limitation: the typedef cannot be changed to char const**.
+                    m_currentRowPtrs[i] = const_cast<char *>(row[i].value().c_str()); // NOSONAR(cpp:S859) — MySQL C API: MYSQL_ROW is char**; all access is read-only
                     m_currentLengths[i] = row[i].value().size();
                 }
                 else
@@ -121,14 +130,14 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<bool, DBException> MySQLDBResultSet::isBeforeFirst(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(m_mutex);
+        MYSQL_RS_LOCK_OR_RETURN("RMSZZH9CB2E8", "Result set closed");
 
         return m_rowPosition == 0;
     }
 
     cpp_dbc::expected<bool, DBException> MySQLDBResultSet::isAfterLast(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(m_mutex);
+        MYSQL_RS_LOCK_OR_RETURN("AIZ1SC3ETIFO", "Result set closed");
 
         if (m_materialized)
         {
@@ -139,59 +148,58 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<uint64_t, DBException> MySQLDBResultSet::getRow(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(m_mutex);
+        MYSQL_RS_LOCK_OR_RETURN("5QTQUBAMK7X4", "Result set closed");
 
         return m_rowPosition;
     }
 
     cpp_dbc::expected<int, DBException> MySQLDBResultSet::getInt(std::nothrow_t, size_t columnIndex) noexcept
     {
-        // try/catch is required: std::stoi can throw std::invalid_argument or std::out_of_range
-        try
+        MYSQL_RS_LOCK_OR_RETURN("SA49U1WTHHXP", "Result set closed");
+
+        auto validateResult = validateCurrentRow(std::nothrow);
+        if (!validateResult.has_value())
         {
-
-            DB_DRIVER_LOCK_GUARD(m_mutex);
-
-            auto validateResult = validateCurrentRow(std::nothrow);
-            if (!validateResult.has_value())
-            {
-                return cpp_dbc::unexpected(validateResult.error());
-            }
-
-            if (columnIndex < 1 || columnIndex > m_fieldCount)
-            {
-                return cpp_dbc::unexpected(DBException("DYVPR8BITRGA", "Invalid column index", system_utils::captureCallStack()));
-            }
-
-            // MySQL column indexes are 0-based, but our API is 1-based (like JDBC)
-            size_t idx = columnIndex - 1;
-            if (m_currentRow[idx] == nullptr)
-            {
-                return 0; // Return 0 for NULL values (similar to JDBC)
-            }
-
-            return std::stoi(m_currentRow[idx]);
+            return cpp_dbc::unexpected(validateResult.error());
         }
-        catch (const DBException &ex)
+
+        if (columnIndex < 1 || columnIndex > m_fieldCount)
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(DBException("DYVPR8BITRGA", "Invalid column index", system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
+
+        // MySQL column indexes are 0-based, but our API is 1-based (like JDBC)
+        size_t idx = columnIndex - 1;
+        if (m_currentRow[idx] == nullptr)
+        {
+            return 0; // Return 0 for NULL values (similar to JDBC)
+        }
+
+        const unsigned long *lengths = m_materialized
+            ? m_currentLengths.data()
+            : mysql_fetch_lengths(m_result.get());
+        if (!lengths)
+        {
+            return cpp_dbc::unexpected(DBException("IMAYGXRPBDQZ",
+                "getInt failed: could not retrieve field lengths",
+                system_utils::captureCallStack()));
+        }
+        int result = 0;
+        const char *str = m_currentRow[idx];
+        const char *end = str + lengths[idx];
+        auto [ptr, ec] = std::from_chars(str, end, result);
+        if (ec != std::errc{} || ptr != end)
         {
             return cpp_dbc::unexpected(DBException("B5BCKFSM2AZ2",
-                                                   std::string("getInt failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
+                "getInt failed: invalid numeric value",
+                system_utils::captureCallStack()));
         }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
-        {
-            return cpp_dbc::unexpected(DBException("S2XCDH3EWGUV",
-                                                   "getInt failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return result;
     }
 
     cpp_dbc::expected<int, DBException> MySQLDBResultSet::getInt(std::nothrow_t, const std::string &columnName) noexcept
     {
+        MYSQL_RS_LOCK_OR_RETURN("H1KX4C0JKT4W", "Result set closed");
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -202,51 +210,50 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<int64_t, DBException> MySQLDBResultSet::getLong(std::nothrow_t, size_t columnIndex) noexcept
     {
-        // try/catch is required: std::stoll can throw std::invalid_argument or std::out_of_range
-        try
+        MYSQL_RS_LOCK_OR_RETURN("WHZ0F5Q5RKG9", "Result set closed");
+
+        auto validateResult = validateCurrentRow(std::nothrow);
+        if (!validateResult.has_value())
         {
-
-            DB_DRIVER_LOCK_GUARD(m_mutex);
-
-            auto validateResult = validateCurrentRow(std::nothrow);
-            if (!validateResult.has_value())
-            {
-                return cpp_dbc::unexpected(validateResult.error());
-            }
-
-            if (columnIndex < 1 || columnIndex > m_fieldCount)
-            {
-                return cpp_dbc::unexpected(DBException("SV0U7Y3LYTDK", "Invalid column index", system_utils::captureCallStack()));
-            }
-
-            size_t idx = columnIndex - 1;
-            if (m_currentRow[idx] == nullptr)
-            {
-                return 0;
-            }
-
-            return std::stoll(m_currentRow[idx]);
+            return cpp_dbc::unexpected(validateResult.error());
         }
-        catch (const DBException &ex)
+
+        if (columnIndex < 1 || columnIndex > m_fieldCount)
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(DBException("SV0U7Y3LYTDK", "Invalid column index", system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
+
+        size_t idx = columnIndex - 1;
+        if (m_currentRow[idx] == nullptr)
+        {
+            return 0;
+        }
+
+        const unsigned long *lengths = m_materialized
+            ? m_currentLengths.data()
+            : mysql_fetch_lengths(m_result.get());
+        if (!lengths)
+        {
+            return cpp_dbc::unexpected(DBException("IZX88GL9L9VD",
+                "getLong failed: could not retrieve field lengths",
+                system_utils::captureCallStack()));
+        }
+        int64_t result = 0;
+        const char *str = m_currentRow[idx];
+        const char *end = str + lengths[idx];
+        auto [ptr, ec] = std::from_chars(str, end, result);
+        if (ec != std::errc{} || ptr != end)
         {
             return cpp_dbc::unexpected(DBException("WXI2DXO5WKVH",
-                                                   std::string("getLong failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
+                "getLong failed: invalid numeric value",
+                system_utils::captureCallStack()));
         }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
-        {
-            return cpp_dbc::unexpected(DBException("VF6MRJ2YCBHH",
-                                                   "getLong failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return result;
     }
 
     cpp_dbc::expected<int64_t, DBException> MySQLDBResultSet::getLong(std::nothrow_t, const std::string &columnName) noexcept
     {
+        MYSQL_RS_LOCK_OR_RETURN("FH8OF9QI1168", "Result set closed");
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -257,51 +264,50 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<double, DBException> MySQLDBResultSet::getDouble(std::nothrow_t, size_t columnIndex) noexcept
     {
-        // try/catch is required: std::stod can throw std::invalid_argument or std::out_of_range
-        try
+        MYSQL_RS_LOCK_OR_RETURN("QK3S82J5O4YY", "Result set closed");
+
+        auto validateResult = validateCurrentRow(std::nothrow);
+        if (!validateResult.has_value())
         {
-
-            DB_DRIVER_LOCK_GUARD(m_mutex);
-
-            auto validateResult = validateCurrentRow(std::nothrow);
-            if (!validateResult.has_value())
-            {
-                return cpp_dbc::unexpected(validateResult.error());
-            }
-
-            if (columnIndex < 1 || columnIndex > m_fieldCount)
-            {
-                return cpp_dbc::unexpected(DBException("KTP04IOWI9DS", "Invalid column index", system_utils::captureCallStack()));
-            }
-
-            size_t idx = columnIndex - 1;
-            if (m_currentRow[idx] == nullptr)
-            {
-                return 0.0;
-            }
-
-            return std::stod(m_currentRow[idx]);
+            return cpp_dbc::unexpected(validateResult.error());
         }
-        catch (const DBException &ex)
+
+        if (columnIndex < 1 || columnIndex > m_fieldCount)
         {
-            return cpp_dbc::unexpected(ex);
+            return cpp_dbc::unexpected(DBException("KTP04IOWI9DS", "Invalid column index", system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
+
+        size_t idx = columnIndex - 1;
+        if (m_currentRow[idx] == nullptr)
+        {
+            return 0.0;
+        }
+
+        const unsigned long *lengths = m_materialized
+            ? m_currentLengths.data()
+            : mysql_fetch_lengths(m_result.get());
+        if (!lengths)
+        {
+            return cpp_dbc::unexpected(DBException("QS1Q7CBRVDFU",
+                "getDouble failed: could not retrieve field lengths",
+                system_utils::captureCallStack()));
+        }
+        double result = 0.0;
+        const char *str = m_currentRow[idx];
+        const char *end = str + lengths[idx];
+        auto [ptr, ec] = std::from_chars(str, end, result);
+        if (ec != std::errc{} || ptr != end)
         {
             return cpp_dbc::unexpected(DBException("YJ4N8TJ9LG63",
-                                                   std::string("getDouble failed: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
+                "getDouble failed: invalid numeric value",
+                system_utils::captureCallStack()));
         }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions after typed catch above
-        {
-            return cpp_dbc::unexpected(DBException("89VXK2NQV96C",
-                                                   "getDouble failed: unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+        return result;
     }
 
     cpp_dbc::expected<double, DBException> MySQLDBResultSet::getDouble(std::nothrow_t, const std::string &columnName) noexcept
     {
+        MYSQL_RS_LOCK_OR_RETURN("B29QWD9MQO2H", "Result set closed");
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {

@@ -47,8 +47,8 @@ namespace cpp_dbc::Firebird
         friend class FirebirdDBPreparedStatement;
         friend class FirebirdDBResultSet;
         friend class FirebirdBlob;
+        friend class FirebirdConnectionLock;
 
-    private:
         /**
          * @brief Private tag for the passkey idiom — enables std::make_shared
          * from static factory methods while keeping the constructor
@@ -131,6 +131,21 @@ namespace cpp_dbc::Firebird
         cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
             TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
         cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
+
+#if DB_DRIVER_THREAD_SAFE
+        /**
+         * @brief Get the connection mutex for PreparedStatement/ResultSet access
+         *
+         * Implementation detail — accessed by FirebirdConnectionLock via friend class.
+         * Not part of the public API.
+         *
+         * @return Reference to the connection's recursive_mutex
+         */
+        std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
+        {
+            return *m_connMutex;
+        }
+#endif
 
     public:
         /**
@@ -234,29 +249,16 @@ namespace cpp_dbc::Firebird
             return obj;
         }
 
-#if DB_DRIVER_THREAD_SAFE
-        /**
-         * @brief Get the connection mutex for PreparedStatement/ResultSet access
-         *
-         * Allows PreparedStatement and ResultSet to serialize their operations through
-         * the connection mutex via their weak_ptr<FirebirdDBConnection>, without storing
-         * the mutex directly.
-         *
-         * @return Reference to the connection's recursive_mutex
-         */
-        std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
-        {
-            return *m_connMutex;
-        }
-#endif
-
         /**
          * @brief Check if connection is currently in reset() operation
          * @return true if reset() is active, false otherwise
          *
          * Used by ResultSet/PreparedStatement to avoid unregister deadlock during closeAll*()
          */
-        bool isResetting() const noexcept { return m_resetting.load(std::memory_order_seq_cst); }
+        bool isResetting() const noexcept
+        {
+            return m_resetting.load(std::memory_order_seq_cst);
+        }
 
         cpp_dbc::expected<void, cpp_dbc::DBException> close(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, cpp_dbc::DBException> reset(std::nothrow_t) noexcept override;

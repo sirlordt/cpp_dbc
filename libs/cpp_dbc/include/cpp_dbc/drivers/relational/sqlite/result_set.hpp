@@ -144,15 +144,7 @@ namespace cpp_dbc::SQLite
         create(sqlite3_stmt *stmt,
                bool ownStatement,
                std::shared_ptr<SQLiteDBConnection> conn,
-               std::shared_ptr<SQLiteDBPreparedStatement> prepStmt)
-        {
-            auto r = create(std::nothrow, stmt, ownStatement, std::move(conn), std::move(prepStmt));
-            if (!r.has_value())
-            {
-                throw r.error();
-            }
-            return r.value();
-        }
+               std::shared_ptr<SQLiteDBPreparedStatement> prepStmt);
 
         bool next() override;
         bool isBeforeFirst() override;
@@ -231,36 +223,50 @@ namespace cpp_dbc::SQLite
             return rs;
         }
 
-        cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<bool, DBException> isEmpty(std::nothrow_t) noexcept override;
+        // Nothrow methods — same order as throwing block above
         cpp_dbc::expected<bool, DBException> next(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isBeforeFirst(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isAfterLast(std::nothrow_t) noexcept override;
         cpp_dbc::expected<uint64_t, DBException> getRow(std::nothrow_t) noexcept override;
+
         cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, size_t columnIndex) noexcept override;
         cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, const std::string &columnName) noexcept override;
+
         cpp_dbc::expected<int64_t, DBException> getLong(std::nothrow_t, size_t columnIndex) noexcept override;
         cpp_dbc::expected<int64_t, DBException> getLong(std::nothrow_t, const std::string &columnName) noexcept override;
+
         cpp_dbc::expected<double, DBException> getDouble(std::nothrow_t, size_t columnIndex) noexcept override;
         cpp_dbc::expected<double, DBException> getDouble(std::nothrow_t, const std::string &columnName) noexcept override;
+
         cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, size_t columnIndex) noexcept override;
         cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, const std::string &columnName) noexcept override;
+
         cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, size_t columnIndex) noexcept override;
         cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, const std::string &columnName) noexcept override;
+
         cpp_dbc::expected<bool, DBException> isNull(std::nothrow_t, size_t columnIndex) noexcept override;
         cpp_dbc::expected<bool, DBException> isNull(std::nothrow_t, const std::string &columnName) noexcept override;
+
         cpp_dbc::expected<std::string, DBException> getDate(std::nothrow_t, size_t columnIndex) noexcept override;
         cpp_dbc::expected<std::string, DBException> getDate(std::nothrow_t, const std::string &columnName) noexcept override;
+
         cpp_dbc::expected<std::string, DBException> getTimestamp(std::nothrow_t, size_t columnIndex) noexcept override;
         cpp_dbc::expected<std::string, DBException> getTimestamp(std::nothrow_t, const std::string &columnName) noexcept override;
+
         cpp_dbc::expected<std::string, DBException> getTime(std::nothrow_t, size_t columnIndex) noexcept override;
         cpp_dbc::expected<std::string, DBException> getTime(std::nothrow_t, const std::string &columnName) noexcept override;
+
         cpp_dbc::expected<std::vector<std::string>, DBException> getColumnNames(std::nothrow_t) noexcept override;
         cpp_dbc::expected<size_t, DBException> getColumnCount(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> isEmpty(std::nothrow_t) noexcept override;
+
         cpp_dbc::expected<std::shared_ptr<Blob>, DBException> getBlob(std::nothrow_t, size_t columnIndex) noexcept override;
         cpp_dbc::expected<std::shared_ptr<Blob>, DBException> getBlob(std::nothrow_t, const std::string &columnName) noexcept override;
+
         cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> getBinaryStream(std::nothrow_t, size_t columnIndex) noexcept override;
         cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> getBinaryStream(std::nothrow_t, const std::string &columnName) noexcept override;
+
         cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, size_t columnIndex) noexcept override;
         cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, const std::string &columnName) noexcept override;
     };

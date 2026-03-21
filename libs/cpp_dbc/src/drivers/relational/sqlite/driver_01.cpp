@@ -96,30 +96,6 @@ namespace cpp_dbc::SQLite
         return true;
     }
 
-    // ── Constructor + Destructor ──────────────────────────────────────────────
-    SQLiteDBDriver::SQLiteDBDriver(SQLiteDBDriver::PrivateCtorTag, std::nothrow_t) noexcept
-    {
-        auto result = initialize(std::nothrow);
-        if (!result.has_value())
-        {
-            m_initFailed = true;
-            m_initError = std::make_unique<DBException>(std::move(result.error()));
-            return;
-        }
-
-        // Set up memory management (per instance)
-        sqlite3_soft_heap_limit64(8 * 1024 * 1024); // 8MB soft limit
-    }
-
-    SQLiteDBDriver::~SQLiteDBDriver()
-    {
-        SQLITE_DEBUG("SQLiteDBDriver::destructor - Destroying driver");
-
-        closeAllOpenConnections(std::nothrow);
-
-        cleanup();
-    }
-
     void SQLiteDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<SQLiteDBConnection> conn) noexcept
     {
         size_t registrySize = 0;
@@ -138,7 +114,10 @@ namespace cpp_dbc::SQLite
                 {
                     std::scoped_lock lock(s_registryMutex);
                     std::erase_if(s_connectionRegistry,
-                        [](const auto &w) { return w.expired(); });
+                                  [](const auto &w)
+                                  {
+                                      return w.expired();
+                                  });
                 }
                 s_cleanupPending.store(false, std::memory_order_seq_cst);
             });
@@ -178,46 +157,7 @@ namespace cpp_dbc::SQLite
         }
     }
 
-    size_t SQLiteDBDriver::getConnectionAlive() noexcept
-    {
-        std::scoped_lock lock(s_registryMutex);
-        return static_cast<size_t>(std::ranges::count_if(
-            s_connectionRegistry,
-            [](const auto &w) { return !w.expired(); }));
-    }
-
-#ifdef __cpp_exceptions
-    std::shared_ptr<SQLiteDBDriver> SQLiteDBDriver::getInstance()
-    {
-        auto result = getInstance(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-#endif // __cpp_exceptions
-
-    cpp_dbc::expected<std::shared_ptr<SQLiteDBDriver>, DBException>
-    SQLiteDBDriver::getInstance(std::nothrow_t) noexcept
-    {
-        std::scoped_lock lock(s_instanceMutex);
-        if (s_instance)
-        {
-            return s_instance;
-        }
-        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
-        auto inst = std::make_shared<SQLiteDBDriver>(SQLiteDBDriver::PrivateCtorTag{}, std::nothrow);
-        if (inst->m_initFailed)
-        {
-            return cpp_dbc::unexpected(std::move(*inst->m_initError));
-        }
-        s_instance = inst;
-        return s_instance;
-    }
-
-    void SQLiteDBDriver::cleanup() noexcept
+    void SQLiteDBDriver::cleanup(std::nothrow_t) noexcept
     {
         std::scoped_lock lock(s_initMutex);
         if (!s_initialized.load(std::memory_order_seq_cst))
@@ -248,7 +188,41 @@ namespace cpp_dbc::SQLite
         s_initialized.store(false, std::memory_order_seq_cst);
     }
 
+    // ── Constructor + Destructor ──────────────────────────────────────────────
+    SQLiteDBDriver::SQLiteDBDriver(SQLiteDBDriver::PrivateCtorTag, std::nothrow_t) noexcept
+    {
+        auto result = initialize(std::nothrow);
+        if (!result.has_value())
+        {
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>(std::move(result.error()));
+            return;
+        }
+
+        // Set up memory management (per instance)
+        sqlite3_soft_heap_limit64(8 * 1024 * 1024); // 8MB soft limit
+    }
+
+    SQLiteDBDriver::~SQLiteDBDriver()
+    {
+        SQLITE_DEBUG("SQLiteDBDriver::destructor - Destroying driver");
+
+        closeAllOpenConnections(std::nothrow);
+
+        cleanup(std::nothrow);
+    }
+
 #ifdef __cpp_exceptions
+    std::shared_ptr<SQLiteDBDriver> SQLiteDBDriver::getInstance()
+    {
+        auto result = getInstance(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
     std::shared_ptr<RelationalDBConnection> SQLiteDBDriver::connectRelational(const std::string &uri,
                                                                               const std::string &user,
                                                                               const std::string &password,
@@ -263,15 +237,31 @@ namespace cpp_dbc::SQLite
     }
 #endif // __cpp_exceptions
 
+    cpp_dbc::expected<std::shared_ptr<SQLiteDBDriver>, DBException>
+    SQLiteDBDriver::getInstance(std::nothrow_t) noexcept
+    {
+        std::scoped_lock lock(s_instanceMutex);
+        if (s_instance)
+        {
+            return s_instance;
+        }
+        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+        auto inst = std::make_shared<SQLiteDBDriver>(SQLiteDBDriver::PrivateCtorTag{}, std::nothrow);
+        if (inst->m_initFailed)
+        {
+            return cpp_dbc::unexpected(std::move(*inst->m_initError));
+        }
+        s_instance = inst;
+        return s_instance;
+    }
 
     cpp_dbc::expected<std::map<std::string, std::string>, DBException> SQLiteDBDriver::parseURI(
         std::nothrow_t, const std::string &uri) noexcept
     {
-        constexpr std::string_view SCHEME_SUFFIX = "sqlite://";
-        const auto fullPrefixLen = cpp_dbc::system_constants::URI_PREFIX.size() + SCHEME_SUFFIX.size();
+        const std::string fullPrefix =
+            std::string(cpp_dbc::system_constants::URI_PREFIX) + "sqlite://";
 
-        if (!uri.starts_with(cpp_dbc::system_constants::URI_PREFIX) ||
-            !std::string_view(uri).substr(cpp_dbc::system_constants::URI_PREFIX.size()).starts_with(SCHEME_SUFFIX))
+        if (!uri.starts_with(fullPrefix))
         {
             return cpp_dbc::unexpected(DBException("5RHF8WK03IZG",
                                                    "Invalid SQLite URI: " + uri,
@@ -279,7 +269,7 @@ namespace cpp_dbc::SQLite
         }
 
         // SQLite has no network — host is empty, port is 0
-        std::string database = uri.substr(fullPrefixLen);
+        std::string database = uri.substr(fullPrefix.size());
         if (database.empty())
         {
             return cpp_dbc::unexpected(DBException("5V9WQBTN67OL",
@@ -365,6 +355,17 @@ namespace cpp_dbc::SQLite
     std::string SQLiteDBDriver::getDriverVersion() const noexcept
     {
         return sqlite3_libversion();
+    }
+
+    size_t SQLiteDBDriver::getConnectionAlive() noexcept
+    {
+        std::scoped_lock lock(s_registryMutex);
+        return static_cast<size_t>(std::ranges::count_if(
+            s_connectionRegistry,
+            [](const auto &w)
+            {
+                return !w.expired();
+            }));
     }
 
 } // namespace cpp_dbc::SQLite

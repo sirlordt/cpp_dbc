@@ -92,6 +92,8 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<std::shared_ptr<Blob>, DBException> SQLiteDBResultSet::getBlob(std::nothrow_t, const std::string &columnName) noexcept
     {
+        SQLITE_STMT_LOCK_OR_RETURN("0ROCZNFC27E6", "Result set is closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -142,6 +144,8 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> SQLiteDBResultSet::getBinaryStream(std::nothrow_t, const std::string &columnName) noexcept
     {
+        SQLITE_STMT_LOCK_OR_RETURN("RZ2HAPPM9T57", "Result set is closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -188,6 +192,8 @@ namespace cpp_dbc::SQLite
 
     cpp_dbc::expected<std::vector<uint8_t>, DBException> SQLiteDBResultSet::getBytes(std::nothrow_t, const std::string &columnName) noexcept
     {
+        SQLITE_STMT_LOCK_OR_RETURN("GV2XHTSXH07I", "Result set is closed");
+
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {

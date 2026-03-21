@@ -59,25 +59,26 @@ namespace cpp_dbc::MySQL
         // at any time. See registerConnection() for the coalescence pattern.
         inline static std::atomic s_cleanupPending{false};
 
-        static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
-
-        static void registerConnection(std::nothrow_t, std::weak_ptr<MySQLDBConnection> conn) noexcept;
-        static void unregisterConnection(std::nothrow_t, const std::weak_ptr<MySQLDBConnection> &conn) noexcept;
-
-        static void cleanup();
-
-        void closeAllOpenConnections(std::nothrow_t) noexcept;
-
-        friend class MySQLDBConnection;
+        // ── Driver state ──────────────────────────────────────────────────────
+        // Set to true by the destructor before releasing resources.
+        // Prevents new connection attempts during and after driver teardown.
+        std::atomic<bool> m_closed{false};
 
         // ── Construction state ────────────────────────────────────────────────
         bool m_initFailed{false};
         std::unique_ptr<DBException> m_initError{nullptr};
 
-        // ── Driver state ──────────────────────────────────────────────────────
-        // Set to true by the destructor before releasing resources.
-        // Prevents new connection attempts during and after driver teardown.
-        std::atomic<bool> m_closed{false};
+        // ── Private helper methods ────────────────────────────────────────────
+        static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
+
+        static void registerConnection(std::nothrow_t, std::weak_ptr<MySQLDBConnection> conn) noexcept;
+        static void unregisterConnection(std::nothrow_t, const std::weak_ptr<MySQLDBConnection> &conn) noexcept;
+
+        static void cleanup(std::nothrow_t) noexcept;
+
+        void closeAllOpenConnections(std::nothrow_t) noexcept;
+
+        friend class MySQLDBConnection;
 
     public:
         MySQLDBDriver(PrivateCtorTag, std::nothrow_t) noexcept;
