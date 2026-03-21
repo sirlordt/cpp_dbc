@@ -2202,13 +2202,13 @@ The nothrow constructor wraps all initialization in try/catch and stores errors 
 
 This applies **inexorably and strictly** to every class in every driver.
 
-#### Public Section Layout — Two Blocks Rule
+#### Public Section Layout — Three Regions
 
-The `public:` section of every class with a dual throw/nothrow API **must** be organized as exactly two blocks for the public methods:
+The `public:` section of every class with a dual throw/nothrow API **must** be organized as exactly three regions, in this order:
 
-1. **Constructor, destructor, deleted ops** — always compiled (before any `#ifdef`)
-2. **Throwing block** — a **single** `#ifdef __cpp_exceptions` / `#endif` guard containing **ALL** throwing public methods (factory, getters, setters, lifecycle). No throwing method outside this block. No nothrow method inside it.
-3. **Nothrow block** — immediately after `#endif`, containing **ALL** nothrow public methods. Always compiled.
+1. **Constructor, destructor, deleted ops** (always compiled) — the public `noexcept` constructor guarded by `PrivateCtorTag`, the destructor, and deleted copy/move operators. These appear before any `#ifdef` guard.
+2. **Throwing block** — a **single** `#ifdef __cpp_exceptions` / `#endif` guard containing **ALL** throwing public methods (factory, getters, setters, lifecycle). No throwing method may appear outside this block. No nothrow method may appear inside it.
+3. **Nothrow block** — immediately after the `#endif`, containing **ALL** nothrow public methods (factory, getters, setters, lifecycle). This region is always compiled, regardless of exception support.
 
 ```cpp
 public:

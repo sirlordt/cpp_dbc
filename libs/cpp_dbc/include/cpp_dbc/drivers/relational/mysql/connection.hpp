@@ -253,7 +253,7 @@ namespace cpp_dbc::MySQL
             return m_resetting.load(std::memory_order_seq_cst);
         }
 
-    protected:
+    protected: // NOSONAR(cpp:S2156) — protected is intentional: these are override methods from the base class interface and getConnectionMutex follows the project's canonical mutex access pattern
         // Pool lifecycle overrides - only callable by pool infrastructure (via friend in RelationalDBConnection).
         cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
             TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;

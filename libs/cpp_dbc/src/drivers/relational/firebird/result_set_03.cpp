@@ -163,8 +163,9 @@ namespace cpp_dbc::Firebird
             return 0;
         }
         int result = 0;
-        auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), result);
-        if (ec != std::errc{})
+        const char *end = value.data() + value.size();
+        auto [ptr, ec] = std::from_chars(value.data(), end, result);
+        if (ec != std::errc{} || ptr != end)
         {
             return cpp_dbc::unexpected(DBException("E5ACFAD9B0C4",
                 "Invalid integer value: " + value, system_utils::captureCallStack()));
@@ -198,8 +199,9 @@ namespace cpp_dbc::Firebird
             return static_cast<int64_t>(0);
         }
         int64_t result = 0;
-        auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), result);
-        if (ec != std::errc{})
+        const char *end = value.data() + value.size();
+        auto [ptr, ec] = std::from_chars(value.data(), end, result);
+        if (ec != std::errc{} || ptr != end)
         {
             return cpp_dbc::unexpected(DBException("G7CEFBE1D2A6",
                 "Invalid long value: " + value, system_utils::captureCallStack()));
@@ -235,8 +237,9 @@ namespace cpp_dbc::Firebird
             return 0.0;
         }
         double result = 0.0;
-        auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), result);
-        if (ec != std::errc{})
+        const char *end = value.data() + value.size();
+        auto [ptr, ec] = std::from_chars(value.data(), end, result);
+        if (ec != std::errc{} || ptr != end)
         {
             return cpp_dbc::unexpected(DBException("I9E0B1D3F4C8",
                 "Invalid double value: " + value, system_utils::captureCallStack()));

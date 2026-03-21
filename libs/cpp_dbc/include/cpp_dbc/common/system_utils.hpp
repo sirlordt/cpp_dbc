@@ -21,6 +21,7 @@
 #ifndef SYSTEM_UTILS_HPP
 #define SYSTEM_UTILS_HPP
 
+#include <algorithm>
 #include <cctype>
 #include <charconv>
 #include <cstddef>
@@ -265,21 +266,25 @@ namespace cpp_dbc::system_utils
      */
     inline bool isValidDatabaseIdentifier(std::string_view name) noexcept
     {
-        for (unsigned char ch : name)
-        {
-            if (!std::isalnum(ch) && ch != '_')
-            {
-                return false;
-            }
-        }
-        return true;
+        return std::ranges::all_of(name,
+                                   [](unsigned char ch)
+                                   {
+                                       return (ch >= '0' && ch <= '9') ||
+                                              (ch >= 'A' && ch <= 'Z') ||
+                                              (ch >= 'a' && ch <= 'z') ||
+                                              ch == '_';
+                                   });
     }
 
     /**
      * @brief Build a Firebird native connection string for isc_attach_database / isc_create_database.
      *
-     * The Firebird C API uses the format `host[/port]:database` for remote connections
-     * and just `database` for local/embedded connections.
+     * The Firebird C API uses the format `host[/port]:database` for TCP connections
+     * and just `database` for local/embedded connections (when host is empty).
+     *
+     * Note: "localhost" and "127.0.0.1" are preserved — they produce TCP loopback
+     * connections through the Firebird server, which is semantically different from
+     * an embedded connection (different auth, permissions, concurrency model).
      *
      * ```cpp
      * auto s = buildFirebirdConnStr("server1", 3050, "/opt/db.fdb");
@@ -290,9 +295,12 @@ namespace cpp_dbc::system_utils
      *
      * auto s3 = buildFirebirdConnStr("", 0, "/opt/db.fdb");
      * // s3 = "/opt/db.fdb"  (local/embedded)
+     *
+     * auto s4 = buildFirebirdConnStr("localhost", 3050, "/opt/db.fdb");
+     * // s4 = "localhost:/opt/db.fdb"  (TCP loopback, NOT embedded)
      * ```
      *
-     * @param host Host name or IP; empty or "localhost"/"127.0.0.1" for local connection
+     * @param host Host name or IP; empty for local/embedded connection
      * @param port Port number; 3050 and 0 are treated as default (omitted)
      * @param database Database file path
      * @return The native connection string
@@ -302,7 +310,7 @@ namespace cpp_dbc::system_utils
                                             std::string_view database) noexcept
     {
         std::string result;
-        if (!host.empty() && host != "localhost" && host != "127.0.0.1")
+        if (!host.empty())
         {
             result += host;
             if (port != 3050 && port != 0)

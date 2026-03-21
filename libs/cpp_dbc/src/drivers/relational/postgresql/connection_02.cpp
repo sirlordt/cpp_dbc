@@ -156,17 +156,24 @@ namespace cpp_dbc::PostgreSQL
             }
             else
             {
-                // If we're enabling autocommit, we must ensure any active transaction is ended
+                // 2026-03-20T00:00:00Z
+                // Bug: commit(std::nothrow) checks m_autoCommit to decide whether to restart
+                // a transaction after COMMIT. If m_autoCommit is still false when commit() runs,
+                // it issues BEGIN after COMMIT, leaving the session inside a transaction even
+                // though auto-commit is about to be enabled.
+                // Solution: Set m_autoCommit to true BEFORE calling commit() so the restart
+                // branch is skipped. Restore on failure to keep state consistent.
+                this->m_autoCommit = true;
+
                 if (m_transactionActive)
                 {
                     auto result = commit(std::nothrow);
                     if (!result.has_value())
                     {
+                        this->m_autoCommit = false; // Restore on failure
                         return cpp_dbc::unexpected<DBException>(result.error());
                     }
                 }
-
-                this->m_autoCommit = true;
             }
         }
 

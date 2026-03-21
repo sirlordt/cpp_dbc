@@ -36,14 +36,14 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<size_t, DBException> MySQLDBResultSet::getColumnCount(std::nothrow_t) noexcept
     {
-        MYSQL_RS_LOCK_OR_RETURN("2ZTFJK5FAC2U", "Result set closed");
+        MYSQL_RS_LOCK_OR_RETURN("RPQ2SZL91OSY", "Result set closed");
 
         return m_fieldCount;
     }
 
     cpp_dbc::expected<std::shared_ptr<Blob>, DBException> MySQLDBResultSet::getBlob(std::nothrow_t, size_t columnIndex) noexcept
     {
-        MYSQL_RS_LOCK_OR_RETURN("ICQ0Z3FH281L", "Result set closed");
+        MYSQL_RS_LOCK_OR_RETURN("0KMXE4OCOXSM", "Result set closed");
 
         auto validateResult = validateCurrentRow(std::nothrow);
         if (!validateResult.has_value())

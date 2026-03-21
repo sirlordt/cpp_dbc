@@ -138,7 +138,7 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<std::string, DBException> MySQLDBResultSet::getDate(std::nothrow_t, size_t columnIndex) noexcept
     {
-        MYSQL_RS_LOCK_OR_RETURN("M9PGL0KDLDD2", "Result set closed");
+        MYSQL_RS_LOCK_OR_RETURN("86IRJES6VVD1", "Result set closed");
 
         auto validateResult = validateCurrentRow(std::nothrow);
         if (!validateResult.has_value())
@@ -162,7 +162,7 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<std::string, DBException> MySQLDBResultSet::getDate(std::nothrow_t, const std::string &columnName) noexcept
     {
-        MYSQL_RS_LOCK_OR_RETURN("OPBZY852W3VL", "Result set closed");
+        MYSQL_RS_LOCK_OR_RETURN("3VBG1IMZNZZC", "Result set closed");
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
@@ -173,7 +173,7 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<std::string, DBException> MySQLDBResultSet::getTimestamp(std::nothrow_t, size_t columnIndex) noexcept
     {
-        MYSQL_RS_LOCK_OR_RETURN("1RHPZ73Y059I", "Result set closed");
+        MYSQL_RS_LOCK_OR_RETURN("1SWZ425QR408", "Result set closed");
 
         auto validateResult = validateCurrentRow(std::nothrow);
         if (!validateResult.has_value())

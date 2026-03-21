@@ -321,6 +321,11 @@ namespace cpp_dbc::Firebird
                 return cpp_dbc::unexpected(DBException("1CX1PRJZGY8K", "Invalid date format: " + value, system_utils::captureCallStack()));
             }
 
+            if (month < 1 || month > 12 || day < 1 || day > 31)
+            {
+                return cpp_dbc::unexpected(DBException("WDVF48T3FY56", "Date component out of range: " + value, system_utils::captureCallStack()));
+            }
+
             time.tm_year = year - 1900;
             time.tm_mon = month - 1;
             time.tm_mday = day;
@@ -394,6 +399,12 @@ namespace cpp_dbc::Firebird
                 return cpp_dbc::unexpected(DBException("5VYPVCNVNBZT", "Invalid timestamp format: " + value, system_utils::captureCallStack()));
             }
 
+            if (month < 1 || month > 12 || day < 1 || day > 31 ||
+                hour < 0 || hour > 23 || min < 0 || min > 59 || sec < 0 || sec > 59)
+            {
+                return cpp_dbc::unexpected(DBException("74S390W5JXCY", "Timestamp component out of range: " + value, system_utils::captureCallStack()));
+            }
+
             time.tm_year = year - 1900;
             time.tm_mon = month - 1;
             time.tm_mday = day;
@@ -444,6 +455,11 @@ namespace cpp_dbc::Firebird
             if (ec3 != std::errc{} || p3 != end)
             {
                 return cpp_dbc::unexpected(DBException("PQJEV4BT84AN", "Invalid time format: " + value, system_utils::captureCallStack()));
+            }
+
+            if (hour < 0 || hour > 23 || min < 0 || min > 59 || sec < 0 || sec > 59)
+            {
+                return cpp_dbc::unexpected(DBException("3J6D2R0K64CQ", "Time component out of range: " + value, system_utils::captureCallStack()));
             }
 
             time.tm_hour = hour;

@@ -175,10 +175,20 @@ namespace cpp_dbc::MySQL
             return 0; // Return 0 for NULL values (similar to JDBC)
         }
 
+        const unsigned long *lengths = m_materialized
+            ? m_currentLengths.data()
+            : mysql_fetch_lengths(m_result.get());
+        if (!lengths)
+        {
+            return cpp_dbc::unexpected(DBException("IMAYGXRPBDQZ",
+                "getInt failed: could not retrieve field lengths",
+                system_utils::captureCallStack()));
+        }
         int result = 0;
         const char *str = m_currentRow[idx];
-        auto [ptr, ec] = std::from_chars(str, str + std::strlen(str), result);
-        if (ec != std::errc{})
+        const char *end = str + lengths[idx];
+        auto [ptr, ec] = std::from_chars(str, end, result);
+        if (ec != std::errc{} || ptr != end)
         {
             return cpp_dbc::unexpected(DBException("B5BCKFSM2AZ2",
                 "getInt failed: invalid numeric value",
@@ -219,10 +229,20 @@ namespace cpp_dbc::MySQL
             return 0;
         }
 
+        const unsigned long *lengths = m_materialized
+            ? m_currentLengths.data()
+            : mysql_fetch_lengths(m_result.get());
+        if (!lengths)
+        {
+            return cpp_dbc::unexpected(DBException("IZX88GL9L9VD",
+                "getLong failed: could not retrieve field lengths",
+                system_utils::captureCallStack()));
+        }
         int64_t result = 0;
         const char *str = m_currentRow[idx];
-        auto [ptr, ec] = std::from_chars(str, str + std::strlen(str), result);
-        if (ec != std::errc{})
+        const char *end = str + lengths[idx];
+        auto [ptr, ec] = std::from_chars(str, end, result);
+        if (ec != std::errc{} || ptr != end)
         {
             return cpp_dbc::unexpected(DBException("WXI2DXO5WKVH",
                 "getLong failed: invalid numeric value",
@@ -263,10 +283,20 @@ namespace cpp_dbc::MySQL
             return 0.0;
         }
 
+        const unsigned long *lengths = m_materialized
+            ? m_currentLengths.data()
+            : mysql_fetch_lengths(m_result.get());
+        if (!lengths)
+        {
+            return cpp_dbc::unexpected(DBException("QS1Q7CBRVDFU",
+                "getDouble failed: could not retrieve field lengths",
+                system_utils::captureCallStack()));
+        }
         double result = 0.0;
         const char *str = m_currentRow[idx];
-        auto [ptr, ec] = std::from_chars(str, str + std::strlen(str), result);
-        if (ec != std::errc{})
+        const char *end = str + lengths[idx];
+        auto [ptr, ec] = std::from_chars(str, end, result);
+        if (ec != std::errc{} || ptr != end)
         {
             return cpp_dbc::unexpected(DBException("YJ4N8TJ9LG63",
                 "getDouble failed: invalid numeric value",

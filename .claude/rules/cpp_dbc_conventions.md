@@ -5,7 +5,8 @@
 Error codes in `DBException` must be:
 - **Format**: 12-character uppercase alphanumeric (A–Z, 0–9) string with at least 5 letters and no more than 4 consecutive repeated characters
 - **Uniqueness**: Each code must be unique across the entire project
-- **Generation**: Random (not sequential)
+- **One code per construction site**: Every `DBException` construction site — whether `throw DBException(...)` or `return cpp_dbc::unexpected(DBException(...))` — must use its own unique code. Two different error paths must never share the same code, even within the same method or file. Always generate a new code for every new `DBException` you write.
+- **Generation**: Random (not sequential). **Must** be generated using `./generate_dbexception_code.sh` — never invented manually or copied from another site.
 
 **Scripts**:
 
@@ -710,6 +711,8 @@ Driver ──── s_connectionRegistry (tracks all live connections)
 1. **Native handle name**: The native connection handle (e.g., `MYSQL*`, `PGconn*`, `sqlite3*`, `isc_db_handle`) must be named `m_conn` in all drivers. This ensures consistency across the codebase.
 
 2. **Mutex type**: Always `SharedConnMutex` (`std::shared_ptr<std::recursive_mutex>`), never a direct `std::recursive_mutex` member. The `shared_ptr` allows child objects to access the mutex safely through `weak_ptr<Connection>` → `getConnectionMutex(std::nothrow)`.
+
+   **Accepted exception — SQLite file-level mutex**: `SQLiteDBConnection` uses `std::shared_ptr<std::recursive_mutex> m_globalFileMutex` instead of `m_connMutex`. This mutex is obtained from `FileMutexRegistry` and is shared by **all connections to the same database file** — not just one connection's children. This is required because SQLite synchronizes internally via POSIX file locks that are invisible to ThreadSanitizer/Helgrind, causing false-positive data race reports. For `:memory:` databases each connection creates its own local mutex. The member name `m_globalFileMutex` intentionally differs from `m_connMutex` to communicate this file-level sharing semantic. `getConnectionMutex(std::nothrow)` returns `*m_globalFileMutex`, so the `SQLiteConnectionLock` RAII helper works identically to other drivers. Child objects still hold `weak_ptr<SQLiteDBConnection>`, declare `friend class SQLiteConnectionLock`, and check `m_closed` / `m_connection.expired()` — the lifecycle contract is fully enforced. The connection-level macros (`SQLITE_CONNECTION_LOCK_OR_RETURN/THROW/SUCCESS_IF_CLOSED`) also include an additional null-guard on `m_globalFileMutex` for the case where the constructor failed before mutex initialization. **This is NOT a convention violation.** Any analysis tool or compliance audit must skip the mutex naming check for the SQLite driver.
 
 3. **Child objects never store the connection mutex**: PreparedStatement, Blob, Cursor, Collection, and any other child class that performs native DB API calls must **not** store `m_connMutex` or any connection-level mutex as a member. They acquire the mutex at runtime through their `m_connection` weak_ptr using the RAII helper class (`*ConnectionLock`).
 

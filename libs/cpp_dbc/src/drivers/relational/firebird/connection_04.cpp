@@ -49,11 +49,17 @@ namespace cpp_dbc::Firebird
         {
             FIREBIRD_DEBUG("prepareForPoolReturn(nothrow): Failed to reset: %s",
                            resetResult.error().what_s().data());
-            // Continue anyway - try to at least reset autoCommit
+            return resetResult;
         }
 
         // Reset auto-commit to true (default state for pooled connections)
-        [[maybe_unused]] auto setResult = setAutoCommit(std::nothrow, true);
+        auto setResult = setAutoCommit(std::nothrow, true);
+        if (!setResult.has_value())
+        {
+            FIREBIRD_DEBUG("prepareForPoolReturn(nothrow): Failed to reset autoCommit: %s",
+                           setResult.error().what_s().data());
+            return setResult;
+        }
 
         // Restore transaction isolation level if requested by the pool
         if (isolationLevel != TransactionIsolationLevel::TRANSACTION_NONE)
@@ -103,7 +109,13 @@ namespace cpp_dbc::Firebird
         if (m_tr && m_autoCommit)
         {
             FIREBIRD_DEBUG("FirebirdConnection::prepareForBorrow(nothrow) - Refreshing MVCC snapshot");
-            [[maybe_unused]] auto rollbackResult = rollback(std::nothrow);
+            auto rollbackResult = rollback(std::nothrow);
+            if (!rollbackResult.has_value())
+            {
+                FIREBIRD_DEBUG("prepareForBorrow(nothrow): Failed to rollback for snapshot refresh: %s",
+                               rollbackResult.error().what_s().data());
+                return rollbackResult;
+            }
         }
 
         return {};

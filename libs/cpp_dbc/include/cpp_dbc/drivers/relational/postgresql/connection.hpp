@@ -140,7 +140,7 @@ namespace cpp_dbc::PostgreSQL
         /** @brief Generate a unique name for server-side prepared statements */
         std::string generateStatementName(std::nothrow_t) noexcept;
 
-    protected:
+    protected: // NOSONAR(cpp:S2156) — protected is intentional: these are override methods from the base class interface and getConnectionMutex follows the project's canonical mutex access pattern
         // Pool lifecycle overrides - only callable by pool infrastructure (via friend in RelationalDBConnection).
         cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
             TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;

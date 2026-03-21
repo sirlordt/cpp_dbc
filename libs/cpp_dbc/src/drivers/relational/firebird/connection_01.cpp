@@ -71,15 +71,35 @@ namespace cpp_dbc::Firebird
         std::vector<char> dpb;
         dpb.push_back(isc_dpb_version1);
 
+        // DPB uses a single byte for each field's length, so values > 255 are invalid.
+        auto pushDpbString = [&](char tag, const std::string &value, const char *fieldName) -> bool
+        {
+            if (value.length() > 255)
+            {
+                m_initFailed = true;
+                m_initError = std::make_unique<DBException>("5KMALAILYRLH",
+                    std::string("Firebird DPB field '") + fieldName +
+                    "' exceeds 255 bytes (" + std::to_string(value.length()) + ")",
+                    system_utils::captureCallStack());
+                return false;
+            }
+            dpb.push_back(tag);
+            dpb.push_back(static_cast<char>(static_cast<uint8_t>(value.length())));
+            dpb.insert(dpb.end(), value.begin(), value.end());
+            return true;
+        };
+
         // Add user name
-        dpb.push_back(isc_dpb_user_name);
-        dpb.push_back(static_cast<char>(user.length()));
-        dpb.insert(dpb.end(), user.begin(), user.end());
+        if (!pushDpbString(isc_dpb_user_name, user, "user"))
+        {
+            return;
+        }
 
         // Add password
-        dpb.push_back(isc_dpb_password);
-        dpb.push_back(static_cast<char>(password.length()));
-        dpb.insert(dpb.end(), password.begin(), password.end());
+        if (!pushDpbString(isc_dpb_password, password, "password"))
+        {
+            return;
+        }
 
         // Add character set (default to UTF8)
         std::string charset = "UTF8";
@@ -88,18 +108,19 @@ namespace cpp_dbc::Firebird
         {
             charset = it->second;
         }
-        dpb.push_back(isc_dpb_lc_ctype);
-        dpb.push_back(static_cast<char>(charset.length()));
-        dpb.insert(dpb.end(), charset.begin(), charset.end());
+        if (!pushDpbString(isc_dpb_lc_ctype, charset, "charset"))
+        {
+            return;
+        }
 
         // Add role (optional, e.g. RDB$ADMIN)
         auto roleIt = options.find("role");
         if (roleIt != options.end() && !roleIt->second.empty())
         {
-            const std::string &role = roleIt->second;
-            dpb.push_back(isc_dpb_sql_role_name);
-            dpb.push_back(static_cast<char>(role.length()));
-            dpb.insert(dpb.end(), role.begin(), role.end());
+            if (!pushDpbString(isc_dpb_sql_role_name, roleIt->second, "role"))
+            {
+                return;
+            }
         }
 
         // Allocate database handle
@@ -143,6 +164,7 @@ namespace cpp_dbc::Firebird
             if (!txResult.has_value())
             {
                 // Clean up the database handle before reporting failure
+                m_closed.store(true, std::memory_order_seq_cst);
                 m_conn.reset();
                 m_initFailed = true;
                 m_initError = std::make_unique<DBException>(txResult.error());

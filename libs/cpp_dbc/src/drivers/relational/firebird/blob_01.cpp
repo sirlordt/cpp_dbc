@@ -44,6 +44,10 @@ namespace cpp_dbc::Firebird
         {
             return cpp_dbc::unexpected(DBException("3K4ERTK6XMFR", "Connection has been destroyed (getDbHandle)", system_utils::captureCallStack()));
         }
+        if (conn->m_closed.load(std::memory_order_seq_cst) || !conn->m_conn)
+        {
+            return cpp_dbc::unexpected(DBException("D49LINEZ8USD", "Connection has been closed (getDbHandle)", system_utils::captureCallStack()));
+        }
         return conn->m_conn.get();
     }
 
@@ -53,6 +57,10 @@ namespace cpp_dbc::Firebird
         if (!conn)
         {
             return cpp_dbc::unexpected(DBException("X3OE58Y3Z22Z", "Connection has been destroyed (getTrHandle)", system_utils::captureCallStack()));
+        }
+        if (conn->m_closed.load(std::memory_order_seq_cst) || !conn->m_conn)
+        {
+            return cpp_dbc::unexpected(DBException("KZVW1JRK0Q34", "Connection has been closed (getTrHandle)", system_utils::captureCallStack()));
         }
         return &conn->m_tr;
     }
