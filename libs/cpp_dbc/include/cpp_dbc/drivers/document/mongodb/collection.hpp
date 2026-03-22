@@ -75,55 +75,16 @@ namespace cpp_dbc::MongoDB
          */
         mutable std::atomic<bool> m_closed{false};
 
-        /**
-         * @brief Validates that the connection is still valid
-         * @return unexpected(DBException) if the connection has been closed
-         */
-        expected<void, DBException> validateConnection(std::nothrow_t) const noexcept;
-
-        /**
-         * @brief Helper to get the client pointer safely
-         * @return The client pointer, or unexpected(DBException) if the connection has been closed
-         */
-        expected<mongoc_client_t *, DBException> getClient(std::nothrow_t) const noexcept;
-
-        /**
-         * @brief Helper to parse a JSON filter string to BSON
-         * @param filter The JSON filter string
-         * @return expected containing the BsonHandle, or DBException if the JSON is invalid
-         */
-        expected<BsonHandle, DBException> parseFilter(std::nothrow_t, const std::string &filter) const noexcept;
-
-        /**
-         * @brief Helper to handle MongoDB errors
-         * @param error The bson_error_t from MongoDB
-         * @param operation The operation that failed
-         * @return unexpected(DBException) with the error details
-         */
-        expected<void, DBException> throwMongoError(std::nothrow_t, const bson_error_t &error, const std::string &operation) const noexcept;
-
-        /**
-         * @brief Builds a BSON filter for _id lookup, handling both OID and string IDs
-         * @param id The document ID (ObjectId hex string or plain string)
-         * @return JSON string representing {"_id": ...} filter, or DBException on failure
-         */
-        expected<std::string, DBException> buildIdFilter(std::nothrow_t, const std::string &id) const noexcept;
-
-        /**
-         * @brief Flag indicating constructor initialization failed
-         *
-         * Set by the private nothrow constructor when the collection pointer is null.
-         * Inspected by the delegating public throwing constructor and by create(nothrow_t).
-         */
+        // ── Construction state ────────────────────────────────────────────────
         bool m_initFailed{false};
-
-        /**
-         * @brief Error captured when constructor initialization fails
-         *
-         * Holds the DBException that would have been thrown, for deferred delivery.
-         * Only allocated on the failure path (~256 bytes saved per successful instance).
-         */
         std::unique_ptr<DBException> m_initError{nullptr};
+
+        // ── Private helpers ───────────────────────────────────────────────────
+        expected<void, DBException> validateConnection(std::nothrow_t) const noexcept;
+        expected<mongoc_client_t *, DBException> getClient(std::nothrow_t) const noexcept;
+        expected<BsonHandle, DBException> parseFilter(std::nothrow_t, const std::string &filter) const noexcept;
+        expected<void, DBException> throwMongoError(std::nothrow_t, const bson_error_t &error, const std::string &operation) const noexcept;
+        expected<std::string, DBException> buildIdFilter(std::nothrow_t, const std::string &id) const noexcept;
 
     public:
         // Nothrow constructor: contains all initialization logic.
@@ -134,7 +95,7 @@ namespace cpp_dbc::MongoDB
                           mongoc_collection_t *collection,
                           const std::string &name,
                           const std::string &databaseName,
-                          std::weak_ptr<MongoDBConnection> connection);
+                          std::weak_ptr<MongoDBConnection> connection) noexcept;
 
         ~MongoDBCollection() override = default;
 

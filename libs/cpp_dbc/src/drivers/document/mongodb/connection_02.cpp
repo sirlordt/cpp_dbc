@@ -240,28 +240,29 @@ namespace cpp_dbc::MongoDB
         return result.value();
     }
 
+#endif // __cpp_exceptions
+
     // ============================================================================
-    // MongoDBConnection Implementation - MongoDB-specific methods
+    // MongoDBConnection Implementation - Private helpers
     // ============================================================================
 
-    std::weak_ptr<mongoc_client_t> MongoDBConnection::getClientWeak() const
+    std::weak_ptr<mongoc_client_t> MongoDBConnection::getClientWeak(std::nothrow_t) const noexcept
     {
         DB_DRIVER_LOCK_GUARD(*m_connMutex);
         return std::weak_ptr<mongoc_client_t>(m_conn);
     }
 
-    MongoClientHandle MongoDBConnection::getClient() const
+    MongoClientHandle MongoDBConnection::getClient(std::nothrow_t) const noexcept
     {
         DB_DRIVER_LOCK_GUARD(*m_connMutex);
         return m_conn;
     }
 
-    void MongoDBConnection::setPooled(bool pooled)
+    void MongoDBConnection::setPooled(std::nothrow_t, bool pooled) noexcept
     {
         DB_DRIVER_LOCK_GUARD(*m_connMutex);
         m_pooled = pooled;
     }
-#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::MongoDB
 

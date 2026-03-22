@@ -67,14 +67,14 @@ namespace cpp_dbc::MongoDB
 
         friend class MongoDBConnection;
 
-        // ── Construction state ────────────────────────────────────────────────
-        bool m_initFailed{false};
-        std::unique_ptr<DBException> m_initError{nullptr};
-
         // ── Driver state ──────────────────────────────────────────────────────
         // Set to true by the destructor before releasing resources.
         // Prevents new connection attempts during and after driver teardown.
         std::atomic<bool> m_closed{false};
+
+        // ── Construction state ────────────────────────────────────────────────
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
 
     public:
         /**
@@ -140,14 +140,14 @@ namespace cpp_dbc::MongoDB
          * This should only be called once when the application is exiting.
          * After calling this, no more MongoDB operations should be performed.
          */
-        static void cleanup();
+        static void cleanup() noexcept;
 
         /**
          * @brief Validate a MongoDB URI
          * @param uri The URI to validate
          * @return true if the URI is valid
          */
-        static bool validateURI(const std::string &uri);
+        static bool validateURI(const std::string &uri) noexcept;
 
         expected<std::shared_ptr<DocumentDBConnection>, DBException> connectDocument(
             std::nothrow_t,

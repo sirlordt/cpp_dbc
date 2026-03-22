@@ -205,14 +205,14 @@ namespace cpp_dbc::MongoDB
         return MONGOC_VERSION_S;
     }
 
-    void MongoDBDriver::cleanup()
+    void MongoDBDriver::cleanup() noexcept
     {
         MONGODB_DEBUG("MongoDBDriver::cleanup - Cleaning up MongoDB C driver");
         mongoc_cleanup();
         MONGODB_DEBUG("MongoDBDriver::cleanup - Done");
     }
 
-    bool MongoDBDriver::validateURI(const std::string &uri)
+    bool MongoDBDriver::validateURI(const std::string &uri) noexcept
     {
         // Strip cpp_dbc: prefix — mongoc expects native mongodb:// URIs
         std::string nativeUri = uri;

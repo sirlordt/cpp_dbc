@@ -77,7 +77,7 @@ namespace cpp_dbc::MongoDB
                                          const std::string &uri,
                                          const std::string &user,
                                          const std::string &password,
-                                         const std::map<std::string, std::string> &options)
+                                         const std::map<std::string, std::string> &options) noexcept
         : m_uri(uri)
     {
         MONGODB_DEBUG("MongoDBConnection::constructor(nothrow) - Connecting to: %s", uri.c_str());

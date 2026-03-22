@@ -50,14 +50,6 @@ namespace cpp_dbc::MongoDB
     // MongoDBCursor Implementation - Constructor, Destructor, Move
     // ============================================================================
 
-    MongoDBCursor::~MongoDBCursor()
-    {
-        MONGODB_DEBUG("MongoDBCursor::destructor - Destroying cursor");
-        // Note: No need to unregister - weak_ptr expires automatically
-        // and is cleaned up during registerCursor or closeAllCursors
-        MONGODB_DEBUG("MongoDBCursor::destructor - Done");
-    }
-
     // Nothrow constructor
     // Public for std::make_shared access, but effectively private via PrivateCtorTag.
 
@@ -78,6 +70,14 @@ namespace cpp_dbc::MongoDB
         // Note: Cursor registration is done by MongoDBCollection after make_shared
         // to enable weak_from_this() usage
         MONGODB_DEBUG("MongoDBCursor::constructor(nothrow) - Done");
+    }
+
+    MongoDBCursor::~MongoDBCursor()
+    {
+        MONGODB_DEBUG("MongoDBCursor::destructor - Destroying cursor");
+        // Note: No need to unregister - weak_ptr expires automatically
+        // and is cleaned up during registerCursor or closeAllCursors
+        MONGODB_DEBUG("MongoDBCursor::destructor - Done");
     }
 
 #ifdef __cpp_exceptions
@@ -237,26 +237,31 @@ namespace cpp_dbc::MongoDB
     // MongoDBCursor Implementation - MongoDB-specific methods
     // ============================================================================
 
-    bool MongoDBCursor::isConnectionValid() const noexcept
+#endif // __cpp_exceptions
+
+    // ============================================================================
+    // MongoDBCursor Implementation - MongoDB-specific nothrow methods
+    // ============================================================================
+
+    bool MongoDBCursor::isConnectionValid(std::nothrow_t) const noexcept
     {
         return !m_connection.expired();
     }
 
-    std::string MongoDBCursor::getError() const
+    expected<std::string, DBException> MongoDBCursor::getError(std::nothrow_t) const noexcept
     {
-        MONGODB_STMT_LOCK_OR_THROW("3NELABQQ6APO", "Cursor connection closed");
+        MONGODB_STMT_LOCK_OR_RETURN("3NELABQQ6APO", "Cursor connection closed");
         if (!m_cursor)
         {
-            return "";
+            return std::string("");
         }
         bson_error_t error;
         if (mongoc_cursor_error(m_cursor.get(), &error))
         {
-            return error.message;
+            return std::string(error.message);
         }
-        return "";
+        return std::string("");
     }
-#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::MongoDB
 

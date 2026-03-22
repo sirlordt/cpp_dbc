@@ -46,6 +46,14 @@ namespace cpp_dbc::MongoDB
         return makeBsonHandleFromJson(std::nothrow, filter);
     }
 
+    expected<void, DBException> MongoDBCollection::throwMongoError(std::nothrow_t, const bson_error_t &error, const std::string &operation) const noexcept
+    {
+        return unexpected<DBException>(DBException(
+            "B6C2D1E0F5A4",
+            operation + " failed: " + std::string(error.message),
+            system_utils::captureCallStack()));
+    }
+
     expected<std::string, DBException> MongoDBCollection::buildIdFilter(std::nothrow_t, const std::string &id) const noexcept
     {
         // Use BSON construction to prevent JSON injection
@@ -87,14 +95,6 @@ namespace cpp_dbc::MongoDB
         return filter;
     }
 
-    expected<void, DBException> MongoDBCollection::throwMongoError(std::nothrow_t, const bson_error_t &error, const std::string &operation) const noexcept
-    {
-        return unexpected<DBException>(DBException(
-            "B6C2D1E0F5A4",
-            operation + " failed: " + std::string(error.message),
-            system_utils::captureCallStack()));
-    }
-
     // ============================================================================
     // MongoDBCollection Implementation - Nothrow Constructor
     // Public for std::make_shared access, but effectively private via PrivateCtorTag.
@@ -105,7 +105,7 @@ namespace cpp_dbc::MongoDB
                                          mongoc_collection_t *collection,
                                          const std::string &name,
                                          const std::string &databaseName,
-                                         std::weak_ptr<MongoDBConnection> connection)
+                                         std::weak_ptr<MongoDBConnection> connection) noexcept
         : m_connection(std::move(connection)),
           m_collection(collection),
           m_name(name),

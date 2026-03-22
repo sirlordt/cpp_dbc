@@ -183,20 +183,6 @@ namespace cpp_dbc::MongoDB
         bool isExhausted() override;
         [[noreturn]] void rewind() override;
 
-        // MongoDB-specific methods
-
-        /**
-         * @brief Check if the connection is still valid
-         * @return true if the connection is valid
-         */
-        bool isConnectionValid() const noexcept;
-
-        /**
-         * @brief Get any error from the cursor
-         * @return The error message, or empty string if no error
-         */
-        std::string getError() const;
-
 #endif // __cpp_exceptions
 
         // ====================================================================
@@ -239,6 +225,10 @@ namespace cpp_dbc::MongoDB
             std::nothrow_t, const std::string &fieldPath, bool ascending = true) noexcept override;
         expected<bool, DBException> isExhausted(std::nothrow_t) noexcept override;
         expected<void, DBException> rewind(std::nothrow_t) noexcept override;
+
+        // MongoDB-specific methods
+        bool isConnectionValid(std::nothrow_t) const noexcept;
+        expected<std::string, DBException> getError(std::nothrow_t) const noexcept;
     };
 
 } // namespace cpp_dbc::MongoDB
