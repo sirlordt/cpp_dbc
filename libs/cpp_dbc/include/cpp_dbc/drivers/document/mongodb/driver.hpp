@@ -43,23 +43,9 @@ namespace cpp_dbc::MongoDB
             explicit PrivateCtorTag() = default;
         };
 
-        // Note: Using atomic<bool> + mutex instead of std::once_flag for the
-        // initialization guard because std::once_flag cannot be reset, but
-        // cleanup() must allow re-initialization on subsequent driver construction.
-        static std::atomic<bool> s_initialized;
-        static std::mutex s_initMutex;
-
         // ── Singleton state ───────────────────────────────────────────────────
         static std::shared_ptr<MongoDBDriver> s_instance;
         static std::mutex                     s_instanceMutex;
-
-        // ── atexit cleanup guard ──────────────────────────────────────────────
-        // Ensures mongoc_cleanup() is registered with std::atexit exactly once
-        // across the entire process lifetime, regardless of how many times the
-        // singleton is created and destroyed. std::call_once may throw
-        // std::system_error on a broken OS threading primitive, which is a
-        // death sentence — std::terminate is the correct response.
-        static std::once_flag s_atexitFlag;
 
         // ── Connection registry ───────────────────────────────────────────────
         static std::mutex                                                      s_registryMutex;
@@ -99,11 +85,7 @@ namespace cpp_dbc::MongoDB
         MongoDBDriver(PrivateCtorTag, std::nothrow_t) noexcept;
 
         /**
-         * @brief Destructor
-         *
-         * Note: mongoc_cleanup() is NOT called here because it should only
-         * be called once when the application exits. Use cleanup() explicitly
-         * if needed.
+         * @brief Destructor — closes all open connections and calls cleanup()
          */
         ~MongoDBDriver() override;
 
@@ -159,12 +141,6 @@ namespace cpp_dbc::MongoDB
          * After calling this, no more MongoDB operations should be performed.
          */
         static void cleanup();
-
-        /**
-         * @brief Check if the MongoDB library has been initialized
-         * @return true if initialized
-         */
-        static bool isInitialized();
 
         /**
          * @brief Validate a MongoDB URI

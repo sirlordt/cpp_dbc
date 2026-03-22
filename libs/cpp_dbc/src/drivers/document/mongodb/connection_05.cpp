@@ -293,12 +293,7 @@ namespace cpp_dbc::MongoDB
 
     expected<bool, DBException> MongoDBConnection::ping(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
-        {
-            return false;
-        }
+        MONGODB_CONNECTION_LOCK_OR_RETURN("TOVLVDLYJF0D", "Cannot ping");
 
         bson_t pingCmd = BSON_INITIALIZER;
         BSON_APPEND_INT32(&pingCmd, "ping", 1);
@@ -357,7 +352,8 @@ namespace cpp_dbc::MongoDB
     expected<void, DBException> MongoDBConnection::endSession(
         std::nothrow_t, const std::string &sessionId) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        MONGODB_CONNECTION_LOCK_OR_RETURN("FQTK0JDSQQX4", "Cannot end session");
+
         auto it = m_sessions.find(sessionId);
         if (it != m_sessions.end())
         {
@@ -369,7 +365,7 @@ namespace cpp_dbc::MongoDB
     expected<void, DBException> MongoDBConnection::startTransaction(
         std::nothrow_t, const std::string &sessionId) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        MONGODB_CONNECTION_LOCK_OR_RETURN("0LUSBR570215", "Cannot start transaction");
 
         auto it = m_sessions.find(sessionId);
         if (it == m_sessions.end())
@@ -395,7 +391,7 @@ namespace cpp_dbc::MongoDB
     expected<void, DBException> MongoDBConnection::commitTransaction(
         std::nothrow_t, const std::string &sessionId) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        MONGODB_CONNECTION_LOCK_OR_RETURN("2U09IC579FQT", "Cannot commit transaction");
 
         auto it = m_sessions.find(sessionId);
         if (it == m_sessions.end())
@@ -426,7 +422,7 @@ namespace cpp_dbc::MongoDB
     expected<void, DBException> MongoDBConnection::abortTransaction(
         std::nothrow_t, const std::string &sessionId) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        MONGODB_CONNECTION_LOCK_OR_RETURN("ETIO3NWEEE5K", "Cannot abort transaction");
 
         auto it = m_sessions.find(sessionId);
         if (it == m_sessions.end())
@@ -451,12 +447,7 @@ namespace cpp_dbc::MongoDB
 
     expected<bool, DBException> MongoDBConnection::supportsTransactions(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (!m_conn)
-        {
-            return false;
-        }
+        MONGODB_CONNECTION_LOCK_OR_RETURN("1N3V909U4OFR", "Cannot check transaction support");
 
         // Select a server to get its description
         bson_error_t error;

@@ -168,8 +168,15 @@ namespace cpp_dbc::MongoDB
             m_acquired = true;
         }
 
-        bool isAcquired() const noexcept { return m_acquired; }
-        explicit operator bool() const noexcept { return m_acquired; }
+        bool isAcquired() const noexcept
+        {
+            return m_acquired;
+        }
+
+        explicit operator bool() const noexcept
+        {
+            return m_acquired;
+        }
 
         /**
          * @brief Access the native mongoc_client_t* through the held connection

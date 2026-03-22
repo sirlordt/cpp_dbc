@@ -51,7 +51,7 @@ namespace cpp_dbc::MongoDB
 
     expected<void, DBException> MongoDBConnection::validateConnection(std::nothrow_t) const noexcept
     {
-        if (m_closed.load(std::memory_order_seq_cst))
+        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
         {
             return unexpected(DBException("90HXALU7EB7D", "MongoDB connection is closed", system_utils::captureCallStack()));
         }

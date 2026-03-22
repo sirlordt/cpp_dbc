@@ -154,8 +154,11 @@ namespace cpp_dbc::MongoDB
             return true;
         }
 
-        // mongoc_cursor_more() is unreliable, so we peek ahead to be sure
-        // Read the next document and store it in m_peekedDoc
+        // 2026-03-22T00:00:00Z
+        // Bug: mongoc_cursor_more() may report remaining data unreliably for certain
+        // cursor types, causing hasNext() to return true when no documents remain.
+        // Solution: Peek one BSON document ahead with mongoc_cursor_next() and store
+        // it in m_peekedDoc so hasNext() reflects the real iteration state.
         const bson_t *doc = nullptr;
         if (mongoc_cursor_next(m_cursor.get(), &doc))
         {

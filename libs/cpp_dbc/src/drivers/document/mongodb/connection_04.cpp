@@ -90,14 +90,7 @@ namespace cpp_dbc::MongoDB
     expected<void, DBException> MongoDBConnection::useDatabase(
         std::nothrow_t, const std::string &databaseName) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-        {
-            auto r = validateConnection(std::nothrow);
-            if (!r.has_value())
-            {
-                return cpp_dbc::unexpected(r.error());
-            }
-        }
+        MONGODB_CONNECTION_LOCK_OR_RETURN("TOH5ELBYU3J8", "Cannot use database");
 
         if (!databaseName.empty() && !system_utils::isValidDatabaseIdentifier(databaseName))
         {
