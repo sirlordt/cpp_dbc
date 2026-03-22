@@ -1,6 +1,50 @@
 # Changelog
 
-## 2026-03-13 10:40:00 PDT [Current]
+## 2026-03-21 20:54:00 PDT [Current]
+
+### MongoDB Driver — Convention Compliance Fixes (7 Violations, 54 Occurrences)
+
+This release fixes all 7 convention violations identified in `research/mongodb_driver_improvements_3.md`, addressing 54 individual occurrences across 16 files. The fixes span connection lifecycle guards, child-object lifecycle checks, code centralization, lambda formatting, database identifier validation, and DBException code randomization. Total: **16 files changed, +138/-179 lines**.
+
+#### Connection Lifecycle Guards — `MONGODB_CONNECTION_LOCK_OR_RETURN` (Violation #1, High)
+
+- **`connection_04.cpp`**: 6 methods (`listDatabases`, `dropDatabase`, `getCollection`, `listCollections`, `createCollection`, `dropCollection`) — replaced manual `DB_DRIVER_LOCK_GUARD(*m_connMutex)` + `if (m_closed)` with `MONGODB_CONNECTION_LOCK_OR_RETURN` macro, which checks both `m_closed || !m_conn`
+- **`connection_05.cpp`**: `runCommand` — same macro replacement; `ping` — added `|| !m_conn` to existing closed check; `startSession` — replaced `validateConnection(std::nothrow)` pattern with `MONGODB_CONNECTION_LOCK_OR_RETURN`
+
+#### Child-Object Lifecycle Checks — `MONGODB_STMT_LOCK_OR_RETURN` (Violation #2, High)
+
+- **`collection_01.cpp`**: `getName`, `getNamespace` — added `MONGODB_STMT_LOCK_OR_RETURN` guard before returning cached state
+- **`cursor_02.cpp`**: `count`, `getPosition`, `isExhausted`, `rewind` — added `MONGODB_STMT_LOCK_OR_RETURN` guard before returning cached/in-memory state
+
+#### Centralized Helpers and Constants (Violation #3, Medium)
+
+- **`collection.hpp`**: New private `buildIdFilter(std::nothrow_t, const std::string &id)` helper declaration
+- **`collection_01.cpp`**: `buildIdFilter()` implementation — builds BSON `_id` filter handling both OID and string IDs, preventing JSON injection
+- **`collection_02.cpp`**: `findById()` refactored to use `buildIdFilter()` (was 40 lines of duplicated BSON construction)
+- **`collection_05.cpp`**: `deleteById()` refactored to use `buildIdFilter()` (identical deduplication)
+- **`driver_01.cpp`**: `getURIScheme()` and `buildURI()` — raw `"cpp_dbc:"` literals replaced with `system_constants::URI_PREFIX`
+
+#### Database Identifier Validation in `buildURI()` (Violation #7, High)
+
+- **`driver_01.cpp`**: Added `system_utils::isValidDatabaseIdentifier(database)` check in `buildURI()` before appending database name to the URI — prevents injection of invalid characters
+
+#### Lambda Allman Brace Style (Violation #5, Medium)
+
+- **`connection_01.cpp`**: 2 lambdas in `registerCollection`/`registerCursor` — expanded to Allman style (opening brace on own line)
+- **`driver_01.cpp`**: 2 lambdas in `registerConnection`/`getConnectionAlive` — same formatting fix
+
+#### DBException Code Randomization (Violation #6, Medium)
+
+- 29 sequential/manually-invented codes replaced with randomly generated codes via `./generate_dbexception_code.sh` across 11 files (`collection_01-07.cpp`, `connection_01.cpp`, `connection_05.cpp`, `cursor_02.cpp`, `document_06.cpp`, `document_07.cpp`, `driver_01.cpp`)
+- Uniqueness verified via `./check_dbexception_codes.sh --check` — all codes valid and unique
+
+#### Empty Constructor Body (Violation #4, Low — False Positive)
+
+- **`document_01.cpp`**: Confirmed that the `MongoDBDocument` empty constructor body **cannot** use `= default` — C++ only allows defaulting the default constructor (no parameters), copy/move constructors, and copy/move assignment operators. This constructor takes `PrivateCtorTag` + `std::nothrow_t`, making it ineligible. Comment added documenting the constraint.
+
+---
+
+## 2026-03-13 10:40:00 PDT
 
 ### DBException Hybrid Storage, Build System TSAN/Debug Flags, Test Runner Sanitizer Label
 

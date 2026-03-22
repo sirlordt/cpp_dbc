@@ -156,7 +156,7 @@ namespace cpp_dbc::MongoDB
         if (!BSON_ITER_HOLDS_BOOL(&iter))
         {
             return unexpected<DBException>(DBException(
-                "0B1C2D3E4F5A",
+                "8MIAV0HG2VDM",
                 "Field is not a boolean: " + fieldPath,
                 system_utils::captureCallStack()));
         }
@@ -177,7 +177,7 @@ namespace cpp_dbc::MongoDB
         if (!*nav)
         {
             return unexpected<DBException>(DBException(
-                "3E4F5A6B7C8D",
+                "CSRERJJG665Q",
                 "Field not found: " + fieldPath,
                 system_utils::captureCallStack()));
         }
@@ -185,7 +185,7 @@ namespace cpp_dbc::MongoDB
         if (!BSON_ITER_HOLDS_BINARY(&iter))
         {
             return unexpected<DBException>(DBException(
-                "4F5A6B7C8D9E",
+                "Y6M3SNESHJW0",
                 "Field is not binary: " + fieldPath,
                 system_utils::captureCallStack()));
         }

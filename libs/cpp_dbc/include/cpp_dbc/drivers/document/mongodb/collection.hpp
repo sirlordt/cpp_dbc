@@ -103,6 +103,13 @@ namespace cpp_dbc::MongoDB
         expected<void, DBException> throwMongoError(std::nothrow_t, const bson_error_t &error, const std::string &operation) const noexcept;
 
         /**
+         * @brief Builds a BSON filter for _id lookup, handling both OID and string IDs
+         * @param id The document ID (ObjectId hex string or plain string)
+         * @return JSON string representing {"_id": ...} filter, or DBException on failure
+         */
+        expected<std::string, DBException> buildIdFilter(std::nothrow_t, const std::string &id) const noexcept;
+
+        /**
          * @brief Flag indicating constructor initialization failed
          *
          * Set by the private nothrow constructor when the collection pointer is null.

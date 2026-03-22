@@ -64,14 +64,7 @@ namespace cpp_dbc::MongoDB
     expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::runCommand(
         std::nothrow_t, const std::string &command) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst))
-        {
-            return unexpected<DBException>(DBException(
-                "44TYH8VEG840",
-                "Connection has been closed"));
-        }
+        MONGODB_CONNECTION_LOCK_OR_RETURN("44TYH8VEG840", "Cannot run command");
 
         if (m_databaseName.empty())
         {
@@ -294,7 +287,7 @@ namespace cpp_dbc::MongoDB
     {
         DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-        if (m_closed.load(std::memory_order_seq_cst))
+        if (m_closed.load(std::memory_order_seq_cst) || !m_conn)
         {
             return false;
         }
@@ -318,14 +311,7 @@ namespace cpp_dbc::MongoDB
 
     expected<std::string, DBException> MongoDBConnection::startSession(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-        {
-            auto r = validateConnection(std::nothrow);
-            if (!r.has_value())
-            {
-                return cpp_dbc::unexpected(r.error());
-            }
-        }
+        MONGODB_CONNECTION_LOCK_OR_RETURN("RMJY4PVNCI25", "Cannot start session");
 
         mongoc_session_opt_t *opts = mongoc_session_opts_new();
         mongoc_session_opts_set_causal_consistency(opts, true);
@@ -337,7 +323,7 @@ namespace cpp_dbc::MongoDB
 
         if (!session)
         {
-            return cpp_dbc::unexpected(DBException("B2C3D4E5F6G7",
+            return cpp_dbc::unexpected(DBException("341F5MZB1W9B",
                 std::string("Failed to start session: ") + error.message,
                 system_utils::captureCallStack()));
         }

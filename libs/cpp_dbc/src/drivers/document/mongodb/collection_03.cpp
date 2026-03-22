@@ -42,7 +42,7 @@ namespace cpp_dbc::MongoDB
         const std::string &filter) noexcept
     {
         MONGODB_DEBUG("MongoDBCollection::find(nothrow) - Finding in: %s", m_name.c_str());
-        MONGODB_STMT_LOCK_OR_RETURN("C0D1E2F3A4B5", "Connection closed");
+        MONGODB_STMT_LOCK_OR_RETURN("30DM98JEZP3V", "Connection closed");
 
         auto filterResult = parseFilter(std::nothrow, filter);
         if (!filterResult.has_value())

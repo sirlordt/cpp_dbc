@@ -46,6 +46,47 @@ namespace cpp_dbc::MongoDB
         return makeBsonHandleFromJson(std::nothrow, filter);
     }
 
+    expected<std::string, DBException> MongoDBCollection::buildIdFilter(std::nothrow_t, const std::string &id) const noexcept
+    {
+        // Use BSON construction to prevent JSON injection
+        bson_t *filterBson = bson_new();
+        if (!filterBson)
+        {
+            return unexpected<DBException>(DBException(
+                "G37K0HMC7KPG",
+                "Failed to allocate BSON for _id filter",
+                system_utils::captureCallStack()));
+        }
+
+        if (bson_oid_is_valid(id.c_str(), id.length()))
+        {
+            bson_oid_t oid;
+            bson_oid_init_from_string(&oid, id.c_str());
+            BSON_APPEND_OID(filterBson, "_id", &oid);
+        }
+        else
+        {
+            BSON_APPEND_UTF8(filterBson, "_id", id.c_str());
+        }
+
+        size_t length = 0;
+        char *json = bson_as_json(filterBson, &length);
+        bson_destroy(filterBson);
+
+        if (!json)
+        {
+            return unexpected<DBException>(DBException(
+                "YLRSZGOWNANI",
+                "Failed to convert BSON _id filter to JSON",
+                system_utils::captureCallStack()));
+        }
+
+        std::string filter(json, length);
+        bson_free(json);
+
+        return filter;
+    }
+
     expected<void, DBException> MongoDBCollection::throwMongoError(std::nothrow_t, const bson_error_t &error, const std::string &operation) const noexcept
     {
         return unexpected<DBException>(DBException(
@@ -361,11 +402,13 @@ namespace cpp_dbc::MongoDB
 
     expected<std::string, DBException> MongoDBCollection::getName(std::nothrow_t) const noexcept
     {
+        MONGODB_STMT_LOCK_OR_RETURN("BAMRP5GEYR9Z", "Collection closed");
         return m_name;
     }
 
     expected<std::string, DBException> MongoDBCollection::getNamespace(std::nothrow_t) const noexcept
     {
+        MONGODB_STMT_LOCK_OR_RETURN("IU165L6GVQ7B", "Collection closed");
         return m_databaseName + "." + m_name;
     }
 

@@ -43,7 +43,7 @@ namespace cpp_dbc::MongoDB
         const DocumentWriteOptions &options) noexcept
     {
         MONGODB_DEBUG("MongoDBCollection::insertOne(nothrow) - Inserting document into: %s", m_name.c_str());
-        MONGODB_STMT_LOCK_OR_RETURN("A1B2C3D4E5F6", "Connection closed");
+        MONGODB_STMT_LOCK_OR_RETURN("DK1M2CSS4DUK", "Connection closed");
 
         auto mongoDoc = std::dynamic_pointer_cast<MongoDBDocument>(document);
         if (!mongoDoc)
@@ -123,7 +123,7 @@ namespace cpp_dbc::MongoDB
         const DocumentWriteOptions &options) noexcept
     {
         MONGODB_DEBUG("MongoDBCollection::insertMany(nothrow) - Inserting %zu documents", documents.size());
-        MONGODB_STMT_LOCK_OR_RETURN("D9E0F1A2B3C4", "Connection closed");
+        MONGODB_STMT_LOCK_OR_RETURN("XX7F1O4E27K2", "Connection closed");
 
         if (documents.empty())
         {
@@ -207,7 +207,7 @@ namespace cpp_dbc::MongoDB
         {
             bson_destroy(&reply);
             return unexpected<DBException>(DBException(
-                "E0F1A2B3C4D5",
+                "Y1V7RX08Y2RS",
                 std::string("insertMany failed: ") + error.message,
                 system_utils::captureCallStack()));
         }
@@ -222,7 +222,7 @@ namespace cpp_dbc::MongoDB
         const std::string &filter) noexcept
     {
         MONGODB_DEBUG("MongoDBCollection::findOne(nothrow) - Finding in: %s", m_name.c_str());
-        MONGODB_STMT_LOCK_OR_RETURN("C4D5E6F7A8B9", "Connection closed");
+        MONGODB_STMT_LOCK_OR_RETURN("ETSIWX2HUHVB", "Connection closed");
 
         auto filterResult = parseFilter(std::nothrow, filter);
         if (!filterResult.has_value())
@@ -257,7 +257,7 @@ namespace cpp_dbc::MongoDB
             if (!docCopy)
             {
                 return unexpected<DBException>(DBException(
-                    "D5E6F7A8B9C1",
+                    "FP7XUYAL6092",
                     "Failed to copy BSON document in findOne (memory allocation failure)",
                     system_utils::captureCallStack()));
             }
@@ -287,43 +287,12 @@ namespace cpp_dbc::MongoDB
         std::nothrow_t,
         const std::string &id) noexcept
     {
-        // Use BSON construction to prevent JSON injection
-        bson_t *filterBson = bson_new();
-        if (!filterBson)
+        auto filterResult = buildIdFilter(std::nothrow, id);
+        if (!filterResult.has_value())
         {
-            return unexpected<DBException>(DBException(
-                "A8B9C0D1E2F2",
-                "Failed to allocate BSON for filter",
-                system_utils::captureCallStack()));
+            return unexpected<DBException>(filterResult.error());
         }
-
-        if (bson_oid_is_valid(id.c_str(), id.length()))
-        {
-            bson_oid_t oid;
-            bson_oid_init_from_string(&oid, id.c_str());
-            BSON_APPEND_OID(filterBson, "_id", &oid);
-        }
-        else
-        {
-            BSON_APPEND_UTF8(filterBson, "_id", id.c_str());
-        }
-
-        size_t length = 0;
-        char *json = bson_as_json(filterBson, &length);
-        bson_destroy(filterBson);
-
-        if (!json)
-        {
-            return unexpected<DBException>(DBException(
-                "A8B9C0D1E2F4",
-                "Failed to convert BSON filter to JSON",
-                system_utils::captureCallStack()));
-        }
-
-        std::string filter(json, length);
-        bson_free(json);
-
-        return findOne(std::nothrow, filter);
+        return findOne(std::nothrow, filterResult.value());
     }
 
 } // namespace cpp_dbc::MongoDB

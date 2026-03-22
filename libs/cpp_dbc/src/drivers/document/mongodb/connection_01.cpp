@@ -53,7 +53,7 @@ namespace cpp_dbc::MongoDB
     {
         if (m_closed.load(std::memory_order_seq_cst))
         {
-            return unexpected(DBException("M7N8O9P0Q1R2", "MongoDB connection is closed", system_utils::captureCallStack()));
+            return unexpected(DBException("90HXALU7EB7D", "MongoDB connection is closed", system_utils::captureCallStack()));
         }
         return {};
     }
@@ -130,7 +130,7 @@ namespace cpp_dbc::MongoDB
         if (!mongoUri)
         {
             m_initFailed = true;
-            m_initError = std::make_unique<DBException>("J4K5L6M7N8O9", std::string("Invalid MongoDB URI: ") + error.message, system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("1OXPBI27AL55", std::string("Invalid MongoDB URI: ") + error.message, system_utils::captureCallStack());
             return;
         }
 
@@ -155,7 +155,7 @@ namespace cpp_dbc::MongoDB
         if (!rawClient)
         {
             m_initFailed = true;
-            m_initError = std::make_unique<DBException>("K5L6M7N8O9P0", "Failed to create MongoDB client", system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("V3903JBT00PB", "Failed to create MongoDB client", system_utils::captureCallStack());
             return;
         }
 
@@ -184,7 +184,7 @@ namespace cpp_dbc::MongoDB
         {
             m_conn.reset();
             m_initFailed = true;
-            m_initError = std::make_unique<DBException>("L6M7N8O9P0Q1", std::string("Failed to connect to MongoDB: ") + error.message, system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("9B543GLKKN05", std::string("Failed to connect to MongoDB: ") + error.message, system_utils::captureCallStack());
             return;
         }
 
@@ -313,8 +313,11 @@ namespace cpp_dbc::MongoDB
         DB_DRIVER_LOCK_GUARD(*m_connMutex);
         if (m_activeCollections.size() > 50)
         {
-            std::erase_if(m_activeCollections, [](const auto &w)
-                          { return w.expired(); });
+            std::erase_if(m_activeCollections,
+            [](const auto &w)
+            {
+                return w.expired();
+            });
         }
         m_activeCollections.insert(std::move(collection));
         MONGODB_DEBUG("MongoDBConnection::registerCollection - Registered collection, total: %zu", m_activeCollections.size());
@@ -336,8 +339,11 @@ namespace cpp_dbc::MongoDB
         DB_DRIVER_LOCK_GUARD(*m_connMutex);
         if (m_activeCursors.size() > 50)
         {
-            std::erase_if(m_activeCursors, [](const auto &w)
-                          { return w.expired(); });
+            std::erase_if(m_activeCursors,
+            [](const auto &w)
+            {
+                return w.expired();
+            });
         }
         m_activeCursors.insert(std::move(cursor));
         MONGODB_DEBUG("MongoDBConnection::registerCursor - Registered cursor, total: %zu", m_activeCursors.size());

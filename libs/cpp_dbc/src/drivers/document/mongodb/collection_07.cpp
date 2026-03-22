@@ -101,7 +101,7 @@ namespace cpp_dbc::MongoDB
         if (!cursorGuard)
         {
             return unexpected<DBException>(DBException(
-                "I3J4K5L6M7N8",
+                "0086MYZA084B",
                 "Failed to create cursor for aggregate",
                 system_utils::captureCallStack()));
         }

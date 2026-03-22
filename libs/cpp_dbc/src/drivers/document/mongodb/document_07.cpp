@@ -104,7 +104,7 @@ namespace cpp_dbc::MongoDB
                     if (!subdoc)
                     {
                         return unexpected<DBException>(DBException(
-                            "6F7A8B9C0D1F",
+                            "IOV9T5P8H38C",
                             "Failed to construct subdocument at index " + std::to_string(elementIndex) + " in array field: " + fieldPath,
                             system_utils::captureCallStack()));
                     }
@@ -190,7 +190,7 @@ namespace cpp_dbc::MongoDB
                 else if (strict)
                 {
                     return unexpected<DBException>(DBException(
-                        "8B9C0D1E2F3G",
+                        "7F3Y2QJCXZ2B",
                         "Unexpected element type at index " + std::to_string(elementIndex) + " in array field: " + fieldPath + " (expected string)",
                         system_utils::captureCallStack()));
                 }

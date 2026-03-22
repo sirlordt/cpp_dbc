@@ -2,7 +2,36 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. The `DBDriver` base class provides a unified URI API (`acceptURI`, `parseURI`, `buildURI`, `getURIScheme`) and a unified `getDriverVersion()` method. The `DBConnection` base class provides `getServerVersion()` and `getServerInfo()` for runtime introspection of database server versions and metadata across all drivers (2026-03-08). Both MySQL and PostgreSQL drivers now follow the same architecture: connection owns mutex directly, PreparedStatement/ResultSet hold `weak_ptr<Connection>` and acquire the mutex via RAII lock helpers (`MySQLConnectionLock` / `PostgreSQLConnectionLock`), PrivateCtorTag pattern with `m_initFailed`/`m_initError`, `std::atomic<bool> m_closed`, result set registry in connection with `notifyConnClosing()` lifecycle management (2026-03-12). `DBException` is a `final`, `noexcept`-constructible hybrid fixed/dynamic storage class (~120 bytes object size): a 79-byte fixed buffer holds mark + up to 64 chars of message; longer messages spill to a heap-allocated `shared_ptr<char[]>` overflow buffer via `new(std::nothrow)` with graceful degradation (2026-03-13). The connection pool system is fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
+The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. The `DBDriver` base class provides a unified URI API (`acceptURI`, `parseURI`, `buildURI`, `getURIScheme`) and a unified `getDriverVersion()` method. The `DBConnection` base class provides `getServerVersion()` and `getServerInfo()` for runtime introspection of database server versions and metadata across all drivers (2026-03-08). Both MySQL and PostgreSQL drivers now follow the same architecture: connection owns mutex directly, PreparedStatement/ResultSet hold `weak_ptr<Connection>` and acquire the mutex via RAII lock helpers (`MySQLConnectionLock` / `PostgreSQLConnectionLock`), PrivateCtorTag pattern with `m_initFailed`/`m_initError`, `std::atomic<bool> m_closed`, result set registry in connection with `notifyConnClosing()` lifecycle management (2026-03-12). `DBException` is a `final`, `noexcept`-constructible hybrid fixed/dynamic storage class (~120 bytes object size): a 79-byte fixed buffer holds mark + up to 64 chars of message; longer messages spill to a heap-allocated `shared_ptr<char[]>` overflow buffer via `new(std::nothrow)` with graceful degradation (2026-03-13). The MongoDB driver passed a full convention compliance audit (2026-03-21): all connection methods use `MONGODB_CONNECTION_LOCK_OR_RETURN` (checks `m_closed || !m_conn`), child objects enforce parent lifecycle checks on all public methods, `buildIdFilter()` centralizes _id filter construction, `buildURI()` validates database identifiers, and 29 sequential DBException codes were replaced with randomly generated ones. The connection pool system is fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
+
+### Recent Improvements (2026-03-21 20:54 PDT)
+
+**MongoDB Driver — Convention Compliance Fixes (7 Violations, 54 Occurrences):**
+
+1. **Connection Lifecycle Guards (Violation #1, High, 9 occurrences):**
+   - 6 methods in `connection_04.cpp` + 3 in `connection_05.cpp` replaced manual `DB_DRIVER_LOCK_GUARD + if(m_closed)` with `MONGODB_CONNECTION_LOCK_OR_RETURN` macro (checks `m_closed || !m_conn`)
+   - `ping` got `|| !m_conn` added to existing check; `startSession` replaced `validateConnection()` pattern
+
+2. **Child-Object Lifecycle Checks (Violation #2, High, 6 occurrences):**
+   - `getName`, `getNamespace` (collection), `count`, `getPosition`, `isExhausted`, `rewind` (cursor) now check parent connection state before returning cached data
+
+3. **Centralized Helpers (Violation #3, Medium, 4 occurrences):**
+   - New `buildIdFilter()` private method deduplicates BSON _id filter construction between `findById()` and `deleteById()`
+   - Raw `"cpp_dbc:"` literals replaced with `system_constants::URI_PREFIX`
+
+4. **Database Identifier Validation (Violation #7, High, 1 occurrence):**
+   - `buildURI()` now validates database name with `isValidDatabaseIdentifier()` before appending to URI
+
+5. **Lambda Allman Style (Violation #5, Medium, 4 occurrences):**
+   - 4 lambdas in `connection_01.cpp`/`driver_01.cpp` formatted with braces on own lines
+
+6. **DBException Code Randomization (Violation #6, Medium, 29 occurrences):**
+   - 29 sequential/manual codes replaced with randomly generated codes across 11 files
+
+7. **Empty Constructor (Violation #4, Low, 1 occurrence — False Positive):**
+   - Confirmed `MongoDBDocument` constructor cannot use `= default` (takes `PrivateCtorTag` + `std::nothrow_t`); comment added
+
+8. **Impact:** 16 files changed, +138/-179 lines
 
 ### Recent Improvements (2026-03-13 10:40 PDT)
 

@@ -114,15 +114,19 @@ namespace cpp_dbc::MongoDB
         // cleanup threshold and no cleanup task is already queued.
         if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_seq_cst))
         {
-            SerialQueue::global().post([]()
-            {
+            SerialQueue::global().post(
+                []()
                 {
-                    std::scoped_lock lock(s_registryMutex);
-                    std::erase_if(s_connectionRegistry,
-                        [](const auto &w) { return w.expired(); });
-                }
-                s_cleanupPending.store(false, std::memory_order_seq_cst);
-            });
+                    {
+                        std::scoped_lock lock(s_registryMutex);
+                        std::erase_if(s_connectionRegistry,
+                            [](const auto &w)
+                            {
+                                return w.expired();
+                            });
+                    }
+                    s_cleanupPending.store(false, std::memory_order_seq_cst);
+                });
         }
     }
 
@@ -164,7 +168,10 @@ namespace cpp_dbc::MongoDB
         std::scoped_lock lock(s_registryMutex);
         return static_cast<size_t>(std::ranges::count_if(
             s_connectionRegistry,
-            [](const auto &w) { return !w.expired(); }));
+            [](const auto &w)
+            {
+                return !w.expired();
+            }));
     }
 
 #ifdef __cpp_exceptions
@@ -196,7 +203,7 @@ namespace cpp_dbc::MongoDB
 
     std::string MongoDBDriver::getURIScheme() const noexcept
     {
-        return "cpp_dbc:mongodb://<host>:<port>/<database>";
+        return std::string(cpp_dbc::system_constants::URI_PREFIX) + "mongodb://<host>:<port>/<database>";
     }
 
     bool MongoDBDriver::supportsReplicaSets() const noexcept
@@ -327,7 +334,7 @@ namespace cpp_dbc::MongoDB
         if (!uri.starts_with(cpp_dbc::system_constants::URI_PREFIX))
         {
             return unexpected<DBException>(DBException(
-                "1C2D3E4F5A6B",
+                "N9YJ2DHLFUF7",
                 "Invalid MongoDB URI: " + uri));
         }
         std::string nativeUri = uri.substr(cpp_dbc::system_constants::URI_PREFIX.size());
@@ -389,7 +396,7 @@ namespace cpp_dbc::MongoDB
         std::ostringstream uri;
 
         // Start with scheme (cpp_dbc: prefix + native mongodb://)
-        uri << "cpp_dbc:mongodb://";
+        uri << cpp_dbc::system_constants::URI_PREFIX << "mongodb://";
 
         // Add host — bracket raw IPv6 (e.g. "::1" → "[::1]")
         if (host.empty())
@@ -412,9 +419,16 @@ namespace cpp_dbc::MongoDB
             uri << ":" << port;
         }
 
-        // Add database
+        // Validate and add database
         if (!database.empty())
         {
+            if (!system_utils::isValidDatabaseIdentifier(database))
+            {
+                return cpp_dbc::unexpected(DBException(
+                    "XLGG2NN4B7J6",
+                    "Invalid database name: " + database,
+                    system_utils::captureCallStack()));
+            }
             uri << "/" << database;
         }
 

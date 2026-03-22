@@ -46,14 +46,7 @@ namespace cpp_dbc::MongoDB
 
     expected<std::vector<std::string>, DBException> MongoDBConnection::listDatabases(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst))
-        {
-            return unexpected<DBException>(DBException(
-                "C54C7EECE4D6",
-                "Connection has been closed"));
-        }
+        MONGODB_CONNECTION_LOCK_OR_RETURN("C54C7EECE4D6", "Cannot list databases");
 
         bson_error_t error;
         BsonStrArray names(mongoc_client_get_database_names_with_opts(m_conn.get(), nullptr, &error));
@@ -121,14 +114,7 @@ namespace cpp_dbc::MongoDB
     expected<void, DBException> MongoDBConnection::dropDatabase(
         std::nothrow_t, const std::string &databaseName) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst))
-        {
-            return unexpected<DBException>(DBException(
-                "U06DKBMOC39W",
-                "Connection has been closed"));
-        }
+        MONGODB_CONNECTION_LOCK_OR_RETURN("U06DKBMOC39W", "Cannot drop database");
 
         if (!databaseName.empty() && !system_utils::isValidDatabaseIdentifier(databaseName))
         {
@@ -160,14 +146,7 @@ namespace cpp_dbc::MongoDB
     expected<std::shared_ptr<DocumentDBCollection>, DBException> MongoDBConnection::getCollection(
         std::nothrow_t, const std::string &collectionName) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst))
-        {
-            return unexpected<DBException>(DBException(
-                "34BF1ABBB585",
-                "Connection has been closed"));
-        }
+        MONGODB_CONNECTION_LOCK_OR_RETURN("34BF1ABBB585", "Cannot get collection");
 
         if (m_databaseName.empty())
         {
@@ -206,14 +185,7 @@ namespace cpp_dbc::MongoDB
 
     expected<std::vector<std::string>, DBException> MongoDBConnection::listCollections(std::nothrow_t) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst))
-        {
-            return unexpected<DBException>(DBException(
-                "N3SD6D8C6ACJ",
-                "Connection has been closed"));
-        }
+        MONGODB_CONNECTION_LOCK_OR_RETURN("N3SD6D8C6ACJ", "Cannot list collections");
 
         if (m_databaseName.empty())
         {
@@ -259,14 +231,7 @@ namespace cpp_dbc::MongoDB
         const std::string &collectionName,
         const std::string &options) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst))
-        {
-            return unexpected<DBException>(DBException(
-                "QH38NDY2VMSQ",
-                "Connection has been closed"));
-        }
+        MONGODB_CONNECTION_LOCK_OR_RETURN("QH38NDY2VMSQ", "Cannot create collection");
 
         if (m_databaseName.empty())
         {
@@ -328,14 +293,7 @@ namespace cpp_dbc::MongoDB
     expected<void, DBException> MongoDBConnection::dropCollection(
         std::nothrow_t, const std::string &collectionName) noexcept
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed.load(std::memory_order_seq_cst))
-        {
-            return unexpected<DBException>(DBException(
-                "LCTMVU4COTWE",
-                "Connection has been closed"));
-        }
+        MONGODB_CONNECTION_LOCK_OR_RETURN("LCTMVU4COTWE", "Cannot drop collection");
 
         if (m_databaseName.empty())
         {

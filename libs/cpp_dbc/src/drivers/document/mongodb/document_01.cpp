@@ -38,7 +38,10 @@ namespace cpp_dbc::MongoDB
     // Public for std::make_shared access, but effectively private via PrivateCtorTag.
     // ============================================================================
 
-    // Default constructor — creates an empty document (m_bson == nullptr until factory assigns a handle)
+    // Default constructor — creates an empty document (m_bson == nullptr until factory assigns a handle).
+    // Empty body is intentional and cannot use = default: the C++ standard only allows defaulting
+    // the default constructor (no parameters), copy/move constructors, and copy/move assignment
+    // operators. This constructor takes PrivateCtorTag + std::nothrow_t, so it is not eligible.
     MongoDBDocument::MongoDBDocument(MongoDBDocument::PrivateCtorTag, std::nothrow_t) noexcept
     {
         // Intentionally empty — all members use in-class initializers

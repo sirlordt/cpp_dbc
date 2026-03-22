@@ -226,7 +226,7 @@ namespace cpp_dbc::MongoDB
         if (!*r)
         {
             return unexpected<DBException>(DBException(
-                "2D3E4F5A6B7C",
+                "GW2IOCQLTF69",
                 "No more documents in cursor",
                 system_utils::captureCallStack()));
         }
@@ -327,11 +327,13 @@ namespace cpp_dbc::MongoDB
 
     expected<int64_t, DBException> MongoDBCursor::count(std::nothrow_t) noexcept
     {
+        MONGODB_STMT_LOCK_OR_RETURN("648YVC6RBL4G", "Cursor connection closed");
         return int64_t{-1};
     }
 
     expected<uint64_t, DBException> MongoDBCursor::getPosition(std::nothrow_t) noexcept
     {
+        MONGODB_STMT_LOCK_OR_RETURN("XI67DVJTD8LB", "Cursor connection closed");
         return m_position;
     }
 
@@ -383,11 +385,13 @@ namespace cpp_dbc::MongoDB
 
     expected<bool, DBException> MongoDBCursor::isExhausted(std::nothrow_t) noexcept
     {
+        MONGODB_STMT_LOCK_OR_RETURN("D2IRWX17YG56", "Cursor connection closed");
         return m_exhausted;
     }
 
     expected<void, DBException> MongoDBCursor::rewind(std::nothrow_t) noexcept
     {
+        MONGODB_STMT_LOCK_OR_RETURN("710KRZLKFILT", "Cursor connection closed");
         // MongoDB cursors do not support rewinding - always return an error
         return unexpected<DBException>(DBException(
             "D2E8F7A6B1C0",

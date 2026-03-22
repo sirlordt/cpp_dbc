@@ -70,7 +70,7 @@ namespace cpp_dbc::MongoDB
             if (!optsBson)
             {
                 return unexpected<DBException>(DBException(
-                    "B5C6D7E8F9A1",
+                    "TWUUAOG4VEMJ",
                     std::string("Failed to parse index options JSON: ") + parseError.message,
                     system_utils::captureCallStack()));
             }
@@ -202,7 +202,7 @@ namespace cpp_dbc::MongoDB
         if (!cursor)
         {
             return unexpected<DBException>(DBException(
-                "G1H2I3J4K5L6",
+                "CVSIOQV63PVT",
                 "Failed to list indexes",
                 system_utils::captureCallStack()));
         }
@@ -223,7 +223,7 @@ namespace cpp_dbc::MongoDB
         if (mongoc_cursor_error(cursor.get(), &error))
         {
             return unexpected<DBException>(DBException(
-                "H2I3J4K5L6M7",
+                "4X27M6PC8LBP",
                 std::string("listIndexes error: ") + error.message,
                 system_utils::captureCallStack()));
         }

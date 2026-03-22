@@ -37,7 +37,17 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **DBException Hybrid Storage, Build System TSAN/Debug Flags, Test Runner Sanitizer Label** (2026-03-13 10:40 PDT):
+1. **MongoDB Driver — Convention Compliance Fixes** (2026-03-21 20:54 PDT):
+   - **Connection lifecycle guards:** 9 methods in `connection_04.cpp`/`connection_05.cpp` replaced manual `DB_DRIVER_LOCK_GUARD + if(m_closed)` with `MONGODB_CONNECTION_LOCK_OR_RETURN` macro (checks `m_closed || !m_conn`); `ping` got `|| !m_conn` added; `startSession` replaced `validateConnection()` with macro
+   - **Child-object lifecycle checks:** 6 methods in `collection_01.cpp`/`cursor_02.cpp` (`getName`, `getNamespace`, `count`, `getPosition`, `isExhausted`, `rewind`) now check parent connection state via `MONGODB_STMT_LOCK_OR_RETURN` before returning cached data
+   - **Centralized `buildIdFilter()` helper:** Extracted duplicated _id filter construction from `findById()` and `deleteById()` into `MongoDBCollection::buildIdFilter()` private method; raw `"cpp_dbc:"` literals replaced with `system_constants::URI_PREFIX`
+   - **`buildURI()` database validation:** Added `isValidDatabaseIdentifier()` check before appending database name to URI
+   - **Lambda Allman style:** 4 lambdas in `connection_01.cpp`/`driver_01.cpp` formatted with braces on own lines
+   - **DBException codes:** 29 sequential/manual codes replaced with randomly generated codes via `generate_dbexception_code.sh`
+   - **`= default` false positive:** Confirmed `MongoDBDocument` constructor cannot use `= default` (takes parameters); comment added
+   - 16 files changed, +138/-179 lines
+
+2. **DBException Hybrid Storage, Build System TSAN/Debug Flags, Test Runner Sanitizer Label** (2026-03-13 10:40 PDT):
    - **DBException hybrid storage:** Fixed buffer reduced from 271 to 79 bytes (12 mark + 2 ": " + 64 msg + 1 null); new `shared_ptr<char[]> m_overflow` for messages > 64 chars allocated via `new(std::nothrow)`; graceful degradation to truncated buffer on alloc failure; class made `final`; `what_s()` no longer virtual; object size ~120 bytes (down from ~287)
    - **`build_cpp_dbc.sh`:** New `--tsan` flag for ThreadSanitizer; unified `SANITIZER_FLAGS`/`SANITIZER_LINKER_FLAGS` variables; `CMAKE_EXE_LINKER_FLAGS` now passed to CMake; new `--debug-mysql`/`--debug-postgresql` flags; CMake variable ordering cleaned up
    - **`build_test_cpp_dbc.sh`:** `PROJECT_ROOT` resolved to absolute path for consistent `CMAKE_INSTALL_PREFIX`; new `INSTALL_DIR` variable; `CPP_DBC_BUILD_EXAMPLES=OFF`/`CPP_DBC_BUILD_BENCHMARKS=OFF` explicitly passed; `DEBUG_ALL` now forwarded

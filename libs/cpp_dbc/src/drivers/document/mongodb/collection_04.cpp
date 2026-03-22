@@ -44,7 +44,7 @@ namespace cpp_dbc::MongoDB
         const DocumentUpdateOptions &options) noexcept
     {
         MONGODB_DEBUG("MongoDBCollection::updateOne(nothrow) - Updating in: %s", m_name.c_str());
-        MONGODB_STMT_LOCK_OR_RETURN("E8F9A0B1C2D3", "Connection closed");
+        MONGODB_STMT_LOCK_OR_RETURN("Y92KDTUMAJAN", "Connection closed");
 
         auto filterResult = parseFilter(std::nothrow, filter);
         if (!filterResult.has_value())
@@ -100,7 +100,7 @@ namespace cpp_dbc::MongoDB
         {
             bson_destroy(&reply);
             return unexpected<DBException>(DBException(
-                "F9A0B1C2D3E4",
+                "JP3OM58MFOER",
                 std::string("updateOne failed: ") + error.message,
                 system_utils::captureCallStack()));
         }
@@ -116,7 +116,7 @@ namespace cpp_dbc::MongoDB
         const DocumentUpdateOptions &options) noexcept
     {
         MONGODB_DEBUG("MongoDBCollection::updateMany(nothrow) - Updating in: %s", m_name.c_str());
-        MONGODB_STMT_LOCK_OR_RETURN("D3E4F5A6B7C8", "Connection closed");
+        MONGODB_STMT_LOCK_OR_RETURN("UFL4AW663UJ2", "Connection closed");
 
         auto filterResult = parseFilter(std::nothrow, filter);
         if (!filterResult.has_value())
@@ -165,7 +165,7 @@ namespace cpp_dbc::MongoDB
         {
             bson_destroy(&reply);
             return unexpected<DBException>(DBException(
-                "E4F5A6B7C8D9",
+                "K0LHUO5BV67Q",
                 std::string("updateMany failed: ") + error.message,
                 system_utils::captureCallStack()));
         }
@@ -181,7 +181,7 @@ namespace cpp_dbc::MongoDB
         const DocumentUpdateOptions &options) noexcept
     {
         MONGODB_DEBUG("MongoDBCollection::replaceOne(nothrow) - Replacing in: %s", m_name.c_str());
-        MONGODB_STMT_LOCK_OR_RETURN("C8D9E0F1A2B3", "Connection closed");
+        MONGODB_STMT_LOCK_OR_RETURN("GV07UFPBM9P6", "Connection closed");
 
         auto mongoDoc = std::dynamic_pointer_cast<MongoDBDocument>(replacement);
         if (!mongoDoc)

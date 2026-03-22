@@ -74,6 +74,7 @@
   - Driver initialization: double-checked locking with `std::atomic<bool>` + `std::mutex` (replaces `std::once_flag`)
   - ID caching in `MongoDBDocument`: avoids repeated BSON traversal for `_id` field
   - `getDriverVersion()` via `mongoc_get_version()`; `getServerVersion()` from buildInfo; `getServerInfo()` returns ServerVersion, GitVersion, Allocator, JavascriptEngine, Bits, MaxBsonObjectSize; `getServerInfoAsDocument()` replaces old `getServerInfo()` (2026-03-08)
+  - Convention compliance fixes (2026-03-21): all connection methods use `MONGODB_CONNECTION_LOCK_OR_RETURN` macro (checks `m_closed || !m_conn`); child objects (`MongoDBCollection`, `MongoDBCursor`) enforce parent-connection lifecycle checks on all public methods including cached-state getters; `buildIdFilter()` private helper centralizes `_id` filter construction; `buildURI()` validates database identifiers; 29 sequential DBException codes replaced with randomly generated codes
 
 - **Cassandra/ScyllaDB Client Library**: For ScyllaDB columnar database connectivity
   - Uses the DataStax C++ driver for Apache Cassandra API (`cassandra.h`)
