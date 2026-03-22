@@ -45,7 +45,6 @@ namespace cpp_dbc::MongoDB
      */
     class MongoDBConnection final : public DocumentDBConnection, public std::enable_shared_from_this<MongoDBConnection>
     {
-    private:
         /**
          * @brief Private tag for the passkey idiom — enables std::make_shared
          * from static factory methods while keeping the constructor

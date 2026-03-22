@@ -34,7 +34,6 @@ namespace cpp_dbc::MongoDB
      */
     class MongoDBDocument final : public DocumentDBData
     {
-    private:
         /**
          * @brief Private tag for the passkey idiom — enables std::make_shared
          * from static factory methods while keeping the constructor
@@ -77,8 +76,10 @@ namespace cpp_dbc::MongoDB
 
         /**
          * @brief Error captured when constructor initialization fails
+         *
+         * Only allocated on the failure path (~256 bytes saved per successful instance).
          */
-        DBException m_initError{"QBIW9CD0D9T6", "", {}};
+        std::unique_ptr<DBException> m_initError{nullptr};
 
         /**
          * @brief Helper to navigate to a nested field using dot notation (nothrow)

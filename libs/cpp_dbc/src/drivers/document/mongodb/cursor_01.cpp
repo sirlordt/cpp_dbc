@@ -72,7 +72,7 @@ namespace cpp_dbc::MongoDB
         if (!m_cursor)
         {
             m_initFailed = true;
-            m_initError = DBException("C9D5E4F3A7B8", "Cannot create cursor from null pointer", system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("C9D5E4F3A7B8", "Cannot create cursor from null pointer", system_utils::captureCallStack());
             return;
         }
         // Note: Cursor registration is done by MongoDBCollection after make_shared

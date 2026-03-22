@@ -80,7 +80,15 @@ namespace cpp_dbc::MongoDB
         }
         BsonHandle cmdBson = std::move(cmdBsonResult.value());
 
-        MongoDatabaseHandle db(mongoc_client_get_database(m_conn.get(), m_databaseName.c_str()));
+        auto *rawDb = mongoc_client_get_database(m_conn.get(), m_databaseName.c_str());
+        if (!rawDb)
+        {
+            return cpp_dbc::unexpected(DBException(
+                "KBM8LFRFR9DF",
+                "Failed to acquire database handle for command",
+                system_utils::captureCallStack()));
+        }
+        MongoDatabaseHandle db(rawDb);
 
         bson_error_t error;
         bson_t reply;
@@ -117,6 +125,11 @@ namespace cpp_dbc::MongoDB
     expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::getServerInfoAsDocument(std::nothrow_t) noexcept
     {
         return runCommand(std::nothrow, "{\"buildInfo\": 1}");
+    }
+
+    expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::getServerStatus(std::nothrow_t) noexcept
+    {
+        return runCommand(std::nothrow, "{\"serverStatus\": 1}");
     }
 
     expected<std::string, DBException> MongoDBConnection::getServerVersion(std::nothrow_t) noexcept
@@ -273,11 +286,6 @@ namespace cpp_dbc::MongoDB
         return info;
     }
 
-    expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::getServerStatus(std::nothrow_t) noexcept
-    {
-        return runCommand(std::nothrow, "{\"serverStatus\": 1}");
-    }
-
     // ====================================================================
     // NOTHROW API - ping, startSession, endSession, startTransaction, commitTransaction,
     //               abortTransaction, supportsTransactions, prepareForPoolReturn (real implementations)
@@ -298,7 +306,14 @@ namespace cpp_dbc::MongoDB
         bson_t reply;
         bson_init(&reply);
 
-        MongoDatabaseHandle adminDb(mongoc_client_get_database(m_conn.get(), "admin"));
+        auto *rawAdminDb = mongoc_client_get_database(m_conn.get(), "admin");
+        if (!rawAdminDb)
+        {
+            bson_destroy(&pingCmd);
+            bson_destroy(&reply);
+            return false;
+        }
+        MongoDatabaseHandle adminDb(rawAdminDb);
 
         bson_error_t error;
         bool success = mongoc_database_command_simple(adminDb.get(), &pingCmd, nullptr, &reply, &error);
@@ -314,6 +329,12 @@ namespace cpp_dbc::MongoDB
         MONGODB_CONNECTION_LOCK_OR_RETURN("RMJY4PVNCI25", "Cannot start session");
 
         mongoc_session_opt_t *opts = mongoc_session_opts_new();
+        if (!opts)
+        {
+            return cpp_dbc::unexpected(DBException("T8IKJNHVSYM9",
+                "Failed to allocate session options",
+                system_utils::captureCallStack()));
+        }
         mongoc_session_opts_set_causal_consistency(opts, true);
 
         bson_error_t error;

@@ -172,7 +172,15 @@ namespace cpp_dbc::MongoDB
         bson_t reply;
         bson_init(&reply);
 
-        MongoDatabaseHandle adminDb(mongoc_client_get_database(m_conn.get(), "admin"));
+        auto *rawAdminDb = mongoc_client_get_database(m_conn.get(), "admin");
+        if (!rawAdminDb)
+        {
+            m_conn.reset();
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>("C4GL8418TBRM", "Failed to acquire admin database handle for ping", system_utils::captureCallStack());
+            return;
+        }
+        MongoDatabaseHandle adminDb(rawAdminDb);
 
         bool pingSuccess = mongoc_database_command_simple(
             adminDb.get(), &pingCmd, nullptr, &reply, &error);

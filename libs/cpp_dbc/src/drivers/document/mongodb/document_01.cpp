@@ -53,7 +53,7 @@ namespace cpp_dbc::MongoDB
         if (!m_bson)
         {
             m_initFailed = true;
-            m_initError = DBException("FD8E3A3DQYXQ", "Cannot create document from null BSON pointer", system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("FD8E3A3DQYXQ", "Cannot create document from null BSON pointer", system_utils::captureCallStack());
         }
     }
 
@@ -70,7 +70,7 @@ namespace cpp_dbc::MongoDB
         if (!bson)
         {
             m_initFailed = true;
-            m_initError = DBException("QSA3OO6XGI66", std::string("Failed to parse JSON: ") + error.message, system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("QSA3OO6XGI66", std::string("Failed to parse JSON: ") + error.message, system_utils::captureCallStack());
             return;
         }
 
@@ -208,7 +208,7 @@ namespace cpp_dbc::MongoDB
         auto obj = std::make_shared<MongoDBDocument>(PrivateCtorTag{}, std::nothrow, bson);
         if (obj->m_initFailed)
         {
-            return unexpected<DBException>(obj->m_initError);
+            return unexpected<DBException>(std::move(*obj->m_initError));
         }
         return obj;
     }
@@ -221,7 +221,7 @@ namespace cpp_dbc::MongoDB
         auto obj = std::make_shared<MongoDBDocument>(PrivateCtorTag{}, std::nothrow, json);
         if (obj->m_initFailed)
         {
-            return unexpected<DBException>(obj->m_initError);
+            return unexpected<DBException>(std::move(*obj->m_initError));
         }
         return obj;
     }

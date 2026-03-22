@@ -163,17 +163,6 @@ namespace cpp_dbc::MongoDB
         }
     }
 
-    size_t MongoDBDriver::getConnectionAlive() noexcept
-    {
-        std::scoped_lock lock(s_registryMutex);
-        return static_cast<size_t>(std::ranges::count_if(
-            s_connectionRegistry,
-            [](const auto &w)
-            {
-                return !w.expired();
-            }));
-    }
-
 #ifdef __cpp_exceptions
     std::shared_ptr<MongoDBDriver> MongoDBDriver::getInstance()
     {
@@ -200,6 +189,38 @@ namespace cpp_dbc::MongoDB
     }
 
 #endif // __cpp_exceptions
+
+    // ====================================================================
+    // MongoDBDriver NOTHROW VERSIONS
+    // ====================================================================
+
+    cpp_dbc::expected<std::shared_ptr<MongoDBDriver>, DBException>
+    MongoDBDriver::getInstance(std::nothrow_t) noexcept
+    {
+        std::scoped_lock lock(s_instanceMutex);
+        if (s_instance)
+        {
+            return s_instance;
+        }
+        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+        // MongoDBDriver constructor only calls initialize(std::nothrow) and debug
+        // macros — no recoverable exception is possible.
+        auto inst = std::make_shared<MongoDBDriver>(MongoDBDriver::PrivateCtorTag{}, std::nothrow);
+        s_instance = inst;
+
+        // Register mongoc_cleanup() with std::atexit exactly once for the entire
+        // process lifetime. std::call_once may throw std::system_error on a broken
+        // OS threading primitive — that is a death sentence; std::terminate is correct.
+        std::call_once(s_atexitFlag, []()
+        {
+            std::atexit([]()
+            {
+                MongoDBDriver::cleanup();
+            });
+        });
+
+        return s_instance;
+    }
 
     std::string MongoDBDriver::getURIScheme() const noexcept
     {
@@ -255,38 +276,6 @@ namespace cpp_dbc::MongoDB
         }
 
         return false;
-    }
-
-    // ====================================================================
-    // MongoDBDriver NOTHROW VERSIONS
-    // ====================================================================
-
-    cpp_dbc::expected<std::shared_ptr<MongoDBDriver>, DBException>
-    MongoDBDriver::getInstance(std::nothrow_t) noexcept
-    {
-        std::scoped_lock lock(s_instanceMutex);
-        if (s_instance)
-        {
-            return s_instance;
-        }
-        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
-        // MongoDBDriver constructor only calls initialize(std::nothrow) and debug
-        // macros — no recoverable exception is possible.
-        auto inst = std::make_shared<MongoDBDriver>(MongoDBDriver::PrivateCtorTag{}, std::nothrow);
-        s_instance = inst;
-
-        // Register mongoc_cleanup() with std::atexit exactly once for the entire
-        // process lifetime. std::call_once may throw std::system_error on a broken
-        // OS threading primitive — that is a death sentence; std::terminate is correct.
-        std::call_once(s_atexitFlag, []()
-        {
-            std::atexit([]()
-            {
-                MongoDBDriver::cleanup();
-            });
-        });
-
-        return s_instance;
     }
 
     expected<std::shared_ptr<DocumentDBConnection>, DBException> MongoDBDriver::connectDocument(
@@ -447,6 +436,17 @@ namespace cpp_dbc::MongoDB
     std::string MongoDBDriver::getName() const noexcept
     {
         return "mongodb";
+    }
+
+    size_t MongoDBDriver::getConnectionAlive() noexcept
+    {
+        std::scoped_lock lock(s_registryMutex);
+        return static_cast<size_t>(std::ranges::count_if(
+            s_connectionRegistry,
+            [](const auto &w)
+            {
+                return !w.expired();
+            }));
     }
 
 } // namespace cpp_dbc::MongoDB

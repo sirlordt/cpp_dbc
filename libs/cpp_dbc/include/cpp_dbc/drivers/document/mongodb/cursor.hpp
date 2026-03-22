@@ -33,7 +33,6 @@ namespace cpp_dbc::MongoDB
      */
     class MongoDBCursor final : public DocumentDBCursor, public std::enable_shared_from_this<MongoDBCursor>
     {
-    private:
         /**
          * @brief Private tag for the passkey idiom — enables std::make_shared
          * from static factory methods while keeping the constructor
@@ -118,7 +117,7 @@ namespace cpp_dbc::MongoDB
         bool m_modifiersApplied{false};
 
         bool m_initFailed{false};
-        DBException m_initError{"0J9B2L099DS7", "", {}};
+        std::unique_ptr<DBException> m_initError{nullptr};
 
         /**
          * @brief Validates that the cursor is valid
@@ -215,7 +214,7 @@ namespace cpp_dbc::MongoDB
                 PrivateCtorTag{}, std::nothrow, cursor, std::move(connection));
             if (obj->m_initFailed)
             {
-                return cpp_dbc::unexpected(obj->m_initError);
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
             }
             return obj;
         }

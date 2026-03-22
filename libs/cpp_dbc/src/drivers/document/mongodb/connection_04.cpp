@@ -124,7 +124,15 @@ namespace cpp_dbc::MongoDB
                 system_utils::captureCallStack()));
         }
 
-        MongoDatabaseHandle db(mongoc_client_get_database(m_conn.get(), databaseName.c_str()));
+        auto *rawDb = mongoc_client_get_database(m_conn.get(), databaseName.c_str());
+        if (!rawDb)
+        {
+            return cpp_dbc::unexpected(DBException(
+                "PL1TA1VJP6H7",
+                "Failed to acquire database handle for drop",
+                system_utils::captureCallStack()));
+        }
+        MongoDatabaseHandle db(rawDb);
 
         bson_error_t error;
         bool success = mongoc_database_drop(db.get(), &error);
@@ -194,7 +202,15 @@ namespace cpp_dbc::MongoDB
                 "No database selected. Call useDatabase() first"));
         }
 
-        MongoDatabaseHandle db(mongoc_client_get_database(m_conn.get(), m_databaseName.c_str()));
+        auto *rawDb = mongoc_client_get_database(m_conn.get(), m_databaseName.c_str());
+        if (!rawDb)
+        {
+            return cpp_dbc::unexpected(DBException(
+                "K1QZOW0R5Q3Q",
+                "Failed to acquire database handle for listing collections",
+                system_utils::captureCallStack()));
+        }
+        MongoDatabaseHandle db(rawDb);
 
         bson_error_t error;
         BsonStrArray names(mongoc_database_get_collection_names_with_opts(db.get(), nullptr, &error));
@@ -240,7 +256,15 @@ namespace cpp_dbc::MongoDB
                 "No database selected. Call useDatabase() first"));
         }
 
-        MongoDatabaseHandle db(mongoc_client_get_database(m_conn.get(), m_databaseName.c_str()));
+        auto *rawDb = mongoc_client_get_database(m_conn.get(), m_databaseName.c_str());
+        if (!rawDb)
+        {
+            return cpp_dbc::unexpected(DBException(
+                "NQQE8ZZHEDK3",
+                "Failed to acquire database handle for creating collection",
+                system_utils::captureCallStack()));
+        }
+        MongoDatabaseHandle db(rawDb);
 
         bson_t *opts = nullptr;
         if (!options.empty())

@@ -132,7 +132,15 @@ namespace cpp_dbc::MongoDB
 
         std::vector<std::string> result;
 
-        BsonHandle cmd(bson_new());
+        bson_t *rawCmd = bson_new();
+        if (!rawCmd)
+        {
+            return cpp_dbc::unexpected(DBException(
+                "SACX7PWFEZBY",
+                "Failed to allocate BSON for distinct command",
+                system_utils::captureCallStack()));
+        }
+        BsonHandle cmd(rawCmd);
         BSON_APPEND_UTF8(cmd.get(), "distinct", m_name.c_str());
         BSON_APPEND_UTF8(cmd.get(), "key", fieldPath.c_str());
 
@@ -148,9 +156,25 @@ namespace cpp_dbc::MongoDB
         }
 
         bson_error_t error;
-        BsonHandle reply(bson_new());
+        bson_t *rawReply = bson_new();
+        if (!rawReply)
+        {
+            return cpp_dbc::unexpected(DBException(
+                "IWJNJOB42L3D",
+                "Failed to allocate BSON for distinct reply",
+                system_utils::captureCallStack()));
+        }
+        BsonHandle reply(rawReply);
 
-        MongoDatabaseHandle db(mongoc_client_get_database(mongodb_conn_lock_.nativeClient(), m_databaseName.c_str()));
+        auto *rawDb = mongoc_client_get_database(mongodb_conn_lock_.nativeClient(), m_databaseName.c_str());
+        if (!rawDb)
+        {
+            return cpp_dbc::unexpected(DBException(
+                "2PWDO40FNS1F",
+                "Failed to acquire database handle for distinct",
+                system_utils::captureCallStack()));
+        }
+        MongoDatabaseHandle db(rawDb);
 
         bool success = mongoc_database_command_simple(db.get(), cmd.get(), nullptr, reply.get(), &error);
 

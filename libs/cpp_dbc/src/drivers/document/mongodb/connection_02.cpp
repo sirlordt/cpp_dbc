@@ -125,6 +125,16 @@ namespace cpp_dbc::MongoDB
         return *result;
     }
 
+    std::shared_ptr<DocumentDBData> MongoDBConnection::getServerStatus()
+    {
+        auto result = getServerStatus(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
     std::string MongoDBConnection::getServerVersion()
     {
         auto result = getServerVersion(std::nothrow);
@@ -138,16 +148,6 @@ namespace cpp_dbc::MongoDB
     std::map<std::string, std::string> MongoDBConnection::getServerInfo()
     {
         auto result = getServerInfo(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return *result;
-    }
-
-    std::shared_ptr<DocumentDBData> MongoDBConnection::getServerStatus()
-    {
-        auto result = getServerStatus(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();

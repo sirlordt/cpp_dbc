@@ -115,7 +115,7 @@ namespace cpp_dbc::MongoDB
         if (!m_collection)
         {
             m_initFailed = true;
-            m_initError = DBException("Q1U86NUBRYWR", "Cannot create collection from null pointer", system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("Q1U86NUBRYWR", "Cannot create collection from null pointer", system_utils::captureCallStack());
             return;
         }
         MONGODB_DEBUG("MongoDBCollection::constructor(nothrow) - Done");

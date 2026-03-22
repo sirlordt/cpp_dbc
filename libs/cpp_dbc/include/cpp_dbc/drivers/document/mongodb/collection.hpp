@@ -121,8 +121,9 @@ namespace cpp_dbc::MongoDB
          * @brief Error captured when constructor initialization fails
          *
          * Holds the DBException that would have been thrown, for deferred delivery.
+         * Only allocated on the failure path (~256 bytes saved per successful instance).
          */
-        DBException m_initError{"6ZO43XQ0VJA4", "", {}};
+        std::unique_ptr<DBException> m_initError{nullptr};
 
     public:
         // Nothrow constructor: contains all initialization logic.
@@ -241,7 +242,7 @@ namespace cpp_dbc::MongoDB
                 PrivateCtorTag{}, std::nothrow, collection, name, databaseName, std::move(connection));
             if (obj->m_initFailed)
             {
-                return cpp_dbc::unexpected(obj->m_initError);
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
             }
             return obj;
         }
