@@ -86,8 +86,8 @@ namespace cpp_dbc::MongoDB
         expected<void, DBException> validateDocument(std::nothrow_t) const noexcept;
 
         // ── Internal accessors (used by friend classes) ─────────────────────
-        const bson_t *getBson() const;
-        bson_t *getBsonMutable();
+        const bson_t *getBson(std::nothrow_t) const noexcept;
+        bson_t *getBsonMutable(std::nothrow_t) noexcept;
 
         friend class MongoDBCollection;
 

@@ -501,7 +501,7 @@ namespace cpp_dbc::MongoDB
                 }
             }
 
-            BSON_APPEND_DOCUMENT(newBson, fieldPath.c_str(), mongoDoc->getBson());
+            BSON_APPEND_DOCUMENT(newBson, fieldPath.c_str(), mongoDoc->getBson(std::nothrow));
 
             m_bson.reset(newBson);
             m_idCached = false;
@@ -752,23 +752,6 @@ namespace cpp_dbc::MongoDB
         }
 
         return bson_count_keys(m_bson.get()) == 0;
-    }
-
-    // ====================================================================
-    // NOTHROW API - MongoDB-specific: getBson, getBsonMutable
-    // ====================================================================
-
-    const bson_t *MongoDBDocument::getBson() const
-    {
-        DB_DRIVER_LOCK_GUARD(m_mutex);
-        return m_bson.get();
-    }
-
-    bson_t *MongoDBDocument::getBsonMutable()
-    {
-        DB_DRIVER_LOCK_GUARD(m_mutex);
-        m_idCached = false;
-        return m_bson.get();
     }
 
 } // namespace cpp_dbc::MongoDB

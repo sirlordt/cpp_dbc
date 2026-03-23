@@ -34,50 +34,6 @@ namespace cpp_dbc::MongoDB
 {
 
     // ============================================================================
-    // MongoDBDocument Implementation - Nothrow constructors (always available)
-    // Public for std::make_shared access, but effectively private via PrivateCtorTag.
-    // ============================================================================
-
-    // Default constructor — creates an empty document (m_bson == nullptr until factory assigns a handle).
-    // Empty body is intentional and cannot use = default: the C++ standard only allows defaulting
-    // the default constructor (no parameters), copy/move constructors, and copy/move assignment
-    // operators. This constructor takes PrivateCtorTag + std::nothrow_t, so it is not eligible.
-    MongoDBDocument::MongoDBDocument(MongoDBDocument::PrivateCtorTag, std::nothrow_t) noexcept
-    {
-        // Intentionally empty — all members use in-class initializers
-    }
-
-    MongoDBDocument::MongoDBDocument(MongoDBDocument::PrivateCtorTag, std::nothrow_t, bson_t *bson) noexcept
-        : m_bson(bson)
-    {
-        if (!m_bson)
-        {
-            m_initFailed = true;
-            m_initError = std::make_unique<DBException>("FD8E3A3DQYXQ", "Cannot create document from null BSON pointer", system_utils::captureCallStack());
-        }
-    }
-
-    MongoDBDocument::MongoDBDocument(MongoDBDocument::PrivateCtorTag, std::nothrow_t, const std::string &json) noexcept
-    {
-        DB_DRIVER_LOCK_GUARD(m_mutex);
-
-        bson_error_t error;
-        bson_t *bson = bson_new_from_json(
-            reinterpret_cast<const uint8_t *>(json.c_str()),
-            static_cast<ssize_t>(json.length()),
-            &error);
-
-        if (!bson)
-        {
-            m_initFailed = true;
-            m_initError = std::make_unique<DBException>("QSA3OO6XGI66", std::string("Failed to parse JSON: ") + error.message, system_utils::captureCallStack());
-            return;
-        }
-
-        m_bson.reset(bson);
-    }
-
-    // ============================================================================
     // MongoDBDocument Implementation - Private Helpers (nothrow)
     // ============================================================================
 
@@ -120,6 +76,60 @@ namespace cpp_dbc::MongoDB
             return unexpected(DBException("DBA6A185E250", "Document is not initialized", system_utils::captureCallStack()));
         }
         return {};
+    }
+
+    const bson_t *MongoDBDocument::getBson(std::nothrow_t) const noexcept
+    {
+        DB_DRIVER_LOCK_GUARD(m_mutex);
+        return m_bson.get();
+    }
+
+    bson_t *MongoDBDocument::getBsonMutable(std::nothrow_t) noexcept
+    {
+        DB_DRIVER_LOCK_GUARD(m_mutex);
+        m_idCached = false;
+        return m_bson.get();
+    }
+
+    // ============================================================================
+    // MongoDBDocument Implementation - Nothrow constructors (always available)
+    // Public for std::make_shared access, but effectively private via PrivateCtorTag.
+    // ============================================================================
+
+    // Default constructor — creates an empty document (m_bson == nullptr until factory assigns a handle).
+    MongoDBDocument::MongoDBDocument(MongoDBDocument::PrivateCtorTag, std::nothrow_t) noexcept
+    {
+        // Intentionally empty — all members use in-class initializers
+    }
+
+    MongoDBDocument::MongoDBDocument(MongoDBDocument::PrivateCtorTag, std::nothrow_t, bson_t *bson) noexcept
+        : m_bson(bson)
+    {
+        if (!m_bson)
+        {
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>("FD8E3A3DQYXQ", "Cannot create document from null BSON pointer", system_utils::captureCallStack());
+        }
+    }
+
+    MongoDBDocument::MongoDBDocument(MongoDBDocument::PrivateCtorTag, std::nothrow_t, const std::string &json) noexcept
+    {
+        DB_DRIVER_LOCK_GUARD(m_mutex);
+
+        bson_error_t error;
+        bson_t *bson = bson_new_from_json(
+            reinterpret_cast<const uint8_t *>(json.c_str()),
+            static_cast<ssize_t>(json.length()),
+            &error);
+
+        if (!bson)
+        {
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>("QSA3OO6XGI66", std::string("Failed to parse JSON: ") + error.message, system_utils::captureCallStack());
+            return;
+        }
+
+        m_bson.reset(bson);
     }
 
     // ============================================================================

@@ -44,33 +44,14 @@ namespace cpp_dbc::MongoDB
     // MongoDBDriver Implementation
     // ============================================================================
 
+    // ── Private helper methods ──────────────────────────────────────────────
+
     cpp_dbc::expected<bool, DBException> MongoDBDriver::initialize(std::nothrow_t) noexcept
     {
         MONGODB_DEBUG("MongoDBDriver::initialize - Initializing MongoDB C driver");
         mongoc_init();
         MONGODB_DEBUG("MongoDBDriver::initialize - Done");
         return true;
-    }
-
-    MongoDBDriver::MongoDBDriver(MongoDBDriver::PrivateCtorTag, std::nothrow_t) noexcept
-    {
-        MONGODB_DEBUG("MongoDBDriver::constructor - Creating driver");
-        auto result = initialize(std::nothrow);
-        if (!result.has_value())
-        {
-            m_initFailed = true;
-            m_initError = std::make_unique<DBException>(std::move(result.error()));
-        }
-        MONGODB_DEBUG("MongoDBDriver::constructor - Done");
-    }
-
-    MongoDBDriver::~MongoDBDriver()
-    {
-        MONGODB_DEBUG("MongoDBDriver::destructor - Destroying driver");
-
-        closeAllOpenConnections(std::nothrow);
-
-        cleanup();
     }
 
     void MongoDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<MongoDBConnection> conn) noexcept
@@ -133,6 +114,29 @@ namespace cpp_dbc::MongoDB
         {
             [[maybe_unused]] auto closeResult = conn->close(std::nothrow);
         }
+    }
+
+    // ── Constructor, Destructor ───────────────────────────────────────────────
+
+    MongoDBDriver::MongoDBDriver(MongoDBDriver::PrivateCtorTag, std::nothrow_t) noexcept
+    {
+        MONGODB_DEBUG("MongoDBDriver::constructor - Creating driver");
+        auto result = initialize(std::nothrow);
+        if (!result.has_value())
+        {
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>(std::move(result.error()));
+        }
+        MONGODB_DEBUG("MongoDBDriver::constructor - Done");
+    }
+
+    MongoDBDriver::~MongoDBDriver()
+    {
+        MONGODB_DEBUG("MongoDBDriver::destructor - Destroying driver");
+
+        closeAllOpenConnections(std::nothrow);
+
+        cleanup();
     }
 
 #ifdef __cpp_exceptions

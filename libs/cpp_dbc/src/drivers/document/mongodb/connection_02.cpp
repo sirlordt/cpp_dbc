@@ -33,6 +33,28 @@
 namespace cpp_dbc::MongoDB
 {
 
+    // ============================================================================
+    // MongoDBConnection Implementation - Private helpers
+    // ============================================================================
+
+    std::weak_ptr<mongoc_client_t> MongoDBConnection::getClientWeak(std::nothrow_t) const noexcept
+    {
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        return std::weak_ptr<mongoc_client_t>(m_conn);
+    }
+
+    MongoClientHandle MongoDBConnection::getClient(std::nothrow_t) const noexcept
+    {
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        return m_conn;
+    }
+
+    void MongoDBConnection::setPooled(std::nothrow_t, bool pooled) noexcept
+    {
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        m_pooled = pooled;
+    }
+
 #ifdef __cpp_exceptions
     std::shared_ptr<DocumentDBCollection> MongoDBConnection::getCollection(const std::string &collectionName)
     {
@@ -241,28 +263,6 @@ namespace cpp_dbc::MongoDB
     }
 
 #endif // __cpp_exceptions
-
-    // ============================================================================
-    // MongoDBConnection Implementation - Private helpers
-    // ============================================================================
-
-    std::weak_ptr<mongoc_client_t> MongoDBConnection::getClientWeak(std::nothrow_t) const noexcept
-    {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-        return std::weak_ptr<mongoc_client_t>(m_conn);
-    }
-
-    MongoClientHandle MongoDBConnection::getClient(std::nothrow_t) const noexcept
-    {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-        return m_conn;
-    }
-
-    void MongoDBConnection::setPooled(std::nothrow_t, bool pooled) noexcept
-    {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-        m_pooled = pooled;
-    }
 
 } // namespace cpp_dbc::MongoDB
 

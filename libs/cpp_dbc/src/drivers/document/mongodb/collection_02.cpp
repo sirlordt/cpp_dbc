@@ -54,7 +54,7 @@ namespace cpp_dbc::MongoDB
                 system_utils::captureCallStack()));
         }
 
-        bson_t *bson = mongoDoc->getBsonMutable();
+        bson_t *bson = mongoDoc->getBsonMutable(std::nothrow);
         bson_iter_t iter;
         if (!bson_iter_init_find(&iter, bson, "_id"))
         {
@@ -155,7 +155,7 @@ namespace cpp_dbc::MongoDB
                     system_utils::captureCallStack()));
             }
 
-            bson_t *bson = mongoDoc->getBsonMutable();
+            bson_t *bson = mongoDoc->getBsonMutable(std::nothrow);
             bson_iter_t iter;
             if (!bson_iter_init_find(&iter, bson, "_id"))
             {
@@ -163,7 +163,7 @@ namespace cpp_dbc::MongoDB
                 bson_oid_init(&oid, nullptr);
                 BSON_APPEND_OID(bson, "_id", &oid);
             }
-            bsonDocs.push_back(mongoDoc->getBson());
+            bsonDocs.push_back(mongoDoc->getBson(std::nothrow));
         }
 
         bson_t opts = BSON_INITIALIZER;

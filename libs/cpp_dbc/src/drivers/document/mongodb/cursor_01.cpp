@@ -245,7 +245,14 @@ namespace cpp_dbc::MongoDB
 
     bool MongoDBCursor::isConnectionValid(std::nothrow_t) const noexcept
     {
-        return !m_connection.expired();
+        auto conn = m_connection.lock();
+        if (!conn || m_closed.load(std::memory_order_seq_cst) ||
+            conn->m_closed.load(std::memory_order_seq_cst))
+        {
+            m_closed.store(true, std::memory_order_seq_cst);
+            return false;
+        }
+        return true;
     }
 
     expected<std::string, DBException> MongoDBCursor::getError(std::nothrow_t) const noexcept

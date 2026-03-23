@@ -55,9 +55,14 @@ namespace cpp_dbc::MongoDB
         // ── Coalesced cleanup flag ────────────────────────────────────────────
         inline static std::atomic s_cleanupPending{false};
 
-        /**
-         * @brief Initialize the MongoDB C driver library
-         */
+        // ── Driver state ──────────────────────────────────────────────────────
+        std::atomic<bool> m_closed{false};
+
+        // ── Construction state ────────────────────────────────────────────────
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
+
+        // ── Private helper methods ────────────────────────────────────────────
         static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
 
         static void registerConnection(std::nothrow_t, std::weak_ptr<MongoDBConnection> conn) noexcept;
@@ -66,15 +71,6 @@ namespace cpp_dbc::MongoDB
         void closeAllOpenConnections(std::nothrow_t) noexcept;
 
         friend class MongoDBConnection;
-
-        // ── Driver state ──────────────────────────────────────────────────────
-        // Set to true by the destructor before releasing resources.
-        // Prevents new connection attempts during and after driver teardown.
-        std::atomic<bool> m_closed{false};
-
-        // ── Construction state ────────────────────────────────────────────────
-        bool m_initFailed{false};
-        std::unique_ptr<DBException> m_initError{nullptr};
 
     public:
         /**

@@ -210,7 +210,7 @@ namespace cpp_dbc::MongoDB
         bson_init(&reply);
 
         bool success = mongoc_collection_replace_one(
-            m_collection.get(), filterBson.get(), mongoDoc->getBson(), &opts, &reply, &error);
+            m_collection.get(), filterBson.get(), mongoDoc->getBson(std::nothrow), &opts, &reply, &error);
         bson_destroy(&opts);
 
         DocumentUpdateResult result;
