@@ -37,17 +37,22 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **MongoDB Driver — Convention Compliance Fixes** (2026-03-21 20:54 PDT):
-   - **Connection lifecycle guards:** 9 methods in `connection_04.cpp`/`connection_05.cpp` replaced manual `DB_DRIVER_LOCK_GUARD + if(m_closed)` with `MONGODB_CONNECTION_LOCK_OR_RETURN` macro (checks `m_closed || !m_conn`); `ping` got `|| !m_conn` added; `startSession` replaced `validateConnection()` with macro
-   - **Child-object lifecycle checks:** 6 methods in `collection_01.cpp`/`cursor_02.cpp` (`getName`, `getNamespace`, `count`, `getPosition`, `isExhausted`, `rewind`) now check parent connection state via `MONGODB_STMT_LOCK_OR_RETURN` before returning cached data
-   - **Centralized `buildIdFilter()` helper:** Extracted duplicated _id filter construction from `findById()` and `deleteById()` into `MongoDBCollection::buildIdFilter()` private method; raw `"cpp_dbc:"` literals replaced with `system_constants::URI_PREFIX`
-   - **`buildURI()` database validation:** Added `isValidDatabaseIdentifier()` check before appending database name to URI
-   - **Lambda Allman style:** 4 lambdas in `connection_01.cpp`/`driver_01.cpp` formatted with braces on own lines
-   - **DBException codes:** 29 sequential/manual codes replaced with randomly generated codes via `generate_dbexception_code.sh`
-   - **`= default` false positive:** Confirmed `MongoDBDocument` constructor cannot use `= default` (takes parameters); comment added
+1. **Redis Driver — Convention Compliance Refactoring + MongoDB Additional Fixes** (2026-03-29 09:22 PDT):
+   - **Redis mutex architecture:** `m_context` renamed to `m_conn`; `std::mutex m_mutex` replaced with `SharedConnMutex m_connMutex` (shared_ptr<recursive_mutex>); redundant `private:` tag removed; new `protected` section with `getConnectionMutex(std::nothrow_t)`
+   - **Redis macros:** `redis_internal.hpp` rewritten — `DB_DRIVER_LOCK_GUARD`, `REDIS_CONNECTION_LOCK_OR_RETURN/THROW/SUCCESS_IF_CLOSED` macros added; old `REDIS_LOCK_GUARD` removed; `REDIS_DEBUG` rewritten from `std::cout <<` to `snprintf` + `logWithTimesMillis()`
+   - **Redis string-to-number:** `std::stoll`/`std::stod` replaced with `std::from_chars`; dead try/catch removed
+   - **Redis atomic ordering:** `memory_order_acquire/release` → `memory_order_seq_cst` everywhere; justified weaker ordering retained for cleanup coalescing with mandatory comments
+   - **Redis close/executeRaw:** Dead try/catch removed; now use connection-level macros; throwing methods delegate to nothrow
+   - **Redis factory:** `getInstance(std::nothrow)` now checks `m_initFailed` — was silently returning broken instances
+   - **MongoDB additional:** `std::atomic<bool>` explicit template param; removed unused helpers (`validateConnection`, `getClient`, `throwMongoError`); `captureCallStack()` added to 15 DBException constructors; `strcmp` → `std::string_view`; helpers moved to `_01.cpp`
+   - **KV base interface:** Preprocessor directives moved to column 0
+   - 18 files changed, +305/-219 lines
+
+2. **MongoDB Driver — Convention Compliance Fixes** (2026-03-21 20:54 PDT):
+   - Connection lifecycle guards, child-object lifecycle checks, centralized helpers, lambda Allman style, DBException codes
    - 16 files changed, +138/-179 lines
 
-2. **DBException Hybrid Storage, Build System TSAN/Debug Flags, Test Runner Sanitizer Label** (2026-03-13 10:40 PDT):
+3. **DBException Hybrid Storage, Build System TSAN/Debug Flags, Test Runner Sanitizer Label** (2026-03-13 10:40 PDT):
    - **DBException hybrid storage:** Fixed buffer reduced from 271 to 79 bytes (12 mark + 2 ": " + 64 msg + 1 null); new `shared_ptr<char[]> m_overflow` for messages > 64 chars allocated via `new(std::nothrow)`; graceful degradation to truncated buffer on alloc failure; class made `final`; `what_s()` no longer virtual; object size ~120 bytes (down from ~287)
    - **`build_cpp_dbc.sh`:** New `--tsan` flag for ThreadSanitizer; unified `SANITIZER_FLAGS`/`SANITIZER_LINKER_FLAGS` variables; `CMAKE_EXE_LINKER_FLAGS` now passed to CMake; new `--debug-mysql`/`--debug-postgresql` flags; CMake variable ordering cleaned up
    - **`build_test_cpp_dbc.sh`:** `PROJECT_ROOT` resolved to absolute path for consistent `CMAKE_INSTALL_PREFIX`; new `INSTALL_DIR` variable; `CPP_DBC_BUILD_EXAMPLES=OFF`/`CPP_DBC_BUILD_BENCHMARKS=OFF` explicitly passed; `DEBUG_ALL` now forwarded

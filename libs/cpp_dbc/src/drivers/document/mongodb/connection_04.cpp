@@ -55,7 +55,8 @@ namespace cpp_dbc::MongoDB
         {
             return unexpected<DBException>(DBException(
                 "EED4BB95EA04",
-                std::string("Failed to list databases: ") + error.message));
+                std::string("Failed to list databases: ") + error.message,
+                system_utils::captureCallStack()));
         }
 
         std::vector<std::string> databases;
@@ -134,7 +135,8 @@ namespace cpp_dbc::MongoDB
         {
             return unexpected<DBException>(DBException(
                 "3OT3OF7PRQFA",
-                std::string("Failed to drop database: ") + error.message));
+                std::string("Failed to drop database: ") + error.message,
+                system_utils::captureCallStack()));
         }
 
         return {};
@@ -153,7 +155,8 @@ namespace cpp_dbc::MongoDB
         {
             return unexpected<DBException>(DBException(
                 "4QCN6OXX3B8N",
-                "No database selected. Call useDatabase() first"));
+                "No database selected. Call useDatabase() first",
+                system_utils::captureCallStack()));
         }
 
         mongoc_collection_t *collection = mongoc_client_get_collection(
@@ -165,7 +168,8 @@ namespace cpp_dbc::MongoDB
         {
             return unexpected<DBException>(DBException(
                 "49D69DDC2A47",
-                "Failed to get collection: " + collectionName));
+                "Failed to get collection: " + collectionName,
+                system_utils::captureCallStack()));
         }
 
         auto collResult = MongoDBCollection::create(std::nothrow,
@@ -192,7 +196,8 @@ namespace cpp_dbc::MongoDB
         {
             return unexpected<DBException>(DBException(
                 "PS6EQH1WUO63",
-                "No database selected. Call useDatabase() first"));
+                "No database selected. Call useDatabase() first",
+                system_utils::captureCallStack()));
         }
 
         auto *rawDb = mongoc_client_get_database(m_conn.get(), m_databaseName.c_str());
@@ -212,7 +217,8 @@ namespace cpp_dbc::MongoDB
         {
             return unexpected<DBException>(DBException(
                 "3OW3LV87GMU5",
-                std::string("Failed to list collections: ") + error.message));
+                std::string("Failed to list collections: ") + error.message,
+                system_utils::captureCallStack()));
         }
 
         std::vector<std::string> collections;
@@ -246,7 +252,8 @@ namespace cpp_dbc::MongoDB
         {
             return unexpected<DBException>(DBException(
                 "WVUFLLD4A97S",
-                "No database selected. Call useDatabase() first"));
+                "No database selected. Call useDatabase() first",
+                system_utils::captureCallStack()));
         }
 
         auto *rawDb = mongoc_client_get_database(m_conn.get(), m_databaseName.c_str());
@@ -271,7 +278,8 @@ namespace cpp_dbc::MongoDB
             {
                 return unexpected<DBException>(DBException(
                     "WC66P18APOQR",
-                    std::string("Invalid options JSON: ") + parseError.message));
+                    std::string("Invalid options JSON: ") + parseError.message,
+                    system_utils::captureCallStack()));
             }
         }
 
@@ -288,7 +296,8 @@ namespace cpp_dbc::MongoDB
         {
             return unexpected<DBException>(DBException(
                 "WCWBQDAJPLZE",
-                std::string("Failed to create collection: ") + error.message));
+                std::string("Failed to create collection: ") + error.message,
+                system_utils::captureCallStack()));
         }
 
         auto collResult = MongoDBCollection::create(std::nothrow,
@@ -316,7 +325,8 @@ namespace cpp_dbc::MongoDB
         {
             return unexpected<DBException>(DBException(
                 "IK7PNBHX4UYQ",
-                "No database selected. Call useDatabase() first"));
+                "No database selected. Call useDatabase() first",
+                system_utils::captureCallStack()));
         }
 
         mongoc_collection_t *coll = mongoc_client_get_collection(
@@ -326,7 +336,8 @@ namespace cpp_dbc::MongoDB
         {
             return unexpected<DBException>(DBException(
                 "SNKN547TL3LV",
-                "Failed to get collection: " + collectionName));
+                "Failed to get collection: " + collectionName,
+                system_utils::captureCallStack()));
         }
 
         MongoCollectionHandle collHandle(coll);
@@ -338,7 +349,8 @@ namespace cpp_dbc::MongoDB
         {
             return unexpected<DBException>(DBException(
                 "25KZMHWC7LOM",
-                std::string("Failed to drop collection: ") + error.message));
+                std::string("Failed to drop collection: ") + error.message,
+                system_utils::captureCallStack()));
         }
 
         return {};

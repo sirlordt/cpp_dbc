@@ -53,7 +53,7 @@ namespace cpp_dbc::MongoDB
                         std::owner_less<std::weak_ptr<MongoDBConnection>>>     s_connectionRegistry;
 
         // ── Coalesced cleanup flag ────────────────────────────────────────────
-        inline static std::atomic s_cleanupPending{false};
+        inline static std::atomic<bool> s_cleanupPending{false};
 
         // ── Driver state ──────────────────────────────────────────────────────
         std::atomic<bool> m_closed{false};

@@ -1,6 +1,54 @@
 # Changelog
 
-## 2026-03-21 20:54:00 PDT [Current]
+## 2026-03-29 09:22:00 PDT [Current]
+
+### Redis Driver — Convention Compliance Refactoring + MongoDB Driver Additional Fixes
+
+This release brings the Redis driver into full convention compliance and applies additional fixes to the MongoDB driver. The Redis changes cover mutex architecture, debug macros, string-to-number conversion, atomic memory ordering, locking macros, and code style. The MongoDB changes add missing `captureCallStack()` calls, remove unused helpers, and modernize string comparisons. Total: **18 files changed, +305/-219 lines**.
+
+#### Redis Driver — Mutex Architecture and Connection Handle Naming
+
+- **`connection.hpp`**: `m_context` (shared_ptr<redisContext>) renamed to `m_conn` per convention (native handle must be `m_conn`); `std::mutex m_mutex` replaced with `SharedConnMutex m_connMutex` (shared_ptr<recursive_mutex>); redundant `private:` tag removed (class defaults to private); new `protected` section with `getConnectionMutex(std::nothrow_t)`, `prepareForPoolReturn`, `prepareForBorrow`; section comment headers updated to canonical `══` style
+- **`handles.hpp`**: New `SharedConnMutex` type alias (`std::shared_ptr<std::recursive_mutex>`); added `#include <mutex>`
+
+#### Redis Driver — Connection-Level Macros and Debug Rewrite
+
+- **`redis_internal.hpp`**: Complete rewrite — added `#if USE_REDIS` guard; added `DB_DRIVER_LOCK_GUARD` macro (conditional `std::scoped_lock<std::recursive_mutex>`); new connection-level macros `REDIS_CONNECTION_LOCK_OR_RETURN`, `REDIS_CONNECTION_LOCK_OR_THROW`, `REDIS_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED` (thread-safe and non-thread-safe variants); removed old `REDIS_LOCK_GUARD` concatenation macro; `REDIS_DEBUG` rewritten from `std::cout <<` stream to `snprintf` + `logWithTimesMillis()` pattern with truncation handling
+- **`connection_01.cpp` through `connection_06.cpp`, `driver_01.cpp`**: Removed `#include <iostream>` (all debug output now through `REDIS_DEBUG` macro)
+
+#### Redis Driver — String-to-Number Conversion and Atomic Ordering
+
+- **`connection_01.cpp`**: `std::stoll` (connect_timeout parsing) replaced with `std::from_chars`; dead try/catch around timeout parsing removed; `extractInteger` uses `std::from_chars` instead of `std::stoll`; `tryParseDouble` now takes `std::nothrow_t` and uses `std::from_chars` instead of `std::stod`
+- **`connection_01.cpp`, `connection_03.cpp`, `driver_01.cpp`**: All `memory_order_acquire`/`memory_order_release` replaced with `memory_order_seq_cst`; driver `memory_order_relaxed` replaced with `memory_order_seq_cst`
+- **`driver_01.cpp`**: Justified weaker ordering (`acq_rel`/`release`) retained for cleanup coalescing with mandatory comments explaining profiling evidence and correctness proof
+
+#### Redis Driver — Dead try/catch Removal and Macro Usage
+
+- **`connection_03.cpp`**: `close(std::nothrow)` rewritten — dead try/catch removed; now uses `REDIS_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED` macro; `setTransactionIsolation`/`getTransactionIsolation`/`prepareForPoolReturn` use `DB_DRIVER_LOCK_GUARD(*m_connMutex)` instead of old `REDIS_LOCK_GUARD(m_mutex)`
+- **`connection_06.cpp`**: `executeRaw` uses `REDIS_CONNECTION_LOCK_OR_RETURN` macro instead of manual lock + `validateConnection`
+- **`connection_01.cpp`**: Throwing methods `isClosed()`, `isPooled()`, `getURI()` now delegate to nothrow overloads; C-style casts `(redisReply *)` replaced with `static_cast<redisReply *>()`; `NOSONAR` annotations updated with rule IDs; `catch(...)` in destructor annotated with `NOSONAR(cpp:S2738)`
+
+#### Redis Driver — Factory Init Error Check
+
+- **`driver_01.cpp`**: `getInstance(std::nothrow)` now checks `m_initFailed` after construction and returns the deferred error — was previously missing, silently returning a broken driver instance
+
+#### MongoDB Driver — Additional Fixes
+
+- **`driver.hpp`**: `std::atomic s_cleanupPending{false}` changed to `std::atomic<bool>` (explicit template parameter)
+- **`collection.hpp`**: Removed unused private helper declarations (`validateConnection`, `getClient`, `throwMongoError`)
+- **`collection_01.cpp`**: Removed `throwMongoError` implementation; inlined error construction at call sites (`estimatedDocumentCount`, `countDocuments`) with unique error codes
+- **`connection_01.cpp`**: Private helpers `getClientWeak`, `getClient`, `setPooled` moved here from `connection_02.cpp` (source file distribution: helpers belong in `_01.cpp`)
+- **`connection_02.cpp`**: Removed private helper implementations (moved to `_01.cpp`)
+- **`connection_04.cpp`**: Added `system_utils::captureCallStack()` to 12 `DBException` constructors that were missing it
+- **`connection_05.cpp`**: Added `captureCallStack()` to 3 more `DBException` constructors; `strcmp` comparisons replaced with `std::string_view` for server type detection
+
+#### KV Base Interface — Preprocessor Directive Formatting
+
+- **`kv_db_connection.hpp`**: `#ifdef __cpp_exceptions` and `#endif` moved to column 0 (convention: preprocessor directives always flush left)
+
+---
+
+## 2026-03-21 20:54:00 PDT
 
 ### MongoDB Driver — Convention Compliance Fixes (7 Violations, 54 Occurrences)
 

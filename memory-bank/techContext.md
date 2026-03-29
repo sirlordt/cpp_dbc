@@ -119,6 +119,7 @@
   - `getDriverVersion()` returns hiredis version; `getServerVersion()` extracts `redis_version` from INFO (2026-03-08)
   - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory `RedisDBConnection::create(std::nothrow_t)`, double-checked locking for driver init
   - `-fno-exceptions` compatible: all abstract interfaces guard throwing methods; nothrow API always compiles
+  - Convention compliance refactoring (2026-03-29): `m_context` renamed to `m_conn`; `std::mutex m_mutex` replaced with `SharedConnMutex m_connMutex` (shared_ptr<recursive_mutex>); connection-level macros (`REDIS_CONNECTION_LOCK_OR_RETURN/THROW/SUCCESS_IF_CLOSED`) in `redis_internal.hpp`; `REDIS_DEBUG` rewritten from `std::cout <<` to `snprintf` + `logWithTimesMillis()` pattern; `std::stoll`/`std::stod` replaced with `std::from_chars`; atomic ordering upgraded to `memory_order_seq_cst`; dead try/catch removed from `close()` and `executeRaw()`; `getInstance(std::nothrow)` now checks `m_initFailed`; C-style casts replaced with `static_cast`
 
 - **YAML-CPP Library**: For YAML configuration support (optional)
   - Used for parsing YAML configuration files

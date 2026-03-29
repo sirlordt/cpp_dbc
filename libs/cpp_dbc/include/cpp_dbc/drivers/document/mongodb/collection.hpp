@@ -80,10 +80,7 @@ namespace cpp_dbc::MongoDB
         std::unique_ptr<DBException> m_initError{nullptr};
 
         // ── Private helpers ───────────────────────────────────────────────────
-        expected<void, DBException> validateConnection(std::nothrow_t) const noexcept;
-        expected<mongoc_client_t *, DBException> getClient(std::nothrow_t) const noexcept;
         expected<BsonHandle, DBException> parseFilter(std::nothrow_t, const std::string &filter) const noexcept;
-        expected<void, DBException> throwMongoError(std::nothrow_t, const bson_error_t &error, const std::string &operation) const noexcept;
         expected<std::string, DBException> buildIdFilter(std::nothrow_t, const std::string &id) const noexcept;
 
     public:

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "reply_handle.hpp"
+#include "handles.hpp"
 #include "cpp_dbc/core/kv/kv_db_connection.hpp"
 #include "cpp_dbc/core/db_expected.hpp"
 #include "cpp_dbc/core/db_exception.hpp"
@@ -39,7 +40,10 @@ namespace cpp_dbc::Redis
      */
     class RedisDBConnection final : public KVDBConnection, public std::enable_shared_from_this<RedisDBConnection>
     {
-    private:
+        // ══════════════════════════════════════════════════════════════════════════
+        // PRIVATE SECTION (implicit in class — no private: tag)
+        // ══════════════════════════════════════════════════════════════════════════
+
         /**
          * @brief Private tag for the passkey idiom — enables std::make_shared
          * from static factory methods while keeping the constructor
@@ -50,17 +54,22 @@ namespace cpp_dbc::Redis
             explicit PrivateCtorTag() = default;
         };
 
-        std::shared_ptr<redisContext> m_context;
+        // ── Member variables ──────────────────────────────────────────────────
+        std::shared_ptr<redisContext> m_conn;
         std::string m_uri;
         int m_dbIndex{0};
         std::atomic<bool> m_closed{false};
-        mutable std::mutex m_mutex;
-        bool m_initFailed{false};
-        std::unique_ptr<DBException> m_initError{nullptr};
+        SharedConnMutex m_connMutex;
         // Stored by the create() factory so close() can unregister from the driver registry
         // using owner_less comparison (raw 'this' won't work with the set's comparator).
         std::weak_ptr<RedisDBConnection> m_self;
         TransactionIsolationLevel m_transactionIsolation{TransactionIsolationLevel::TRANSACTION_NONE};
+
+        // ── Construction state ────────────────────────────────────────────────
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
+
+        // ── Private helpers ───────────────────────────────────────────────────
 
         /**
          * @brief Check if the connection is valid
@@ -99,7 +108,25 @@ namespace cpp_dbc::Redis
          * @param str The string to parse
          * @return std::optional<double> The parsed double, or nullopt on failure
          */
-        static std::optional<double> tryParseDouble(const std::string &str) noexcept;
+        static std::optional<double> tryParseDouble(std::nothrow_t, const std::string &str) noexcept;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PROTECTED SECTION
+    // ══════════════════════════════════════════════════════════════════════════
+
+    protected:
+        std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
+        {
+            return *m_connMutex;
+        }
+
+        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
+            TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
+        cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PUBLIC SECTION
+    // ══════════════════════════════════════════════════════════════════════════
 
     public:
         /**
@@ -133,9 +160,9 @@ namespace cpp_dbc::Redis
         RedisDBConnection(RedisDBConnection &&) = delete;
         RedisDBConnection &operator=(RedisDBConnection &&) = delete;
 
-        // ====================================================================
-        // THROWING API — requires exception support
-        // ====================================================================
+        // ════════════════════════════════════════════════════════════════════════
+        // BLOCK 1: THROWING API — single #ifdef, all throwing methods inside
+        // ════════════════════════════════════════════════════════════════════════
 
 #ifdef __cpp_exceptions
         static std::shared_ptr<RedisDBConnection> create(
@@ -239,9 +266,9 @@ namespace cpp_dbc::Redis
 
 #endif // __cpp_exceptions
 
-        // ====================================================================
-        // NOTHROW API — exception-free, always available
-        // ====================================================================
+        // ════════════════════════════════════════════════════════════════════════
+        // BLOCK 2: NOTHROW API — always compiled
+        // ════════════════════════════════════════════════════════════════════════
 
         static cpp_dbc::expected<std::shared_ptr<RedisDBConnection>, DBException> create(
             std::nothrow_t,
@@ -415,11 +442,6 @@ namespace cpp_dbc::Redis
          * @return expected containing void on success, or DBException on failure
          */
         cpp_dbc::expected<void, DBException> selectDatabase(std::nothrow_t, int index) noexcept;
-
-    protected:
-        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
-            TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
-        cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
     };
 
 } // namespace cpp_dbc::Redis

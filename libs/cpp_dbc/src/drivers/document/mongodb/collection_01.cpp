@@ -46,14 +46,6 @@ namespace cpp_dbc::MongoDB
         return makeBsonHandleFromJson(std::nothrow, filter);
     }
 
-    expected<void, DBException> MongoDBCollection::throwMongoError(std::nothrow_t, const bson_error_t &error, const std::string &operation) const noexcept
-    {
-        return unexpected<DBException>(DBException(
-            "B6C2D1E0F5A4",
-            operation + " failed: " + std::string(error.message),
-            system_utils::captureCallStack()));
-    }
-
     expected<std::string, DBException> MongoDBCollection::buildIdFilter(std::nothrow_t, const std::string &id) const noexcept
     {
         // Use BSON construction to prevent JSON injection
@@ -420,8 +412,10 @@ namespace cpp_dbc::MongoDB
             m_collection.get(), nullptr, nullptr, nullptr, &error);
         if (count < 0)
         {
-            auto errResult = throwMongoError(std::nothrow, error, "estimatedDocumentCount");
-            return unexpected<DBException>(errResult.error());
+            return unexpected<DBException>(DBException(
+                "YHJKG3KVW200",
+                std::string("estimatedDocumentCount failed: ") + error.message,
+                system_utils::captureCallStack()));
         }
         return static_cast<uint64_t>(count);
     }
@@ -439,8 +433,10 @@ namespace cpp_dbc::MongoDB
             m_collection.get(), filterResult.value().get(), nullptr, nullptr, nullptr, &error);
         if (count < 0)
         {
-            auto errResult = throwMongoError(std::nothrow, error, "countDocuments");
-            return unexpected<DBException>(errResult.error());
+            return unexpected<DBException>(DBException(
+                "NGMDRFUOIJY9",
+                std::string("countDocuments failed: ") + error.message,
+                system_utils::captureCallStack()));
         }
         return static_cast<uint64_t>(count);
     }

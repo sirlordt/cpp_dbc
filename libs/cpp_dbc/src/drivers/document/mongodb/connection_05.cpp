@@ -70,7 +70,8 @@ namespace cpp_dbc::MongoDB
         {
             return unexpected<DBException>(DBException(
                 "2Q3BVH2J9131",
-                "No database selected. Call useDatabase() first"));
+                "No database selected. Call useDatabase() first",
+                system_utils::captureCallStack()));
         }
 
         auto cmdBsonResult = makeBsonHandleFromJson(std::nothrow, command);
@@ -101,7 +102,8 @@ namespace cpp_dbc::MongoDB
             bson_destroy(&reply);
             return unexpected<DBException>(DBException(
                 "1T8I8LQS1TCB",
-                std::string("Command failed: ") + error.message));
+                std::string("Command failed: ") + error.message,
+                system_utils::captureCallStack()));
         }
 
         bson_t *replyCopy = bson_copy(&reply);
@@ -111,7 +113,8 @@ namespace cpp_dbc::MongoDB
         {
             return unexpected<DBException>(DBException(
                 "9J4REIE6R4YN",
-                "Failed to copy command reply"));
+                "Failed to copy command reply",
+                system_utils::captureCallStack()));
         }
 
         auto docResult = MongoDBDocument::create(std::nothrow, replyCopy);
@@ -471,11 +474,12 @@ namespace cpp_dbc::MongoDB
 
         // Standalone servers do NOT support transactions
         // Only RSPrimary, RSSecondary, and Mongos support transactions
-        bool isReplicaSet = (strcmp(serverType, "RSPrimary") == 0 ||
-                             strcmp(serverType, "RSSecondary") == 0 ||
-                             strcmp(serverType, "RSArbiter") == 0 ||
-                             strcmp(serverType, "RSOther") == 0);
-        bool isMongos = (strcmp(serverType, "Mongos") == 0);
+        std::string_view serverTypeView(serverType);
+        bool isReplicaSet = (serverTypeView == "RSPrimary" ||
+                             serverTypeView == "RSSecondary" ||
+                             serverTypeView == "RSArbiter" ||
+                             serverTypeView == "RSOther");
+        bool isMongos = (serverTypeView == "Mongos");
 
         if (!isReplicaSet && !isMongos)
         {
