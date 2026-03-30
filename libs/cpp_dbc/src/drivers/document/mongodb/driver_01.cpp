@@ -136,7 +136,7 @@ namespace cpp_dbc::MongoDB
 
         closeAllOpenConnections(std::nothrow);
 
-        cleanup();
+        cleanup(std::nothrow);
     }
 
 #ifdef __cpp_exceptions
@@ -209,7 +209,7 @@ namespace cpp_dbc::MongoDB
         return MONGOC_VERSION_S;
     }
 
-    void MongoDBDriver::cleanup() noexcept
+    void MongoDBDriver::cleanup(std::nothrow_t) noexcept
     {
         MONGODB_DEBUG("MongoDBDriver::cleanup - Cleaning up MongoDB C driver");
         mongoc_cleanup();

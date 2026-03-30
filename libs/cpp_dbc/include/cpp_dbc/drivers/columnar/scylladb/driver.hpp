@@ -87,6 +87,8 @@ namespace cpp_dbc::ScyllaDB
         static void registerConnection(std::nothrow_t, std::weak_ptr<ScyllaDBConnection> conn) noexcept;
         static void unregisterConnection(std::nothrow_t, const std::weak_ptr<ScyllaDBConnection> &conn) noexcept;
 
+        static void cleanup(std::nothrow_t) noexcept;
+
         friend class ScyllaDBConnection;
 
         void closeAllOpenConnections(std::nothrow_t) noexcept;
@@ -157,8 +159,6 @@ namespace cpp_dbc::ScyllaDB
             int port,
             const std::string &database,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
-
-        static void cleanup();
 
         /**
          * @brief Return the number of live connections tracked by the registry.

@@ -95,7 +95,7 @@ namespace cpp_dbc::Firebird
         s_connectionRegistry.erase(conn);
     }
 
-    void FirebirdDBDriver::cleanup()
+    void FirebirdDBDriver::cleanup(std::nothrow_t) noexcept
     {
         // Firebird (fbclient) does not require explicit global library cleanup.
         // Sleep a bit to ensure all resources are properly released.
@@ -182,7 +182,7 @@ namespace cpp_dbc::Firebird
 
         closeAllOpenConnections(std::nothrow);
 
-        cleanup();
+        cleanup(std::nothrow);
     }
 
     // ============================================================================

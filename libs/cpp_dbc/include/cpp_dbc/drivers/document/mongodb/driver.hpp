@@ -68,6 +68,8 @@ namespace cpp_dbc::MongoDB
         static void registerConnection(std::nothrow_t, std::weak_ptr<MongoDBConnection> conn) noexcept;
         static void unregisterConnection(std::nothrow_t, const std::weak_ptr<MongoDBConnection> &conn) noexcept;
 
+        static void cleanup(std::nothrow_t) noexcept;
+
         void closeAllOpenConnections(std::nothrow_t) noexcept;
 
         friend class MongoDBConnection;
@@ -127,16 +129,6 @@ namespace cpp_dbc::MongoDB
         bool supportsReplicaSets() const noexcept override;
         bool supportsSharding() const noexcept override;
         std::string getDriverVersion() const noexcept override;
-
-        // MongoDB-specific methods
-
-        /**
-         * @brief Explicitly cleanup the MongoDB C driver library
-         *
-         * This should only be called once when the application is exiting.
-         * After calling this, no more MongoDB operations should be performed.
-         */
-        static void cleanup() noexcept;
 
         /**
          * @brief Validate a MongoDB URI

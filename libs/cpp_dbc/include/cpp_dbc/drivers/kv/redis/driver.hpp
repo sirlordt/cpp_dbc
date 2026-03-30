@@ -70,6 +70,8 @@ namespace cpp_dbc::Redis
 
         friend class RedisDBConnection;
 
+        static void cleanup(std::nothrow_t) noexcept;
+
         void closeAllOpenConnections(std::nothrow_t) noexcept;
 
         // ── Construction state ────────────────────────────────────────────────
@@ -128,11 +130,6 @@ namespace cpp_dbc::Redis
         bool supportsClustering() const noexcept override;
         bool supportsReplication() const noexcept override;
         std::string getDriverVersion() const noexcept override;
-
-        /**
-         * @brief Clean up Redis driver resources
-         */
-        static void cleanup();
 
         /**
          * @brief Return the number of live connections tracked by the registry.

@@ -93,7 +93,7 @@ namespace cpp_dbc::Redis
 
         closeAllOpenConnections(std::nothrow);
 
-        cleanup();
+        cleanup(std::nothrow);
     }
 
 #ifdef __cpp_exceptions
@@ -227,7 +227,7 @@ namespace cpp_dbc::Redis
 
 #endif // __cpp_exceptions
 
-    void RedisDBDriver::cleanup()
+    void RedisDBDriver::cleanup(std::nothrow_t) noexcept
     {
         REDIS_DEBUG("RedisDBDriver::cleanup - Cleaning up Redis driver");
         std::scoped_lock lock(s_initMutex);
