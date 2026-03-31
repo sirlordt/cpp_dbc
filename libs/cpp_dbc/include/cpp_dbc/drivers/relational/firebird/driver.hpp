@@ -91,7 +91,7 @@ namespace cpp_dbc::Firebird
         static void registerConnection(std::nothrow_t, std::weak_ptr<FirebirdDBConnection> conn) noexcept;
         static void unregisterConnection(std::nothrow_t, const std::weak_ptr<FirebirdDBConnection> &conn) noexcept;
 
-        static void cleanup();
+        static void cleanup(std::nothrow_t) noexcept;
 
         void closeAllOpenConnections(std::nothrow_t) noexcept;
 

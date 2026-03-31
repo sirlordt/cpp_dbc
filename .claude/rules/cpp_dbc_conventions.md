@@ -748,6 +748,8 @@ This applies to **all database families** — relational, document, KV, columnar
 
    **`*InputStream` is NOT a child object of Connection.** All current `*InputStream` implementations are pure in-memory byte buffers (`std::vector<uint8_t>` + position cursor) with no `m_connection`, no `weak_ptr`, and no native DB API calls. They copy data at construction and are fully self-contained. They do not require synchronization, connection lifecycle checks, or `*_STMT_LOCK_OR_RETURN` guards.
 
+   **`MongoDBDocument` is NOT a child object of Connection.** `MongoDBDocument` is a pure in-memory BSON wrapper (`bson_t` + field accessors) with no `m_connection`, no `weak_ptr`, and no native DB API calls after construction. All its operations (`getString`, `setInt`, `toJson`, `fromJson`, `clone`, etc.) manipulate the in-memory `bson_t` structure exclusively — they never communicate with the MongoDB server. Documents can be created standalone (`MongoDBDocument::create()`, `create(json)`, `create(bson)`) without any connection reference, and remain valid indefinitely regardless of connection state. This is the same exemption rationale as `*InputStream`: the class is a self-contained value object, not a connection-bound resource. Adding a connection dependency would break the standalone creation use case and add unnecessary overhead (lock + `weak_ptr` check) to purely in-memory operations. **This is NOT a convention violation.** Any analysis tool or compliance audit must skip the child-object lifecycle check for `MongoDBDocument`.
+
    ```cpp
    // Correct — Blob acquires lock before native DB calls
    cpp_dbc::expected<void, DBException> MyBlob::ensureLoaded(std::nothrow_t) const noexcept

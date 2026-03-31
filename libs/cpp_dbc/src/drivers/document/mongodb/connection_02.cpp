@@ -33,7 +33,7 @@
 namespace cpp_dbc::MongoDB
 {
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     std::shared_ptr<DocumentDBCollection> MongoDBConnection::getCollection(const std::string &collectionName)
     {
         auto result = getCollection(std::nothrow, collectionName);
@@ -125,6 +125,16 @@ namespace cpp_dbc::MongoDB
         return *result;
     }
 
+    std::shared_ptr<DocumentDBData> MongoDBConnection::getServerStatus()
+    {
+        auto result = getServerStatus(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
     std::string MongoDBConnection::getServerVersion()
     {
         auto result = getServerVersion(std::nothrow);
@@ -138,16 +148,6 @@ namespace cpp_dbc::MongoDB
     std::map<std::string, std::string> MongoDBConnection::getServerInfo()
     {
         auto result = getServerInfo(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return *result;
-    }
-
-    std::shared_ptr<DocumentDBData> MongoDBConnection::getServerStatus()
-    {
-        auto result = getServerStatus(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();
@@ -240,28 +240,7 @@ namespace cpp_dbc::MongoDB
         return result.value();
     }
 
-    // ============================================================================
-    // MongoDBConnection Implementation - MongoDB-specific methods
-    // ============================================================================
-
-    std::weak_ptr<mongoc_client_t> MongoDBConnection::getClientWeak() const
-    {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        return std::weak_ptr<mongoc_client_t>(m_client);
-    }
-
-    MongoClientHandle MongoDBConnection::getClient() const
-    {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        return m_client;
-    }
-
-    void MongoDBConnection::setPooled(bool pooled)
-    {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        m_pooled = pooled;
-    }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::MongoDB
 

@@ -19,19 +19,94 @@
 #ifndef CPP_DBC_REDIS_INTERNAL_HPP
 #define CPP_DBC_REDIS_INTERNAL_HPP
 
+#if USE_REDIS
+
+#include <cstdio>
+#include <cstring>
 #include <mutex>
-#include <iostream>
+
+#include "cpp_dbc/common/system_utils.hpp"
+
+// Thread-safety macros for conditional mutex locking
+// Using recursive_mutex to allow the same thread to acquire the lock multiple times
+#if DB_DRIVER_THREAD_SAFE
+#define DB_DRIVER_LOCK_GUARD(mutex) std::scoped_lock<std::recursive_mutex> lock(mutex)
+#else
+#define DB_DRIVER_LOCK_GUARD(mutex) (void)0
+#endif
 
 // Debug output is controlled by -DDEBUG_REDIS=1 or -DDEBUG_ALL=1 CMake option
 #if (defined(DEBUG_REDIS) && DEBUG_REDIS) || (defined(DEBUG_ALL) && DEBUG_ALL)
-#define REDIS_DEBUG(x) std::cout << "[Redis] " << x << std::endl
+#define REDIS_DEBUG(format, ...)                                                             \
+    do                                                                                       \
+    {                                                                                        \
+        char debug_buffer[1024];                                                             \
+        int debug_n = std::snprintf(debug_buffer, sizeof(debug_buffer), format, ##__VA_ARGS__); \
+        if (debug_n >= static_cast<int>(sizeof(debug_buffer)))                               \
+        {                                                                                    \
+            static constexpr const char trunc[] = "...[TRUNCATED]";                          \
+            std::memcpy(debug_buffer + sizeof(debug_buffer) - sizeof(trunc),                 \
+                        trunc, sizeof(trunc));                                               \
+        }                                                                                    \
+        cpp_dbc::system_utils::logWithTimesMillis("Redis", debug_buffer);                    \
+    } while (0)
 #else
-#define REDIS_DEBUG(x)
+#define REDIS_DEBUG(...) ((void)0)
 #endif
 
-// Macro for mutex lock guard with unique variable name to prevent shadowing
-#define REDIS_LOCK_GUARD_CONCAT_IMPL(x, y) x##y
-#define REDIS_LOCK_GUARD_CONCAT(x, y) REDIS_LOCK_GUARD_CONCAT_IMPL(x, y)
-#define REDIS_LOCK_GUARD(mtx) std::lock_guard<std::mutex> REDIS_LOCK_GUARD_CONCAT(lock_, __LINE__)(mtx)
+// ============================================================================
+// Connection-Level Macros — used inside RedisDBConnection methods
+// ============================================================================
+
+#if DB_DRIVER_THREAD_SAFE
+
+#define REDIS_CONNECTION_LOCK_OR_RETURN(mark, msg)                                           \
+    DB_DRIVER_LOCK_GUARD(*m_connMutex);                                                      \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)                                 \
+    {                                                                                        \
+        return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",             \
+                                               cpp_dbc::system_utils::captureCallStack()));  \
+    }
+
+#define REDIS_CONNECTION_LOCK_OR_THROW(mark, msg)                    \
+    DB_DRIVER_LOCK_GUARD(*m_connMutex);                              \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)         \
+    {                                                                \
+        throw DBException(mark, msg " (connection closed)",          \
+                          cpp_dbc::system_utils::captureCallStack());\
+    }
+
+#define REDIS_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()   \
+    DB_DRIVER_LOCK_GUARD(*m_connMutex);                       \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)  \
+    {                                                         \
+        return {}; /* Already closed = success */             \
+    }
+
+#else // !DB_DRIVER_THREAD_SAFE
+
+#define REDIS_CONNECTION_LOCK_OR_RETURN(mark, msg)                                           \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)                                 \
+    {                                                                                        \
+        return cpp_dbc::unexpected(DBException(mark, msg " (connection closed)",             \
+                                               cpp_dbc::system_utils::captureCallStack()));  \
+    }
+
+#define REDIS_CONNECTION_LOCK_OR_THROW(mark, msg)                    \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)         \
+    {                                                                \
+        throw DBException(mark, msg " (connection closed)",          \
+                          cpp_dbc::system_utils::captureCallStack());\
+    }
+
+#define REDIS_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED()   \
+    if (m_closed.load(std::memory_order_seq_cst) || !m_conn)  \
+    {                                                         \
+        return {}; /* Already closed = success */             \
+    }
+
+#endif // DB_DRIVER_THREAD_SAFE
+
+#endif // USE_REDIS
 
 #endif // CPP_DBC_REDIS_INTERNAL_HPP

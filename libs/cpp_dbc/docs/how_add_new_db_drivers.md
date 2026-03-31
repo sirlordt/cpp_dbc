@@ -2502,7 +2502,7 @@ Add these public methods:
 ```cpp
 static std::shared_ptr<XxxDBDriver> getInstance();                                          // throwing
 static cpp_dbc::expected<std::shared_ptr<XxxDBDriver>, DBException> getInstance(std::nothrow_t) noexcept;
-static void cleanup();
+static void cleanup(std::nothrow_t) noexcept;
 static size_t getConnectionAlive() noexcept;
 ```
 

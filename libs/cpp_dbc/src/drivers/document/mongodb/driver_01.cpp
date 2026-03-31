@@ -20,7 +20,6 @@
 #include "cpp_dbc/common/serial_queue.hpp"
 
 #include <algorithm>
-#include <cstdlib>
 #include <iostream>
 #include <sstream>
 #include <vector>
@@ -35,10 +34,7 @@ namespace cpp_dbc::MongoDB
     // ── Static member initialization ──────────────────────────────────────────
     // IMPORTANT: s_instance MUST be declared LAST — see mysql/driver_01.cpp for
     // the full explanation of the static destruction order requirement.
-    std::atomic<bool> MongoDBDriver::s_initialized{false}; // NOSONAR(cpp:S1197) — explicit template arg for clarity in static member definition
-    std::mutex MongoDBDriver::s_initMutex;
     std::mutex                     MongoDBDriver::s_instanceMutex;
-    std::once_flag                 MongoDBDriver::s_atexitFlag;
     std::mutex                     MongoDBDriver::s_registryMutex;
     std::set<std::weak_ptr<MongoDBConnection>,
              std::owner_less<std::weak_ptr<MongoDBConnection>>> MongoDBDriver::s_connectionRegistry;
@@ -48,57 +44,14 @@ namespace cpp_dbc::MongoDB
     // MongoDBDriver Implementation
     // ============================================================================
 
+    // ── Private helper methods ──────────────────────────────────────────────
+
     cpp_dbc::expected<bool, DBException> MongoDBDriver::initialize(std::nothrow_t) noexcept
     {
         MONGODB_DEBUG("MongoDBDriver::initialize - Initializing MongoDB C driver");
         mongoc_init();
-        s_initialized.store(true, std::memory_order_release);
         MONGODB_DEBUG("MongoDBDriver::initialize - Done");
         return true;
-    }
-
-    MongoDBDriver::MongoDBDriver(MongoDBDriver::PrivateCtorTag, std::nothrow_t) noexcept
-    {
-        MONGODB_DEBUG("MongoDBDriver::constructor - Creating driver");
-        // Double-checked locking instead of std::once_flag: std::once_flag cannot be reset,
-        // but we need cleanup() to allow re-initialization across multiple driver lifetimes
-        // (e.g. between test cases). std::atomic<bool> + mutex achieves the same once-semantics
-        // while remaining resettable.
-        if (!s_initialized.load(std::memory_order_acquire))
-        {
-            std::scoped_lock lock(s_initMutex);
-            if (!s_initialized.load(std::memory_order_relaxed))
-            {
-                auto initResult = initialize(std::nothrow);
-                if (!initResult.has_value())
-                {
-                    MONGODB_DEBUG("MongoDBDriver::constructor - Initialization failed: " << initResult.error().what());
-                }
-            }
-        }
-        MONGODB_DEBUG("MongoDBDriver::constructor - Done");
-    }
-
-    // Note: The destructor does NOT call cleanup() because mongoc_cleanup() is destructive
-    // and irreversible within the same process. It frees global handshake data that was
-    // allocated via pthread_once during library loading (_dl_init). After mongoc_cleanup()
-    // runs, that data cannot be re-initialized — pthread_once has already fired and will
-    // not run again, even if mongoc_init() is called. Any subsequent MongoDB operation
-    // (e.g. a new connection in the next test case) will read freed memory, causing Valgrind
-    // to report hundreds of "Invalid read" errors (use-after-free in
-    // _mongoc_handshake_build_doc_with_application).
-    // cleanup() is instead registered with std::atexit exactly once (via s_atexitFlag in
-    // getInstance) so that mongoc_cleanup() runs at the very end of the process, after all
-    // driver instances have been destroyed and no further MongoDB operations can occur.
-    MongoDBDriver::~MongoDBDriver()
-    {
-        MONGODB_DEBUG("MongoDBDriver::destructor - Destroying driver");
-
-        closeAllOpenConnections(std::nothrow);
-
-        // NOTE: cleanup() is intentionally NOT called here — see the comment
-        // above for the full explanation. It is called at process exit via
-        // std::atexit, registered once in getInstance().
     }
 
     void MongoDBDriver::registerConnection(std::nothrow_t, std::weak_ptr<MongoDBConnection> conn) noexcept
@@ -112,17 +65,21 @@ namespace cpp_dbc::MongoDB
 
         // Coalesced cleanup: only post when the registry has grown past the
         // cleanup threshold and no cleanup task is already queued.
-        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_acq_rel))
+        if (registrySize > 25 && !s_cleanupPending.exchange(true, std::memory_order_seq_cst))
         {
-            SerialQueue::global().post([]()
-            {
+            SerialQueue::global().post(
+                []()
                 {
-                    std::scoped_lock lock(s_registryMutex);
-                    std::erase_if(s_connectionRegistry,
-                        [](const auto &w) { return w.expired(); });
-                }
-                s_cleanupPending.store(false, std::memory_order_release);
-            });
+                    {
+                        std::scoped_lock lock(s_registryMutex);
+                        std::erase_if(s_connectionRegistry,
+                            [](const auto &w)
+                            {
+                                return w.expired();
+                            });
+                    }
+                    s_cleanupPending.store(false, std::memory_order_seq_cst);
+                });
         }
     }
 
@@ -135,7 +92,7 @@ namespace cpp_dbc::MongoDB
     void MongoDBDriver::closeAllOpenConnections(std::nothrow_t) noexcept
     {
         // Mark driver as closed — reject any new connection attempts
-        m_closed.store(true, std::memory_order_release);
+        m_closed.store(true, std::memory_order_seq_cst);
 
         // Close all open connections before the driver goes away.
         // Collect under lock first, then close outside the lock to avoid
@@ -159,12 +116,27 @@ namespace cpp_dbc::MongoDB
         }
     }
 
-    size_t MongoDBDriver::getConnectionAlive() noexcept
+    // ── Constructor, Destructor ───────────────────────────────────────────────
+
+    MongoDBDriver::MongoDBDriver(MongoDBDriver::PrivateCtorTag, std::nothrow_t) noexcept
     {
-        std::scoped_lock lock(s_registryMutex);
-        return static_cast<size_t>(std::ranges::count_if(
-            s_connectionRegistry,
-            [](const auto &w) { return !w.expired(); }));
+        MONGODB_DEBUG("MongoDBDriver::constructor - Creating driver");
+        auto result = initialize(std::nothrow);
+        if (!result.has_value())
+        {
+            m_initFailed = true;
+            m_initError = std::make_unique<DBException>(std::move(result.error()));
+        }
+        MONGODB_DEBUG("MongoDBDriver::constructor - Done");
+    }
+
+    MongoDBDriver::~MongoDBDriver()
+    {
+        MONGODB_DEBUG("MongoDBDriver::destructor - Destroying driver");
+
+        closeAllOpenConnections(std::nothrow);
+
+        cleanup(std::nothrow);
     }
 
 #ifdef __cpp_exceptions
@@ -194,9 +166,32 @@ namespace cpp_dbc::MongoDB
 
 #endif // __cpp_exceptions
 
+    // ====================================================================
+    // MongoDBDriver NOTHROW VERSIONS
+    // ====================================================================
+
+    cpp_dbc::expected<std::shared_ptr<MongoDBDriver>, DBException>
+    MongoDBDriver::getInstance(std::nothrow_t) noexcept
+    {
+        std::scoped_lock lock(s_instanceMutex);
+        if (s_instance)
+        {
+            return s_instance;
+        }
+        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
+        // Constructor errors are captured in m_initFailed / m_initError.
+        auto inst = std::make_shared<MongoDBDriver>(MongoDBDriver::PrivateCtorTag{}, std::nothrow);
+        if (inst->m_initFailed)
+        {
+            return cpp_dbc::unexpected(std::move(*inst->m_initError));
+        }
+        s_instance = inst;
+        return s_instance;
+    }
+
     std::string MongoDBDriver::getURIScheme() const noexcept
     {
-        return "cpp_dbc:mongodb://<host>:<port>/<database>";
+        return std::string(cpp_dbc::system_constants::URI_PREFIX) + "mongodb://<host>:<port>/<database>";
     }
 
     bool MongoDBDriver::supportsReplicaSets() const noexcept
@@ -214,23 +209,14 @@ namespace cpp_dbc::MongoDB
         return MONGOC_VERSION_S;
     }
 
-    void MongoDBDriver::cleanup()
+    void MongoDBDriver::cleanup(std::nothrow_t) noexcept
     {
         MONGODB_DEBUG("MongoDBDriver::cleanup - Cleaning up MongoDB C driver");
-        if (s_initialized.load(std::memory_order_acquire))
-        {
-            mongoc_cleanup();
-            s_initialized.store(false, std::memory_order_release);
-            MONGODB_DEBUG("MongoDBDriver::cleanup - Done");
-        }
+        mongoc_cleanup();
+        MONGODB_DEBUG("MongoDBDriver::cleanup - Done");
     }
 
-    bool MongoDBDriver::isInitialized()
-    {
-        return s_initialized.load(std::memory_order_acquire);
-    }
-
-    bool MongoDBDriver::validateURI(const std::string &uri)
+    bool MongoDBDriver::validateURI(const std::string &uri) noexcept
     {
         // Strip cpp_dbc: prefix — mongoc expects native mongodb:// URIs
         std::string nativeUri = uri;
@@ -250,38 +236,6 @@ namespace cpp_dbc::MongoDB
         return false;
     }
 
-    // ====================================================================
-    // MongoDBDriver NOTHROW VERSIONS
-    // ====================================================================
-
-    cpp_dbc::expected<std::shared_ptr<MongoDBDriver>, DBException>
-    MongoDBDriver::getInstance(std::nothrow_t) noexcept
-    {
-        std::scoped_lock lock(s_instanceMutex);
-        if (s_instance)
-        {
-            return s_instance;
-        }
-        // std::make_shared may throw std::bad_alloc — death sentence, no try/catch.
-        // MongoDBDriver constructor only calls initialize(std::nothrow) and debug
-        // macros — no recoverable exception is possible.
-        auto inst = std::make_shared<MongoDBDriver>(MongoDBDriver::PrivateCtorTag{}, std::nothrow);
-        s_instance = inst;
-
-        // Register mongoc_cleanup() with std::atexit exactly once for the entire
-        // process lifetime. std::call_once may throw std::system_error on a broken
-        // OS threading primitive — that is a death sentence; std::terminate is correct.
-        std::call_once(s_atexitFlag, []()
-        {
-            std::atexit([]()
-            {
-                MongoDBDriver::cleanup();
-            });
-        });
-
-        return s_instance;
-    }
-
     expected<std::shared_ptr<DocumentDBConnection>, DBException> MongoDBDriver::connectDocument(
         std::nothrow_t,
         const std::string &uri,
@@ -289,14 +243,14 @@ namespace cpp_dbc::MongoDB
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
     {
-        if (m_closed.load(std::memory_order_acquire))
+        if (m_closed.load(std::memory_order_seq_cst))
         {
             return cpp_dbc::unexpected(DBException("T5KXPF2BWN9H",
                                                    "Driver is closed, no more connections allowed",
                                                    system_utils::captureCallStack()));
         }
 
-        MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connecting to: " << uri);
+        MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connecting to: %s", uri.c_str());
 
         auto uriCheck = acceptURI(std::nothrow, uri);
         if (!uriCheck.has_value())
@@ -310,7 +264,7 @@ namespace cpp_dbc::MongoDB
         auto connResult = MongoDBConnection::create(std::nothrow, uri, user, password, options);
         if (!connResult.has_value())
         {
-            MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connection failed: " << connResult.error().what());
+            MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connection failed: %s", connResult.error().what());
             return unexpected<DBException>(connResult.error());
         }
 
@@ -327,7 +281,7 @@ namespace cpp_dbc::MongoDB
         if (!uri.starts_with(cpp_dbc::system_constants::URI_PREFIX))
         {
             return unexpected<DBException>(DBException(
-                "1C2D3E4F5A6B",
+                "N9YJ2DHLFUF7",
                 "Invalid MongoDB URI: " + uri));
         }
         std::string nativeUri = uri.substr(cpp_dbc::system_constants::URI_PREFIX.size());
@@ -389,7 +343,7 @@ namespace cpp_dbc::MongoDB
         std::ostringstream uri;
 
         // Start with scheme (cpp_dbc: prefix + native mongodb://)
-        uri << "cpp_dbc:mongodb://";
+        uri << cpp_dbc::system_constants::URI_PREFIX << "mongodb://";
 
         // Add host — bracket raw IPv6 (e.g. "::1" → "[::1]")
         if (host.empty())
@@ -412,9 +366,16 @@ namespace cpp_dbc::MongoDB
             uri << ":" << port;
         }
 
-        // Add database
+        // Validate and add database
         if (!database.empty())
         {
+            if (!system_utils::isValidDatabaseIdentifier(database))
+            {
+                return cpp_dbc::unexpected(DBException(
+                    "XLGG2NN4B7J6",
+                    "Invalid database name: " + database,
+                    system_utils::captureCallStack()));
+            }
             uri << "/" << database;
         }
 
@@ -433,6 +394,17 @@ namespace cpp_dbc::MongoDB
     std::string MongoDBDriver::getName() const noexcept
     {
         return "mongodb";
+    }
+
+    size_t MongoDBDriver::getConnectionAlive() noexcept
+    {
+        std::scoped_lock lock(s_registryMutex);
+        return static_cast<size_t>(std::ranges::count_if(
+            s_connectionRegistry,
+            [](const auto &w)
+            {
+                return !w.expired();
+            }));
     }
 
 } // namespace cpp_dbc::MongoDB

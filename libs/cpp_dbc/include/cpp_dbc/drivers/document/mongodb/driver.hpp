@@ -43,23 +43,9 @@ namespace cpp_dbc::MongoDB
             explicit PrivateCtorTag() = default;
         };
 
-        // Note: Using atomic<bool> + mutex instead of std::once_flag for the
-        // initialization guard because std::once_flag cannot be reset, but
-        // cleanup() must allow re-initialization on subsequent driver construction.
-        static std::atomic<bool> s_initialized;
-        static std::mutex s_initMutex;
-
         // ── Singleton state ───────────────────────────────────────────────────
         static std::shared_ptr<MongoDBDriver> s_instance;
         static std::mutex                     s_instanceMutex;
-
-        // ── atexit cleanup guard ──────────────────────────────────────────────
-        // Ensures mongoc_cleanup() is registered with std::atexit exactly once
-        // across the entire process lifetime, regardless of how many times the
-        // singleton is created and destroyed. std::call_once may throw
-        // std::system_error on a broken OS threading primitive, which is a
-        // death sentence — std::terminate is the correct response.
-        static std::once_flag s_atexitFlag;
 
         // ── Connection registry ───────────────────────────────────────────────
         static std::mutex                                                      s_registryMutex;
@@ -67,28 +53,26 @@ namespace cpp_dbc::MongoDB
                         std::owner_less<std::weak_ptr<MongoDBConnection>>>     s_connectionRegistry;
 
         // ── Coalesced cleanup flag ────────────────────────────────────────────
-        inline static std::atomic s_cleanupPending{false};
+        inline static std::atomic<bool> s_cleanupPending{false}; // NOSONAR(cpp:S6012) — explicit template parameter preferred for clarity per project convention
 
-        /**
-         * @brief Initialize the MongoDB C driver library
-         */
-        static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
-
-        static void registerConnection(std::nothrow_t, std::weak_ptr<MongoDBConnection> conn) noexcept;
-        static void unregisterConnection(std::nothrow_t, const std::weak_ptr<MongoDBConnection> &conn) noexcept;
-
-        void closeAllOpenConnections(std::nothrow_t) noexcept;
-
-        friend class MongoDBConnection;
+        // ── Driver state ──────────────────────────────────────────────────────
+        std::atomic<bool> m_closed{false};
 
         // ── Construction state ────────────────────────────────────────────────
         bool m_initFailed{false};
         std::unique_ptr<DBException> m_initError{nullptr};
 
-        // ── Driver state ──────────────────────────────────────────────────────
-        // Set to true by the destructor before releasing resources.
-        // Prevents new connection attempts during and after driver teardown.
-        std::atomic<bool> m_closed{false};
+        // ── Private helper methods ────────────────────────────────────────────
+        static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
+
+        static void registerConnection(std::nothrow_t, std::weak_ptr<MongoDBConnection> conn) noexcept;
+        static void unregisterConnection(std::nothrow_t, const std::weak_ptr<MongoDBConnection> &conn) noexcept;
+
+        static void cleanup(std::nothrow_t) noexcept;
+
+        void closeAllOpenConnections(std::nothrow_t) noexcept;
+
+        friend class MongoDBConnection;
 
     public:
         /**
@@ -99,11 +83,7 @@ namespace cpp_dbc::MongoDB
         MongoDBDriver(PrivateCtorTag, std::nothrow_t) noexcept;
 
         /**
-         * @brief Destructor
-         *
-         * Note: mongoc_cleanup() is NOT called here because it should only
-         * be called once when the application exits. Use cleanup() explicitly
-         * if needed.
+         * @brief Destructor — closes all open connections and calls cleanup()
          */
         ~MongoDBDriver() override;
 
@@ -150,28 +130,12 @@ namespace cpp_dbc::MongoDB
         bool supportsSharding() const noexcept override;
         std::string getDriverVersion() const noexcept override;
 
-        // MongoDB-specific methods
-
-        /**
-         * @brief Explicitly cleanup the MongoDB C driver library
-         *
-         * This should only be called once when the application is exiting.
-         * After calling this, no more MongoDB operations should be performed.
-         */
-        static void cleanup();
-
-        /**
-         * @brief Check if the MongoDB library has been initialized
-         * @return true if initialized
-         */
-        static bool isInitialized();
-
         /**
          * @brief Validate a MongoDB URI
          * @param uri The URI to validate
          * @return true if the URI is valid
          */
-        static bool validateURI(const std::string &uri);
+        static bool validateURI(const std::string &uri) noexcept;
 
         expected<std::shared_ptr<DocumentDBConnection>, DBException> connectDocument(
             std::nothrow_t,

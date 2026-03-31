@@ -58,7 +58,7 @@ namespace cpp_dbc
          * @brief Get the unique identifier of the document
          * @return The document ID as a string (e.g., MongoDB ObjectId as hex string)
          */
-        #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
         virtual std::string getId() const = 0;
 
         /**
@@ -248,7 +248,7 @@ namespace cpp_dbc
          */
         virtual bool isEmpty() const = 0;
 
-        #endif // __cpp_exceptions
+#endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

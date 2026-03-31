@@ -22,7 +22,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <regex>
@@ -78,7 +77,7 @@ namespace cpp_dbc::Redis
 
         if (reply.get()->type == REDIS_REPLY_STRING)
         {
-            return tryParseDouble(std::string(reply.get()->str, reply.get()->len));
+            return tryParseDouble(std::nothrow, std::string(reply.get()->str, reply.get()->len));
         }
 
         return std::optional<double>(std::nullopt);
@@ -308,13 +307,7 @@ namespace cpp_dbc::Redis
     cpp_dbc::expected<RedisReplyHandle, DBException> RedisDBConnection::executeRaw(
         std::nothrow_t, const std::string &command, const std::vector<std::string> &args) noexcept
     {
-        REDIS_LOCK_GUARD(m_mutex);
-
-        auto connCheck = validateConnection(std::nothrow);
-        if (!connCheck.has_value())
-        {
-            return cpp_dbc::unexpected(connCheck.error());
-        }
+        REDIS_CONNECTION_LOCK_OR_RETURN("TX1GWYJEYRDT", "Redis executeRaw failed");
 
         // Prepare the command and arguments
         std::vector<const char *> argv;
@@ -330,7 +323,7 @@ namespace cpp_dbc::Redis
         }
 
         auto *reply = static_cast<redisReply *>(redisCommandArgv(
-            m_context.get(), static_cast<int>(argv.size()), argv.data(), argvlen.data()));
+            m_conn.get(), static_cast<int>(argv.size()), argv.data(), argvlen.data()));
 
         if (!reply)
         {

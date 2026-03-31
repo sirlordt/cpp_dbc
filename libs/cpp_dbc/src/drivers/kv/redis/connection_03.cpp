@@ -22,7 +22,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <regex>
@@ -43,41 +42,19 @@ namespace cpp_dbc::Redis
 
     cpp_dbc::expected<void, DBException> RedisDBConnection::close(std::nothrow_t) noexcept
     {
-        try
-        {
-            std::scoped_lock lock_(m_mutex);
-            if (m_closed.load(std::memory_order_acquire))
-            {
-                return {};
-            }
-            REDIS_DEBUG("RedisDBConnection::close(nothrow) - Closing connection");
-            m_context.reset();
-            m_closed.store(true, std::memory_order_release);
+        REDIS_CONNECTION_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
 
-            // Unregister from the driver registry so getConnectionAlive() reflects
-            // actual live connections. The owner_less m_self weak_ptr is used for
-            // set lookup — raw 'this' would not match the set's comparator.
-            RedisDBDriver::unregisterConnection(std::nothrow, m_self);
+        REDIS_DEBUG("RedisDBConnection::close(nothrow) - Closing connection");
+        m_conn.reset();
+        m_closed.store(true, std::memory_order_seq_cst);
 
-            REDIS_DEBUG("RedisDBConnection::close(nothrow) - Connection closed");
-            return {};
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("JS1AQU3IVXMG",
-                std::string("Exception in close: ") + ex.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("2G3CVDMF77RN",
-                "Unknown exception in close",
-                system_utils::captureCallStack()));
-        }
+        // Unregister from the driver registry so getConnectionAlive() reflects
+        // actual live connections. The owner_less m_self weak_ptr is used for
+        // set lookup — raw 'this' would not match the set's comparator.
+        RedisDBDriver::unregisterConnection(std::nothrow, m_self);
+
+        REDIS_DEBUG("RedisDBConnection::close(nothrow) - Connection closed");
+        return {};
     }
 
     cpp_dbc::expected<void, DBException> RedisDBConnection::reset(std::nothrow_t) noexcept
@@ -88,7 +65,7 @@ namespace cpp_dbc::Redis
 
     cpp_dbc::expected<bool, DBException> RedisDBConnection::isClosed(std::nothrow_t) const noexcept
     {
-        return m_closed.load(std::memory_order_acquire);
+        return m_closed.load(std::memory_order_seq_cst);
     }
 
     cpp_dbc::expected<void, DBException> RedisDBConnection::returnToPool(std::nothrow_t) noexcept
@@ -112,7 +89,7 @@ namespace cpp_dbc::Redis
     cpp_dbc::expected<void, DBException>
     RedisDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
     {
-        REDIS_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
         m_transactionIsolation = level;
         return {};
     }
@@ -120,14 +97,14 @@ namespace cpp_dbc::Redis
     cpp_dbc::expected<TransactionIsolationLevel, DBException>
     RedisDBConnection::getTransactionIsolation(std::nothrow_t) noexcept
     {
-        REDIS_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
         return m_transactionIsolation;
     }
 
     cpp_dbc::expected<void, DBException>
     RedisDBConnection::prepareForPoolReturn(std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept
     {
-        REDIS_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
         // Redis has no transaction state or open cursors to clean up.
         // Restore isolation level if requested (store-only, no DB command).
         if (isolationLevel != TransactionIsolationLevel::TRANSACTION_NONE)

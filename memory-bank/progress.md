@@ -2,7 +2,40 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. The `DBDriver` base class provides a unified URI API (`acceptURI`, `parseURI`, `buildURI`, `getURIScheme`) and a unified `getDriverVersion()` method. The `DBConnection` base class provides `getServerVersion()` and `getServerInfo()` for runtime introspection of database server versions and metadata across all drivers (2026-03-08). Both MySQL and PostgreSQL drivers now follow the same architecture: connection owns mutex directly, PreparedStatement/ResultSet hold `weak_ptr<Connection>` and acquire the mutex via RAII lock helpers (`MySQLConnectionLock` / `PostgreSQLConnectionLock`), PrivateCtorTag pattern with `m_initFailed`/`m_initError`, `std::atomic<bool> m_closed`, result set registry in connection with `notifyConnClosing()` lifecycle management (2026-03-12). `DBException` is a `final`, `noexcept`-constructible hybrid fixed/dynamic storage class (~120 bytes object size): a 79-byte fixed buffer holds mark + up to 64 chars of message; longer messages spill to a heap-allocated `shared_ptr<char[]>` overflow buffer via `new(std::nothrow)` with graceful degradation (2026-03-13). The connection pool system is fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
+The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. The `DBDriver` base class provides a unified URI API (`acceptURI`, `parseURI`, `buildURI`, `getURIScheme`) and a unified `getDriverVersion()` method. The `DBConnection` base class provides `getServerVersion()` and `getServerInfo()` for runtime introspection of database server versions and metadata across all drivers (2026-03-08). Both MySQL and PostgreSQL drivers now follow the same architecture: connection owns mutex directly, PreparedStatement/ResultSet hold `weak_ptr<Connection>` and acquire the mutex via RAII lock helpers (`MySQLConnectionLock` / `PostgreSQLConnectionLock`), PrivateCtorTag pattern with `m_initFailed`/`m_initError`, `std::atomic<bool> m_closed`, result set registry in connection with `notifyConnClosing()` lifecycle management (2026-03-12). `DBException` is a `final`, `noexcept`-constructible hybrid fixed/dynamic storage class (~120 bytes object size): a 79-byte fixed buffer holds mark + up to 64 chars of message; longer messages spill to a heap-allocated `shared_ptr<char[]>` overflow buffer via `new(std::nothrow)` with graceful degradation (2026-03-13). The MongoDB driver passed a full convention compliance audit (2026-03-21): all connection methods use `MONGODB_CONNECTION_LOCK_OR_RETURN` (checks `m_closed || !m_conn`), child objects enforce parent lifecycle checks on all public methods, `buildIdFilter()` centralizes _id filter construction, `buildURI()` validates database identifiers, and 29 sequential DBException codes were replaced with randomly generated ones. The Redis driver was refactored for full convention compliance (2026-03-29): native handle renamed to `m_conn`, mutex upgraded to `SharedConnMutex m_connMutex`, connection-level macros added (`REDIS_CONNECTION_LOCK_OR_RETURN/THROW/SUCCESS_IF_CLOSED`), `REDIS_DEBUG` rewritten to `snprintf` pattern, `std::from_chars` replaces all `std::stoi`/`std::stoll`/`std::stod`, atomic ordering upgraded to `seq_cst`, dead try/catch removed, `getInstance(std::nothrow)` now checks `m_initFailed`. Post-write correctness fixes applied to MongoDB (2026-03-31): `insertOne`/`insertMany` no longer falsely report failure when `getId()` fails after a committed write, `toVector()`/`getBatch()` consume peeked documents from `hasNext()`, `runCommand()` falls back to `admin` database for server-scoped commands, and Redis `from_chars` parsing rejects partial matches. The connection pool system is fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
+
+### Recent Improvements (2026-03-31 11:51 PDT)
+
+**MongoDB & Redis Drivers — Post-Write Error Handling, Cursor Peek Fix, SonarQube Suppressions:**
+
+1. **MongoDB — Post-Write Safety:** `insertOne`/`insertMany` no longer return `unexpected` when `getId()` fails after a committed write — returns success with empty `insertedId`, preventing duplicate retries
+2. **MongoDB — Cursor Peek Fix:** `toVector()`/`getBatch()` now consume `m_peekedDoc` from a prior `hasNext()` before reading `mongoc_cursor_next`, preventing first document from being dropped
+3. **MongoDB — Server-Scoped Commands:** `runCommand()` falls back to `"admin"` database when `m_databaseName` is empty, enabling `getServerInfo`/`getServerStatus`/`getServerVersion` without `useDatabase()`
+4. **Redis — Strict from_chars Parsing:** `extractInteger` and `tryParseDouble` check `ptr != end` after `from_chars`, rejecting partial parses like `"42junk"`
+5. **SonarQube Suppressions:** `NOSONAR(cpp:S2156)` on `protected:` in Redis/MongoDB connection headers; `NOSONAR(cpp:S6012)` on `std::atomic<bool>` in MongoDB driver; `m_connMutex` moved to in-class initializer (cpp:S3230)
+6. **CHANGELOG Correction:** Atomic ordering bullets merged and corrected
+7. **Impact:** 8 files changed
+
+### Recent Improvements (2026-03-29 09:22 PDT)
+
+**Redis Driver — Convention Compliance Refactoring + MongoDB Additional Fixes:**
+
+1. **Redis — Mutex Architecture:** `m_context` → `m_conn`; `std::mutex m_mutex` → `SharedConnMutex m_connMutex`; redundant `private:` removed; `protected` section added with `getConnectionMutex(std::nothrow_t)`
+2. **Redis — Macros:** `redis_internal.hpp` rewritten with `DB_DRIVER_LOCK_GUARD`, connection-level macros, `REDIS_DEBUG` using `snprintf` + `logWithTimesMillis()`; old `REDIS_LOCK_GUARD` removed
+3. **Redis — String Conversion:** `std::stoll`/`std::stod` → `std::from_chars`; dead try/catch removed
+4. **Redis — Atomic Ordering:** `acquire/release` → `seq_cst`; justified weaker ordering for cleanup coalescing
+5. **Redis — Dead Code Removal:** `close()` and `executeRaw()` use macros; throwing methods delegate to nothrow
+6. **Redis — Factory Bug Fix:** `getInstance(std::nothrow)` now checks `m_initFailed`
+7. **MongoDB — Additional Fixes:** explicit `std::atomic<bool>`; removed unused helpers; added `captureCallStack()` to 15 DBException constructors; `strcmp` → `std::string_view`; helpers moved to `_01.cpp`
+8. **KV Base:** Preprocessor directives at column 0
+9. **Impact:** 18 files changed, +305/-219 lines
+
+### Recent Improvements (2026-03-21 20:54 PDT)
+
+**MongoDB Driver — Convention Compliance Fixes (7 Violations, 54 Occurrences):**
+
+1. Connection lifecycle guards, child-object lifecycle checks, centralized helpers, database identifier validation, lambda Allman style, DBException code randomization
+2. **Impact:** 16 files changed, +138/-179 lines
 
 ### Recent Improvements (2026-03-13 10:40 PDT)
 

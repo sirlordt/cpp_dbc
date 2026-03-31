@@ -88,10 +88,10 @@ namespace cpp_dbc::ScyllaDB
 
         closeAllOpenConnections(std::nothrow);
 
-        cleanup();
+        cleanup(std::nothrow);
     }
 
-    void ScyllaDBDriver::cleanup()
+    void ScyllaDBDriver::cleanup(std::nothrow_t) noexcept
     {
         std::scoped_lock lock(s_initMutex);
         if (!s_initialized.load(std::memory_order_acquire))

@@ -37,31 +37,6 @@ namespace cpp_dbc::MongoDB
     // MongoDBCollection Implementation - Private Nothrow Helpers
     // ============================================================================
 
-    expected<void, DBException> MongoDBCollection::validateConnection(std::nothrow_t) const noexcept
-    {
-        if (m_client.expired())
-        {
-            return unexpected<DBException>(DBException(
-                "F4A0B9C8D3E2",
-                "MongoDB connection has been closed",
-                system_utils::captureCallStack()));
-        }
-        return {};
-    }
-
-    expected<mongoc_client_t *, DBException> MongoDBCollection::getClient(std::nothrow_t) const noexcept
-    {
-        auto client = m_client.lock();
-        if (!client)
-        {
-            return unexpected<DBException>(DBException(
-                "A5B1C0D9E4F3",
-                "MongoDB connection has been closed",
-                system_utils::captureCallStack()));
-        }
-        return client.get();
-    }
-
     expected<BsonHandle, DBException> MongoDBCollection::parseFilter(std::nothrow_t, const std::string &filter) const noexcept
     {
         if (filter.empty())
@@ -71,68 +46,72 @@ namespace cpp_dbc::MongoDB
         return makeBsonHandleFromJson(std::nothrow, filter);
     }
 
-    expected<void, DBException> MongoDBCollection::throwMongoError(std::nothrow_t, const bson_error_t &error, const std::string &operation) const noexcept
+    expected<std::string, DBException> MongoDBCollection::buildIdFilter(std::nothrow_t, const std::string &id) const noexcept
     {
-        return unexpected<DBException>(DBException(
-            "B6C2D1E0F5A4",
-            operation + " failed: " + std::string(error.message),
-            system_utils::captureCallStack()));
+        // Use BSON construction to prevent JSON injection
+        bson_t *filterBson = bson_new();
+        if (!filterBson)
+        {
+            return unexpected<DBException>(DBException(
+                "G37K0HMC7KPG",
+                "Failed to allocate BSON for _id filter",
+                system_utils::captureCallStack()));
+        }
+
+        if (bson_oid_is_valid(id.c_str(), id.length()))
+        {
+            bson_oid_t oid;
+            bson_oid_init_from_string(&oid, id.c_str());
+            BSON_APPEND_OID(filterBson, "_id", &oid);
+        }
+        else
+        {
+            BSON_APPEND_UTF8(filterBson, "_id", id.c_str());
+        }
+
+        size_t length = 0;
+        char *json = bson_as_json(filterBson, &length);
+        bson_destroy(filterBson);
+
+        if (!json)
+        {
+            return unexpected<DBException>(DBException(
+                "YLRSZGOWNANI",
+                "Failed to convert BSON _id filter to JSON",
+                system_utils::captureCallStack()));
+        }
+
+        std::string filter(json, length);
+        bson_free(json);
+
+        return filter;
     }
 
     // ============================================================================
-    // MongoDBCollection Implementation - Nothrow Constructors
+    // MongoDBCollection Implementation - Nothrow Constructor
     // Public for std::make_shared access, but effectively private via PrivateCtorTag.
     // ============================================================================
 
-#if DB_DRIVER_THREAD_SAFE
     MongoDBCollection::MongoDBCollection(MongoDBCollection::PrivateCtorTag,
                                          std::nothrow_t,
-                                         std::weak_ptr<mongoc_client_t> client,
                                          mongoc_collection_t *collection,
                                          const std::string &name,
                                          const std::string &databaseName,
-                                         std::weak_ptr<MongoDBConnection> connection,
-                                         SharedConnMutex connMutex)
-        : m_client(std::move(client)),
-          m_connection(std::move(connection)),
-          m_collection(collection),
-          m_name(name),
-          m_databaseName(databaseName),
-          m_connMutex(std::move(connMutex))
-    {
-        MONGODB_DEBUG("MongoDBCollection::constructor(nothrow) - Creating collection: " << name << " in database: " << databaseName);
-        if (!m_collection)
-        {
-            m_initFailed = true;
-            m_initError = DBException("Q1U86NUBRYWR", "Cannot create collection from null pointer", system_utils::captureCallStack());
-            return;
-        }
-        MONGODB_DEBUG("MongoDBCollection::constructor(nothrow) - Done");
-    }
-#else
-    MongoDBCollection::MongoDBCollection(MongoDBCollection::PrivateCtorTag,
-                                         std::nothrow_t,
-                                         std::weak_ptr<mongoc_client_t> client,
-                                         mongoc_collection_t *collection,
-                                         const std::string &name,
-                                         const std::string &databaseName,
-                                         std::weak_ptr<MongoDBConnection> connection)
-        : m_client(std::move(client)),
-          m_connection(std::move(connection)),
+                                         std::weak_ptr<MongoDBConnection> connection) noexcept
+        : m_connection(std::move(connection)),
           m_collection(collection),
           m_name(name),
           m_databaseName(databaseName)
     {
-        MONGODB_DEBUG("MongoDBCollection::constructor(nothrow) - Creating collection: " << name << " in database: " << databaseName);
+        MONGODB_DEBUG("MongoDBCollection::constructor(nothrow) - Creating collection: %s in database: %s", name.c_str(), databaseName.c_str());
         if (!m_collection)
         {
             m_initFailed = true;
-            m_initError = DBException("Q1U86NUBRYWR", "Cannot create collection from null pointer", system_utils::captureCallStack());
+            m_initError = std::make_unique<DBException>("Q1U86NUBRYWR", "Cannot create collection from null pointer", system_utils::captureCallStack());
             return;
         }
         MONGODB_DEBUG("MongoDBCollection::constructor(nothrow) - Done");
     }
-#endif
 
     // ============================================================================
     // MongoDBCollection Implementation - THROWING API (all wrappers)
@@ -415,41 +394,35 @@ namespace cpp_dbc::MongoDB
 
     expected<std::string, DBException> MongoDBCollection::getName(std::nothrow_t) const noexcept
     {
+        MONGODB_STMT_LOCK_OR_RETURN("BAMRP5GEYR9Z", "Collection closed");
         return m_name;
     }
 
     expected<std::string, DBException> MongoDBCollection::getNamespace(std::nothrow_t) const noexcept
     {
+        MONGODB_STMT_LOCK_OR_RETURN("IU165L6GVQ7B", "Collection closed");
         return m_databaseName + "." + m_name;
     }
 
     expected<uint64_t, DBException> MongoDBCollection::estimatedDocumentCount(std::nothrow_t) noexcept
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        auto connResult = validateConnection(std::nothrow);
-        if (!connResult.has_value())
-        {
-            return unexpected<DBException>(connResult.error());
-        }
+        MONGODB_STMT_LOCK_OR_RETURN("BHHU315FL6KV", "Collection closed");
         bson_error_t error;
         int64_t count = mongoc_collection_estimated_document_count(
             m_collection.get(), nullptr, nullptr, nullptr, &error);
         if (count < 0)
         {
-            auto errResult = throwMongoError(std::nothrow, error, "estimatedDocumentCount");
-            return unexpected<DBException>(errResult.error());
+            return unexpected<DBException>(DBException(
+                "YHJKG3KVW200",
+                std::string("estimatedDocumentCount failed: ") + error.message,
+                system_utils::captureCallStack()));
         }
         return static_cast<uint64_t>(count);
     }
 
     expected<uint64_t, DBException> MongoDBCollection::countDocuments(std::nothrow_t, const std::string &filter) noexcept
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        auto connResult = validateConnection(std::nothrow);
-        if (!connResult.has_value())
-        {
-            return unexpected<DBException>(connResult.error());
-        }
+        MONGODB_STMT_LOCK_OR_RETURN("L9K2CI3G8NTP", "Collection closed");
         auto filterResult = parseFilter(std::nothrow, filter);
         if (!filterResult.has_value())
         {
@@ -460,8 +433,10 @@ namespace cpp_dbc::MongoDB
             m_collection.get(), filterResult.value().get(), nullptr, nullptr, nullptr, &error);
         if (count < 0)
         {
-            auto errResult = throwMongoError(std::nothrow, error, "countDocuments");
-            return unexpected<DBException>(errResult.error());
+            return unexpected<DBException>(DBException(
+                "NGMDRFUOIJY9",
+                std::string("countDocuments failed: ") + error.message,
+                system_utils::captureCallStack()));
         }
         return static_cast<uint64_t>(count);
     }

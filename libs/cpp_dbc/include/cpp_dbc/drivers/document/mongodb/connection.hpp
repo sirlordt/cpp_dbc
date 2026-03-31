@@ -45,7 +45,6 @@ namespace cpp_dbc::MongoDB
      */
     class MongoDBConnection final : public DocumentDBConnection, public std::enable_shared_from_this<MongoDBConnection>
     {
-    private:
         /**
          * @brief Private tag for the passkey idiom — enables std::make_shared
          * from static factory methods while keeping the constructor
@@ -56,10 +55,14 @@ namespace cpp_dbc::MongoDB
             explicit PrivateCtorTag() = default;
         };
 
+        friend class MongoDBConnectionLock;
+        friend class MongoDBCollection;
+        friend class MongoDBCursor;
+
         /**
-         * @brief The MongoDB client (shared_ptr for weak_ptr support)
+         * @brief The MongoDB client (native connection handle)
          */
-        MongoClientHandle m_client;
+        MongoClientHandle m_conn;
 
         /**
          * @brief The current database name
@@ -118,34 +121,30 @@ namespace cpp_dbc::MongoDB
         SharedConnMutex m_connMutex{std::make_shared<std::recursive_mutex>()};
 #endif
 
-        /**
-         * @brief Validates that the connection is open
-         * @return unexpected(DBException) if the connection is closed
-         */
-        expected<void, DBException> validateConnection(std::nothrow_t) const noexcept;
-
-        /**
-         * @brief Generate a unique session ID
-         * @return A unique session ID string
-         */
-        std::string generateSessionId();
-
-        /**
-         * @brief Flag indicating constructor initialization failed
-         *
-         * Set by the private nothrow constructor when connection setup fails.
-         * Inspected by the delegating public throwing constructor and by create(nothrow_t).
-         */
-        bool m_initFailed{false};
-
-        /**
-         * @brief Error captured when constructor initialization fails
-         *
-         * Holds the DBException that would have been thrown, for deferred delivery.
-         * Only allocated on the failure path (~256 bytes saved per successful instance).
-         */
-        std::unique_ptr<DBException> m_initError{nullptr};
         TransactionIsolationLevel m_transactionIsolation{TransactionIsolationLevel::TRANSACTION_NONE};
+
+        // ── Construction state ────────────────────────────────────────────────
+        bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
+
+        // ── Private helpers ───────────────────────────────────────────────────
+        expected<void, DBException> validateConnection(std::nothrow_t) const noexcept;
+        std::string generateSessionId(std::nothrow_t) noexcept;
+        std::weak_ptr<mongoc_client_t> getClientWeak(std::nothrow_t) const noexcept;
+        MongoClientHandle getClient(std::nothrow_t) const noexcept;
+        void setPooled(std::nothrow_t, bool pooled) noexcept;
+
+    protected: // NOSONAR(cpp:S2156) — required by convention: getConnectionMutex accessed via friend class, prepareForPoolReturn/prepareForBorrow are protected overrides
+#if DB_DRIVER_THREAD_SAFE
+        std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
+        {
+            return *m_connMutex;
+        }
+#endif
+
+        expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
+            TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
+        expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
 
     public:
         /**
@@ -162,7 +161,7 @@ namespace cpp_dbc::MongoDB
                           const std::string &uri,
                           const std::string &user,
                           const std::string &password,
-                          const std::map<std::string, std::string> &options);
+                          const std::map<std::string, std::string> &options) noexcept;
 
         ~MongoDBConnection() override;
 
@@ -231,28 +230,6 @@ namespace cpp_dbc::MongoDB
         bool supportsTransactions() override;
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
-
-        // MongoDB-specific methods
-
-        /**
-         * @brief Get the underlying MongoDB client
-         * @return Weak pointer to the client
-         * @note Use this to pass to child objects (collections, cursors)
-         */
-        std::weak_ptr<mongoc_client_t> getClientWeak() const;
-
-        /**
-         * @brief Get the MongoDB client (shared_ptr)
-         * @return Shared pointer to the client
-         * @note Use with caution - prefer getClientWeak() for child objects
-         */
-        MongoClientHandle getClient() const;
-
-        /**
-         * @brief Set whether this connection is pooled
-         * @param pooled true if the connection is managed by a pool
-         */
-        void setPooled(bool pooled);
 
 #endif // __cpp_exceptions
 
@@ -354,11 +331,6 @@ namespace cpp_dbc::MongoDB
             setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
         expected<TransactionIsolationLevel, DBException>
             getTransactionIsolation(std::nothrow_t) noexcept override;
-
-    protected:
-        expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
-            TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
-        expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
     };
 
 } // namespace cpp_dbc::MongoDB

@@ -111,6 +111,30 @@ namespace cpp_dbc::MongoDB
     }
 
     /**
+     * @brief Custom deleter for char** returned by mongoc string-array APIs
+     *
+     * Ensures bson_strfreev() is called automatically when the unique_ptr
+     * goes out of scope, preventing memory leaks from APIs like
+     * mongoc_client_get_database_names_with_opts() and
+     * mongoc_database_get_collection_names_with_opts().
+     */
+    struct BsonStrArrayDeleter
+    {
+        void operator()(char **strv) const noexcept
+        {
+            if (strv)
+            {
+                bson_strfreev(strv);
+            }
+        }
+    };
+
+    /**
+     * @brief Type alias for smart pointer managing char** string arrays from mongoc
+     */
+    using BsonStrArray = std::unique_ptr<char *, BsonStrArrayDeleter>;
+
+    /**
      * @brief Custom deleter for mongoc_client_t* to use with shared_ptr
      *
      * Ensures mongoc_client_destroy() is called automatically.

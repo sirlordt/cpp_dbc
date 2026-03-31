@@ -12,6 +12,12 @@
 
 ## Completed Tasks
 
+- Redis Driver — Convention Compliance Refactoring + MongoDB Additional Fixes (2026-03-29):
+  - Redis: `m_context` → `m_conn`; `std::mutex` → `SharedConnMutex m_connMutex`; connection-level macros added; `REDIS_DEBUG` rewritten to `snprintf`; `std::from_chars` replaces `std::stoll`/`std::stod`; atomic ordering to `seq_cst`; dead try/catch removed; `getInstance(std::nothrow)` checks `m_initFailed`
+  - MongoDB: explicit `std::atomic<bool>`; removed unused helpers; added `captureCallStack()` to 15 DBExceptions; `strcmp` → `std::string_view`
+  - KV base: preprocessor directives at column 0
+  - 18 files changed, +305/-219 lines
+
 - Build System — CMake Cache Invalidation Fix, Lock Macro Unification Across Drivers (2026-03-12):
   - CMake cache invalidation fixed: redundant `build_test_cpp_dbc.sh` call removed, `BACKWARD_HAS_DW` aligned to `OFF`, `CMAKE_CXX_FLAGS` built dynamically, `EXAMPLES`/`BENCHMARKS` no longer hardcoded in test script
   - `--mc-combo-01/02` now include benchmarks

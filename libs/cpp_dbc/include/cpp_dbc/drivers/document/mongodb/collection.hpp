@@ -6,8 +6,9 @@
 
 namespace cpp_dbc::MongoDB
 {
-    class MongoDBConnection; // Forward declaration
-    class MongoDBCursor;     // Forward declaration
+    class MongoDBConnection;     // Forward declaration
+    class MongoDBConnectionLock; // Forward declaration
+    class MongoDBCursor;         // Forward declaration
 
     // ============================================================================
     // MongoDBCollection - Implements DocumentDBCollection
@@ -31,7 +32,6 @@ namespace cpp_dbc::MongoDB
      */
     class MongoDBCollection final : public DocumentDBCollection
     {
-    private:
         /**
          * @brief Private tag for the passkey idiom — enables std::make_shared
          * from static factory methods while keeping the constructor
@@ -42,16 +42,14 @@ namespace cpp_dbc::MongoDB
             explicit PrivateCtorTag() = default;
         };
 
-        /**
-         * @brief Weak reference to the MongoDB client
-         */
-        std::weak_ptr<mongoc_client_t> m_client;
+        friend class MongoDBConnectionLock;
 
         /**
          * @brief Weak pointer to the connection for cursor registration
          *
          * Using weak_ptr prevents circular references and allows safe
-         * detection of connection closure.
+         * detection of connection closure. Also used by MongoDBConnectionLock
+         * RAII helper to acquire the connection mutex.
          */
         std::weak_ptr<MongoDBConnection> m_connection;
 
@@ -70,83 +68,31 @@ namespace cpp_dbc::MongoDB
          */
         std::string m_databaseName;
 
-#if DB_DRIVER_THREAD_SAFE
         /**
-         * @brief Shared mutex from the parent connection
+         * @brief Tracks whether this collection has been closed
          *
-         * This mutex is shared with MongoDBConnection and MongoDBCursor
-         * to synchronize all operations that access the same mongoc_client_t.
-         * This prevents race conditions when multiple threads use different
-         * objects (connection, collection, cursor) that all route through
-         * the same underlying client handle.
+         * Used by MongoDBConnectionLock for double-checked locking.
          */
-        SharedConnMutex m_connMutex;
-#endif
+        mutable std::atomic<bool> m_closed{false};
 
-        /**
-         * @brief Validates that the connection is still valid
-         * @return unexpected(DBException) if the connection has been closed
-         */
-        expected<void, DBException> validateConnection(std::nothrow_t) const noexcept;
-
-        /**
-         * @brief Helper to get the client pointer safely
-         * @return The client pointer, or unexpected(DBException) if the connection has been closed
-         */
-        expected<mongoc_client_t *, DBException> getClient(std::nothrow_t) const noexcept;
-
-        /**
-         * @brief Helper to parse a JSON filter string to BSON
-         * @param filter The JSON filter string
-         * @return expected containing the BsonHandle, or DBException if the JSON is invalid
-         */
-        expected<BsonHandle, DBException> parseFilter(std::nothrow_t, const std::string &filter) const noexcept;
-
-        /**
-         * @brief Helper to handle MongoDB errors
-         * @param error The bson_error_t from MongoDB
-         * @param operation The operation that failed
-         * @return unexpected(DBException) with the error details
-         */
-        expected<void, DBException> throwMongoError(std::nothrow_t, const bson_error_t &error, const std::string &operation) const noexcept;
-
-        /**
-         * @brief Flag indicating constructor initialization failed
-         *
-         * Set by the private nothrow constructor when the collection pointer is null.
-         * Inspected by the delegating public throwing constructor and by create(nothrow_t).
-         */
+        // ── Construction state ────────────────────────────────────────────────
         bool m_initFailed{false};
+        std::unique_ptr<DBException> m_initError{nullptr};
 
-        /**
-         * @brief Error captured when constructor initialization fails
-         *
-         * Holds the DBException that would have been thrown, for deferred delivery.
-         */
-        DBException m_initError{"6ZO43XQ0VJA4", "", {}};
+        // ── Private helpers ───────────────────────────────────────────────────
+        expected<BsonHandle, DBException> parseFilter(std::nothrow_t, const std::string &filter) const noexcept;
+        expected<std::string, DBException> buildIdFilter(std::nothrow_t, const std::string &id) const noexcept;
 
     public:
-        // Nothrow constructors: contain all initialization logic.
+        // Nothrow constructor: contains all initialization logic.
         // Public for std::make_shared access, but effectively private via PrivateCtorTag.
         // Errors are stored in m_initFailed/m_initError for the factory to inspect.
-#if DB_DRIVER_THREAD_SAFE
         MongoDBCollection(PrivateCtorTag,
                           std::nothrow_t,
-                          std::weak_ptr<mongoc_client_t> client,
                           mongoc_collection_t *collection,
                           const std::string &name,
                           const std::string &databaseName,
-                          std::weak_ptr<MongoDBConnection> connection,
-                          SharedConnMutex connMutex);
-#else
-        MongoDBCollection(PrivateCtorTag,
-                          std::nothrow_t,
-                          std::weak_ptr<mongoc_client_t> client,
-                          mongoc_collection_t *collection,
-                          const std::string &name,
-                          const std::string &databaseName,
-                          std::weak_ptr<MongoDBConnection> connection = std::weak_ptr<MongoDBConnection>());
-#endif
+                          std::weak_ptr<MongoDBConnection> connection) noexcept;
 
         ~MongoDBCollection() override = default;
 
@@ -162,38 +108,19 @@ namespace cpp_dbc::MongoDB
 
 #ifdef __cpp_exceptions
 
-#if DB_DRIVER_THREAD_SAFE
         static std::shared_ptr<MongoDBCollection>
-        create(std::weak_ptr<mongoc_client_t> client,
-               mongoc_collection_t *collection,
+        create(mongoc_collection_t *collection,
                const std::string &name,
                const std::string &databaseName,
-               std::weak_ptr<MongoDBConnection> connection,
-               SharedConnMutex connMutex)
+               std::weak_ptr<MongoDBConnection> connection)
         {
-            auto r = create(std::nothrow, std::move(client), collection, name, databaseName, std::move(connection), std::move(connMutex));
+            auto r = create(std::nothrow, collection, name, databaseName, std::move(connection));
             if (!r.has_value())
             {
                 throw r.error();
             }
             return r.value();
         }
-#else
-        static std::shared_ptr<MongoDBCollection>
-        create(std::weak_ptr<mongoc_client_t> client,
-               mongoc_collection_t *collection,
-               const std::string &name,
-               const std::string &databaseName,
-               std::weak_ptr<MongoDBConnection> connection = std::weak_ptr<MongoDBConnection>())
-        {
-            auto r = create(std::nothrow, std::move(client), collection, name, databaseName, std::move(connection));
-            if (!r.has_value())
-            {
-                throw r.error();
-            }
-            return r.value();
-        }
-#endif
 
         std::string getName() const override;
         std::string getNamespace() const override;
@@ -260,46 +187,23 @@ namespace cpp_dbc::MongoDB
         // NOTHROW API — always available, compiles with -fno-exceptions
         // ====================================================================
 
-#if DB_DRIVER_THREAD_SAFE
         static cpp_dbc::expected<std::shared_ptr<MongoDBCollection>, DBException>
         create(std::nothrow_t,
-               std::weak_ptr<mongoc_client_t> client,
                mongoc_collection_t *collection,
                const std::string &name,
                const std::string &databaseName,
-               std::weak_ptr<MongoDBConnection> connection,
-               SharedConnMutex connMutex) noexcept
+               std::weak_ptr<MongoDBConnection> connection) noexcept
         {
             // The nothrow constructor stores init errors in m_initFailed/m_initError
             // rather than throwing, so no try/catch is needed here.
             auto obj = std::make_shared<MongoDBCollection>(
-                PrivateCtorTag{}, std::nothrow, std::move(client), collection, name, databaseName, std::move(connection), std::move(connMutex));
+                PrivateCtorTag{}, std::nothrow, collection, name, databaseName, std::move(connection));
             if (obj->m_initFailed)
             {
-                return cpp_dbc::unexpected(obj->m_initError);
+                return cpp_dbc::unexpected(std::move(*obj->m_initError));
             }
             return obj;
         }
-#else
-        static cpp_dbc::expected<std::shared_ptr<MongoDBCollection>, DBException>
-        create(std::nothrow_t,
-               std::weak_ptr<mongoc_client_t> client,
-               mongoc_collection_t *collection,
-               const std::string &name,
-               const std::string &databaseName,
-               std::weak_ptr<MongoDBConnection> connection = std::weak_ptr<MongoDBConnection>()) noexcept
-        {
-            // The nothrow constructor stores init errors in m_initFailed/m_initError
-            // rather than throwing, so no try/catch is needed here.
-            auto obj = std::make_shared<MongoDBCollection>(
-                PrivateCtorTag{}, std::nothrow, std::move(client), collection, name, databaseName, std::move(connection));
-            if (obj->m_initFailed)
-            {
-                return cpp_dbc::unexpected(obj->m_initError);
-            }
-            return obj;
-        }
-#endif
 
         expected<std::string, DBException> getName(std::nothrow_t) const noexcept override;
         expected<std::string, DBException> getNamespace(std::nothrow_t) const noexcept override;

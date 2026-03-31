@@ -33,7 +33,7 @@ namespace cpp_dbc::MongoDB
 
     expected<std::string, DBException> MongoDBDocument::getId(std::nothrow_t) const noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         auto v = validateDocument(std::nothrow);
         if (!v.has_value())
@@ -73,7 +73,7 @@ namespace cpp_dbc::MongoDB
 
     expected<void, DBException> MongoDBDocument::setId(std::nothrow_t, const std::string &id) noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         auto v = validateDocument(std::nothrow);
         if (!v.has_value())
@@ -122,7 +122,7 @@ namespace cpp_dbc::MongoDB
 
     expected<std::string, DBException> MongoDBDocument::toJson(std::nothrow_t) const noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         auto v = validateDocument(std::nothrow);
         if (!v.has_value())
@@ -147,7 +147,7 @@ namespace cpp_dbc::MongoDB
 
     expected<std::string, DBException> MongoDBDocument::toJsonPretty(std::nothrow_t) const noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         auto v = validateDocument(std::nothrow);
         if (!v.has_value())
@@ -172,7 +172,7 @@ namespace cpp_dbc::MongoDB
 
     expected<void, DBException> MongoDBDocument::fromJson(std::nothrow_t, const std::string &json) noexcept
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(m_mutex);
 
         bson_error_t error;
         bson_t *bson = bson_new_from_json(

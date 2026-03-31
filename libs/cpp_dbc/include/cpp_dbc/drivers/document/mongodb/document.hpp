@@ -34,7 +34,6 @@ namespace cpp_dbc::MongoDB
      */
     class MongoDBDocument final : public DocumentDBData
     {
-    private:
         /**
          * @brief Private tag for the passkey idiom — enables std::make_shared
          * from static factory methods while keeping the constructor
@@ -77,22 +76,20 @@ namespace cpp_dbc::MongoDB
 
         /**
          * @brief Error captured when constructor initialization fails
+         *
+         * Only allocated on the failure path (~256 bytes saved per successful instance).
          */
-        DBException m_initError{"QBIW9CD0D9T6", "", {}};
+        std::unique_ptr<DBException> m_initError{nullptr};
 
-        /**
-         * @brief Helper to navigate to a nested field using dot notation (nothrow)
-         * @param fieldPath The field path (e.g., "address.city")
-         * @param outIter Output iterator positioned at the field
-         * @return expected containing true if found, or DBException on error
-         */
+        // ── Private helpers ───────────────────────────────────────────────────
         expected<bool, DBException> navigateToField(std::nothrow_t, const std::string &fieldPath, bson_iter_t &outIter) const noexcept;
-
-        /**
-         * @brief Validates that the BSON document is valid (nothrow)
-         * @return expected<void> or DBException if m_bson is nullptr
-         */
         expected<void, DBException> validateDocument(std::nothrow_t) const noexcept;
+
+        // ── Internal accessors (used by friend classes) ─────────────────────
+        const bson_t *getBson(std::nothrow_t) const noexcept;
+        bson_t *getBsonMutable(std::nothrow_t) noexcept;
+
+        friend class MongoDBCollection;
 
     public:
         // Nothrow constructors: contain all initialization logic.
@@ -201,6 +198,38 @@ namespace cpp_dbc::MongoDB
         void clear() override;
         bool isEmpty() const override;
 
+        static std::shared_ptr<MongoDBDocument> copyFrom(const bson_t *bson)
+        {
+            auto r = copyFrom(std::nothrow, bson);
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
+            return r.value();
+        }
+
+        std::vector<std::shared_ptr<DocumentDBData>> getDocumentArray(
+            const std::string &fieldPath, bool strict) const
+        {
+            auto r = getDocumentArray(std::nothrow, fieldPath, strict);
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
+            return r.value();
+        }
+
+        std::vector<std::string> getStringArray(
+            const std::string &fieldPath, bool strict) const
+        {
+            auto r = getStringArray(std::nothrow, fieldPath, strict);
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
+            return r.value();
+        }
+
 #endif // __cpp_exceptions
 
         // ====================================================================
@@ -289,21 +318,6 @@ namespace cpp_dbc::MongoDB
         expected<void, DBException> clear(std::nothrow_t) noexcept override;
         expected<bool, DBException> isEmpty(std::nothrow_t) const noexcept override;
 
-        // MongoDB-specific methods — nothrow variants
-
-        /**
-         * @brief Get the underlying BSON document (const)
-         * @return Const pointer to the BSON document
-         * @note The returned pointer is valid only while this object exists
-         */
-        const bson_t *getBson() const;
-
-        /**
-         * @brief Get the underlying BSON document (non-const)
-         * @return Pointer to the BSON document
-         * @note Use with caution - modifications may invalidate cached data
-         */
-        bson_t *getBsonMutable();
     };
 
 } // namespace cpp_dbc::MongoDB

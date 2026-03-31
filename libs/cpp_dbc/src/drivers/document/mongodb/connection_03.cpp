@@ -39,65 +39,46 @@ namespace cpp_dbc::MongoDB
 
     expected<void, DBException> MongoDBConnection::close(std::nothrow_t) noexcept
     {
-        try
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+        if (m_closed.load(std::memory_order_seq_cst))
         {
-            MONGODB_LOCK_GUARD(*m_connMutex);
-
-            if (m_closed.load(std::memory_order_acquire))
-            {
-                return {};
-            }
-
-            MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Closing connection");
-
-            // Close all active cursors BEFORE destroying the client
-            MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Closing " << m_activeCursors.size() << " active cursors");
-            for (const auto &weakCursor : m_activeCursors)
-            {
-                if (auto cursor = weakCursor.lock())
-                {
-                    auto r = cursor->close(std::nothrow);
-                    if (!r.has_value())
-                    {
-                        MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Error ignored during cursor cleanup: " << r.error().what());
-                    }
-                }
-            }
-            m_activeCursors.clear();
-
-            // End all active sessions
-            m_sessions.clear();
-
-            // Clear active collections
-            m_activeCollections.clear();
-
-            m_client.reset();
-            m_closed.store(true, std::memory_order_release);
-
-            // Unregister from the driver registry so getConnectionAlive() reflects
-            // actual live connections. The owner_less m_self weak_ptr is used for
-            // set lookup — raw 'this' would not match the set's comparator.
-            MongoDBDriver::unregisterConnection(std::nothrow, m_self);
-
-            MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Connection closed");
             return {};
         }
-        catch (const DBException &ex)
+
+        MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Closing connection");
+
+        // Close all active cursors BEFORE destroying the client
+        MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Closing %zu active cursors", m_activeCursors.size());
+        for (const auto &weakCursor : m_activeCursors)
         {
-            return cpp_dbc::unexpected(ex);
+            if (auto cursor = weakCursor.lock())
+            {
+                auto r = cursor->close(std::nothrow);
+                if (!r.has_value())
+                {
+                    MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Error ignored during cursor cleanup: %s", r.error().what());
+                }
+            }
         }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("7DGLQ7C4QX4R",
-                                                   std::string("Exception in close: ") + ex.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("VS3RNHCXXBMC",
-                                                   "Unknown exception in close",
-                                                   system_utils::captureCallStack()));
-        }
+        m_activeCursors.clear();
+
+        // End all active sessions
+        m_sessions.clear();
+
+        // Clear active collections
+        m_activeCollections.clear();
+
+        m_conn.reset();
+        m_closed.store(true, std::memory_order_seq_cst);
+
+        // Unregister from the driver registry so getConnectionAlive() reflects
+        // actual live connections. The owner_less m_self weak_ptr is used for
+        // set lookup — raw 'this' would not match the set's comparator.
+        MongoDBDriver::unregisterConnection(std::nothrow, m_self);
+
+        MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Connection closed");
+        return {};
     }
 
     expected<void, DBException> MongoDBConnection::reset(std::nothrow_t) noexcept
@@ -107,7 +88,7 @@ namespace cpp_dbc::MongoDB
 
     expected<bool, DBException> MongoDBConnection::isClosed(std::nothrow_t) const noexcept
     {
-        return m_closed.load(std::memory_order_acquire);
+        return m_closed.load(std::memory_order_seq_cst);
     }
 
     expected<void, DBException> MongoDBConnection::returnToPool(std::nothrow_t) noexcept
