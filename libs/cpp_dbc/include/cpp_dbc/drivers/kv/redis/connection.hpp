@@ -59,7 +59,7 @@ namespace cpp_dbc::Redis
         std::string m_uri;
         int m_dbIndex{0};
         std::atomic<bool> m_closed{false};
-        SharedConnMutex m_connMutex;
+        SharedConnMutex m_connMutex{std::make_shared<std::recursive_mutex>()};
         // Stored by the create() factory so close() can unregister from the driver registry
         // using owner_less comparison (raw 'this' won't work with the set's comparator).
         std::weak_ptr<RedisDBConnection> m_self;
@@ -114,7 +114,7 @@ namespace cpp_dbc::Redis
     // PROTECTED SECTION
     // ══════════════════════════════════════════════════════════════════════════
 
-    protected:
+    protected: // NOSONAR(cpp:S2156) — required by convention: getConnectionMutex accessed via friend class, prepareForPoolReturn/prepareForBorrow are protected overrides
         std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
         {
             return *m_connMutex;

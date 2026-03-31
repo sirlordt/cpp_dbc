@@ -106,7 +106,7 @@ namespace cpp_dbc::Redis
         const std::string &user,
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
-        : m_uri(uri), m_connMutex(std::make_shared<std::recursive_mutex>())
+        : m_uri(uri)
     {
         REDIS_DEBUG("RedisDBConnection::constructor(nothrow) - Connecting to: %s", uri.c_str());
 
@@ -347,10 +347,9 @@ namespace cpp_dbc::Redis
         else if (reply.get()->type == REDIS_REPLY_STRING)
         {
             int64_t value = 0;
-            auto [ptr, ec] = std::from_chars(reply.get()->str,
-                                             reply.get()->str + reply.get()->len,
-                                             value);
-            if (ec != std::errc{})
+            const char *end = reply.get()->str + reply.get()->len;
+            auto [ptr, ec] = std::from_chars(reply.get()->str, end, value);
+            if (ec != std::errc{} || ptr != end)
             {
                 REDIS_DEBUG("RedisDBConnection::extractInteger - Failed to parse integer from string");
                 return int64_t{0};
@@ -402,8 +401,9 @@ namespace cpp_dbc::Redis
     std::optional<double> RedisDBConnection::tryParseDouble(std::nothrow_t, const std::string &str) noexcept
     {
         double value = 0.0;
-        auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), value);
-        if (ec != std::errc{})
+        const char *end = str.data() + str.size();
+        auto [ptr, ec] = std::from_chars(str.data(), end, value);
+        if (ec != std::errc{} || ptr != end)
         {
             REDIS_DEBUG("RedisDBConnection::tryParseDouble - Failed to parse: %s", str.c_str());
             return std::nullopt;

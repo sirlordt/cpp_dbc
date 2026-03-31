@@ -134,7 +134,7 @@ namespace cpp_dbc::MongoDB
         MongoClientHandle getClient(std::nothrow_t) const noexcept;
         void setPooled(std::nothrow_t, bool pooled) noexcept;
 
-    protected:
+    protected: // NOSONAR(cpp:S2156) — required by convention: getConnectionMutex accessed via friend class, prepareForPoolReturn/prepareForBorrow are protected overrides
 #if DB_DRIVER_THREAD_SAFE
         std::recursive_mutex &getConnectionMutex(std::nothrow_t) noexcept
         {

@@ -249,6 +249,14 @@ namespace cpp_dbc::MongoDB
         }
 
         std::vector<std::shared_ptr<DocumentDBData>> result;
+
+        // Consume any document buffered by a preceding hasNext() call
+        if (m_peekedDoc)
+        {
+            result.push_back(std::static_pointer_cast<DocumentDBData>(m_peekedDoc));
+            m_peekedDoc.reset();
+        }
+
         const bson_t *doc = nullptr;
         while (mongoc_cursor_next(m_cursor.get(), &doc))
         {
@@ -293,9 +301,18 @@ namespace cpp_dbc::MongoDB
         std::vector<std::shared_ptr<DocumentDBData>> result;
         result.reserve(batchSize);
 
-        const bson_t *doc = nullptr;
         size_t count = 0;
 
+        // Consume any document buffered by a preceding hasNext() call
+        if (m_peekedDoc && count < batchSize)
+        {
+            result.push_back(std::static_pointer_cast<DocumentDBData>(m_peekedDoc));
+            m_peekedDoc.reset();
+            count++;
+            m_position++;
+        }
+
+        const bson_t *doc = nullptr;
         while (count < batchSize && mongoc_cursor_next(m_cursor.get(), &doc))
         {
             bson_t *docCopy = bson_copy(doc);

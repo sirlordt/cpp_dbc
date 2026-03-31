@@ -91,14 +91,19 @@ namespace cpp_dbc::MongoDB
 
         DocumentInsertResult result;
         result.acknowledged = true;
-        auto idResult = mongoDoc->getId(std::nothrow);
-        if (!idResult.has_value())
-        {
-            bson_destroy(&reply);
-            return unexpected<DBException>(idResult.error());
-        }
-        result.insertedId = idResult.value();
         result.insertedCount = 1;
+        auto idResult = mongoDoc->getId(std::nothrow);
+        if (idResult.has_value())
+        {
+            result.insertedId = idResult.value();
+        }
+        else
+        {
+            // Insert already committed — do not convert a post-write id extraction
+            // failure into an overall error (caller might retry, causing duplicates).
+            MONGODB_DEBUG("MongoDBCollection::insertOne - getId failed after successful insert: %s",
+                          idResult.error().what_s().data());
+        }
 
         bson_destroy(&reply);
         return result;
@@ -194,12 +199,18 @@ namespace cpp_dbc::MongoDB
                 if (mongoDoc)
                 {
                     auto idResult = mongoDoc->getId(std::nothrow);
-                    if (!idResult.has_value())
+                    if (idResult.has_value())
                     {
-                        bson_destroy(&reply);
-                        return unexpected<DBException>(idResult.error());
+                        result.insertedIds.push_back(idResult.value());
                     }
-                    result.insertedIds.push_back(idResult.value());
+                    else
+                    {
+                        // Batch already committed — do not convert a post-write id extraction
+                        // failure into an overall error (caller might retry, causing duplicates).
+                        MONGODB_DEBUG("MongoDBCollection::insertMany - getId failed after successful insert: %s",
+                                      idResult.error().what_s().data());
+                        result.insertedIds.emplace_back();
+                    }
                 }
             }
         }

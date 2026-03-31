@@ -66,14 +66,6 @@ namespace cpp_dbc::MongoDB
     {
         MONGODB_CONNECTION_LOCK_OR_RETURN("44TYH8VEG840", "Cannot run command");
 
-        if (m_databaseName.empty())
-        {
-            return unexpected<DBException>(DBException(
-                "2Q3BVH2J9131",
-                "No database selected. Call useDatabase() first",
-                system_utils::captureCallStack()));
-        }
-
         auto cmdBsonResult = makeBsonHandleFromJson(std::nothrow, command);
         if (!cmdBsonResult.has_value())
         {
@@ -81,7 +73,10 @@ namespace cpp_dbc::MongoDB
         }
         BsonHandle cmdBson = std::move(cmdBsonResult.value());
 
-        auto *rawDb = mongoc_client_get_database(m_conn.get(), m_databaseName.c_str());
+        // Use selected database, or fall back to "admin" for server-scoped
+        // commands (buildInfo, serverStatus, etc.) when no database is selected.
+        const char *dbName = m_databaseName.empty() ? "admin" : m_databaseName.c_str();
+        auto *rawDb = mongoc_client_get_database(m_conn.get(), dbName);
         if (!rawDb)
         {
             return cpp_dbc::unexpected(DBException(

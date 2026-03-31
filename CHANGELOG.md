@@ -1,6 +1,44 @@
 # Changelog
 
-## 2026-03-29 09:22:00 PDT [Current]
+## 2026-03-31 11:51:00 PDT [Current]
+
+### MongoDB & Redis Drivers — Post-Write Error Handling, Cursor Peek Fix, SonarQube Suppressions
+
+Bug fixes and correctness improvements across MongoDB and Redis drivers. MongoDB insert operations no longer falsely report failure when post-write `getId()` fails, cursor `toVector()`/`getBatch()` no longer drop peeked documents, and `runCommand()` now works without a selected database. Redis `from_chars` parsing now rejects partial matches. SonarQube false positives suppressed with NOSONAR annotations. Total: **8 files changed**.
+
+#### MongoDB Driver — Post-Write Error Handling
+
+- **`collection_02.cpp`**: `insertOne(std::nothrow)` no longer returns `unexpected` when `getId()` fails after a successful `mongoc_collection_insert_one` — returns success with empty `insertedId` and logs via `MONGODB_DEBUG`; prevents callers from retrying an already-committed write
+- **`collection_02.cpp`**: `insertMany(std::nothrow)` same fix — `getId()` failure in the per-document loop no longer aborts the entire batch result; pushes empty string into `insertedIds` to preserve index alignment
+
+#### MongoDB Driver — Cursor Peek Consumption
+
+- **`cursor_02.cpp`**: `toVector(std::nothrow)` now consumes `m_peekedDoc` (buffered by a preceding `hasNext()`) before reading from `mongoc_cursor_next`, preventing the first document from being silently dropped
+- **`cursor_02.cpp`**: `getBatch(std::nothrow)` same fix — consumes `m_peekedDoc` first, increments `count` and `m_position` accordingly
+
+#### MongoDB Driver — Server-Scoped Command Support
+
+- **`connection_05.cpp`**: `runCommand(std::nothrow)` no longer rejects commands when `m_databaseName` is empty — falls back to `"admin"` database for server-scoped commands (`buildInfo`, `serverStatus`, etc.), matching the pattern already used by `ping()`
+
+#### Redis Driver — Strict from_chars Parsing
+
+- **`connection_01.cpp`**: `extractInteger` now checks `ptr != end` after `std::from_chars`, rejecting partial parses like `"42junk"` that were previously accepted
+- **`connection_01.cpp`**: `tryParseDouble` same fix — rejects trailing non-numeric characters
+
+#### SonarQube Suppressions and In-Class Initializer
+
+- **`connection.hpp` (Redis)**: `m_connMutex` moved from constructor initializer list to in-class initializer (`SharedConnMutex m_connMutex{std::make_shared<std::recursive_mutex>()}`) — resolves `cpp:S3230`
+- **`connection.hpp` (Redis)**: `protected:` annotated with `NOSONAR(cpp:S2156)` — `getConnectionMutex` must be protected per convention (accessed via `friend class`)
+- **`connection.hpp` (MongoDB)**: `protected:` annotated with `NOSONAR(cpp:S2156)` — same reason
+- **`driver.hpp` (MongoDB)**: `std::atomic<bool>` annotated with `NOSONAR(cpp:S6012)` — explicit template parameter preferred per convention over CTAD
+
+#### CHANGELOG Correction
+
+- **`CHANGELOG.md`**: Merged and corrected the atomic ordering bullets — no longer claims "All" atomics in `driver_01.cpp` were moved to `seq_cst`; explicitly notes that cleanup coalescing atomics retain `acq_rel`/`release`
+
+---
+
+## 2026-03-29 09:22:00 PDT
 
 ### Redis Driver — Convention Compliance Refactoring + MongoDB Driver Additional Fixes
 
@@ -19,8 +57,7 @@ This release brings the Redis driver into full convention compliance and applies
 #### Redis Driver — String-to-Number Conversion and Atomic Ordering
 
 - **`connection_01.cpp`**: `std::stoll` (connect_timeout parsing) replaced with `std::from_chars`; dead try/catch around timeout parsing removed; `extractInteger` uses `std::from_chars` instead of `std::stoll`; `tryParseDouble` now takes `std::nothrow_t` and uses `std::from_chars` instead of `std::stod`
-- **`connection_01.cpp`, `connection_03.cpp`, `driver_01.cpp`**: All `memory_order_acquire`/`memory_order_release` replaced with `memory_order_seq_cst`; driver `memory_order_relaxed` replaced with `memory_order_seq_cst`
-- **`driver_01.cpp`**: Justified weaker ordering (`acq_rel`/`release`) retained for cleanup coalescing with mandatory comments explaining profiling evidence and correctness proof
+- **`connection_01.cpp`, `connection_03.cpp`, `driver_01.cpp`**: All Redis atomics in `connection_01.cpp` and `connection_03.cpp` were moved to `memory_order_seq_cst`; `driver_01.cpp` general atomics (`s_initialized`, `m_closed`) also moved to `memory_order_seq_cst`, but cleanup coalescing atomics (`s_cleanupPending`) intentionally retain weaker orderings (`acq_rel`/`release`) with mandatory comments explaining profiling evidence and correctness proof
 
 #### Redis Driver — Dead try/catch Removal and Macro Usage
 

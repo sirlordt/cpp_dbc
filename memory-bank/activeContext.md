@@ -37,7 +37,16 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Redis Driver — Convention Compliance Refactoring + MongoDB Additional Fixes** (2026-03-29 09:22 PDT):
+1. **MongoDB & Redis — Post-Write Error Handling, Cursor Peek Fix, SonarQube Suppressions** (2026-03-31 11:51 PDT):
+   - **MongoDB post-write safety:** `insertOne`/`insertMany` no longer return `unexpected` when `getId()` fails after a successful write — returns success with empty `insertedId` instead, preventing duplicate retries
+   - **MongoDB cursor peek fix:** `toVector()`/`getBatch()` now consume `m_peekedDoc` from a prior `hasNext()` before reading `mongoc_cursor_next`, preventing first document from being silently dropped
+   - **MongoDB server-scoped commands:** `runCommand()` falls back to `"admin"` database when `m_databaseName` is empty, enabling `getServerInfo`/`getServerStatus`/`getServerVersion` without `useDatabase()`
+   - **Redis strict parsing:** `extractInteger` and `tryParseDouble` now check `ptr != end` after `from_chars`, rejecting partial parses like `"42junk"`
+   - **SonarQube suppressions:** `NOSONAR(cpp:S2156)` on `protected:` in Redis/MongoDB connection headers; `NOSONAR(cpp:S6012)` on `std::atomic<bool>` in MongoDB driver; `m_connMutex` moved to in-class initializer (cpp:S3230)
+   - **CHANGELOG correction:** Atomic ordering bullets merged and corrected
+   - 8 files changed
+
+2. **Redis Driver — Convention Compliance Refactoring + MongoDB Additional Fixes** (2026-03-29 09:22 PDT):
    - **Redis mutex architecture:** `m_context` renamed to `m_conn`; `std::mutex m_mutex` replaced with `SharedConnMutex m_connMutex` (shared_ptr<recursive_mutex>); redundant `private:` tag removed; new `protected` section with `getConnectionMutex(std::nothrow_t)`
    - **Redis macros:** `redis_internal.hpp` rewritten — `DB_DRIVER_LOCK_GUARD`, `REDIS_CONNECTION_LOCK_OR_RETURN/THROW/SUCCESS_IF_CLOSED` macros added; old `REDIS_LOCK_GUARD` removed; `REDIS_DEBUG` rewritten from `std::cout <<` to `snprintf` + `logWithTimesMillis()`
    - **Redis string-to-number:** `std::stoll`/`std::stod` replaced with `std::from_chars`; dead try/catch removed
